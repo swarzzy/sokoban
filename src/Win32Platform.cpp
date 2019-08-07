@@ -887,7 +887,7 @@ namespace AB
 
 		app->state.runningTime = AB::GetCurrentRawTime(app);
 
-		_tcscpy(app->windowTitle, TEXT("Aberration"));
+		_tcscpy(app->windowTitle, TEXT("Sokoban"));
 		app->state.windowWidth = 1280;
 		app->state.windowHeight = 720;
 

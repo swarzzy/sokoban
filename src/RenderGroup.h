@@ -20,7 +20,7 @@ namespace soko
 
 	enum RenderCommandType : byte
 	{
-		RENDER_COMMAND_DRAW_MESH = 0,
+		RENDER_COMMAND_DRAW_MESH = 1,
 		RENDER_COMMAND_SET_DIR_LIGHT,
 		RENDER_COMMAND_DRAW_LINE_BEGIN,
 		RENDER_COMMAND_PUSH_LINE_VERTEX,
@@ -33,11 +33,12 @@ namespace soko
 		DRAW_MESH_FLAG_WIREFRAME
 	};
 
+	struct Mesh;
+
 	struct RenderCommandDrawMesh
 	{
-		m3x3 transform;
-		i32 meshHandle;
-		b32 highlight;
+		m4x4 transform;
+		Mesh* mesh;
 		u32 flags;
 	};
 

@@ -32,6 +32,38 @@ void main()
 	fragColor = vec4(f_Color, 1.0f);
 })";
 
+	static const char* MESH_VERTEX_SOURCE = R"(
+#version 330 core
+layout (location = 0) in vec3 attr_Pos;
+layout (location = 1) in vec3 attr_Normal;
+layout (location = 2) in vec2 attr_UV;
+
+uniform mat4 u_ViewProjMatrix;
+uniform mat4 u_ModelMatrix;
+uniform mat3 u_NormalMatrix;
+
+out vec3 vout_Normal;
+out vec2 vout_UV;
+
+void main()
+{
+    gl_Position = u_ViewProjMatrix * u_ModelMatrix * vec4(attr_Pos, 1.0f);
+	vout_UV = attr_UV;
+	vout_Normal = u_NormalMatrix * attr_Normal;
+})";
+
+	static const char* MESH_FRAG_SOURCE = R"(
+#version 330 core
+out vec4 out_Color;
+
+in vec3 vout_Normal;
+in vec2 vout_UV;
+
+void main()
+{
+	out_Color = vec4(1.0f, 0.0f, 1.0f, 1.0f);
+})";
+
 	static GLuint
 	_CreateProgram(const char* vertexSource, const char* fragmentSource) 
 	{
@@ -135,6 +167,21 @@ void main()
 		return result;
 	}
 
+	static MeshProgram
+	_CreateMeshProgram()
+	{
+		MeshProgram result = {};
+		auto handle = _CreateProgram(MESH_VERTEX_SOURCE, MESH_FRAG_SOURCE);
+		if (handle)
+		{
+			result.handle = handle;
+			result.viewProjLocation = glGetUniformLocation(handle, "u_ViewProjMatrix");
+			result.modelMtxLocation = glGetUniformLocation(handle, "u_ModelMatrix");
+			result.normalMtxLocation = glGetUniformLocation(handle, "u_NormalMatrix");
+		}
+		return result;
+	}
+
 	Renderer*
 	AllocAndInitRenderer(AB::MemoryArena* arena)
 	{
@@ -145,6 +192,9 @@ void main()
 		renderer->lineProgram = _CreateLineProgram();
 		SOKO_ASSERT(renderer->lineProgram.handle, "");
 
+		renderer->meshProgram = _CreateMeshProgram();
+		SOKO_ASSERT(renderer->meshProgram.handle, "");
+
 		GLuint lineBufferHandle;
 		glGenBuffers(1, &lineBufferHandle);
 		SOKO_ASSERT(lineBufferHandle, "");
@@ -154,75 +204,155 @@ void main()
 	}
 
 	void
-	RendererBeginFrame(Renderer* renderer, v2 viewportDim)
+	RendererLoadMesh(Mesh* mesh)
 	{
-		glViewport(0, 0, (GLsizei)viewportDim.x, (GLsizei)viewportDim.y);
-		glClearColor(renderer->clearColor.r,
-					 renderer->clearColor.g,
-					 renderer->clearColor.b,
-					 renderer->clearColor.a);
-		
-		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-	}
-	
-	void
-	FlushRenderGroup(Renderer* renderer, RenderGroup* group)
-	{
-		if (group->commandQueueAt)
+		GLuint vboHandle;
+		GLuint iboHandle;
+		glGenBuffers(1, &vboHandle);
+		glGenBuffers(1, &iboHandle);
+		if (vboHandle && iboHandle)
 		{
-			CameraConfig* camera = &group->cameraConfig;
-			m4x4 lookAt = LookAtDirRH(camera->position, camera->front, V3(0.0f, 1.0f, 0.0f));
-			m4x4 projection = PerspectiveOpenGLRH(camera->fovDeg, camera->aspectRatio,
-												  camera->nearPlane, camera->farPlane);
-			m4x4 viewProj = MulM4M4(&projection, &lookAt);
+			// NOTE: Using SOA layout of buffer
+			u64 verticesSize = mesh->vertexCount * sizeof(v3);
+			u64 normalsSize= mesh->normalCount * sizeof(v3);
+			u64 uvsSize = mesh->uvCount * sizeof(v2);
+			u64 indexBufferSize = mesh->indexCount * sizeof(u32);
+			u64 vertexBufferSize = verticesSize + normalsSize + uvsSize;
 
-			bool firstLineShaderInvocation = true;
+			glBindBuffer(GL_ARRAY_BUFFER, vboHandle);
 
-			for (u32 i = 0; i < group->commandQueueAt; i++)
+			glBufferData(GL_ARRAY_BUFFER, vertexBufferSize, 0, GL_STATIC_DRAW);
+			glBufferSubData(GL_ARRAY_BUFFER, 0, verticesSize, (void*)mesh->vertices);
+			glBufferSubData(GL_ARRAY_BUFFER, verticesSize, normalsSize, (void*)mesh->normals);
+			glBufferSubData(GL_ARRAY_BUFFER, verticesSize + normalsSize, uvsSize, (void*)mesh->uvs);
+			
+			glBindBuffer(GL_ARRAY_BUFFER, 0);
+
+			glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, iboHandle);
+			
+			glBufferData(GL_ELEMENT_ARRAY_BUFFER, indexBufferSize, (void*)mesh->indices, GL_STATIC_DRAW);
+
+			glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
+			
+			mesh->gpuVertexBufferHandle = vboHandle;
+			mesh->gpuIndexBufferHandle = iboHandle;
+		}
+	}
+
+void
+RendererBeginFrame(Renderer* renderer, v2 viewportDim)
+{
+	glViewport(0, 0, (GLsizei)viewportDim.x, (GLsizei)viewportDim.y);
+	glClearColor(renderer->clearColor.r,
+				 renderer->clearColor.g,
+				 renderer->clearColor.b,
+				 renderer->clearColor.a);
+		
+	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+}
+	
+void
+FlushRenderGroup(Renderer* renderer, RenderGroup* group)
+{
+	if (group->commandQueueAt)
+	{
+		CameraConfig* camera = &group->cameraConfig;
+		m4x4 lookAt = LookAtDirRH(camera->position, camera->front, V3(0.0f, 1.0f, 0.0f));
+		m4x4 projection = PerspectiveOpenGLRH(camera->fovDeg, camera->aspectRatio,
+											  camera->nearPlane, camera->farPlane);
+		m4x4 viewProj = MulM4M4(&projection, &lookAt);
+
+		bool firstLineShaderInvocation = true;
+		bool firstMeshShaderInvocation = true;
+
+		for (u32 i = 0; i < group->commandQueueAt; i++)
+		{
+			CommandQueueEntry* command = group->commandQueue + i;
+
+			switch (command->type)
 			{
-				CommandQueueEntry* command = group->commandQueue + i;
+			case RENDER_COMMAND_DRAW_LINE_BEGIN:
+			{
+				auto* data = (RenderCommandDrawLineBegin*)(group->renderBuffer + command->rbOffset);
 
-				switch (command->type)
+				glUseProgram(renderer->lineProgram.handle);
+				// TODO: Store info about command queue contents and set uniforms at the beginning
+				if (firstLineShaderInvocation)
 				{
-				case RENDER_COMMAND_DRAW_LINE_BEGIN:
-				{
-					auto* data = (RenderCommandDrawLineBegin*)(group->renderBuffer + command->rbOffset);
-
-					glUseProgram(renderer->lineProgram.handle);
-					// TODO: Store info about command queue contents and set uniforms at the beginning
-					if (firstLineShaderInvocation)
-					{
-						firstLineShaderInvocation = false;
-						glUniformMatrix4fv(renderer->lineProgram.viewProjLocation,
-										   1, GL_FALSE, viewProj.data);
-					}
-					
-					glUniform3fv(renderer->lineProgram.colorLocation,
-								 1, data->color.data);
-
-					u64 bufferSize = command->instanceCount * sizeof(RenderCommandPushLineVertex);
-					void* instanceData = (void*)((byte*)data + sizeof(RenderCommandDrawLineBegin));
-
-					glBindBuffer(GL_ARRAY_BUFFER, renderer->lineBufferHandle);
-					glBufferData(GL_ARRAY_BUFFER, bufferSize, instanceData, GL_STATIC_DRAW);
-
-					glEnableVertexAttribArray(0);
-					glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(v3), 0);
-
-					glLineWidth(data->width);
-
-					GLuint lineType;
-					switch (data->type)
-					{
-					case RENDER_LINE_TYPE_SEGMENTS: { lineType = GL_LINES; } break;
-					case RENDER_LINE_TYPE_STRIP: { lineType = GL_LINE_STRIP; } break;
-					default: {lineType = GL_LINES; SOKO_ASSERT(false, ""); } break;
-					}
-
-					glDrawArrays(lineType, 0, command->instanceCount);
-
-				} break;
+					firstLineShaderInvocation = false;
+					glUniformMatrix4fv(renderer->lineProgram.viewProjLocation,
+									   1, GL_FALSE, viewProj.data);
 				}
+					
+				glUniform3fv(renderer->lineProgram.colorLocation,
+							 1, data->color.data);
+
+				u64 bufferSize = command->instanceCount * sizeof(RenderCommandPushLineVertex);
+				void* instanceData = (void*)((byte*)data + sizeof(RenderCommandDrawLineBegin));
+
+				glBindBuffer(GL_ARRAY_BUFFER, renderer->lineBufferHandle);
+				glBufferData(GL_ARRAY_BUFFER, bufferSize, instanceData, GL_STATIC_DRAW);
+
+				glEnableVertexAttribArray(0);
+				glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(v3), 0);
+
+				glLineWidth(data->width);
+
+				GLuint lineType;
+				switch (data->type)
+				{
+				case RENDER_LINE_TYPE_SEGMENTS: { lineType = GL_LINES; } break;
+				case RENDER_LINE_TYPE_STRIP: { lineType = GL_LINE_STRIP; } break;
+				default: {lineType = GL_LINES; SOKO_ASSERT(false, ""); } break;
+				}
+
+				glDrawArrays(lineType, 0, command->instanceCount);
+
+			} break;
+			case RENDER_COMMAND_DRAW_MESH:
+			{
+				auto* data = (RenderCommandDrawMesh*)(group->renderBuffer + command->rbOffset);
+
+				glUseProgram(renderer->meshProgram.handle);
+
+				if (firstMeshShaderInvocation)
+				{
+					firstMeshShaderInvocation = false;
+					glUniformMatrix4fv(renderer->meshProgram.viewProjLocation,
+									   1, GL_FALSE, viewProj.data);
+				}
+
+				glUniformMatrix4fv(renderer->meshProgram.modelMtxLocation,
+								   1, GL_FALSE, data->transform.data);
+				
+				m4x4 invModel = data->transform;
+				bool inverted = Inverse(&invModel);
+				SOKO_ASSERT(inverted, "");
+				m3x3 normalMatrix = M3x3(&Transpose(&invModel));
+
+				glUniformMatrix3fv(renderer->meshProgram.modelMtxLocation,
+								   1, GL_FALSE, normalMatrix.data);
+
+				auto* mesh = data->mesh;
+
+				glBindBuffer(GL_ARRAY_BUFFER, mesh->gpuVertexBufferHandle);
+				
+				glEnableVertexAttribArray(0);
+				glEnableVertexAttribArray(1);
+				glEnableVertexAttribArray(2);
+
+				u64 normalsOffset = mesh->vertexCount * sizeof(v3);
+				u64 uvsOffset = normalsOffset + mesh->normalCount * sizeof(v3);
+				
+				glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 0, 0);
+				glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 0, (void*)normalsOffset);
+				glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, 0, (void*)uvsOffset);
+
+				glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, mesh->gpuIndexBufferHandle);
+
+				glDrawElements(GL_TRIANGLES, mesh->indexCount, GL_UNSIGNED_INT, 0);
+			} break;
+			}
 			}
 			RenderGroupResetQueue(group);
 			

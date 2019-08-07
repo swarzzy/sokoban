@@ -19,7 +19,7 @@ namespace soko
 
 		group->renderBufferSize = rbSize;
 		group->renderBufferFree = rbSize;
-		group->renderBuffer = PUSH_SIZE(arena, byte, rbSize);
+		group->renderBuffer = (byte*)PUSH_SIZE(arena, rbSize);
 		SOKO_ASSERT(group->renderBuffer, "Failed to allocate render buffer");
 		
 		group->renderBufferAt = group->renderBuffer;
@@ -98,7 +98,7 @@ namespace soko
 
 			uptr offset = (uptr)renderDataPtr - (uptr)group->renderBuffer;
 			command.rbOffset = AB::SafeCastUptrU32(offset);
-			_PushCommandQueueEntry(group, &command);	
+			_PushCommandQueueEntry(group, &command);
 		}
 		break;
 		

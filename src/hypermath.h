@@ -816,79 +816,79 @@ namespace hpm
 		return result;
 	}
 
-	inline Matrix3 M3x3(Matrix4 m)
+	inline Matrix3 M3x3(Matrix4* m)
 	{
 		Matrix3 result;
 		
-		result._11 = m._11;
-		result._12 = m._12;
-		result._13 = m._13;
-		result._21 = m._21;
-		result._22 = m._22;
-		result._23 = m._23;
-		result._31 = m._31;
-		result._32 = m._32;
-		result._33 = m._33;
+		result._11 = m->_11;
+		result._12 = m->_12;
+		result._13 = m->_13;
+		result._21 = m->_21;
+		result._22 = m->_22;
+		result._23 = m->_23;
+		result._31 = m->_31;
+		result._32 = m->_32;
+		result._33 = m->_33;
 		
 		return result;
 	}
 
-	inline Matrix4 M4x4(Matrix3 m)
+	inline Matrix4 M4x4(Matrix3* m)
 	{
 		Matrix4 result = {};
 
 		
-		result._11 = m._11;
-		result._12 = m._12;
-		result._13 = m._13;
-		result._21 = m._21;
-		result._22 = m._22;
-		result._23 = m._23;
-		result._31 = m._31;
-		result._32 = m._32;
-		result._33 = m._33;
+		result._11 = m->_11;
+		result._12 = m->_12;
+		result._13 = m->_13;
+		result._21 = m->_21;
+		result._22 = m->_22;
+		result._23 = m->_23;
+		result._31 = m->_31;
+		result._32 = m->_32;
+		result._33 = m->_33;
 		result._44 = 1.0f;
 
 		return result;
 	}
 	
-	inline Matrix3 Transpose(Matrix3 matrix)
+	inline Matrix3 Transpose(const Matrix3* matrix)
 	{
 		Matrix3 result;
 		
-		result._11 = matrix._11;
-		result._12 = matrix._21;
-		result._13 = matrix._31;
-		result._21 = matrix._12;
-		result._22 = matrix._22;
-		result._23 = matrix._32;
-		result._31 = matrix._13;
-		result._32 = matrix._23;
-		result._33 = matrix._33;
+		result._11 = matrix->_11;
+		result._12 = matrix->_21;
+		result._13 = matrix->_31;
+		result._21 = matrix->_12;
+		result._22 = matrix->_22;
+		result._23 = matrix->_32;
+		result._31 = matrix->_13;
+		result._32 = matrix->_23;
+		result._33 = matrix->_33;
 
 		return result;
 	}
 	
-	inline Matrix4 Transpose(Matrix4 matrix)
+	inline Matrix4 Transpose(const Matrix4* matrix)
 	{
 		Matrix4 result;
 		
-		result._11 = matrix._11;
-		result._12 = matrix._21;
-		result._13 = matrix._31;
-		result._14 = matrix._41;
-		result._21 = matrix._12;
-		result._22 = matrix._22;
-		result._23 = matrix._32;
-		result._24 = matrix._42;
-		result._31 = matrix._13;
-		result._32 = matrix._23;
-		result._33 = matrix._33;
-		result._34 = matrix._43;
-		result._41 = matrix._14;
-		result._42 = matrix._24;
-		result._43 = matrix._34;
-		result._44 = matrix._44;
+		result._11 = matrix->_11;
+		result._12 = matrix->_21;
+		result._13 = matrix->_31;
+		result._14 = matrix->_41;
+		result._21 = matrix->_12;
+		result._22 = matrix->_22;
+		result._23 = matrix->_32;
+		result._24 = matrix->_42;
+		result._31 = matrix->_13;
+		result._32 = matrix->_23;
+		result._33 = matrix->_33;
+		result._34 = matrix->_43;
+		result._41 = matrix->_14;
+		result._42 = matrix->_24;
+		result._43 = matrix->_34;
+		result._44 = matrix->_44;
 		
 		return result;
 	}

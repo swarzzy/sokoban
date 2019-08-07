@@ -1,7 +1,9 @@
 @echo off
 set ExecArg=exec
 if "%1" == "%ExecArg%" (
-start "Sokoban" build\Soko.exe
+pushd build
+start "Sokoban" Soko.exe
+popd
 goto end
 )
 
@@ -45,7 +47,9 @@ rem echo Renderer was built successfully
 if "%GameResult%" == "0" (
 echo Game was built successfully
 if "%1" == "%BuildArg%" (
-start "Sokoban" build\Soko.exe
+pushd build
+start "Sokoban" Soko.exe
+popd
 )
 ) else (
 echo Game build error

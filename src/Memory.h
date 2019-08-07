@@ -14,7 +14,7 @@
 
 #define PUSH_STRUCT(arena, type) (type*)PushSize(arena, sizeof(type), alignof(type))
 #define PUSH_ARRAY(arena, type, count) (type*)PushSize(arena, sizeof(type) * count, alignof(type))
-#define PUSH_SIZE(arena, type, size) (type*)PushSize(arena, size, alignof(type))
+#define PUSH_SIZE(arena, size) PushSize(arena, size, 0)
 namespace AB
 {
 

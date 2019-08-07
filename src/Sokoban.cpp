@@ -4,6 +4,8 @@
 #include "Sokoban.h"
 #include "Memory.h"
 
+#include "FileFormats.h"
+
 namespace soko
 {
 	struct GameState;
@@ -122,6 +124,7 @@ namespace soko
 #define glNamedBufferData GL_FUNCTION(glNamedBufferData)
 #define glMapNamedBuffer GL_FUNCTION(glMapNamedBuffer)
 #define glUnmapNamedBuffer GL_FUNCTION(glUnmapNamedBuffer)
+#define glUniformMatrix3fv GL_FUNCTION(glUniformMatrix3fv)
 
 // TODO:: Asserts without message
 // NOTE: Panic macro should not be stripped in release build
@@ -166,10 +169,11 @@ GameUpdateAndRender(AB::MemoryArena* arena,
 }
 namespace soko
 {
+		
 	void GameInit(AB::MemoryArena* arena,
 				  AB::PlatformState* platform)
 	{
-		_GlobalStaticStorage = PUSH_SIZE(arena, StaticStorage, KILOBYTES(1));
+		_GlobalStaticStorage = (StaticStorage*)PUSH_SIZE(arena, KILOBYTES(1));
 		SOKO_ASSERT(_GlobalStaticStorage == arena->begin, 0);
 		_GlobalPlatform = platform;
 
@@ -195,6 +199,32 @@ namespace soko
 		RenderGroupSetCamera(gameState->renderGroup, &camera);
 
 		gameState->renderer->clearColor = V4(0.8f, 0.8f, 0.8f, 1.0f);
+
+		u32 fileSize = DebugGetFileSize(L"../res/manipulator.aab");
+		void* fileData = PUSH_SIZE(arena, fileSize);
+		u32 result = DebugReadFile(fileData, fileSize, L"../res/manipulator.aab");
+		// NOTE: Strict aliasing
+		auto header = (AABMeshHeader*)fileData;
+
+		Mesh mesh = {};
+		mesh.vertexCount = header->verticesCount;
+		mesh.normalCount = header->normalsCount;
+		mesh.uvCount = header->uvsCount;
+		mesh.indexCount = header->indicesCount;
+
+		mesh.vertices = (v3*)((byte*)fileData + header->verticesOffset);
+		mesh.normals = (v3*)((byte*)fileData + header->normalsOffset);
+		mesh.uvs = (v2*)((byte*)fileData + header->uvsOffset);
+		mesh.indices = (u32*)((byte*)fileData + header->indicesOffset);
+
+		RendererLoadMesh(&mesh);
+		SOKO_ASSERT(mesh.gpuVertexBufferHandle, "");
+		SOKO_ASSERT(mesh.gpuIndexBufferHandle, "");
+
+		SOKO_ASSERT(header->magicValue == AAB_FILE_MAGIC_VALUE, "");
+		PrintString("File size : %u32\n", fileSize);
+
+		gameState->mesh = mesh;
 	}
 	
 	void GameReload(AB::MemoryArena* arena, AB::PlatformState* platform)
@@ -214,6 +244,11 @@ namespace soko
 
 		RendererBeginFrame(gameState->renderer, V2(1280.0f, 800.0f));
 		DrawStraightLine(gameState->renderGroup, V3(0.0f, 0.0f, -1.0f), V3(16.0f, 9.0f, -1.0f), V3(1.0f, 0.0f, 0.0f), 4.0f);
+		RenderCommandDrawMesh command = {};
+		command.transform = Scaling(V3(0.8f));
+		command.mesh = &gameState->mesh;
+		RenderGroupPushCommand(gameState->renderGroup, RENDER_COMMAND_DRAW_MESH,
+							   (void*)&command);
 		FlushRenderGroup(gameState->renderer, gameState->renderGroup);
 	}
 }
