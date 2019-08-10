@@ -12,7 +12,7 @@ namespace soko
 	struct DirectionalLight
 	{
 		v3 from;
-		v3 target;
+		v3 dir;
 		v3 ambient;
 		v3 diffuse;
 		v3 specular;
@@ -34,11 +34,13 @@ namespace soko
 	};
 
 	struct Mesh;
+	struct Material;
 
 	struct RenderCommandDrawMesh
 	{
 		m4x4 transform;
 		Mesh* mesh;
+		Material* material;
 		u32 flags;
 	};
 

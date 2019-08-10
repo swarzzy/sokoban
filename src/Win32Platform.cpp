@@ -345,10 +345,24 @@ namespace AB
 				
 				app->state.input.mouseFrameOffsetY =
 					normalizedMouseY - app->state.input.mouseY;
-				
-				app->state.input.mouseX = normalizedMouseX;
-				app->state.input.mouseY = normalizedMouseY;
-				
+
+				switch (app->inputMode)
+				{
+				case INPUT_MODE_FREE_CURSOR:
+				{
+					app->state.input.mouseX = normalizedMouseX;
+					app->state.input.mouseY = normalizedMouseY;					
+				} break;
+				case INPUT_MODE_CAPTURE_CURSOR:
+				{
+					u32 x = app->state.windowWidth / 2;
+					u32 y = app->state.windowHeight / 2;
+					app->state.input.mouseX = x / (f32)app->state.windowWidth;
+					app->state.input.mouseY = y / (f32)app->state.windowHeight;
+					WindowSetMousePosition(app, x, y);
+				} break;
+				default: { AB_CORE_ASSERT(false); } break;
+				}
 			} break;
 
 			case WM_LBUTTONDOWN:
@@ -881,6 +895,13 @@ namespace AB
 		return (MemoryArena*)mem;
 	}
 
+	static Application* GlobalApplication = nullptr;
+
+	void SetInputMode(InputMode mode)
+	{
+		GlobalApplication->inputMode = mode;
+	}
+
 	void AppRun(Application* app)
 	{
 		AB_CORE_INFO("Aberration engine");
@@ -907,6 +928,7 @@ namespace AB
 		app->state.functions.PrintString = PrintString;
 		app->state.functions.Log = Log;
 		app->state.functions.LogAssert = LogAssert;
+		app->state.functions.SetInputMode = SetInputMode;
 		
 		SetupDirs(&app->gameLib);
 		
@@ -1002,6 +1024,7 @@ int main()
 	AB::MemoryArena* arena = AB::AllocateArena(AB::MAIN_ARENA_SIZE);
 	AB::Application* app = nullptr;
 	app = (AB::Application*)AB::PushSize(arena, sizeof(AB::Application), 0);
+	AB::GlobalApplication = app;
 	AB_CORE_ASSERT(app, "Failed to allocate Application.");
 	app->mainArena = arena;
 	AB::AppRun(app);

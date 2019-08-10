@@ -2,7 +2,6 @@
 #include "Platform.h"
 #include "Renderer.h"
 
-
 namespace soko
 {
 	struct Mesh
@@ -19,10 +18,34 @@ namespace soko
 		u32 gpuIndexBufferHandle;
 	};
 
+	struct Material
+	{
+		Texture diffMap;
+		Texture specMap;
+	};
+
+	struct Camera
+	{
+		CameraConfig conf;
+		v3 targetPosition;
+		v3 targetFront;
+		b32 cursorCaptured;
+		f32 moveSpeed;
+		f32 moveSmooth;
+		f32 rotateSpeed;
+		f32 rotateSmooth;
+		f32 pitch;
+		f32 yaw;
+	};
+
 	struct GameState
 	{
+		AB::MemoryArena* memoryArena;
+		AB::MemoryArena* tempArena;
 		Renderer* renderer;
 		RenderGroup* renderGroup;
+		Camera camera;
 		Mesh mesh;
+		Material material;
 	};
 }

@@ -223,6 +223,14 @@ namespace AB
 	typedef void(PrintStringFn)(const char* fmt, ...);
 	typedef void(LogFn)(LogLevel level, const char* file, const char* func, u32 line, const char* fmt, ...);
 	typedef void(LogAssertFn)(LogLevel level, const char* file, const char* func, u32 line, const char* assertStr, const char* fmt, ...);
+
+	enum InputMode
+	{
+		INPUT_MODE_FREE_CURSOR = 0,
+		INPUT_MODE_CAPTURE_CURSOR
+	};
+	
+	typedef void(SetInputModeFn)(InputMode);
 	
 	enum GameUpdateAndRenderReason
 	{
@@ -238,6 +246,7 @@ namespace AB
 		PrintStringFn* PrintString;
 		LogFn* Log;
 		LogAssertFn* LogAssert;
+		SetInputModeFn* SetInputMode;
 	};
 
 	struct KeyState

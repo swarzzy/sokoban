@@ -59,6 +59,8 @@ namespace AB
 		LibraryData gameLib;
 
 		LARGE_INTEGER performanceFrequency;
+
+		InputMode inputMode;
 	};
 
 	static const i64 UPDATE_INTERVAL = 16000;

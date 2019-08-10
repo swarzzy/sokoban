@@ -1,5 +1,7 @@
 #define HYPERMATH_IMPL
 #include "hypermath.h"
+#undef HYPERMATH_IMPL
+
 
 #include "Sokoban.h"
 #include "Memory.h"
@@ -12,7 +14,6 @@ namespace soko
 	
 	struct StaticStorage
 	{
-		AB::MemoryArena* tempArena;
 		GameState* gameState;
 	};
 
@@ -25,6 +26,24 @@ namespace soko
 	void GameRender(AB::MemoryArena* arena,  AB::PlatformState* platform);
 
 }
+
+#define STB_IMAGE_IMPLEMENTATION
+#define STBI_ONLY_PNG
+#define STBI_MALLOC(sz) PUSH_SIZE(soko::_GlobalStaticStorage->gameState->tempArena, sz)
+#define STBI_FREE(sz)
+inline void* ReallocForSTBI(void* p, uptr oldSize, uptr newSize)
+{
+	void* newMem = PUSH_SIZE(soko::_GlobalStaticStorage->gameState->tempArena, newSize);
+	COPY_BYTES(oldSize, newMem, p);
+	return newMem;
+}
+// NOTE: Realloc not used in PNG loading code
+#define STBI_REALLOC(p, newsz)
+#define STBI_REALLOC_SIZED(p, oldsz, newsz) ReallocForSTBI(p, oldsz, newsz)
+#include "stb/stb_image.h"
+
+#undef STB_IMAGE_IMPLEMENTATION
+
 	
 // NOTE: Actual frame time
 #define GlobalAbsDeltaTime soko::_GlobalPlatform->absDeltaTime
@@ -46,6 +65,7 @@ namespace soko
 #define PrintString SOKO_PLATFORM_FUNCTION(PrintString)
 #define Log SOKO_PLATFORM_FUNCTION(Log)
 #define LogAssert SOKO_PLATFORM_FUNCTION(LogAssert)
+#define SetInputMode SOKO_PLATFORM_FUNCTION(SetInputMode)
 
 #define GL_FUNCTION(func) _GlobalPlatform->gl->_##func
 
@@ -170,8 +190,8 @@ GameUpdateAndRender(AB::MemoryArena* arena,
 namespace soko
 {
 		
-	void GameInit(AB::MemoryArena* arena,
-				  AB::PlatformState* platform)
+	void
+	GameInit(AB::MemoryArena* arena, AB::PlatformState* platform)
 	{
 		_GlobalStaticStorage = (StaticStorage*)PUSH_SIZE(arena, KILOBYTES(1));
 		SOKO_ASSERT(_GlobalStaticStorage == arena->begin, 0);
@@ -179,10 +199,13 @@ namespace soko
 
 		_GlobalPlatform->gameSpeed = 1.0f;
 
-		_GlobalStaticStorage->tempArena = AllocateSubArena(arena, arena->size / 2);
-		SOKO_ASSERT(_GlobalStaticStorage->tempArena, "Failed to allocate tempArena.");
+		auto* tempArena = AllocateSubArena(arena, arena->size / 2);
+		SOKO_ASSERT(tempArena, "Failed to allocate tempArena.");
 		_GlobalStaticStorage->gameState = PUSH_STRUCT(arena, GameState);
 		SOKO_ASSERT(_GlobalStaticStorage->gameState, "");
+
+		_GlobalStaticStorage->gameState->tempArena = tempArena;
+		_GlobalStaticStorage->gameState->memoryArena = arena;
 
 		GameState* gameState = _GlobalStaticStorage->gameState;
 		gameState->renderer = AllocAndInitRenderer(arena);
@@ -195,6 +218,12 @@ namespace soko
 		camera.aspectRatio = 16.0f / 9.0f;
 		camera.nearPlane = 0.1f;
 		camera.farPlane = 10.0f;
+
+		gameState->camera.conf = camera;
+		gameState->camera.moveSpeed = 3.0f;
+		gameState->camera.rotateSpeed = 60.0f;
+		gameState->camera.moveSmooth = 0.8f;
+		gameState->camera.rotateSmooth = 0.45f;
 
 		RenderGroupSetCamera(gameState->renderGroup, &camera);
 
@@ -225,28 +254,145 @@ namespace soko
 		PrintString("File size : %u32\n", fileSize);
 
 		gameState->mesh = mesh;
+		stbi_set_flip_vertically_on_load(1);
+
+		i32 width;
+		i32 height;
+		i32 bpp;
+		BeginTemporaryMemory(gameState->tempArena);
+		unsigned char* diffBitmap = stbi_load("../res/ABB_Manipulator_Diffuse.png", &width, &height, &bpp, 4);
+
+		Material material = {};
+		material.diffMap.format = GL_RGBA8;
+		material.diffMap.width = width;
+		material.diffMap.height = height;
+		material.diffMap.data = diffBitmap;
+		RendererLoadTexture(&material.diffMap);
+	   	SOKO_ASSERT(material.diffMap.gpuHandle, "");
+
+		EndTemporaryMemory(gameState->tempArena);
+		BeginTemporaryMemory(gameState->tempArena);
+
+		unsigned char* specBitmap = stbi_load("../res/ABB_Manipulator_Specular.png", &width, &height, &bpp, 4);
+		material.specMap.format = GL_RGBA8;
+		material.specMap.width = width;
+		material.specMap.height = height;
+		material.specMap.data = specBitmap;
+
+		RendererLoadTexture(&material.specMap);
+	   	SOKO_ASSERT(material.specMap.gpuHandle, "");
+		EndTemporaryMemory(gameState->tempArena);
+
+		gameState->material = material;
+
 	}
 	
-	void GameReload(AB::MemoryArena* arena, AB::PlatformState* platform)
+	void
+	GameReload(AB::MemoryArena* arena, AB::PlatformState* platform)
 	{
 		_GlobalPlatform = platform;
 		_GlobalStaticStorage = (StaticStorage*)arena->begin;
 	}
 
-	void GameUpdate(AB::MemoryArena* arena, AB::PlatformState* platform)
+	void
+	GameUpdate(AB::MemoryArena* arena, AB::PlatformState* platform)
 	{
 		SOKO_INFO("Sokoban!");
 	}
 
-	void GameRender(AB::MemoryArena* arena, AB::PlatformState* platform)
+	void
+	UpdateCamera(Camera* camera)
+	{
+		v3 pos = camera->targetPosition;
+		v3 front = camera->targetFront;
+		
+		if (GlobalInput.keys[AB::KEY_W].pressedNow)
+		{
+			pos += front * GlobalAbsDeltaTime * camera->moveSpeed;
+		}
+		
+		if (GlobalInput.keys[AB::KEY_S].pressedNow)
+		{
+			pos -= front * GlobalAbsDeltaTime * camera->moveSpeed;
+		}
+		
+		if (GlobalInput.keys[AB::KEY_A].pressedNow)
+		{
+			v3 right = Normalize(Cross(front, V3(0.0f, 1.0f, 0.0f)));
+			pos -= right * GlobalAbsDeltaTime * camera->moveSpeed;
+		}
+		
+		if (GlobalInput.keys[AB::KEY_D].pressedNow)
+		{
+			v3 right = Normalize(Cross(front, V3( 0, 1, 0 )));
+			pos += right * GlobalAbsDeltaTime * camera->moveSpeed;
+		}
+
+		if (GlobalInput.keys[AB::KEY_TAB].pressedNow &&
+			!GlobalInput.keys[AB::KEY_TAB].wasPressed)
+		{
+			camera->cursorCaptured = !camera->cursorCaptured;
+			if (camera->cursorCaptured)
+			{
+				SetInputMode(AB::INPUT_MODE_CAPTURE_CURSOR);
+			}
+			else
+			{
+				SetInputMode(AB::INPUT_MODE_FREE_CURSOR);				
+			}
+		}
+
+		if (camera->cursorCaptured)
+		{
+			camera->pitch += GlobalInput.mouseFrameOffsetY * camera->rotateSpeed;
+			camera->yaw += GlobalInput.mouseFrameOffsetX * camera->rotateSpeed;	
+		}
+
+			
+		if (camera->pitch > 89.0f)
+		{
+			camera->pitch = 89.0f;			
+		}
+		if (camera->pitch < -89.0f)
+		{
+			camera->pitch = -89.0f;			
+		}
+
+		front.x = Cos(ToRadians(camera->pitch)) * Cos(ToRadians(camera->yaw));
+		front.y = Sin(ToRadians(camera->pitch));
+		front.z = Cos(ToRadians(camera->pitch))	* Sin(ToRadians(camera->yaw));
+		front = Normalize(front);
+
+		camera->targetPosition = pos;
+		camera->targetFront = front;
+		
+		camera->conf.position = Lerp(camera->conf.position, pos, camera->moveSmooth);
+		camera->conf.front = Lerp(camera->conf.front, front, camera->rotateSmooth);
+	}
+
+	void
+	GameRender(AB::MemoryArena* arena, AB::PlatformState* platform)
 	{
 		auto* gameState = _GlobalStaticStorage->gameState;
 
+		UpdateCamera(&gameState->camera);
+		RenderGroupSetCamera(gameState->renderGroup, &gameState->camera.conf);
+
 		RendererBeginFrame(gameState->renderer, V2(1280.0f, 800.0f));
+		DirectionalLight light = {};
+		light.dir = Normalize(V3(0.2f, -0.9f, -0.3f));
+		light.ambient = V3(0.3f);
+		light.diffuse = V3(0.8f);
+		light.specular = V3(1.0f);
+		RenderCommandSetDirLight lightCommand = {};
+		lightCommand.light = light;
+		RenderGroupPushCommand(gameState->renderGroup, RENDER_COMMAND_SET_DIR_LIGHT,
+							   (void*)&lightCommand);
 		DrawStraightLine(gameState->renderGroup, V3(0.0f, 0.0f, -1.0f), V3(16.0f, 9.0f, -1.0f), V3(1.0f, 0.0f, 0.0f), 4.0f);
 		RenderCommandDrawMesh command = {};
 		command.transform = Scaling(V3(0.8f));
 		command.mesh = &gameState->mesh;
+		command.material = &gameState->material;
 		RenderGroupPushCommand(gameState->renderGroup, RENDER_COMMAND_DRAW_MESH,
 							   (void*)&command);
 		FlushRenderGroup(gameState->renderer, gameState->renderGroup);
@@ -255,3 +401,4 @@ namespace soko
 
 #include "RenderGroup.cpp"
 #include "Renderer.cpp"
+
