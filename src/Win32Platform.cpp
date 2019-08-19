@@ -11,6 +11,10 @@
 
 #include <cstdlib>
 
+#include "imgui/imgui_impl_soko_win32.h"
+#include "imgui/imgui_impl_opengl3.h"
+
+
 #define WGL_DRAW_TO_WINDOW_ARB            0x2001
 #define WGL_SUPPORT_OPENGL_ARB            0x2010
 #define WGL_DOUBLE_BUFFER_ARB             0x2011
@@ -51,6 +55,33 @@ namespace AB
 			input->mouseButtons[button].pressedNow;
 		input->mouseButtons[button].pressedNow = state;
 	}
+
+	inline static void
+	ProcessMButtonDownAndDblclkEventImGui(Application* application, ImGuiIO* io, UINT msg, WPARAM wParam)
+	{
+		int button = 0;
+        if (msg == WM_LBUTTONDOWN || msg == WM_LBUTTONDBLCLK) { button = 0; }
+        if (msg == WM_RBUTTONDOWN || msg == WM_RBUTTONDBLCLK) { button = 1; }
+        if (msg == WM_MBUTTONDOWN || msg == WM_MBUTTONDBLCLK) { button = 2; }
+        if (msg == WM_XBUTTONDOWN || msg == WM_XBUTTONDBLCLK) { button = (GET_XBUTTON_WPARAM(wParam) == XBUTTON1) ? 3 : 4; }
+        if (!ImGui::IsAnyMouseDown() && ::GetCapture() == NULL)
+            ::SetCapture(application->win32WindowHandle);
+        io->MouseDown[button] = true;
+	}
+
+	inline static void
+	ProcessMButtonUpEventImGui(Application* application, ImGuiIO* io, UINT msg, WPARAM wParam)
+	{
+		int button = 0;
+        if (msg == WM_LBUTTONUP) { button = 0; }
+        if (msg == WM_RBUTTONUP) { button = 1; }
+        if (msg == WM_MBUTTONUP) { button = 2; }
+        if (msg == WM_XBUTTONUP) { button = (GET_XBUTTON_WPARAM(wParam) == XBUTTON1) ? 3 : 4; }
+        io->MouseDown[button] = false;
+        if (!ImGui::IsAnyMouseDown() && ::GetCapture() == application->win32WindowHandle)
+            ::ReleaseCapture();
+	}
+
 
 	// NOTE: Based on Raymond Chen example
 	// https://devblogs.microsoft.com/oldnewthing/20100412-00/?p=14353
@@ -277,6 +308,15 @@ namespace AB
 		app->performanceFrequency = perfFrequency;
 	}
 
+	// NOTE: Stealing this from imgui win32 implementation!
+	// Allow compilation with old Windows SDK. MinGW doesn't have default _WIN32_WINNT/WINVER versions.
+#ifndef WM_MOUSEHWHEEL
+#define WM_MOUSEHWHEEL 0x020E
+#endif
+#ifndef DBT_DEVNODES_CHANGED
+#define DBT_DEVNODES_CHANGED 0x0007
+#endif
+
 	static LRESULT CALLBACK
 	Win32WindowCallback(HWND windowHandle, UINT message,
 						WPARAM wParam, LPARAM lParam)
@@ -301,6 +341,15 @@ namespace AB
 		if (ptr)
 		{
 			Application* app = (Application*)ptr;
+
+			// NOTE: IMPORTANT: Always checking for nullptr
+			// TODO: Play with some _optional_ type implementation just for fun
+			ImGuiIO* io = nullptr;
+			if (ImGui::GetCurrentContext())
+			{
+				ImGuiIO& _io = ImGui::GetIO();
+				io = &_io;				
+			}
 
 			switch (message)
 			{
@@ -368,31 +417,37 @@ namespace AB
 			case WM_LBUTTONDOWN:
 			{
 				ProcessMButtonEvent(&app->state.input, MBUTTON_LEFT, true);
+				ProcessMButtonDownAndDblclkEventImGui(app, io, message, wParam);
 			} break;
 
 			case WM_LBUTTONUP:
 			{
 				ProcessMButtonEvent(&app->state.input, MBUTTON_LEFT, false);
+				ProcessMButtonUpEventImGui(app, io, message, wParam);
 			} break;
 
 			case WM_RBUTTONDOWN:
 			{
 				ProcessMButtonEvent(&app->state.input, MBUTTON_RIGHT, true);
+				ProcessMButtonDownAndDblclkEventImGui(app, io, message, wParam);
 			} break;
 
 			case WM_RBUTTONUP:
 			{
 				ProcessMButtonEvent(&app->state.input, MBUTTON_RIGHT, false);
+				ProcessMButtonUpEventImGui(app, io, message, wParam);
 			} break;
 
 			case WM_MBUTTONDOWN:
 			{
 				ProcessMButtonEvent(&app->state.input, MBUTTON_MIDDLE, true);
+				ProcessMButtonDownAndDblclkEventImGui(app, io, message, wParam);
 			} break;
 
 			case WM_MBUTTONUP:
 			{
 				ProcessMButtonEvent(&app->state.input, MBUTTON_MIDDLE, false);
+				ProcessMButtonUpEventImGui(app, io, message, wParam);
 			} break;
 
 			case WM_XBUTTONDOWN:
@@ -406,6 +461,7 @@ namespace AB
 				{
 					ProcessMButtonEvent(&app->state.input, MBUTTON_XBUTTON2, true);
 				}
+				ProcessMButtonDownAndDblclkEventImGui(app, io, message, wParam);
 			} break;
 
 			case WM_XBUTTONUP:
@@ -419,6 +475,15 @@ namespace AB
 				{
 					ProcessMButtonEvent(&app->state.input,MBUTTON_XBUTTON2, false);
 				}
+				ProcessMButtonUpEventImGui(app, io, message, wParam);
+			} break;
+
+			case WM_LBUTTONDBLCLK:
+			case WM_RBUTTONDBLCLK:
+			case WM_MBUTTONDBLCLK:
+			case WM_XBUTTONDBLCLK:
+			{
+				ProcessMButtonDownAndDblclkEventImGui(app, io, message, wParam);				
 			} break;
 
 			case WM_MOUSELEAVE:
@@ -432,6 +497,19 @@ namespace AB
 				i32 numSteps = delta / WHEEL_DELTA;
 				app->state.input.scrollOffset = numSteps;
 				app->state.input.scrollFrameOffset = numSteps;
+
+				if (io)
+				{
+					io->MouseWheel += (float)numSteps;
+				}
+			} break;
+
+			case WM_SETCURSOR:
+			{
+				if (LOWORD(lParam) == HTCLIENT && soko::ImGui::ImplSokoWin32_UpdateMouseCursor())
+				{
+					result = 1;
+				}				
 			} break;
 
 			// ^^^^ MOUSE INPUT
@@ -454,6 +532,11 @@ namespace AB
 				{
 					WindowToggleFullscreen(app, !app->fullscreen);
 				}
+
+				if (io && wParam < 256)
+				{
+					io->KeysDown[wParam] = 1;
+				}
 			} break;
 
 			case WM_SYSKEYUP:
@@ -465,6 +548,11 @@ namespace AB
 				app->state.input.keys[key].wasPressed =
 					app->state.input.keys[key].pressedNow;
 				app->state.input.keys[key].pressedNow = state;
+
+				if (io && wParam < 256)
+				{
+					io->KeysDown[wParam] = 0;
+				}
 			} break;
 
 			case WM_CHAR:
@@ -485,6 +573,11 @@ namespace AB
 					{
 						app->state.input.textBufferCount += (u32)ret;
 					}
+				}
+
+				if (io)
+				{
+					io->AddInputCharacter((unsigned int)wParam);
 				}
 			} break;
 			// ^^^^ KEYBOARD INPUT
@@ -687,7 +780,7 @@ namespace AB
 	{
 		DWORD written;
 		BOOL retVal = WriteConsoleA(globalConsoleHandle, string,
-								   (DWORD)strlen(string), &written, NULL);
+									(DWORD)strlen(string), &written, NULL);
 		b32 result = (b32)retVal;
 		return result;
 	}
@@ -902,6 +995,19 @@ namespace AB
 		GlobalApplication->inputMode = mode;
 	}
 
+	void* AllocForImGui(size_t sz, void* userData)
+	{
+		MemoryArena* arena = (MemoryArena*)userData;
+		void* mem = PUSH_SIZE(arena, sz);
+		AB_CORE_ASSERT(mem);
+		return mem;
+	}
+
+	void FreeForImGui(void* ptr, void* userData)
+	{
+		// NOTE: IMGUI Should be run inside frame stack!!!
+	}
+
 	void AppRun(Application* app)
 	{
 		AB_CORE_INFO("Aberration engine");
@@ -927,7 +1033,7 @@ namespace AB
 		app->state.functions.FormatString = FormatString;
 		app->state.functions.PrintString = PrintString;
 		app->state.functions.Log = Log;
-		app->state.functions.LogAssert = LogAssert;
+		app->state.functions.LogAssertV = LogAssertV;
 		app->state.functions.SetInputMode = SetInputMode;
 		
 		SetupDirs(&app->gameLib);
@@ -936,6 +1042,19 @@ namespace AB
 		AB_CORE_ASSERT(codeLoaded, "Failed to load game lib");
 
 		app->gameArena = AllocateSubArena(app->mainArena, GAME_ARENA_SIZE);
+		app->imGuiFrameStack = AllocateSubArena(app->mainArena, IMGUI_ARENA_SIZE);
+
+		IMGUI_CHECKVERSION();
+		ImGui::SetAllocatorFunctions(AllocForImGui, FreeForImGui, (void*)app->mainArena);
+		app->state.imGuiContext = ImGui::CreateContext();
+		ImGuiIO& ImGui::GetIO();
+		ImGui::StyleColorsDark();
+
+		soko::ImGui::ImplSokoWin32_Init(app);
+		auto imResult = ImGui_ImplOpenGL3_Init("#version 330 core");
+		AB_CORE_ASSERT(imResult);
+
+		ImGui::SetAllocatorFunctions(AllocForImGui, FreeForImGui, (void*)app->mainArena);
 		
 		i64 updateTimer = UPDATE_INTERVAL;
 		i64 tickTimer = SECOND_INTERVAL;
@@ -949,6 +1068,14 @@ namespace AB
 		while (app->running)
 		{
 			WindowPollEvents(app);
+
+			BeginTemporaryMemory(app->imGuiFrameStack);
+			ImGui_ImplOpenGL3_NewFrame();
+			soko::ImGui::ImplSokoWin32_NewFrame(app);
+			ImGui::NewFrame();
+
+			bool showDemoWindow = true;
+			ImGui::ShowDemoWindow(&showDemoWindow);
 
 			if (tickTimer <= 0)
 			{
@@ -979,6 +1106,10 @@ namespace AB
 			app->gameLib.GameUpdateAndRender(app->gameArena, &app->state,
 											 GUR_REASON_RENDER);
 
+			ImGui::Render();
+			ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
+			EndTemporaryMemory(app->imGuiFrameStack);
+		
 			SwapBuffers(app->win32WindowDC);
 
 			// NOTE: Cache hell!!!
@@ -1014,6 +1145,7 @@ namespace AB
 				app->state.absDeltaTime = 0.6f;
 			}
 			app->state.gameDeltaTime = app->state.absDeltaTime * app->state.gameSpeed;
+
 		}
 	}
 	
@@ -1034,3 +1166,63 @@ int main()
 #include "Win32CodeLoader.cpp"
 #include "OpenGLLoader.cpp"
 #include "PlatformLog.cpp"
+
+#define AB_GL_FUNCTION(func) AB::GlobalApplication->state.gl->_##func
+
+#define glGetIntegerv AB_GL_FUNCTION(glGetIntegerv)
+#define glBindSampler AB_GL_FUNCTION(glBindSampler)
+#define glIsEnabled AB_GL_FUNCTION(glIsEnabled)
+#define glScissor AB_GL_FUNCTION(glScissor)
+#define glDrawElementsBaseVertex AB_GL_FUNCTION(glDrawElementsBaseVertex)
+#define glDeleteVertexArrays AB_GL_FUNCTION(glDeleteVertexArrays)
+#define glBindSampler AB_GL_FUNCTION(glBindSampler)
+#define glBlendEquationSeparate AB_GL_FUNCTION(glBlendEquationSeparate)
+#define glBlendFuncSeparate AB_GL_FUNCTION(glBlendFuncSeparate)
+#define glPixelStorei AB_GL_FUNCTION(glPixelStorei)
+#define glGetAttribLocation AB_GL_FUNCTION(glGetAttribLocation)
+#define glDeleteBuffers AB_GL_FUNCTION(glDeleteBuffers)
+#define glDetachShader AB_GL_FUNCTION(glDetachShader)
+#define glDeleteProgram AB_GL_FUNCTION(glDeleteProgram)
+#define glEnable AB_GL_FUNCTION(glEnable)
+#define glBlendEquation AB_GL_FUNCTION(glBlendEquation)
+#define glBlendFunc AB_GL_FUNCTION(glBlendFunc)
+#define glDisable AB_GL_FUNCTION(glDisable)
+#define glPolygonMode AB_GL_FUNCTION(glPolygonMode)
+#define glViewport AB_GL_FUNCTION(glViewport)
+#define glUseProgram AB_GL_FUNCTION(glUseProgram)
+#define glUniform1i AB_GL_FUNCTION(glUniform1i)
+#define glUniformMatrix4fv AB_GL_FUNCTION(glUniformMatrix4fv)
+#define glBindVertexArray AB_GL_FUNCTION(glBindVertexArray)
+#define glBindBuffer AB_GL_FUNCTION(glBindBuffer)
+#define glEnableVertexAttribArray AB_GL_FUNCTION(glEnableVertexAttribArray)
+#define glVertexAttribPointer AB_GL_FUNCTION(glVertexAttribPointer)
+#define glActiveTexture AB_GL_FUNCTION(glActiveTexture)
+#define glGenVertexArrays AB_GL_FUNCTION(glGenVertexArrays)
+#define glBufferData AB_GL_FUNCTION(glBufferData)
+#define glBindTexture AB_GL_FUNCTION(glBindTexture)
+#define glTexParameteri AB_GL_FUNCTION(glTexParameteri)
+#define glTexImage2D AB_GL_FUNCTION(glTexImage2D)
+#define glGenTextures AB_GL_FUNCTION(glGenTextures)
+#define glDeleteTextures AB_GL_FUNCTION(glDeleteTextures)
+#define glGetShaderiv AB_GL_FUNCTION(glGetShaderiv)
+#define glGetShaderInfoLog AB_GL_FUNCTION(glGetShaderInfoLog)
+#define glGetProgramiv AB_GL_FUNCTION(glGetProgramiv)
+#define glCreateShader AB_GL_FUNCTION(glCreateShader)
+#define glShaderSource AB_GL_FUNCTION(glShaderSource)
+#define glCompileShader AB_GL_FUNCTION(glCompileShader)
+#define glCreateProgram AB_GL_FUNCTION(glCreateProgram)
+#define glAttachShader AB_GL_FUNCTION(glAttachShader)
+#define glLinkProgram AB_GL_FUNCTION(glLinkProgram)
+#define glGetUniformLocation AB_GL_FUNCTION(glGetUniformLocation)
+#define glGetProgramInfoLog AB_GL_FUNCTION(glGetProgramInfoLog)
+#define glGenBuffers AB_GL_FUNCTION(glGenBuffers)
+#define glDeleteShader AB_GL_FUNCTION(glDeleteShader)
+
+// NOTE: IMGUI
+#include "imgui/imconfig.h"
+#include "imgui/imgui.cpp"
+#include "imgui/imgui_draw.cpp"
+#include "imgui/imgui_widgets.cpp"
+#include "imgui/imgui_demo.cpp"
+#include "imgui/imgui_impl_opengl3.cpp"
+#include "imgui/imgui_impl_soko_win32.cpp"

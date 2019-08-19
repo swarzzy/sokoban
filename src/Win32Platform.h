@@ -4,6 +4,9 @@
 #include <Windows.h>
 #include "Win32CodeLoader.h"
 
+// NOTE: For lastMouseCursor in Application
+#include "imgui/imgui.h"
+
 extern "C"
 {
 	typedef const char*(APIENTRY wglGetExtensionsStringARBFn)(HDC);
@@ -25,7 +28,8 @@ namespace AB
 	const u32 WINDOW_TITLE_SIZE = 32;
 
 	const uptr MAIN_ARENA_SIZE = MEGABYTES(128);
-	const uptr GAME_ARENA_SIZE = MEGABYTES(120);
+	const uptr GAME_ARENA_SIZE = MEGABYTES(110);
+	const uptr IMGUI_ARENA_SIZE = MEGABYTES(8);
 
 	const ConsoleColor CONSOLE_DEFAULT_TEXT_COLOR = CONSOLE_COLOR_DARKWHITE;
 	const ConsoleColor CONSOLE_DEFAULT_BACK_COLOR = CONSOLE_COLOR_BLACK;
@@ -35,6 +39,7 @@ namespace AB
 	{
 		MemoryArena* mainArena;
 		MemoryArena* gameArena;
+		MemoryArena* imGuiFrameStack;
 		void* gameStaticStorage;
 		PlatformState state;
 		
@@ -61,6 +66,8 @@ namespace AB
 		LARGE_INTEGER performanceFrequency;
 
 		InputMode inputMode;
+
+		ImGuiMouseCursor imguiLastMouseCursor;
 	};
 
 	static const i64 UPDATE_INTERVAL = 16000;

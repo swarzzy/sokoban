@@ -64,10 +64,10 @@ inline void* ReallocForSTBI(void* p, uptr oldSize, uptr newSize)
 #define FormatString SOKO_PLATFORM_FUNCTION(FormatString)
 #define PrintString SOKO_PLATFORM_FUNCTION(PrintString)
 #define Log SOKO_PLATFORM_FUNCTION(Log)
-#define LogAssert SOKO_PLATFORM_FUNCTION(LogAssert)
+#define LogAssertV SOKO_PLATFORM_FUNCTION(LogAssertV)
 #define SetInputMode SOKO_PLATFORM_FUNCTION(SetInputMode)
 
-#define GL_FUNCTION(func) _GlobalPlatform->gl->_##func
+#define GL_FUNCTION(func) soko::_GlobalPlatform->gl->_##func
 
 #define glGenTextures GL_FUNCTION(glGenTextures)
 #define glBindTexture GL_FUNCTION(glBindTexture)
@@ -146,15 +146,49 @@ inline void* ReallocForSTBI(void* p, uptr oldSize, uptr newSize)
 #define glUnmapNamedBuffer GL_FUNCTION(glUnmapNamedBuffer)
 #define glUniformMatrix3fv GL_FUNCTION(glUniformMatrix3fv)
 
+// NOTE: Functions used by ImGUI
+#define glGetIntegerv GL_FUNCTION(glGetIntegerv)
+#define glBindSampler GL_FUNCTION(glBindSampler)
+#define glIsEnabled GL_FUNCTION(glIsEnabled)
+#define glScissor GL_FUNCTION(glScissor)
+#define glDrawElementsBaseVertex GL_FUNCTION(glDrawElementsBaseVertex)
+#define glDeleteVertexArrays GL_FUNCTION(glDeleteVertexArrays)
+#define glBindSampler GL_FUNCTION(glBindSampler)
+#define glBlendEquationSeparate GL_FUNCTION(glBlendEquationSeparate)
+#define glBlendFuncSeparate GL_FUNCTION(glBlendFuncSeparate)
+#define glPixelStorei GL_FUNCTION(glPixelStorei)
+#define glGetAttribLocation GL_FUNCTION(glGetAttribLocation)
+#define glDeleteBuffers GL_FUNCTION(glDeleteBuffers)
+#define glDetachShader GL_FUNCTION(glDetachShader)
+#define glDeleteProgram GL_FUNCTION(glDeleteProgram)
+
+namespace soko
+{
+	void LogAssert(AB::LogLevel level, const char* file, const char* func, u32 line,
+				   const char* assertStr, const char* fmt, ...)
+	{
+		va_list args;
+		va_start(args, fmt);
+		LogAssertV(level, file, func, line, assertStr, fmt, &args);
+		va_end(args);
+	}
+
+	void LogAssert(AB::LogLevel level, const char* file, const char* func, u32 line,
+				   const char* assertStr)
+	{
+		LogAssertV(level, file, func, line, assertStr, nullptr, nullptr);
+	}
+}
+
 // TODO:: Asserts without message
 // NOTE: Panic macro should not be stripped in release build
 #if defined(AB_COMPILER_CLANG)
 #define SOKO_INFO(format, ...) Log(AB::LOG_INFO, __FILE__, __func__, __LINE__, format, ##__VA_ARGS__)
-#define SOKO_ASSERT(expr, fmt, ...) do { if (!(expr)) {Log(AB::LOG_FATAL, __FILE__, __func__, __LINE__, #expr, fmt, ##__VA_ARGS__); AB_DEBUG_BREAK();}} while(false)
+#define SOKO_ASSERT(expr, ...) do { if (!(expr)) {soko::LogAssert(AB::LOG_FATAL, __FILE__, __func__, __LINE__, #expr, ##__VA_ARGS__); AB_DEBUG_BREAK();}} while(false)
 #define SOKO_PANIC(format, ...) do{ Log(AB::LOG_FATAL, __FILE__, __func__, __LINE__, format, ##__VA_ARGS__); abort();} while(false)
 #else
 #define SOKO_INFO(format, ...) Log(AB::LOG_INFO, __FILE__, __func__, __LINE__, format, __VA_ARGS__)
-#define SOKO_ASSERT(expr, fmt, ...) do { if (!(expr)) {LogAssert(AB::LOG_FATAL, __FILE__, __func__, __LINE__, #expr, fmt, __VA_ARGS__); AB_DEBUG_BREAK();}} while(false)
+#define SOKO_ASSERT(expr, ...) do { if (!(expr)) {soko::LogAssert(AB::LOG_FATAL, __FILE__, __func__, __LINE__, #expr, __VA_ARGS__); AB_DEBUG_BREAK();}} while(false)
 #define SOKO_PANIC(format, ...) do{ Log(AB::LOG_FATAL, __FILE__, __func__, __LINE__, format, __VA_ARGS__); abort();} while(false)
 #endif
 #define SOKO_INVALID_DEFAULT_CASE default:{ SOKO_ASSERT(false, "Invalid default case."); }break
@@ -401,4 +435,6 @@ namespace soko
 
 #include "RenderGroup.cpp"
 #include "Renderer.cpp"
+#if 1
+#endif
 

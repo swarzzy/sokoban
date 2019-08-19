@@ -10,6 +10,8 @@
 #error Unsupported compiler
 #endif
 
+struct ImGuiContext;
+
 namespace AB
 {	
     typedef char                byte;
@@ -222,7 +224,7 @@ namespace AB
 	typedef i32(FormatStringFn)(char* buffer, u32 bufferSize, const char* fmt, ...);
 	typedef void(PrintStringFn)(const char* fmt, ...);
 	typedef void(LogFn)(LogLevel level, const char* file, const char* func, u32 line, const char* fmt, ...);
-	typedef void(LogAssertFn)(LogLevel level, const char* file, const char* func, u32 line, const char* assertStr, const char* fmt, ...);
+	typedef void(LogAssertVFn)(LogLevel level, const char* file, const char* func, u32 line, const char* assertStr, const char* fmt, va_list* args);
 
 	enum InputMode
 	{
@@ -245,7 +247,7 @@ namespace AB
 		FormatStringFn* FormatString;
 		PrintStringFn* PrintString;
 		LogFn* Log;
-		LogAssertFn* LogAssert;
+		LogAssertVFn* LogAssertV;
 		SetInputModeFn* SetInputMode;
 	};
 
@@ -287,6 +289,7 @@ namespace AB
 	{
 		PlatformFuncTable functions;
 		GLFuncTable* gl;
+		ImGuiContext* imGuiContext;
 		InputState input;
 		i64 runningTime;
 		i64 frameTime;
@@ -348,7 +351,7 @@ namespace AB
 #define AB_CORE_WARN(format, ...) AB::Log(AB::LOG_WARN, __FILE__, __func__, __LINE__, format, ##__VA_ARGS__)
 #define AB_CORE_ERROR(format, ...) AB::Log(AB::LOG_ERROR, __FILE__, __func__, __LINE__, format, ##__VA_ARGS__)
 #define AB_CORE_FATAL(format, ...) do { AB::Log(AB::LOG_FATAL, __FILE__, __func__, __LINE__, format, ##__VA_ARGS__); AB_DEBUG_BREAK();} while(false)
-#define AB_CORE_ASSERT(expr, ...) do { if (!(expr)) {AB::Log(AB::LOG_FATAL, __FILE__, __func__, __LINE__, #expr, ##__VA_ARGS__); AB_DEBUG_BREAK();}} while(false)
+#define AB_CORE_ASSERT(expr, ...) do { if (!(expr)) {AB::LogAssert(AB::LOG_FATAL, __FILE__, __func__, __LINE__, #expr, ##__VA_ARGS__); AB_DEBUG_BREAK();}} while(false)
 #else
 #define AB_CORE_INFO(format, ...) AB::Log(AB::LOG_INFO, __FILE__, __func__, __LINE__, format, __VA_ARGS__)
 #define AB_CORE_WARN(format, ...) AB::Log(AB::LOG_WARN, __FILE__, __func__, __LINE__, format, __VA_ARGS__)

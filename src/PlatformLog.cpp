@@ -1132,6 +1132,27 @@ namespace AB
 		}
 	}
 
+	void LogAssertV(LogLevel level, const char* file, const char* func, u32 line,
+				   const char* assertStr, const char* fmt, va_list* args)
+	{
+		DateTime time = GetLocalTime();
+		char timeBuffer[DATETIME_STRING_SIZE];
+		DateTimeToString(&time ,timeBuffer, DATETIME_STRING_SIZE);
+		ConsoleSetColor(CONSOLE_COLOR_DARKRED, CONSOLE_COLOR_BLACK);
+		PrintString("%s: ASSERTION FAILED!\n", timeBuffer);
+		
+		if (fmt && args)
+		{
+			FormatStringV(nullptr, 1, fmt, OutCharConsole, args);
+		}
+		
+		char fileBuffer[256];
+		memcpy(fileBuffer, file, 256);
+		CutFilenameFromEnd(fileBuffer);
+		PrintString("\n->EXPR: %s \n->FILE: %s\n->FUNC: %s\n->LINE: %u32\n\n",assertStr, fileBuffer, func, line);
+		ConsoleSetColor(CONSOLE_COLOR_DARKWHITE, CONSOLE_COLOR_BLACK);		
+	}
+
 	void LogAssert(LogLevel level, const char* file, const char* func, u32 line, const char* assertStr)
 	{
 		LogAssert(level, file, func, line, assertStr, nullptr);
@@ -1140,25 +1161,17 @@ namespace AB
 	void LogAssert(LogLevel level, const char* file, const char* func, u32 line,
 				   const char* assertStr, const char* fmt, ...)
 	{
-		DateTime time = GetLocalTime();
-		char timeBuffer[DATETIME_STRING_SIZE];
-		DateTimeToString(&time ,timeBuffer, DATETIME_STRING_SIZE);
-		ConsoleSetColor(CONSOLE_COLOR_DARKRED, CONSOLE_COLOR_BLACK);
-		PrintString("%s: ASSERTION FAILED!\n", timeBuffer);
-		
 		if (fmt)
 		{
 			va_list args;
 			va_start(args, fmt);
-			FormatStringV(nullptr, 1, fmt, OutCharConsole, &args);
+			LogAssert(level, file, func, line, assertStr, fmt, &args);
 			va_end(args);
 		}
-		
-		char fileBuffer[256];
-		memcpy(fileBuffer, file, 256);
-		CutFilenameFromEnd(fileBuffer);
-		PrintString("\n->EXPR: %s \n->FILE: %s\n->FUNC: %s\n->LINE: %u32\n\n",assertStr, fileBuffer, func, line);
-		ConsoleSetColor(CONSOLE_COLOR_DARKWHITE, CONSOLE_COLOR_BLACK);
+		else
+		{
+			LogAssertV(level, file, func, line, assertStr, nullptr, nullptr);			
+		}
 	}
 
 	void CutFilenameFromEnd(char* str, char separator)

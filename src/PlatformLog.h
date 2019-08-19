@@ -17,6 +17,7 @@ namespace AB
 	void Log(LogLevel level, const char* file, const char* func, u32 line, const char* fmt, ...);
 	void LogAssert(LogLevel level, const char* file, const char* func, u32 line, const char* assertStr);
 	void LogAssert(LogLevel level, const char* file, const char* func, u32 line, const char* assertStr, const char* fmt, ...);
+	void LogAssertV(LogLevel level, const char* file, const char* func, u32 line, const char* assertStr, const char* fmt, va_list* args);
 	void CutFilenameFromEnd(char* str, char separator = '\\');
 
 // Returns required size if buffer is to small
