@@ -43,7 +43,6 @@ inline void* ReallocForSTBI(void* p, uptr oldSize, uptr newSize)
 #include "stb/stb_image.h"
 
 #undef STB_IMAGE_IMPLEMENTATION
-
 	
 // NOTE: Actual frame time
 #define GlobalAbsDeltaTime soko::_GlobalPlatform->absDeltaTime
@@ -194,6 +193,8 @@ namespace soko
 #define SOKO_INVALID_DEFAULT_CASE default:{ SOKO_ASSERT(false, "Invalid default case."); }break
 #define SOKO_INVALID_CODE_PATH SOKO_ASSERT(false, "Invalid code path.")
 
+#include "imgui/imgui.h"
+
 extern "C" GAME_CODE_ENTRY void
 GameUpdateAndRender(AB::MemoryArena* arena,
 					AB::PlatformState* platform,
@@ -242,6 +243,14 @@ namespace soko
 		_GlobalStaticStorage->gameState->memoryArena = arena;
 
 		GameState* gameState = _GlobalStaticStorage->gameState;
+
+		// NOTE: ImGui
+		IMGUI_CHECKVERSION();
+		ImGui::SetAllocatorFunctions(_GlobalPlatform->functions.AllocForImGui,
+									 _GlobalPlatform->functions.FreeForImGui,
+									 _GlobalPlatform->imGuiAllocatorData);
+		ImGui::SetCurrentContext(_GlobalPlatform->imGuiContext);
+
 		gameState->renderer = AllocAndInitRenderer(arena);
 		gameState->renderGroup = AllocateRenderGroup(arena, KILOBYTES(4), 512);
 
@@ -326,6 +335,13 @@ namespace soko
 	{
 		_GlobalPlatform = platform;
 		_GlobalStaticStorage = (StaticStorage*)arena->begin;
+
+		IMGUI_CHECKVERSION();
+		ImGui::SetAllocatorFunctions(_GlobalPlatform->functions.AllocForImGui,
+									 _GlobalPlatform->functions.FreeForImGui,
+									 _GlobalPlatform->imGuiAllocatorData);
+		ImGui::SetCurrentContext(_GlobalPlatform->imGuiContext);
+
 	}
 
 	void
@@ -404,11 +420,47 @@ namespace soko
 		camera->conf.front = Lerp(camera->conf.front, front, camera->rotateSmooth);
 	}
 
+	void DrawOverlay(GameState* gameState)
+	{
+		const float DISTANCE = 10.0f;
+		int corner = gameState->overlayCorner;
+		ImGuiIO& io = ImGui::GetIO();
+		if (corner != -1)
+		{
+			ImVec2 window_pos = ImVec2((corner & 1) ? io.DisplaySize.x - DISTANCE : DISTANCE, (corner & 2) ? io.DisplaySize.y - DISTANCE : DISTANCE);
+			ImVec2 window_pos_pivot = ImVec2((corner & 1) ? 1.0f : 0.0f, (corner & 2) ? 1.0f : 0.0f);
+			ImGui::SetNextWindowPos(window_pos, ImGuiCond_Always, window_pos_pivot);
+		}
+		ImGui::SetNextWindowBgAlpha(0.35f); // Transparent background
+		bool open = true;
+		if (ImGui::Begin("Overlay", &open, (corner != -1 ? ImGuiWindowFlags_NoMove : 0) | ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoFocusOnAppearing | ImGuiWindowFlags_NoNav))
+		{
+			char fpsBuffer[128];
+			FormatString(fpsBuffer, 128, "FPS: %11i64\nUPS: % 11i64\ndT(abs):  %.4f32\ndT(game): %.4f32",
+						 PlatformGlobals.fps, PlatformGlobals.ups,
+						 GlobalAbsDeltaTime, GlobalGameDeltaTime);
+			ImGui::Text(fpsBuffer);
+			if (ImGui::BeginPopupContextWindow())
+			{
+				if (ImGui::MenuItem("Custom",       NULL, corner == -1)) corner = -1;
+				if (ImGui::MenuItem("Top-left",     NULL, corner == 0)) corner = 0;
+				if (ImGui::MenuItem("Top-right",    NULL, corner == 1)) corner = 1;
+				if (ImGui::MenuItem("Bottom-left",  NULL, corner == 2)) corner = 2;
+				if (ImGui::MenuItem("Bottom-right", NULL, corner == 3)) corner = 3;
+				ImGui::EndPopup();
+			}
+		}
+		ImGui::End();
+		gameState->overlayCorner = corner;
+	}
+
 	void
 	GameRender(AB::MemoryArena* arena, AB::PlatformState* platform)
 	{
 		auto* gameState = _GlobalStaticStorage->gameState;
 
+		DrawOverlay(gameState);
+		
 		UpdateCamera(&gameState->camera);
 		RenderGroupSetCamera(gameState->renderGroup, &gameState->camera.conf);
 
@@ -435,6 +487,11 @@ namespace soko
 
 #include "RenderGroup.cpp"
 #include "Renderer.cpp"
-#if 1
-#endif
+
+// NOTE: IMGUI
+#include "imgui/imconfig.h"
+#include "imgui/imgui.cpp"
+#include "imgui/imgui_draw.cpp"
+#include "imgui/imgui_widgets.cpp"
+#include "imgui/imgui_demo.cpp"
 

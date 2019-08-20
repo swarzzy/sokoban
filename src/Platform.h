@@ -226,6 +226,9 @@ namespace AB
 	typedef void(LogFn)(LogLevel level, const char* file, const char* func, u32 line, const char* fmt, ...);
 	typedef void(LogAssertVFn)(LogLevel level, const char* file, const char* func, u32 line, const char* assertStr, const char* fmt, va_list* args);
 
+	typedef void*(AllocForImGuiFn)(size_t sz, void* data);
+	typedef void(FreeForImGuiFn)(void* ptr, void* data);
+
 	enum InputMode
 	{
 		INPUT_MODE_FREE_CURSOR = 0,
@@ -249,6 +252,9 @@ namespace AB
 		LogFn* Log;
 		LogAssertVFn* LogAssertV;
 		SetInputModeFn* SetInputMode;
+
+		AllocForImGuiFn* AllocForImGui;
+		FreeForImGuiFn* FreeForImGui;
 	};
 
 	struct KeyState
@@ -290,6 +296,7 @@ namespace AB
 		PlatformFuncTable functions;
 		GLFuncTable* gl;
 		ImGuiContext* imGuiContext;
+		void* imGuiAllocatorData;
 		InputState input;
 		i64 runningTime;
 		i64 frameTime;

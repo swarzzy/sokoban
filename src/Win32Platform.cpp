@@ -997,15 +997,19 @@ namespace AB
 
 	void* AllocForImGui(size_t sz, void* userData)
 	{
-		MemoryArena* arena = (MemoryArena*)userData;
-		void* mem = PUSH_SIZE(arena, sz);
-		AB_CORE_ASSERT(mem);
+		// TODO: Temporary using windows api for general pupose allocations
+		// for ImGui
+		void* mem = HeapAlloc(*((HANDLE*)userData), IMGUI_HEAP_FLAGS, sz);
 		return mem;
 	}
 
 	void FreeForImGui(void* ptr, void* userData)
 	{
-		// NOTE: IMGUI Should be run inside frame stack!!!
+		if (ptr)
+		{
+			auto result = HeapFree(*((HANDLE*)userData), 0, ptr);
+			AB_CORE_ASSERT(result);
+		}
 	}
 
 	void AppRun(Application* app)
@@ -1035,6 +1039,14 @@ namespace AB
 		app->state.functions.Log = Log;
 		app->state.functions.LogAssertV = LogAssertV;
 		app->state.functions.SetInputMode = SetInputMode;
+
+		app->state.functions.AllocForImGui = AllocForImGui;
+		app->state.functions.FreeForImGui = FreeForImGui;
+
+		app->imGuiHeap = HeapCreate(IMGUI_HEAP_FLAGS, 0, 0);
+		AB_CORE_ASSERT(app->imGuiHeap);
+
+		app->state.imGuiAllocatorData = (void*)&app->imGuiHeap;
 		
 		SetupDirs(&app->gameLib);
 		
@@ -1042,20 +1054,20 @@ namespace AB
 		AB_CORE_ASSERT(codeLoaded, "Failed to load game lib");
 
 		app->gameArena = AllocateSubArena(app->mainArena, GAME_ARENA_SIZE);
-		app->imGuiFrameStack = AllocateSubArena(app->mainArena, IMGUI_ARENA_SIZE);
 
 		IMGUI_CHECKVERSION();
-		ImGui::SetAllocatorFunctions(AllocForImGui, FreeForImGui, (void*)app->mainArena);
+		ImGui::SetAllocatorFunctions(AllocForImGui, FreeForImGui, (void*)&app->imGuiHeap);
 		app->state.imGuiContext = ImGui::CreateContext();
-		ImGuiIO& ImGui::GetIO();
+		ImGuiIO& _io = ImGui::GetIO();
+		ImGuiIO* io = &_io;
 		ImGui::StyleColorsDark();
+
+		io->IniFilename = NULL;
 
 		soko::ImGui::ImplSokoWin32_Init(app);
 		auto imResult = ImGui_ImplOpenGL3_Init("#version 330 core");
 		AB_CORE_ASSERT(imResult);
 
-		ImGui::SetAllocatorFunctions(AllocForImGui, FreeForImGui, (void*)app->mainArena);
-		
 		i64 updateTimer = UPDATE_INTERVAL;
 		i64 tickTimer = SECOND_INTERVAL;
 		u32 updatesSinceLastTick = 0;
@@ -1069,13 +1081,9 @@ namespace AB
 		{
 			WindowPollEvents(app);
 
-			BeginTemporaryMemory(app->imGuiFrameStack);
 			ImGui_ImplOpenGL3_NewFrame();
 			soko::ImGui::ImplSokoWin32_NewFrame(app);
 			ImGui::NewFrame();
-
-			bool showDemoWindow = true;
-			ImGui::ShowDemoWindow(&showDemoWindow);
 
 			if (tickTimer <= 0)
 			{
@@ -1108,7 +1116,6 @@ namespace AB
 
 			ImGui::Render();
 			ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
-			EndTemporaryMemory(app->imGuiFrameStack);
 		
 			SwapBuffers(app->win32WindowDC);
 

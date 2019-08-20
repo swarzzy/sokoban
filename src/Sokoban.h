@@ -47,5 +47,6 @@ namespace soko
 		Camera camera;
 		Mesh mesh;
 		Material material;
+		u32 overlayCorner;
 	};
 }

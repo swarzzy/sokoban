@@ -29,17 +29,17 @@ namespace AB
 
 	const uptr MAIN_ARENA_SIZE = MEGABYTES(128);
 	const uptr GAME_ARENA_SIZE = MEGABYTES(110);
-	const uptr IMGUI_ARENA_SIZE = MEGABYTES(8);
 
 	const ConsoleColor CONSOLE_DEFAULT_TEXT_COLOR = CONSOLE_COLOR_DARKWHITE;
 	const ConsoleColor CONSOLE_DEFAULT_BACK_COLOR = CONSOLE_COLOR_BLACK;
+
+	const DWORD IMGUI_HEAP_FLAGS = HEAP_GENERATE_EXCEPTIONS;
 
 
 	struct Application
 	{
 		MemoryArena* mainArena;
 		MemoryArena* gameArena;
-		MemoryArena* imGuiFrameStack;
 		void* gameStaticStorage;
 		PlatformState state;
 		
@@ -68,6 +68,8 @@ namespace AB
 		InputMode inputMode;
 
 		ImGuiMouseCursor imguiLastMouseCursor;
+
+		HANDLE imGuiHeap;
 	};
 
 	static const i64 UPDATE_INTERVAL = 16000;
