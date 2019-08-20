@@ -308,6 +308,7 @@ void RendererLoadTexture(Texture* texture)
 			switch (texture->format)
 			{
 			case GL_RGBA8: { format = GL_RGBA; } break;
+			case GL_RGB8: { format = GL_RGB; } break;
 			SOKO_INVALID_DEFAULT_CASE;
 			}
 

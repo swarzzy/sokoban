@@ -65,6 +65,7 @@ namespace soko
 	static inline CommandQueueEntry*
 	_PushCommandQueueEntry(RenderGroup* renderGroup, CommandQueueEntry* cmd)
 	{
+		SOKO_ASSERT(renderGroup->commandQueueAt < renderGroup->commandQueueCapacity);
 		CommandQueueEntry* renderBucketDest = 
 			renderGroup->commandQueue + renderGroup->commandQueueAt;	
 		COPY_SCALAR(CommandQueueEntry, renderBucketDest, cmd);	   	

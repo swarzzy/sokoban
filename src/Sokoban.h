@@ -38,6 +38,84 @@ namespace soko
 		f32 yaw;
 	};
 
+	const f32 LEVEL_TILE_SIZE = 1.0f;
+
+	union v3u
+	{
+		struct
+		{
+			u32 x, y, z;
+		};
+	};
+
+	inline v3u V3U(u32 x, u32 y, u32 z)
+	{
+		v3u result;
+		result.x = x;
+		result.y = y;
+		result.z = z;
+		return result;
+	}
+
+	inline v3u V3U(u32 a)
+	{
+		v3u result;
+		result.x = a;
+		result.y = a;
+		result.z = a;
+		return result;
+	}
+
+	inline v3u& operator+=(v3u& l, v3u r)
+	{
+		l.x += r.x;
+		l.y += r.y;
+		l.z += r.z;
+		return l;
+	}
+
+	inline v3u& operator-=(v3u& l, v3u r)
+	{
+		l.x -= r.x;
+		l.y -= r.y;
+		l.z -= r.z;
+		return l;
+	}
+
+	inline v3u operator+(v3u l, v3u r)
+	{
+		return V3U(l.x + r.x, l.y + r.y, l.z + r.z);
+	}
+
+
+	struct Tile
+	{
+		u32 value;
+	};
+
+	struct Level
+	{
+		u32 xDim;
+		u32 yDim;
+		u32 zDim;
+		Tile* tiles;
+	};
+
+	enum PlayerPendingMovementBit : u32
+	{
+		PENDING_MOVEMENT_BIT_FORWARD = 0x1,
+		PENDING_MOVEMENT_BIT_BACKWARD = 0x2,
+		PENDING_MOVEMENT_BIT_LEFT = 0x4,
+		PENDING_MOVEMENT_BIT_RIGHT = 0x8
+	};
+
+	struct Player
+	{
+		Level* level;
+		v3u lvlCoord;
+		u32 inputFlags;
+	};
+
 	struct GameState
 	{
 		AB::MemoryArena* memoryArena;
@@ -45,8 +123,10 @@ namespace soko
 		Renderer* renderer;
 		RenderGroup* renderGroup;
 		Camera camera;
-		Mesh mesh;
-		Material material;
+		Mesh cubeMesh;
+		Material tileMaterial;
 		u32 overlayCorner;
+		Level level;
+		Player player;
 	};
 }

@@ -264,6 +264,18 @@ namespace AB
 		b32 wasPressed;
 	};
 
+	inline bool JustPressed(KeyState state)
+	{
+		bool result = state.pressedNow && !state.wasPressed;
+		return result;
+	}
+
+	inline bool JustReleased(KeyState state)
+	{
+		bool result = !state.pressedNow && state.wasPressed;
+		return result;
+	}
+
 	struct MButtonState
 	{
 		b32 pressedNow;

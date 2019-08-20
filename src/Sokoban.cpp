@@ -224,7 +224,96 @@ GameUpdateAndRender(AB::MemoryArena* arena,
 }
 namespace soko
 {
+
+	inline Tile GetTile(const Level* level, u32 x, u32 y, u32 z)
+	{
+		SOKO_ASSERT(x < level->xDim);
+		SOKO_ASSERT(y < level->yDim);
+		SOKO_ASSERT(z < level->zDim);
+
+		u32 offset = z * level->xDim * level->yDim + y * level->xDim + x;
+		Tile result = level->tiles[offset];
+		return result;
+	}
+
+	inline Tile GetTile(const Level* level, v3u coord)
+	{
+		Tile result = GetTile(level, coord.x, coord.y, coord.z);
+		return result;
+	}
 		
+	inline void SetTile(Level* level, u32 x, u32 y, u32 z, Tile tile)
+	{
+		SOKO_ASSERT(x < level->xDim);
+		SOKO_ASSERT(y < level->yDim);
+		SOKO_ASSERT(z < level->zDim);
+
+		u32 offset = z * level->xDim * level->yDim + y * level->xDim + x;
+		level->tiles[offset] = tile;		
+	}
+
+	inline void SetTile(Level* level, v3u coord, Tile tile)
+	{
+		SetTile(level, coord.x, coord.y, coord.z, tile);
+	}
+
+	void DrawLevel(const Level* level, GameState* gameState)
+	{
+		for (u32 x = 0; x < level->xDim; x++)
+		{
+			for (u32 y = 0; y < level->yDim; y++)
+			{
+				for (u32 z = 0; z < level->zDim; z++)
+				{
+					Tile tile = GetTile(level, x, y, z);
+					if (tile.value)
+					{
+						f32 xCoord = x * LEVEL_TILE_SIZE;
+						f32 yCoord = z * LEVEL_TILE_SIZE;
+						f32 zCoord = y * LEVEL_TILE_SIZE;
+						v3 pos = V3(xCoord, yCoord, -zCoord);
+						RenderCommandDrawMesh command = {};
+						command.transform = Translation(pos);
+						command.mesh = &gameState->cubeMesh;
+						command.material = &gameState->tileMaterial;
+						RenderGroupPushCommand(gameState->renderGroup, RENDER_COMMAND_DRAW_MESH,
+											   (void*)&command);
+
+					}
+				}
+			}
+		}
+	}
+
+	void DrawPlayer(const Player* player, GameState* gameState)
+	{
+		f32 xCoord = player->lvlCoord.x * LEVEL_TILE_SIZE;
+		f32 yCoord = player->lvlCoord.z * LEVEL_TILE_SIZE;
+		f32 zCoord = player->lvlCoord.y * LEVEL_TILE_SIZE;
+		v3 pos = V3(xCoord, yCoord, -zCoord);
+		RenderCommandDrawMesh command = {};
+		command.transform = Translation(pos);
+		command.mesh = &gameState->cubeMesh;
+		command.material = &gameState->tileMaterial;
+		RenderGroupPushCommand(gameState->renderGroup, RENDER_COMMAND_DRAW_MESH,
+							   (void*)&command);
+		
+	}
+
+	void MovePlayer(Player* player, v3u desiredPos)
+	{
+		Tile tile = GetTile(player->level, desiredPos);
+		if (!tile.value)
+		{
+			Tile oldTile = {};
+			Tile desiredTile = {};
+			desiredTile.value = 2;
+			SetTile(player->level, player->lvlCoord, oldTile);
+			SetTile(player->level, desiredPos, desiredTile);
+			player->lvlCoord = desiredPos;
+		}
+	}
+   		
 	void
 	GameInit(AB::MemoryArena* arena, AB::PlatformState* platform)
 	{
@@ -251,8 +340,10 @@ namespace soko
 									 _GlobalPlatform->imGuiAllocatorData);
 		ImGui::SetCurrentContext(_GlobalPlatform->imGuiContext);
 
+		gameState->overlayCorner = 1;
+
 		gameState->renderer = AllocAndInitRenderer(arena);
-		gameState->renderGroup = AllocateRenderGroup(arena, KILOBYTES(4), 512);
+		gameState->renderGroup = AllocateRenderGroup(arena, KILOBYTES(1024), 16384);
 
 		CameraConfig camera = {};
 		camera.position = V3(0.0f);
@@ -260,7 +351,7 @@ namespace soko
 		camera.fovDeg = 45.0f;
 		camera.aspectRatio = 16.0f / 9.0f;
 		camera.nearPlane = 0.1f;
-		camera.farPlane = 10.0f;
+		camera.farPlane = 100.0f;
 
 		gameState->camera.conf = camera;
 		gameState->camera.moveSpeed = 3.0f;
@@ -272,11 +363,12 @@ namespace soko
 
 		gameState->renderer->clearColor = V4(0.8f, 0.8f, 0.8f, 1.0f);
 
-		u32 fileSize = DebugGetFileSize(L"../res/manipulator.aab");
+		u32 fileSize = DebugGetFileSize(L"../res/cube.aab");
 		void* fileData = PUSH_SIZE(arena, fileSize);
-		u32 result = DebugReadFile(fileData, fileSize, L"../res/manipulator.aab");
+		u32 result = DebugReadFile(fileData, fileSize, L"../res/cube.aab");
 		// NOTE: Strict aliasing
 		auto header = (AABMeshHeader*)fileData;
+		SOKO_ASSERT(header->magicValue == AAB_FILE_MAGIC_VALUE, "");
 
 		Mesh mesh = {};
 		mesh.vertexCount = header->verticesCount;
@@ -293,20 +385,17 @@ namespace soko
 		SOKO_ASSERT(mesh.gpuVertexBufferHandle, "");
 		SOKO_ASSERT(mesh.gpuIndexBufferHandle, "");
 
-		SOKO_ASSERT(header->magicValue == AAB_FILE_MAGIC_VALUE, "");
-		PrintString("File size : %u32\n", fileSize);
-
-		gameState->mesh = mesh;
+		gameState->cubeMesh = mesh;
 		stbi_set_flip_vertically_on_load(1);
 
 		i32 width;
 		i32 height;
 		i32 bpp;
 		BeginTemporaryMemory(gameState->tempArena);
-		unsigned char* diffBitmap = stbi_load("../res/ABB_Manipulator_Diffuse.png", &width, &height, &bpp, 4);
+		unsigned char* diffBitmap = stbi_load("../res/tile.png", &width, &height, &bpp, 3);
 
 		Material material = {};
-		material.diffMap.format = GL_RGBA8;
+		material.diffMap.format = GL_RGB8;
 		material.diffMap.width = width;
 		material.diffMap.height = height;
 		material.diffMap.data = diffBitmap;
@@ -314,20 +403,41 @@ namespace soko
 	   	SOKO_ASSERT(material.diffMap.gpuHandle, "");
 
 		EndTemporaryMemory(gameState->tempArena);
-		BeginTemporaryMemory(gameState->tempArena);
 
-		unsigned char* specBitmap = stbi_load("../res/ABB_Manipulator_Specular.png", &width, &height, &bpp, 4);
-		material.specMap.format = GL_RGBA8;
-		material.specMap.width = width;
-		material.specMap.height = height;
-		material.specMap.data = specBitmap;
+		gameState->tileMaterial = material;
 
-		RendererLoadTexture(&material.specMap);
-	   	SOKO_ASSERT(material.specMap.gpuHandle, "");
-		EndTemporaryMemory(gameState->tempArena);
+		gameState->level.xDim = 64;
+		gameState->level.yDim = 64;
+		gameState->level.zDim = 3;
 
-		gameState->material = material;
+		u32 tileArraySize = gameState->level.xDim * gameState->level.yDim * gameState->level.zDim;
 
+		auto* level = &gameState->level;
+		level->tiles = PUSH_ARRAY(gameState->memoryArena, Tile, tileArraySize);
+		SOKO_ASSERT(level->tiles);
+
+		for (u32 x = 0; x < level->xDim; x++)
+		{
+			for (u32 y = 0; y < level->yDim; y++)
+			{
+				Tile tile = {};
+				tile.value = 1;
+				SetTile(level, x, y, 0, tile);
+
+				if ((x == 0) || (x == level->xDim - 1) ||
+					(y == 0) || (y == level->yDim - 1))
+				{
+					SetTile(level, x, y, 1, tile);					
+				}
+			}
+		}
+
+		auto* player = &gameState->player;
+		player->lvlCoord = V3U(10, 10, 1);
+		Tile playerTile = {};
+		playerTile.value = 2;
+		player->level = &gameState->level;
+		SetTile(player->level, player->lvlCoord, playerTile);
 	}
 	
 	void
@@ -454,12 +564,116 @@ namespace soko
 		gameState->overlayCorner = corner;
 	}
 
+	void BeginDebugOverlay()
+	{
+		const float xPos = 10.0f;
+		const float yPos = 10.0f;
+		
+		ImGuiIO& io = ImGui::GetIO();
+		ImVec2 window_pos = ImVec2(xPos, yPos);
+		ImVec2 window_pos_pivot = ImVec2(0.0f, 0.0f);
+		ImGui::SetNextWindowPos(window_pos, ImGuiCond_Always, window_pos_pivot);
+		ImGui::SetNextWindowBgAlpha(0.5f); // Transparent background
+		if (ImGui::Begin("Debug overlay", NULL,
+						 //ImGuiWindowFlags_NoMove |
+						 //ImGuiWindowFlags_NoDecoration |
+						 ImGuiWindowFlags_AlwaysAutoResize |
+						 ImGuiWindowFlags_NoSavedSettings |
+						 ImGuiWindowFlags_NoFocusOnAppearing |
+						 ImGuiWindowFlags_NoNav))
+		{
+			//ImGui::Text("Debug overlay");
+		}
+		ImGui::End();
+	}
+
+	void DebugOverlayPushStr(const char* string)
+	{
+		if (ImGui::Begin("Debug overlay", NULL,
+						 ImGuiWindowFlags_NoMove |
+						 //ImGuiWindowFlags_NoDecoration |
+						 ImGuiWindowFlags_AlwaysAutoResize |
+						 ImGuiWindowFlags_NoSavedSettings |
+						 ImGuiWindowFlags_NoFocusOnAppearing |
+						 ImGuiWindowFlags_NoNav))
+		{
+			ImGui::Separator();
+			ImGui::Text(string);
+		}
+		ImGui::End();		
+	}
+
+	void DebugOverlayPushVar(const char* title, v3u var)
+	{
+		if (ImGui::Begin("Debug overlay", NULL,
+						 ImGuiWindowFlags_NoMove |
+						 //ImGuiWindowFlags_NoDecoration |
+						 ImGuiWindowFlags_AlwaysAutoResize |
+						 ImGuiWindowFlags_NoSavedSettings |
+						 ImGuiWindowFlags_NoFocusOnAppearing |
+						 ImGuiWindowFlags_NoNav))
+		{
+			ImGui::Separator();
+			char buffer[128];
+			FormatString(buffer, 128, "%s: x: %u32; y: %u32; z: %u32", title, var.x, var.y, var.z);
+			ImGui::Text(buffer);
+		}
+		ImGui::End();		
+	}
+
+	void DebugOverlayPushVar(const char* title, v3 var)
+	{
+		if (ImGui::Begin("Debug overlay", NULL,
+						 ImGuiWindowFlags_NoMove |
+						 //ImGuiWindowFlags_NoDecoration |
+						 ImGuiWindowFlags_AlwaysAutoResize |
+						 ImGuiWindowFlags_NoSavedSettings |
+						 ImGuiWindowFlags_NoFocusOnAppearing |
+						 ImGuiWindowFlags_NoNav))
+		{
+			ImGui::Separator();
+			char buffer[128];
+			FormatString(buffer, 128, "%s: x: %.3f32; y: %.3f32; z: %.3f32", title, var.x, var.y, var.z);
+			ImGui::Text(buffer);
+		}
+		ImGui::End();		
+	}
+
+	void DebugOverlayPushSlider(const char* title, v3* var, f32 min, f32 max)
+	{
+		if (ImGui::Begin("Debug overlay", NULL,
+						 ImGuiWindowFlags_NoMove |
+						 //ImGuiWindowFlags_NoDecoration |
+						 ImGuiWindowFlags_AlwaysAutoResize |
+						 ImGuiWindowFlags_NoSavedSettings |
+						 ImGuiWindowFlags_NoFocusOnAppearing |
+						 ImGuiWindowFlags_NoNav))
+		{
+			ImGui::Separator();
+			ImGui::SliderFloat3(title, var->data, min, max);
+		}
+		ImGui::End();		
+
+	}
+
+
+#define DEBUG_OVERLAY_TRACE(var) DebugOverlayPushVar(#var, var)
+#define DEBUG_OVERLAY_SLIDER(var, min, max) DebugOverlayPushSlider(#var, &var, min, max)
+
+
 	void
 	GameRender(AB::MemoryArena* arena, AB::PlatformState* platform)
 	{
 		auto* gameState = _GlobalStaticStorage->gameState;
+		//bool show = true;
+		//ImGui::ShowDemoWindow(&show);
 
 		DrawOverlay(gameState);
+		BeginDebugOverlay();
+		DebugOverlayPushStr("Hello!");
+		DEBUG_OVERLAY_TRACE(gameState->player.lvlCoord);
+		DEBUG_OVERLAY_TRACE(gameState->camera.conf.position);
+		DEBUG_OVERLAY_SLIDER(gameState->camera.conf.position, -60.0f, 60.0f);
 		
 		UpdateCamera(&gameState->camera);
 		RenderGroupSetCamera(gameState->renderGroup, &gameState->camera.conf);
@@ -474,13 +688,60 @@ namespace soko
 		lightCommand.light = light;
 		RenderGroupPushCommand(gameState->renderGroup, RENDER_COMMAND_SET_DIR_LIGHT,
 							   (void*)&lightCommand);
-		DrawStraightLine(gameState->renderGroup, V3(0.0f, 0.0f, -1.0f), V3(16.0f, 9.0f, -1.0f), V3(1.0f, 0.0f, 0.0f), 4.0f);
-		RenderCommandDrawMesh command = {};
-		command.transform = Scaling(V3(0.8f));
-		command.mesh = &gameState->mesh;
-		command.material = &gameState->material;
-		RenderGroupPushCommand(gameState->renderGroup, RENDER_COMMAND_DRAW_MESH,
-							   (void*)&command);
+
+		Player* player = &gameState->player;
+		v3u playerOffset = {};
+
+		// TODO: tile coordinates as ints?
+		if (JustPressed(GlobalInput.keys[AB::KEY_UP]) &&
+			(player->inputFlags & PENDING_MOVEMENT_BIT_FORWARD) == 0)
+		{
+			player->inputFlags |= PENDING_MOVEMENT_BIT_FORWARD;
+			playerOffset += V3U(0, 1, 0);
+		}
+
+		if (JustPressed(GlobalInput.keys[AB::KEY_DOWN]) &&
+			(player->inputFlags & PENDING_MOVEMENT_BIT_BACKWARD) == 0)
+		{
+			player->inputFlags |= PENDING_MOVEMENT_BIT_BACKWARD;
+			playerOffset -= V3U(0, 1, 0);
+		}
+
+		if (JustPressed(GlobalInput.keys[AB::KEY_RIGHT]) &&
+			(player->inputFlags & PENDING_MOVEMENT_BIT_RIGHT) == 0)
+		{
+			player->inputFlags |= PENDING_MOVEMENT_BIT_RIGHT;
+			playerOffset += V3U(1, 0, 0);
+		}
+
+		if (JustPressed(GlobalInput.keys[AB::KEY_LEFT]) &&
+			(player->inputFlags & PENDING_MOVEMENT_BIT_LEFT) == 0)
+		{
+			player->inputFlags |= PENDING_MOVEMENT_BIT_LEFT;
+			playerOffset -= V3U(1, 0, 0);
+		}
+
+		if (JustReleased(GlobalInput.keys[AB::KEY_UP]))
+		{
+			player->inputFlags &= ~PENDING_MOVEMENT_BIT_FORWARD;
+		}
+		if (JustReleased(GlobalInput.keys[AB::KEY_DOWN]))
+		{
+			player->inputFlags &= ~PENDING_MOVEMENT_BIT_BACKWARD;
+		}
+		if (JustReleased(GlobalInput.keys[AB::KEY_RIGHT]))
+		{
+			player->inputFlags &= ~PENDING_MOVEMENT_BIT_RIGHT;
+		}
+		if (JustReleased(GlobalInput.keys[AB::KEY_LEFT]))
+		{
+			player->inputFlags &= ~PENDING_MOVEMENT_BIT_LEFT;
+		}
+
+		MovePlayer(player, player->lvlCoord + playerOffset);
+
+		DrawLevel(&gameState->level, gameState);
+		DrawPlayer(&gameState->player, gameState);
 		FlushRenderGroup(gameState->renderer, gameState->renderGroup);
 	}
 }
