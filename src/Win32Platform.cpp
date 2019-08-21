@@ -1076,7 +1076,6 @@ namespace AB
 
 		app->gameLib.GameUpdateAndRender(app->gameArena, &app->state,
 										 GUR_REASON_INIT);
-		AB_CORE_INFO("Test");
 		while (app->running)
 		{
 			WindowPollEvents(app);

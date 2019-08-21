@@ -151,7 +151,7 @@ namespace soko
 				group->lineBatchCount;
 			group->lineBatchCount = 0;
 		} break;
-		SOKO_INVALID_DEFAULT_CASE;
+		INVALID_DEFAULT_CASE;
 		}
 	}
 

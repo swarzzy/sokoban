@@ -190,10 +190,12 @@ namespace soko
 #define SOKO_ASSERT(expr, ...) do { if (!(expr)) {soko::LogAssert(AB::LOG_FATAL, __FILE__, __func__, __LINE__, #expr, __VA_ARGS__); AB_DEBUG_BREAK();}} while(false)
 #define SOKO_PANIC(format, ...) do{ Log(AB::LOG_FATAL, __FILE__, __func__, __LINE__, format, __VA_ARGS__); abort();} while(false)
 #endif
-#define SOKO_INVALID_DEFAULT_CASE default:{ SOKO_ASSERT(false, "Invalid default case."); }break
-#define SOKO_INVALID_CODE_PATH SOKO_ASSERT(false, "Invalid code path.")
+#define INVALID_DEFAULT_CASE default:{ SOKO_ASSERT(false, "Invalid default case."); }break
+#define INVALID_CODE_PATH SOKO_ASSERT(false, "Invalid code path.")
 
 #include "imgui/imgui.h"
+
+#include "Level.cpp"
 
 extern "C" GAME_CODE_ENTRY void
 GameUpdateAndRender(AB::MemoryArena* arena,
@@ -219,101 +221,11 @@ GameUpdateAndRender(AB::MemoryArena* arena,
 	{
 		soko::GameRender(arena, platform);
 	} break;
-	SOKO_INVALID_DEFAULT_CASE;
+	INVALID_DEFAULT_CASE;
 	}
 }
 namespace soko
 {
-
-	inline Tile GetTile(const Level* level, u32 x, u32 y, u32 z)
-	{
-		SOKO_ASSERT(x < level->xDim);
-		SOKO_ASSERT(y < level->yDim);
-		SOKO_ASSERT(z < level->zDim);
-
-		u32 offset = z * level->xDim * level->yDim + y * level->xDim + x;
-		Tile result = level->tiles[offset];
-		return result;
-	}
-
-	inline Tile GetTile(const Level* level, v3u coord)
-	{
-		Tile result = GetTile(level, coord.x, coord.y, coord.z);
-		return result;
-	}
-		
-	inline void SetTile(Level* level, u32 x, u32 y, u32 z, Tile tile)
-	{
-		SOKO_ASSERT(x < level->xDim);
-		SOKO_ASSERT(y < level->yDim);
-		SOKO_ASSERT(z < level->zDim);
-
-		u32 offset = z * level->xDim * level->yDim + y * level->xDim + x;
-		level->tiles[offset] = tile;		
-	}
-
-	inline void SetTile(Level* level, v3u coord, Tile tile)
-	{
-		SetTile(level, coord.x, coord.y, coord.z, tile);
-	}
-
-	void DrawLevel(const Level* level, GameState* gameState)
-	{
-		for (u32 x = 0; x < level->xDim; x++)
-		{
-			for (u32 y = 0; y < level->yDim; y++)
-			{
-				for (u32 z = 0; z < level->zDim; z++)
-				{
-					Tile tile = GetTile(level, x, y, z);
-					if (tile.value)
-					{
-						f32 xCoord = x * LEVEL_TILE_SIZE;
-						f32 yCoord = z * LEVEL_TILE_SIZE;
-						f32 zCoord = y * LEVEL_TILE_SIZE;
-						v3 pos = V3(xCoord, yCoord, -zCoord);
-						RenderCommandDrawMesh command = {};
-						command.transform = Translation(pos);
-						command.mesh = &gameState->cubeMesh;
-						command.material = &gameState->tileMaterial;
-						RenderGroupPushCommand(gameState->renderGroup, RENDER_COMMAND_DRAW_MESH,
-											   (void*)&command);
-
-					}
-				}
-			}
-		}
-	}
-
-	void DrawPlayer(const Player* player, GameState* gameState)
-	{
-		f32 xCoord = player->lvlCoord.x * LEVEL_TILE_SIZE;
-		f32 yCoord = player->lvlCoord.z * LEVEL_TILE_SIZE;
-		f32 zCoord = player->lvlCoord.y * LEVEL_TILE_SIZE;
-		v3 pos = V3(xCoord, yCoord, -zCoord);
-		RenderCommandDrawMesh command = {};
-		command.transform = Translation(pos);
-		command.mesh = &gameState->cubeMesh;
-		command.material = &gameState->tileMaterial;
-		RenderGroupPushCommand(gameState->renderGroup, RENDER_COMMAND_DRAW_MESH,
-							   (void*)&command);
-		
-	}
-
-	void MovePlayer(Player* player, v3u desiredPos)
-	{
-		Tile tile = GetTile(player->level, desiredPos);
-		if (!tile.value)
-		{
-			Tile oldTile = {};
-			Tile desiredTile = {};
-			desiredTile.value = 2;
-			SetTile(player->level, player->lvlCoord, oldTile);
-			SetTile(player->level, desiredPos, desiredTile);
-			player->lvlCoord = desiredPos;
-		}
-	}
-   		
 	void
 	GameInit(AB::MemoryArena* arena, AB::PlatformState* platform)
 	{
@@ -353,11 +265,20 @@ namespace soko
 		camera.nearPlane = 0.1f;
 		camera.farPlane = 100.0f;
 
+		gameState->debugCamera.conf = camera;
+		gameState->debugCamera.moveSpeed = 3.0f;
+		gameState->debugCamera.rotateSpeed = 60.0f;
+		gameState->debugCamera.moveSmooth = 0.8f;
+		gameState->debugCamera.rotateSmooth = 0.45f;
+
 		gameState->camera.conf = camera;
-		gameState->camera.moveSpeed = 3.0f;
-		gameState->camera.rotateSpeed = 60.0f;
-		gameState->camera.moveSmooth = 0.8f;
-		gameState->camera.rotateSmooth = 0.45f;
+		gameState->camera.longSmooth = 0.3f;
+		gameState->camera.latSmooth = 0.3f;
+		gameState->camera.distSmooth = 0.3f;
+		gameState->camera.rotSpeed = 1000.0f;
+		gameState->camera.zoomSpeed = 5.0f;
+		gameState->camera.moveSpeed = 500.0f;
+		gameState->camera.moveFriction = 8.0f;
 
 		RenderGroupSetCamera(gameState->renderGroup, &camera);
 
@@ -388,27 +309,65 @@ namespace soko
 		gameState->cubeMesh = mesh;
 		stbi_set_flip_vertically_on_load(1);
 
-		i32 width;
-		i32 height;
-		i32 bpp;
-		BeginTemporaryMemory(gameState->tempArena);
-		unsigned char* diffBitmap = stbi_load("../res/tile.png", &width, &height, &bpp, 3);
+		{
+			i32 width;
+			i32 height;
+			i32 bpp;
+			BeginTemporaryMemory(gameState->tempArena);
+			unsigned char* diffBitmap = stbi_load("../res/tile.png", &width, &height, &bpp, 3);
 
-		Material material = {};
-		material.diffMap.format = GL_RGB8;
-		material.diffMap.width = width;
-		material.diffMap.height = height;
-		material.diffMap.data = diffBitmap;
-		RendererLoadTexture(&material.diffMap);
-	   	SOKO_ASSERT(material.diffMap.gpuHandle, "");
+			Material material = {};
+			material.diffMap.format = GL_RGB8;
+			material.diffMap.width = width;
+			material.diffMap.height = height;
+			material.diffMap.data = diffBitmap;
+			RendererLoadTexture(&material.diffMap);
+			SOKO_ASSERT(material.diffMap.gpuHandle, "");
 
-		EndTemporaryMemory(gameState->tempArena);
+			EndTemporaryMemory(gameState->tempArena);
+			gameState->tileMaterial = material;
+		}
+		{
+			i32 width;
+			i32 height;
+			i32 bpp;
+			BeginTemporaryMemory(gameState->tempArena);
+			unsigned char* diffBitmap = stbi_load("../res/tile_player.png", &width, &height, &bpp, 3);
 
-		gameState->tileMaterial = material;
+			Material material = {};
+			material.diffMap.format = GL_RGB8;
+			material.diffMap.width = width;
+			material.diffMap.height = height;
+			material.diffMap.data = diffBitmap;
+			RendererLoadTexture(&material.diffMap);
+			SOKO_ASSERT(material.diffMap.gpuHandle, "");
 
+			EndTemporaryMemory(gameState->tempArena);
+			gameState->tilePlayerMaterial = material;
+		}
+		{
+			i32 width;
+			i32 height;
+			i32 bpp;
+			BeginTemporaryMemory(gameState->tempArena);
+			unsigned char* diffBitmap = stbi_load("../res/tile_block.png", &width, &height, &bpp, 3);
+
+			Material material = {};
+			material.diffMap.format = GL_RGB8;
+			material.diffMap.width = width;
+			material.diffMap.height = height;
+			material.diffMap.data = diffBitmap;
+			RendererLoadTexture(&material.diffMap);
+			SOKO_ASSERT(material.diffMap.gpuHandle, "");
+
+			EndTemporaryMemory(gameState->tempArena);
+			gameState->tileBlockMaterial = material;
+		}
+		
 		gameState->level.xDim = 64;
 		gameState->level.yDim = 64;
 		gameState->level.zDim = 3;
+		gameState->level.entityCount = 1;
 
 		u32 tileArraySize = gameState->level.xDim * gameState->level.yDim * gameState->level.zDim;
 
@@ -420,24 +379,45 @@ namespace soko
 		{
 			for (u32 y = 0; y < level->yDim; y++)
 			{
-				Tile tile = {};
-				tile.value = 1;
-				SetTile(level, x, y, 0, tile);
+				Tile* tile = GetTile(level, x, y, 0);
+				tile->value = TILE_VALUE_WALL;
 
 				if ((x == 0) || (x == level->xDim - 1) ||
 					(y == 0) || (y == level->yDim - 1))
 				{
-					SetTile(level, x, y, 1, tile);					
+					Tile* tile1 = GetTile(level, x, y, 1);
+					tile1->value = TILE_VALUE_WALL;
 				}
 			}
 		}
 
+		Entity playerEntity = {};
+		playerEntity.type = ENTITY_TYPE_PLAYER;
+		playerEntity.coord = V3U(10, 10, 1);
+		u32 playerEntityId = AddEntity(&gameState->level, playerEntity);
+
 		auto* player = &gameState->player;
-		player->lvlCoord = V3U(10, 10, 1);
-		Tile playerTile = {};
-		playerTile.value = 2;
 		player->level = &gameState->level;
-		SetTile(player->level, player->lvlCoord, playerTile);
+		player->e = player->level->entities + playerEntityId;
+		Tile* playerTile = GetTile(player->level, player->e->coord);
+		playerTile->value = TILE_VALUE_ENTITY;
+		
+		Entity entity1 = {};
+		entity1.type = ENTITY_TYPE_BLOCK;
+		entity1.coord = V3U(5, 7, 1);
+		AddEntity(player->level, entity1);
+
+		Entity entity2 = {};
+		entity2.type = ENTITY_TYPE_BLOCK;
+		entity2.coord = V3U(5, 8, 1);
+		AddEntity(player->level, entity2);
+
+		Entity entity3 = {};
+		entity3.type = ENTITY_TYPE_BLOCK;
+		entity3.coord = V3U(5, 9, 1);
+		AddEntity(player->level, entity3);
+
+
 	}
 	
 	void
@@ -457,11 +437,10 @@ namespace soko
 	void
 	GameUpdate(AB::MemoryArena* arena, AB::PlatformState* platform)
 	{
-		SOKO_INFO("Sokoban!");
 	}
 
 	void
-	UpdateCamera(Camera* camera)
+	UpdateCamera(FPCamera* camera)
 	{
 		v3 pos = camera->targetPosition;
 		v3 front = camera->targetFront;
@@ -528,6 +507,116 @@ namespace soko
 		
 		camera->conf.position = Lerp(camera->conf.position, pos, camera->moveSmooth);
 		camera->conf.front = Lerp(camera->conf.front, front, camera->rotateSmooth);
+	}
+
+	void UpdateCamera(GameCamera* camera)
+	{
+		v3 camFrameOffset = {};
+		
+		v3 _frontDir = V3(camera->conf.front.x, 0.0f, camera->conf.front.z);
+		v3 _rightDir = Cross(V3(0.0f, 1.0f, 0.0f), _frontDir);
+		// TODO: Is that normalization is neccessary?
+		_rightDir = Normalize(_rightDir);
+
+		v2 frontDir = V2(_frontDir.x, _frontDir.z);
+		v2 rightDir = V2(_rightDir.x, _rightDir.z);
+
+		v2 acceleration = {};
+		if (GlobalInput.keys[AB::KEY_W].pressedNow)
+		{
+			acceleration += frontDir;
+		}
+		if (GlobalInput.keys[AB::KEY_S].pressedNow)
+		{
+			acceleration -= frontDir;
+		}
+		if (GlobalInput.keys[AB::KEY_A].pressedNow)
+		{
+			acceleration += rightDir;
+		}
+		if (GlobalInput.keys[AB::KEY_D].pressedNow)
+		{
+			acceleration -= rightDir;
+		}
+
+		acceleration = Normalize(acceleration);
+		acceleration *= camera->moveSpeed; // 500.0f
+
+		f32 friction = camera->moveFriction; // 8.0f
+		acceleration = acceleration - camera->velocity * friction;
+
+		v2 movementDelta;
+		movementDelta = 0.5f * acceleration *
+			Square(GlobalAbsDeltaTime) + 
+			camera->velocity *
+			GlobalAbsDeltaTime;
+
+		camera->targetPos += V3(movementDelta.x, 0.0f, movementDelta.y);
+		camera->velocity += acceleration * GlobalAbsDeltaTime;
+
+		if (GlobalInput.mouseButtons[AB::MBUTTON_RIGHT].pressedNow)
+		{
+			v2 mousePos;
+			f32 speed = camera->rotSpeed; // 1000.0f
+			mousePos.x = GlobalInput.mouseFrameOffsetX * speed;
+			mousePos.y = GlobalInput.mouseFrameOffsetY * speed;
+			camera->targetOrbit.x -= mousePos.x;
+			camera->targetOrbit.y -= mousePos.y;
+		}
+
+		if (camera->targetOrbit.y < 95.0f)
+		{
+			camera->targetOrbit.y = 95.0f;
+		}
+		else if (camera->targetOrbit.y > 170.0f)
+		{
+			camera->targetOrbit.y = 170.0f;
+		}
+		
+		i32 frameScrollOffset = GlobalInput.scrollFrameOffset;
+		camera->targetDistance -= frameScrollOffset * camera->zoomSpeed; // 5.0f
+
+		if (camera->targetDistance < 5.0f)
+		{
+			camera->targetDistance = 5.0f;
+		}
+		else if (camera->targetDistance > 50.0f)
+		{
+			camera->targetDistance = 50.0f;
+		}
+		
+		camera->latitude = Lerp(camera->latitude, camera->targetOrbit.y,
+								camera->latSmooth);
+
+		camera->longitude = Lerp(camera->longitude, camera->targetOrbit.x,
+								 camera->longSmooth);
+
+		camera->distance = Lerp(camera->distance, camera->targetDistance,
+								camera->distSmooth);
+
+		f32 latitude = ToRadians(camera->latitude);
+		f32 longitude = ToRadians(camera->longitude);
+		f32 polarAngle = PI_32 - latitude;
+			
+		f32 x = camera->distance * Sin(polarAngle) * Sin(longitude);
+		f32 z = camera->distance * Sin(polarAngle) * Cos(longitude);
+		f32 y = camera->distance * Cos(polarAngle);
+
+		camera->conf.position = camera->targetPos + V3(x, y, z);
+		camera->conf.front = -Normalize(V3(x, y, z));
+
+#if 0
+		v2 normMousePos;
+		normMousePos.x = 2.0f *	GlobalInput.mouseX - 1.0f;
+		normMousePos.y = 2.0f *	GlobalInput.mouseY - 1.0f;
+		v4 mouseClip = V4(normMousePos, 1.0f, 0.0f);
+		v4 mouseView = MulM4V4(camera->invProjection, mouseClip);
+		mouseView = V4(mouseView.xy, 1.0f, 0.0f);
+		v3 mouseWorld = MulM4V4(camera->invLookAt, mouseView).xyz;
+		mouseWorld = Normalize(mouseWorld);
+		camera->mouseRay = mouseWorld;
+		camera->mouseRayWorld = FlipYZ(mouseWorld);
+#endif
 	}
 
 	void DrawOverlay(GameState* gameState)
@@ -671,12 +760,28 @@ namespace soko
 		DrawOverlay(gameState);
 		BeginDebugOverlay();
 		DebugOverlayPushStr("Hello!");
-		DEBUG_OVERLAY_TRACE(gameState->player.lvlCoord);
+		DEBUG_OVERLAY_TRACE(gameState->player.e->coord);
 		DEBUG_OVERLAY_TRACE(gameState->camera.conf.position);
 		DEBUG_OVERLAY_SLIDER(gameState->camera.conf.position, -60.0f, 60.0f);
+
+		if (JustPressed(GlobalInput.keys[AB::KEY_F1]))
+		{
+			gameState->useDebugCamera = !gameState->useDebugCamera;
+		}
+
+		CameraConfig* camConf = NULL;
+		if (gameState->useDebugCamera)
+		{
+			UpdateCamera(&gameState->debugCamera);
+			camConf = &gameState->debugCamera.conf;
+		}
+		else
+		{
+			UpdateCamera(&gameState->camera);
+			camConf = &gameState->camera.conf;
+		}
 		
-		UpdateCamera(&gameState->camera);
-		RenderGroupSetCamera(gameState->renderGroup, &gameState->camera.conf);
+		RenderGroupSetCamera(gameState->renderGroup, camConf);
 
 		RendererBeginFrame(gameState->renderer, V2(1280.0f, 800.0f));
 		DirectionalLight light = {};
@@ -690,35 +795,33 @@ namespace soko
 							   (void*)&lightCommand);
 
 		Player* player = &gameState->player;
-		v3u playerOffset = {};
 
-		// TODO: tile coordinates as ints?
 		if (JustPressed(GlobalInput.keys[AB::KEY_UP]) &&
 			(player->inputFlags & PENDING_MOVEMENT_BIT_FORWARD) == 0)
 		{
 			player->inputFlags |= PENDING_MOVEMENT_BIT_FORWARD;
-			playerOffset += V3U(0, 1, 0);
+			MoveEntity(&gameState->level, player->e, MOVE_DIR_FORWARD);
 		}
 
 		if (JustPressed(GlobalInput.keys[AB::KEY_DOWN]) &&
 			(player->inputFlags & PENDING_MOVEMENT_BIT_BACKWARD) == 0)
 		{
 			player->inputFlags |= PENDING_MOVEMENT_BIT_BACKWARD;
-			playerOffset -= V3U(0, 1, 0);
+			MoveEntity(&gameState->level, player->e, MOVE_DIR_BACK);
 		}
 
 		if (JustPressed(GlobalInput.keys[AB::KEY_RIGHT]) &&
 			(player->inputFlags & PENDING_MOVEMENT_BIT_RIGHT) == 0)
 		{
 			player->inputFlags |= PENDING_MOVEMENT_BIT_RIGHT;
-			playerOffset += V3U(1, 0, 0);
+			MoveEntity(&gameState->level, player->e, MOVE_DIR_RIGHT);
 		}
 
 		if (JustPressed(GlobalInput.keys[AB::KEY_LEFT]) &&
 			(player->inputFlags & PENDING_MOVEMENT_BIT_LEFT) == 0)
 		{
 			player->inputFlags |= PENDING_MOVEMENT_BIT_LEFT;
-			playerOffset -= V3U(1, 0, 0);
+			MoveEntity(&gameState->level, player->e, MOVE_DIR_LEFT);
 		}
 
 		if (JustReleased(GlobalInput.keys[AB::KEY_UP]))
@@ -738,10 +841,9 @@ namespace soko
 			player->inputFlags &= ~PENDING_MOVEMENT_BIT_LEFT;
 		}
 
-		MovePlayer(player, player->lvlCoord + playerOffset);
-
 		DrawLevel(&gameState->level, gameState);
-		DrawPlayer(&gameState->player, gameState);
+		//DrawPlayer(&gameState->player, gameState);
+		DrawEntities(&gameState->level, gameState);
 		FlushRenderGroup(gameState->renderer, gameState->renderGroup);
 	}
 }

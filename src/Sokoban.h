@@ -1,6 +1,7 @@
 #pragma once
 #include "Platform.h"
 #include "Renderer.h"
+#include "Level.h"
 
 namespace soko
 {
@@ -24,7 +25,7 @@ namespace soko
 		Texture specMap;
 	};
 
-	struct Camera
+	struct FPCamera
 	{
 		CameraConfig conf;
 		v3 targetPosition;
@@ -38,68 +39,25 @@ namespace soko
 		f32 yaw;
 	};
 
-	const f32 LEVEL_TILE_SIZE = 1.0f;
-
-	union v3u
+	struct GameCamera
 	{
-		struct
-		{
-			u32 x, y, z;
-		};
+		CameraConfig conf;
+		f32 longitude;
+		f32 latitude;
+		f32 distance;
+		v2 targetOrbit;
+		f32 targetDistance;
+		v3 targetPos;
+		f32 rotSpeed;
+		f32 zoomSpeed;
+		f32 moveSpeed;
+		f32 moveFriction;
+		v2 velocity;
+		f32 latSmooth;
+		f32 longSmooth;
+		f32 distSmooth;
 	};
 
-	inline v3u V3U(u32 x, u32 y, u32 z)
-	{
-		v3u result;
-		result.x = x;
-		result.y = y;
-		result.z = z;
-		return result;
-	}
-
-	inline v3u V3U(u32 a)
-	{
-		v3u result;
-		result.x = a;
-		result.y = a;
-		result.z = a;
-		return result;
-	}
-
-	inline v3u& operator+=(v3u& l, v3u r)
-	{
-		l.x += r.x;
-		l.y += r.y;
-		l.z += r.z;
-		return l;
-	}
-
-	inline v3u& operator-=(v3u& l, v3u r)
-	{
-		l.x -= r.x;
-		l.y -= r.y;
-		l.z -= r.z;
-		return l;
-	}
-
-	inline v3u operator+(v3u l, v3u r)
-	{
-		return V3U(l.x + r.x, l.y + r.y, l.z + r.z);
-	}
-
-
-	struct Tile
-	{
-		u32 value;
-	};
-
-	struct Level
-	{
-		u32 xDim;
-		u32 yDim;
-		u32 zDim;
-		Tile* tiles;
-	};
 
 	enum PlayerPendingMovementBit : u32
 	{
@@ -111,8 +69,8 @@ namespace soko
 
 	struct Player
 	{
+		Entity* e;
 		Level* level;
-		v3u lvlCoord;
 		u32 inputFlags;
 	};
 
@@ -122,9 +80,13 @@ namespace soko
 		AB::MemoryArena* tempArena;
 		Renderer* renderer;
 		RenderGroup* renderGroup;
-		Camera camera;
+		FPCamera debugCamera;
+		GameCamera camera;
+		b32 useDebugCamera;
 		Mesh cubeMesh;
 		Material tileMaterial;
+		Material tilePlayerMaterial;
+		Material tileBlockMaterial;
 		u32 overlayCorner;
 		Level level;
 		Player player;

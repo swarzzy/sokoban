@@ -309,7 +309,7 @@ void RendererLoadTexture(Texture* texture)
 			{
 			case GL_RGBA8: { format = GL_RGBA; } break;
 			case GL_RGB8: { format = GL_RGB; } break;
-			SOKO_INVALID_DEFAULT_CASE;
+			INVALID_DEFAULT_CASE;
 			}
 
 			glTexImage2D(GL_TEXTURE_2D, 0, texture->format, texture->width,
