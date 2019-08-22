@@ -1156,8 +1156,13 @@ namespace AB
 	}
 	
 }
-
+#if 1
+int
+WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance,
+			LPSTR lpCmdLine, int nShowCmd)
+#else
 int main()
+#endif
 {
 	AB::MemoryArena* arena = AB::AllocateArena(AB::MAIN_ARENA_SIZE);
 	AB::Application* app = nullptr;
