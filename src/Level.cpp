@@ -3,71 +3,198 @@
 
 namespace soko
 {
-	// NOTE: Using hash table for tiles might be incredibly slow!!!
-	inline Tile*
-	GetTile(Level* level, i32 x, i32 y, i32 z, AB::MemoryArena* arena = NULL)
+#if 0
+	Tile*
+	PushTile(TileStorage* storage, MemoryArena* arena)
 	{
-		Tile* result = NULL;
-		// TODO: Better hash
-		u32 tileHash = (Abs(x) * 22 + Abs(y) * 12 + Abs(z) * 7) % LEVEL_TILE_TABLE_SIZE;
-		Tile* tile = level->tiles[tileHash];
-		if (tile)
+		Tile result = NULL;
+		if (!storage->firstBucket)
 		{
-			if (tile->coord.x == x &&
-				tile->coord.y == y &&
-				tile->coord.z == z)
+			storage->firstBucket = PUSH_STRUCT(arena, TileBucket);
+			if (storage->firstBucket)
 			{
-				result = tile;
-			}
-			else
-			{
-				while (tile->nextTile)
-				{
-					Tile* nextTile = tile->nextTile;
-					if (nextTile->coord.x == x &&
-						nextTile->coord.y == y &&
-						nextTile->coord.z == z)
-					{
-						result = nextTile;
-						break;
-					}
-					else
-					{
-						tile = tile->nextTile;
-					}
-				}
+				storage->bucketCount++;				
 			}
 		}
-
-		if (!result && arena)
+		if (storage->firstBucket)
 		{
-			// NOTE: Cleared to zero
-			Tile* newTile = PUSH_STRUCT(arena, Tile);
-			SOKO_ASSERT(newTile);
-			if (!tile)
+			if (storage->firstBucket->tileCount >= TileBucket::MAX_TILES)
 			{
-				level->tiles[tileHash] = newTile;
-			}
-			else
-			{
-				tile->nextTile = newTile;
-			}
+				// TODO: Buckets freelist
+				TileBucket* newBucket = PUSH_STRUCT(arena, TileBucket);
+				if (newBucket)
+				{
+					newBucket->nextBucket = storage->firstBucket;
+					storage->firstBucket = newBucket;
+				}
+				else
+				{
+					INVALID_CODE_PATH;
+				}
 
-			newTile->coord.x = x;
-			newTile->coord.y = y;
-			newTile->coord.z = z;
-			level->tileCount++;
+			}
 			
-			result = newTile;
+			result = storage->firstBucket->tiles + storage->firstBucket->tileCount;
+			storage->firstBucket->tileCount++;
 		}
 		return result;
 	}
 
-	inline Tile*
+	// NOTE: Using hash table for tiles might be incredibly slow!!!
+#endif
+
+	inline TileQuery
+	GetTile(Level* level, i32 x, i32 y, i32 z, AB::MemoryArena* arena = nullptr)
+	{
+		TileQuery result = {};
+		if (x > Level::MAX_DIM || x < Level::MIN_DIM ||
+			y > Level::MAX_DIM || y < Level::MIN_DIM ||
+			z > Level::MAX_DIM || z < Level::MIN_DIM)
+		{
+			result.result = TileQueryResult::OutOfBounds;
+		}
+		else
+		{
+			// TODO: Better hash
+			u32 tileHash = (Abs(x) * 22 + Abs(y) * 12 + Abs(z) * 7) % LEVEL_TILE_TABLE_SIZE;
+			Tile* tile = level->tiles[tileHash];
+			if (tile)
+			{
+				// TODO: Collapse to do-while
+				if (tile->coord.x == x &&
+					tile->coord.y == y &&
+					tile->coord.z == z)
+				{
+					result.result = TileQueryResult::Found;
+					result.tile = tile;
+				}
+				else
+				{
+					while (tile->nextTile)
+					{
+						Tile* nextTile = tile->nextTile;
+						if (nextTile->coord.x == x &&
+							nextTile->coord.y == y &&
+							nextTile->coord.z == z)
+						{
+							result.result = TileQueryResult::Found;
+							result.tile = nextTile;
+							break;
+						}
+						else
+						{
+							tile = tile->nextTile;
+						}
+					}
+				}
+			}
+			// NOTE: Allocation call always should be called with arena
+			// Even if it takes space from freelist
+			if (!result.tile && arena)
+			{
+				Tile* newTile = nullptr;
+				if (level->tileFreeList)
+				{
+					newTile = level->tileFreeList;
+					level->tileFreeList = newTile->nextTile;
+					level->freeTileCount--;
+					ZERO_STRUCT(Tile, newTile);
+				}
+				else
+				{
+					newTile = PUSH_STRUCT(arena, Tile);
+				}
+
+				if (!newTile)
+				{
+					result.result = TileQueryResult::AllocationError;
+				}
+				else
+				{								
+					if (!tile)
+					{
+						level->tiles[tileHash] = newTile;
+					}
+					else
+					{
+						tile->nextTile = newTile;
+					}
+
+					newTile->coord.x = x;
+					newTile->coord.y = y;
+					newTile->coord.z = z;
+					level->tileCount++;
+
+					result.result = TileQueryResult::Found;
+					result.tile = newTile;
+
+				}
+			}
+		}
+		return result;
+	}
+
+
+	inline TileQuery
 	GetTile(Level* level, v3i coord, AB::MemoryArena* arena = NULL)
 	{
-		Tile* result = GetTile(level, coord.x, coord.y, coord.z, arena);
+		TileQuery result = GetTile(level, coord.x, coord.y, coord.z, arena);
 		return result;
+	}
+
+	void
+	FreeTileIfEmpty(Level* level, Tile* tile)
+	{
+		if (tile->value == TILE_VALUE_NULL && !tile->firstEntity)
+		{
+			i32 x = tile->coord.x;
+			i32 y = tile->coord.y;
+			i32 z = tile->coord.z;
+			// TODO: This is the same code as in GetTile
+			// TODO: Better hash
+			u32 tileHash = (Abs(x) * 22 + Abs(y) * 12 + Abs(z) * 7) % LEVEL_TILE_TABLE_SIZE;
+			Tile* currentTile = level->tiles[tileHash];
+			bool found = false;
+			if (currentTile)
+			{
+				// TODO: Collapse to do-while
+				if (currentTile->coord.x == x &&
+					currentTile->coord.y == y &&
+					currentTile->coord.z == z)
+				{
+					level->tiles[tileHash] = currentTile->nextTile;
+					found = true;
+				}
+				else
+				{
+					while (currentTile->nextTile)
+					{
+						Tile* nextTile = currentTile->nextTile;
+						if (nextTile->coord.x == x &&
+							nextTile->coord.y == y &&
+							nextTile->coord.z == z)
+						{
+							currentTile->nextTile = tile->nextTile;
+							found = true;
+							break;
+						}
+						else
+						{
+							currentTile = currentTile->nextTile;
+						}
+					}
+				}
+
+			}
+			SOKO_ASSERT(found);
+			if (found)
+			{
+				tile->nextTile = level->tileFreeList;
+				level->tileFreeList = tile;
+				level->freeTileCount++;
+				level->tileCount--;
+			}
+		}
 	}
 
 	inline u32
@@ -76,24 +203,28 @@ namespace soko
 		u32 id = 0;
 		if (level->entityCount < MAX_LEVEL_ENTITIES)
 		{
-			Tile* tile = GetTile(level, entity.coord, arena);
-			if (tile->value != TILE_VALUE_WALL)
+			TileQuery query = GetTile(level, entity.coord, arena);
+			if (query.result == TileQueryResult::Found)
 			{
-				id = level->entityCount;
-				level->entityCount++;
-				level->entities[id] = entity;
-				Tile entityTile = {};
-				tile->value = TILE_VALUE_ENTITY;
-
-				Entity* addedEntity = level->entities + id;
-				addedEntity->nextEntityInTile = tile->firstEntity;
-				addedEntity->prevEntityInTile = NULL;
-				if (tile->firstEntity)
+				Tile* tile = query.tile;
+				if (tile->value != TILE_VALUE_WALL)
 				{
-					tile->firstEntity->prevEntityInTile = addedEntity;					
+					id = level->entityCount;
+					level->entityCount++;
+					level->entities[id] = entity;
+					Tile entityTile = {};
+					tile->value = TILE_VALUE_ENTITY;
+
+					Entity* addedEntity = level->entities + id;
+					addedEntity->nextEntityInTile = tile->firstEntity;
+					addedEntity->prevEntityInTile = NULL;
+					if (tile->firstEntity)
+					{
+						tile->firstEntity->prevEntityInTile = addedEntity;					
+					}
+					tile->firstEntity = addedEntity;
 				}
-				tile->firstEntity = addedEntity;
-			}
+			}				
 		}
 		return id;
 	}
@@ -102,12 +233,15 @@ namespace soko
 	ChangeEntityLocation(Level* level, Entity* entity, v3i desiredCoord, AB::MemoryArena* arena)
 	{
 		bool result = false;
-		Tile* oldTile = GetTile(level, entity->coord);
-		SOKO_ASSERT(oldTile);
-		Tile* desiredTile = GetTile(level, desiredCoord, arena);
-		if (desiredTile)
+		TileQuery oldTileQuery = GetTile(level, entity->coord);
+		SOKO_ASSERT(oldTileQuery.result == TileQueryResult::Found);
+		Tile* oldTile = oldTileQuery.tile;
+		
+		TileQuery desiredTileQuery = GetTile(level, desiredCoord, arena);
+		if (desiredTileQuery.result == TileQueryResult::Found)
 		{
-			bool tileIsFree = !(bool)desiredTile->firstEntity;
+			Tile* desiredTile = desiredTileQuery.tile;
+			bool tileIsFree = !(bool)desiredTile->firstEntity && desiredTile->value != TILE_VALUE_WALL;
 			if (tileIsFree)
 			{
 				if (entity->prevEntityInTile)
@@ -139,7 +273,8 @@ namespace soko
 				desiredTile->firstEntity = entity;
 			
 				entity->coord = desiredCoord;
-				result = true;				
+				FreeTileIfEmpty(level, oldTile);
+				result = true;
 			}
 		}
 		return result;
@@ -161,20 +296,19 @@ namespace soko
 		INVALID_DEFAULT_CASE;
 		}
 
-		Tile* desiredTile = GetTile(level, desiredPos, arena);
-		Tile* oldTile = GetTile(level, entity->coord);
-		Tile* pushTile = GetTile(level, reverse ? revDesiredPos : desiredPos, arena);
+		auto[desRes, desiredTile] = GetTile(level, desiredPos, arena);
+		auto[oldRes, oldTile] = GetTile(level, entity->coord);
+		auto[pushRes, pushTile] = GetTile(level, reverse ? revDesiredPos : desiredPos);
 
 		SOKO_ASSERT(oldTile);
-		if (desiredTile && pushTile)
+		if (desiredTile)
 		{
-
 			if (reverse)
 			{
 				result = ChangeEntityLocation(level, entity, desiredPos, arena);
 			}
 		
-			if (pushTile->value != TILE_VALUE_WALL)
+			if (pushRes == TileQueryResult::Found && pushTile->value != TILE_VALUE_WALL)
 			{
 				Entity* entityInTile = pushTile->firstEntity;
 				bool recursive = (bool)depth;
@@ -208,8 +342,8 @@ namespace soko
 			{
 				for (u32 z = 0; z < level->zDim; z++)
 				{
-					Tile* tile = GetTile(level, x, y, z);
-					if (tile && tile->value == TILE_VALUE_WALL)
+					auto[queryResult, tile] = GetTile(level, x, y, z);
+					if (queryResult == TileQueryResult::Found && tile->value == TILE_VALUE_WALL)
 					{
 						f32 xCoord = x * LEVEL_TILE_SIZE;
 						f32 yCoord = z * LEVEL_TILE_SIZE;

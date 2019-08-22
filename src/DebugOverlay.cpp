@@ -138,6 +138,26 @@ namespace soko
 	}
 
 	void
+	DebugOverlayPushVar(const char* title, u32 var)
+	{
+		if (ImGui::Begin("Debug overlay", NULL,
+						 ImGuiWindowFlags_NoMove |
+						 //ImGuiWindowFlags_NoDecoration |
+						 ImGuiWindowFlags_AlwaysAutoResize |
+						 ImGuiWindowFlags_NoSavedSettings |
+						 ImGuiWindowFlags_NoFocusOnAppearing |
+						 ImGuiWindowFlags_NoNav))
+		{
+			ImGui::Separator();
+			char buffer[128];
+			FormatString(buffer, 128, "%s: x: %u32", title, var);
+			ImGui::Text(buffer);
+		}
+		ImGui::End();		
+	}
+
+
+	void
 	DebugOverlayPushSlider(const char* title, v3* var, f32 min, f32 max)
 	{
 		if (ImGui::Begin("Debug overlay", NULL,

@@ -9,6 +9,7 @@ namespace soko
 	void DebugOverlayPushVar(const char* title, v3u var);
 	void DebugOverlayPushVar(const char* title, v3i var);
 	void DebugOverlayPushVar(const char* title, v3 var);
+	void DebugOverlayPushVar(const char* title, u32 var);
 	void DebugOverlayPushSlider(const char* title, v3* var, f32 min, f32 max);
 }
 

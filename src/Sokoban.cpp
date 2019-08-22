@@ -380,13 +380,15 @@ namespace soko
 		{
 			for (u32 y = 0; y < level->yDim; y++)
 			{
-				Tile* tile = GetTile(level, x, y, 0, gameState->memoryArena);
+				auto[queryResult, tile] = GetTile(level, x, y, 0, gameState->memoryArena);
+				SOKO_ASSERT(queryResult == TileQueryResult::Found);
 				tile->value = TILE_VALUE_WALL;
 
 				if ((x == 0) || (x == level->xDim - 1) ||
 					(y == 0) || (y == level->yDim - 1))
 				{
-					Tile* tile1 = GetTile(level, x, y, 1, gameState->memoryArena);
+					auto[queryResult1, tile1] = GetTile(level, x, y, 1, gameState->memoryArena);
+					SOKO_ASSERT(queryResult1 == TileQueryResult::Found);
 					tile1->value = TILE_VALUE_WALL;
 				}
 			}
@@ -400,7 +402,8 @@ namespace soko
 		auto* player = &gameState->player;
 		player->level = &gameState->level;
 		player->e = player->level->entities + playerEntityId;
-		Tile* playerTile = GetTile(player->level, player->e->coord, gameState->memoryArena);
+		auto[queryResult, playerTile] = GetTile(player->level, player->e->coord, gameState->memoryArena);
+		SOKO_ASSERT(queryResult == TileQueryResult::Found);
 		playerTile->value = TILE_VALUE_ENTITY;
 		
 		Entity entity1 = {};
@@ -450,6 +453,8 @@ namespace soko
 		DebugOverlayPushStr("Hello!");
 		DEBUG_OVERLAY_TRACE(gameState->player.e->coord);
 		DEBUG_OVERLAY_TRACE(gameState->camera.conf.position);
+		DEBUG_OVERLAY_TRACE(gameState->level.tileCount);
+		DEBUG_OVERLAY_TRACE(gameState->level.freeTileCount);
 		DEBUG_OVERLAY_SLIDER(gameState->camera.conf.position, -60.0f, 60.0f);
 
 		if (JustPressed(GlobalInput.keys[AB::KEY_F1]))

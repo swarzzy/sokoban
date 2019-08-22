@@ -147,13 +147,32 @@ namespace soko
 		MOVE_DIR_LEFT
 	};
 
+	enum class TileQueryResult
+	{
+		Empty = 0, OutOfBounds, Found, AllocationError
+	};
+	
+	struct TileQuery
+	{
+		TileQueryResult result;
+		Tile* tile;
+	};
+
+
 	struct Level
 	{
+		// NOTE: Maximum size of the level is 1024-tile-side cube
+		// so count of tiles in cube is less than 2^32
+		static const i32 MAX_DIM = 512;
+		static const i32 MIN_DIM = -511;
+		
 		u32 xDim;
 		u32 yDim;
 		u32 zDim;
 		// TODO: This fixed for now. Pick size based on level fill percentage?
 		Tile* tiles[LEVEL_TILE_TABLE_SIZE];
+		u32 freeTileCount;
+		Tile* tileFreeList;
 		u32 entityCount;
 		Entity entities[MAX_LEVEL_ENTITIES];
 		u32 tileCount;

@@ -9,7 +9,7 @@
 #define COPY_SCALAR(type, dest, src) memcpy(dest, src, sizeof(type))
 #define COPY_BYTES(numBytes, dest, src) memcpy(dest, src, numBytes)
 #define SET_ARRAY(type, elem_count, dest, val) memset(dest, val, sizeof(type) * elem_count)
-#define SET_ZERO_SCALAR(type, dest) memset(dest, 0, sizeof(type))
+#define ZERO_STRUCT(type, dest) memset(dest, 0, sizeof(type))
 #define SET_ZERO_ARRAY(type, count, dest) memset(dest, 0, sizeof(type) * count)
 
 #define PUSH_STRUCT(arena, type) (type*)PushSize(arena, sizeof(type), alignof(type))
