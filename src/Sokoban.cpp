@@ -286,30 +286,57 @@ namespace soko
 		RenderGroupSetCamera(gameState->renderGroup, &camera);
 
 		gameState->renderer->clearColor = V4(0.8f, 0.8f, 0.8f, 1.0f);
+		{
+			u32 fileSize = DebugGetFileSize(L"../res/cube.aab");
+			void* fileData = PUSH_SIZE(arena, fileSize);
+			u32 result = DebugReadFile(fileData, fileSize, L"../res/cube.aab");
+			// NOTE: Strict aliasing
+			auto header = (AABMeshHeader*)fileData;
+			SOKO_ASSERT(header->magicValue == AAB_FILE_MAGIC_VALUE, "");
 
-		u32 fileSize = DebugGetFileSize(L"../res/cube.aab");
-		void* fileData = PUSH_SIZE(arena, fileSize);
-		u32 result = DebugReadFile(fileData, fileSize, L"../res/cube.aab");
-		// NOTE: Strict aliasing
-		auto header = (AABMeshHeader*)fileData;
-		SOKO_ASSERT(header->magicValue == AAB_FILE_MAGIC_VALUE, "");
+			Mesh mesh = {};
+			mesh.vertexCount = header->verticesCount;
+			mesh.normalCount = header->normalsCount;
+			mesh.uvCount = header->uvsCount;
+			mesh.indexCount = header->indicesCount;
 
-		Mesh mesh = {};
-		mesh.vertexCount = header->verticesCount;
-		mesh.normalCount = header->normalsCount;
-		mesh.uvCount = header->uvsCount;
-		mesh.indexCount = header->indicesCount;
+			mesh.vertices = (v3*)((byte*)fileData + header->verticesOffset);
+			mesh.normals = (v3*)((byte*)fileData + header->normalsOffset);
+			mesh.uvs = (v2*)((byte*)fileData + header->uvsOffset);
+			mesh.indices = (u32*)((byte*)fileData + header->indicesOffset);
 
-		mesh.vertices = (v3*)((byte*)fileData + header->verticesOffset);
-		mesh.normals = (v3*)((byte*)fileData + header->normalsOffset);
-		mesh.uvs = (v2*)((byte*)fileData + header->uvsOffset);
-		mesh.indices = (u32*)((byte*)fileData + header->indicesOffset);
+			RendererLoadMesh(&mesh);
+			SOKO_ASSERT(mesh.gpuVertexBufferHandle, "");
+			SOKO_ASSERT(mesh.gpuIndexBufferHandle, "");
 
-		RendererLoadMesh(&mesh);
-		SOKO_ASSERT(mesh.gpuVertexBufferHandle, "");
-		SOKO_ASSERT(mesh.gpuIndexBufferHandle, "");
+			gameState->cubeMesh = mesh;
+		}
+		{
+			u32 fileSize = DebugGetFileSize(L"../res/plate.aab");
+			void* fileData = PUSH_SIZE(arena, fileSize);
+			u32 result = DebugReadFile(fileData, fileSize, L"../res/plate.aab");
+			// NOTE: Strict aliasing
+			auto header = (AABMeshHeader*)fileData;
+			SOKO_ASSERT(header->magicValue == AAB_FILE_MAGIC_VALUE, "");
 
-		gameState->cubeMesh = mesh;
+			Mesh mesh = {};
+			mesh.vertexCount = header->verticesCount;
+			mesh.normalCount = header->normalsCount;
+			mesh.uvCount = header->uvsCount;
+			mesh.indexCount = header->indicesCount;
+
+			mesh.vertices = (v3*)((byte*)fileData + header->verticesOffset);
+			mesh.normals = (v3*)((byte*)fileData + header->normalsOffset);
+			mesh.uvs = (v2*)((byte*)fileData + header->uvsOffset);
+			mesh.indices = (u32*)((byte*)fileData + header->indicesOffset);
+
+			RendererLoadMesh(&mesh);
+			SOKO_ASSERT(mesh.gpuVertexBufferHandle, "");
+			SOKO_ASSERT(mesh.gpuIndexBufferHandle, "");
+
+			gameState->plateMesh = mesh;
+		}
+
 		stbi_set_flip_vertically_on_load(1);
 
 		{
@@ -366,6 +393,25 @@ namespace soko
 			EndTemporaryMemory(gameState->tempArena);
 			gameState->tileBlockMaterial = material;
 		}
+		{
+			i32 width;
+			i32 height;
+			i32 bpp;
+			BeginTemporaryMemory(gameState->tempArena);
+			unsigned char* diffBitmap = stbi_load("../res/plate_palette.png", &width, &height, &bpp, 3);
+
+			Material material = {};
+			material.diffMap.format = GL_RGB8;
+			material.diffMap.width = width;
+			material.diffMap.height = height;
+			material.diffMap.data = diffBitmap;
+			RendererLoadTexture(&material.diffMap);
+			SOKO_ASSERT(material.diffMap.gpuHandle, "");
+
+			EndTemporaryMemory(gameState->tempArena);
+			gameState->redPlateMaterial = material;
+		}
+
 		
 		gameState->level.xDim = 64;
 		gameState->level.yDim = 64;
@@ -397,6 +443,8 @@ namespace soko
 		Entity playerEntity = {};
 		playerEntity.type = ENTITY_TYPE_PLAYER;
 		playerEntity.coord = V3I(10, 10, 1);
+		playerEntity.mesh = &gameState->cubeMesh;
+		playerEntity.material = &gameState->tilePlayerMaterial;
 		u32 playerEntityId = AddEntity(&gameState->level, playerEntity, gameState->memoryArena);
 
 		auto* player = &gameState->player;
@@ -409,17 +457,35 @@ namespace soko
 		Entity entity1 = {};
 		entity1.type = ENTITY_TYPE_BLOCK;
 		entity1.coord = V3I(5, 7, 1);
+		entity1.mesh = &gameState->cubeMesh;
+		entity1.material = &gameState->tileBlockMaterial;
+
 		AddEntity(player->level, entity1, gameState->memoryArena);
 
 		Entity entity2 = {};
 		entity2.type = ENTITY_TYPE_BLOCK;
 		entity2.coord = V3I(5, 8, 1);
+		entity2.mesh = &gameState->cubeMesh;
+		entity2.material = &gameState->tileBlockMaterial;
+
 		AddEntity(player->level, entity2, gameState->memoryArena);
 
 		Entity entity3 = {};
 		entity3.type = ENTITY_TYPE_BLOCK;
 		entity3.coord = V3I(5, 9, 1);
+		entity3.mesh = &gameState->cubeMesh;
+		entity3.material = &gameState->tileBlockMaterial;
+
 		AddEntity(player->level, entity3, gameState->memoryArena);
+
+		Entity plate = {};
+		plate.type = ENTITY_TYPE_PLATE;
+		plate.coord = V3I(10, 9, 1);
+		plate.mesh = &gameState->plateMesh;
+		plate.material = &gameState->redPlateMaterial;
+
+		AddEntity(player->level, plate, gameState->memoryArena);
+
 	}
 	
 	void

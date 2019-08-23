@@ -3,46 +3,6 @@
 
 namespace soko
 {
-#if 0
-	Tile*
-	PushTile(TileStorage* storage, MemoryArena* arena)
-	{
-		Tile result = NULL;
-		if (!storage->firstBucket)
-		{
-			storage->firstBucket = PUSH_STRUCT(arena, TileBucket);
-			if (storage->firstBucket)
-			{
-				storage->bucketCount++;				
-			}
-		}
-		if (storage->firstBucket)
-		{
-			if (storage->firstBucket->tileCount >= TileBucket::MAX_TILES)
-			{
-				// TODO: Buckets freelist
-				TileBucket* newBucket = PUSH_STRUCT(arena, TileBucket);
-				if (newBucket)
-				{
-					newBucket->nextBucket = storage->firstBucket;
-					storage->firstBucket = newBucket;
-				}
-				else
-				{
-					INVALID_CODE_PATH;
-				}
-
-			}
-			
-			result = storage->firstBucket->tiles + storage->firstBucket->tileCount;
-			storage->firstBucket->tileCount++;
-		}
-		return result;
-	}
-
-	// NOTE: Using hash table for tiles might be incredibly slow!!!
-#endif
-
 	inline TileQuery
 	GetTile(Level* level, i32 x, i32 y, i32 z, AB::MemoryArena* arena = nullptr)
 	{
@@ -56,7 +16,7 @@ namespace soko
 		else
 		{
 			// TODO: Better hash
-			u32 tileHash = (Abs(x) * 22 + Abs(y) * 12 + Abs(z) * 7) % LEVEL_TILE_TABLE_SIZE;
+			u32 tileHash = (Abs(x) * 22 + Abs(y) * 12 + Abs(z) * 7) % Level::TILE_TABLE_SIZE;
 			Tile* tile = level->tiles[tileHash];
 			if (tile)
 			{
@@ -152,7 +112,7 @@ namespace soko
 			i32 z = tile->coord.z;
 			// TODO: This is the same code as in GetTile
 			// TODO: Better hash
-			u32 tileHash = (Abs(x) * 22 + Abs(y) * 12 + Abs(z) * 7) % LEVEL_TILE_TABLE_SIZE;
+			u32 tileHash = (Abs(x) * 22 + Abs(y) * 12 + Abs(z) * 7) % Level::TILE_TABLE_SIZE;
 			Tile* currentTile = level->tiles[tileHash];
 			bool found = false;
 			if (currentTile)
@@ -201,7 +161,7 @@ namespace soko
 	AddEntity(Level* level, Entity entity, AB::MemoryArena* arena)
 	{
 		u32 id = 0;
-		if (level->entityCount < MAX_LEVEL_ENTITIES)
+		if (level->entityCount < Level::MAX_ENTITIES)
 		{
 			TileQuery query = GetTile(level, entity.coord, arena);
 			if (query.result == TileQueryResult::Found)
@@ -229,6 +189,17 @@ namespace soko
 		return id;
 	}
 
+	inline Entity*
+	GetEntity(Level* level, u32 id)
+	{
+		Entity* result = nullptr;
+		if (id < Level::MAX_ENTITIES)
+		{
+			result = level->entities + id;
+		}
+		return result;
+	}
+
 	bool
 	ChangeEntityLocation(Level* level, Entity* entity, v3i desiredCoord, AB::MemoryArena* arena)
 	{
@@ -241,7 +212,18 @@ namespace soko
 		if (desiredTileQuery.result == TileQueryResult::Found)
 		{
 			Tile* desiredTile = desiredTileQuery.tile;
-			bool tileIsFree = !(bool)desiredTile->firstEntity && desiredTile->value != TILE_VALUE_WALL;
+			bool tileIsFree = desiredTile->value != TILE_VALUE_WALL;
+			// TODO: For all entities in tile (iterator)
+			if (tileIsFree)
+			{
+				Entity* entityInTile = desiredTile->firstEntity;
+				while(entityInTile)
+				{
+					// TODO: Entity type filtering
+					tileIsFree = !entityInTile->type == ENTITY_TYPE_BLOCK;
+					entityInTile = entityInTile->nextEntityInTile;
+				}				
+			}
 			if (tileIsFree)
 			{
 				if (entity->prevEntityInTile)
@@ -316,10 +298,13 @@ namespace soko
 				{
 					while (entityInTile)
 					{
-						// NOTE: Resolve entity collision
-						Entity* currentEntity = entityInTile;
+						if (entityInTile->type == ENTITY_TYPE_BLOCK)
+						{
+							// NOTE: Resolve entity collision
+							Entity* currentEntity = entityInTile;
+							MoveEntity(level, currentEntity, dir, arena, reverse, depth - 1);							
+						}
 						entityInTile = entityInTile->nextEntityInTile;
-						MoveEntity(level, currentEntity, dir, arena, reverse, depth - 1);
 					}
 				}
 			}
@@ -365,8 +350,9 @@ namespace soko
 	void
 	DrawEntities(Level* level, GameState* gameState)
 	{
-		for (u32 i = 0; i < level->entityCount; i++)
+		for (u32 i = 1; i < level->entityCount; i++)
 		{
+			// TODO: Entity iterator?
 			Entity* entity = level->entities + i;
 			f32 xCoord = entity->coord.x * LEVEL_TILE_SIZE;
 			f32 yCoord = entity->coord.z * LEVEL_TILE_SIZE;
@@ -374,13 +360,10 @@ namespace soko
 			v3 pos = V3(xCoord, yCoord, -zCoord);
 			RenderCommandDrawMesh command = {};
 			command.transform = Translation(pos);
-			command.mesh = &gameState->cubeMesh;
-			switch (entity->type)
-			{
-			case ENTITY_TYPE_BLOCK: { command.material = &gameState->tileBlockMaterial; } break;
-			case ENTITY_TYPE_PLAYER: { command.material = &gameState->tilePlayerMaterial; } break;
-			INVALID_DEFAULT_CASE;																								
-			}
+			SOKO_ASSERT(entity->mesh);
+			SOKO_ASSERT(entity->material);
+			command.mesh = entity->mesh;
+			command.material = entity->material;
 			RenderGroupPushCommand(gameState->renderGroup, RENDER_COMMAND_DRAW_MESH,
 								   (void*)&command);
 

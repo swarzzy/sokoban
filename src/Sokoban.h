@@ -52,9 +52,11 @@ namespace soko
 		GameCamera camera;
 		b32 useDebugCamera;
 		Mesh cubeMesh;
+		Mesh plateMesh;
 		Material tileMaterial;
 		Material tilePlayerMaterial;
 		Material tileBlockMaterial;
+		Material redPlateMaterial;
 		u32 overlayCorner;
 		Level level;
 		Player player;

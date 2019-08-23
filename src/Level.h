@@ -115,13 +115,16 @@ namespace soko
 	enum EntityType
 	{
 		ENTITY_TYPE_BLOCK,
-		ENTITY_TYPE_PLAYER
+		ENTITY_TYPE_PLAYER,
+		ENTITY_TYPE_PLATE
 	};
 
 	struct Entity
 	{
 		EntityType type;
 		v3i coord;
+		Mesh* mesh;
+		Material* material;
 		Entity* nextEntityInTile;
 		Entity* prevEntityInTile;
 	};
@@ -135,9 +138,6 @@ namespace soko
 		// TODO: use 4bit offsets from allocator base for less footprint
 		Tile* nextTile;
 	};
-
-	const u32 MAX_LEVEL_ENTITIES = 128;
-	const u32 LEVEL_TILE_TABLE_SIZE = 8192;
 
 	enum MovementDir
 	{
@@ -161,6 +161,9 @@ namespace soko
 
 	struct Level
 	{
+		static const u32 MAX_ENTITIES = 128;
+		static const u32 TILE_TABLE_SIZE = 8192;
+
 		// NOTE: Maximum size of the level is 1024-tile-side cube
 		// so count of tiles in cube is less than 2^32
 		static const i32 MAX_DIM = 512;
@@ -170,11 +173,11 @@ namespace soko
 		u32 yDim;
 		u32 zDim;
 		// TODO: This fixed for now. Pick size based on level fill percentage?
-		Tile* tiles[LEVEL_TILE_TABLE_SIZE];
+		Tile* tiles[TILE_TABLE_SIZE];
 		u32 freeTileCount;
 		Tile* tileFreeList;
 		u32 entityCount;
-		Entity entities[MAX_LEVEL_ENTITIES];
+		Entity entities[MAX_ENTITIES];
 		u32 tileCount;
 	};
 }
