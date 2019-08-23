@@ -3,6 +3,22 @@
 
 namespace soko
 {
+	inline v3i DirToUnitOffset(Direction dir)
+	{
+		v3i result = {};
+		switch (dir)
+		{
+		case DIRECTION_NORTH: { result = V3I(0, 1, 0); } break;
+		case DIRECTION_SOUTH: { result = V3I(0, -1, 0); } break;
+		case DIRECTION_WEST:  { result = V3I(1, 0, 0); } break;
+		case DIRECTION_EAST:  { result = V3I(-1, 0, 0); } break;
+		case DIRECTION_UP:    { result = V3I(0, 0, 1); } break;
+		case DIRECTION_DOWN:  { result = V3I(0, 0, -1); } break;
+			INVALID_DEFAULT_CASE;			
+		}
+		return result;
+	}
+
 	inline TileQuery
 	GetTile(Level* level, i32 x, i32 y, i32 z, AB::MemoryArena* arena = nullptr)
 	{
@@ -105,7 +121,7 @@ namespace soko
 	void
 	FreeTileIfEmpty(Level* level, Tile* tile)
 	{
-		if (tile->value == TILE_VALUE_NULL && !tile->firstEntity)
+		if (tile->value == TILE_VALUE_EMPTY && !tile->entityList.first)
 		{
 			i32 x = tile->coord.x;
 			i32 y = tile->coord.y;
@@ -173,16 +189,16 @@ namespace soko
 					level->entityCount++;
 					level->entities[id] = entity;
 					Tile entityTile = {};
-					tile->value = TILE_VALUE_ENTITY;
 
 					Entity* addedEntity = level->entities + id;
-					addedEntity->nextEntityInTile = tile->firstEntity;
+					addedEntity->id = id;
+					addedEntity->nextEntityInTile = tile->entityList.first;
 					addedEntity->prevEntityInTile = NULL;
-					if (tile->firstEntity)
+					if (tile->entityList.first)
 					{
-						tile->firstEntity->prevEntityInTile = addedEntity;					
+						tile->entityList.first->prevEntityInTile = addedEntity;					
 					}
-					tile->firstEntity = addedEntity;
+					tile->entityList.first = addedEntity;
 				}
 			}				
 		}
@@ -201,6 +217,68 @@ namespace soko
 	}
 
 	bool
+	ChangeEntityLocation(Level* level, Entity* entity, v3i desiredCoord, AB::MemoryArena* arena);
+	
+	void UpdateEntitiesInTile(Level* level, Tile* tile, AB::MemoryArena* arena)
+	{
+		for (Entity& entity : tile->entityList)
+		{
+			switch (entity.type)
+			{
+			case ENTITY_TYPE_PLATE:
+			{
+				level->platePressed = false;
+				for (Entity& e : tile->entityList)
+				{
+					if (&e != &entity)
+					{
+						if (e.type == ENTITY_TYPE_BLOCK)
+						{
+							level->platePressed = true;
+						}
+					}
+				}
+			} break;
+			case ENTITY_TYPE_PORTAL:
+			{
+				for (Entity& e : tile->entityList)
+				{
+					if (&e != &entity)
+					{
+						if (IsSet(e, ENTITY_FLAG_MOVABLE))
+						{
+							// NOTE: No need in flag if teleporting
+							// not no the same tile where portal located
+#if 0
+							if (IsSet(e, ENTITY_FLAG_JUST_TELEPORTED))
+							{
+								UnsetFlag(e, ENTITY_FLAG_JUST_TELEPORTED);
+							}
+							else
+							{
+								SetFlag(e, ENTITY_FLAG_JUST_TELEPORTED);
+								v3i newCoord = GetEntity(level, entity.bindedPortalID)->coord + DirToUnitOffset(entity.portalDirection);
+								bool teleported = ChangeEntityLocation(level, &e, newCoord, arena);
+								if (!teleported)
+								{
+									UnsetFlag(e, ENTITY_FLAG_JUST_TELEPORTED);								
+								}
+							}
+#endif
+							SetFlag(e, ENTITY_FLAG_JUST_TELEPORTED);
+							v3i newCoord = GetEntity(level, entity.bindedPortalID)->coord + DirToUnitOffset(entity.portalDirection);
+							bool teleported = ChangeEntityLocation(level, &e, newCoord, arena);
+	
+						}
+					}
+				}
+			} break;
+			default: {} break;
+			}			
+		}
+	}
+	
+	bool
 	ChangeEntityLocation(Level* level, Entity* entity, v3i desiredCoord, AB::MemoryArena* arena)
 	{
 		bool result = false;
@@ -216,13 +294,14 @@ namespace soko
 			// TODO: For all entities in tile (iterator)
 			if (tileIsFree)
 			{
-				Entity* entityInTile = desiredTile->firstEntity;
-				while(entityInTile)
+				for (Entity& entityInTile : desiredTile->entityList)
 				{
-					// TODO: Entity type filtering
-					tileIsFree = !entityInTile->type == ENTITY_TYPE_BLOCK;
-					entityInTile = entityInTile->nextEntityInTile;
-				}				
+					if (IsSet(entityInTile, ENTITY_FLAG_COLLIDES))
+					{
+						tileIsFree = false;
+						break;
+					}					
+				}
 			}
 			if (tileIsFree)
 			{
@@ -232,29 +311,25 @@ namespace soko
 				}
 				else
 				{
-					oldTile->firstEntity = entity->nextEntityInTile;
-					if (oldTile->firstEntity)
+					oldTile->entityList.first = entity->nextEntityInTile;
+					if (oldTile->entityList.first)
 					{
-						oldTile->firstEntity->prevEntityInTile = NULL;
+						oldTile->entityList.first->prevEntityInTile = NULL;
 					}
 				}
 
-				if (!oldTile->firstEntity)
-				{
-					oldTile->value = TILE_VALUE_NULL;
-				}
-			
-				desiredTile->value = TILE_VALUE_ENTITY;
-
-				entity->nextEntityInTile = desiredTile->firstEntity;
+				entity->nextEntityInTile = desiredTile->entityList.first;
 				entity->prevEntityInTile = NULL;
-				if (desiredTile->firstEntity)
+				if (desiredTile->entityList.first)
 				{
-					desiredTile->firstEntity->prevEntityInTile = entity;
+					desiredTile->entityList.first->prevEntityInTile = entity;
 				}
-				desiredTile->firstEntity = entity;
-			
+				desiredTile->entityList.first = entity;
 				entity->coord = desiredCoord;
+				
+				UpdateEntitiesInTile(level, oldTile, arena);
+				UpdateEntitiesInTile(level, desiredTile, arena);
+			
 				FreeTileIfEmpty(level, oldTile);
 				result = true;
 			}
@@ -263,21 +338,14 @@ namespace soko
 	}
 
 	bool
-	MoveEntity(Level* level, Entity* entity, MovementDir dir, AB::MemoryArena* arena, bool reverse = false, u32 depth = 2)
+	MoveEntity(Level* level, Entity* entity, Direction dir, AB::MemoryArena* arena, bool reverse = false, u32 depth = 2)
 	{
 		bool result = false;
 		v3i desiredPos = entity->coord;
+		desiredPos += DirToUnitOffset(dir);
 		v3i revDesiredPos = entity->coord;
-		MovementDir revDir;
-		switch (dir)
-		{
-		case MOVE_DIR_FORWARD: { desiredPos += V3I(0, 1, 0); revDesiredPos -= V3I(0, 1, 0); revDir = MOVE_DIR_BACK; } break;
-		case MOVE_DIR_BACK:    { desiredPos -= V3I(0, 1, 0); revDesiredPos += V3I(0, 1, 0); revDir = MOVE_DIR_FORWARD; } break;
-		case MOVE_DIR_RIGHT:   { desiredPos += V3I(1, 0, 0); revDesiredPos -= V3I(1, 0, 0); revDir = MOVE_DIR_LEFT; } break;
-		case MOVE_DIR_LEFT:    { desiredPos -= V3I(1, 0, 0); revDesiredPos += V3I(1, 0, 0); revDir = MOVE_DIR_RIGHT; } break;
-		INVALID_DEFAULT_CASE;
-		}
-
+		revDesiredPos -= DirToUnitOffset(dir);
+		
 		auto[desRes, desiredTile] = GetTile(level, desiredPos, arena);
 		auto[oldRes, oldTile] = GetTile(level, entity->coord);
 		auto[pushRes, pushTile] = GetTile(level, reverse ? revDesiredPos : desiredPos);
@@ -292,19 +360,18 @@ namespace soko
 		
 			if (pushRes == TileQueryResult::Found && pushTile->value != TILE_VALUE_WALL)
 			{
-				Entity* entityInTile = pushTile->firstEntity;
+				Entity* entityInTile = pushTile->entityList.first;
 				bool recursive = (bool)depth;
 				if (recursive)
 				{
-					while (entityInTile)
+					for (Entity& e : pushTile->entityList)
 					{
-						if (entityInTile->type == ENTITY_TYPE_BLOCK)
+						if (IsSet(&e, ENTITY_FLAG_MOVABLE) &&
+							IsSet(&e, ENTITY_FLAG_COLLIDES))
 						{
 							// NOTE: Resolve entity collision
-							Entity* currentEntity = entityInTile;
-							MoveEntity(level, currentEntity, dir, arena, reverse, depth - 1);							
-						}
-						entityInTile = entityInTile->nextEntityInTile;
+							MoveEntity(level, &e, dir, arena, reverse, depth - 1);							
+						}						
 					}
 				}
 			}
@@ -330,9 +397,9 @@ namespace soko
 					auto[queryResult, tile] = GetTile(level, x, y, z);
 					if (queryResult == TileQueryResult::Found && tile->value == TILE_VALUE_WALL)
 					{
-						f32 xCoord = x * LEVEL_TILE_SIZE;
-						f32 yCoord = z * LEVEL_TILE_SIZE;
-						f32 zCoord = y * LEVEL_TILE_SIZE;
+						f32 xCoord = x * Level::TILE_SIZE;
+						f32 yCoord = z * Level::TILE_SIZE;
+						f32 zCoord = y * Level::TILE_SIZE;
 						v3 pos = V3(xCoord, yCoord, -zCoord);
 						RenderCommandDrawMesh command = {};
 						command.transform = Translation(pos);
@@ -354,9 +421,9 @@ namespace soko
 		{
 			// TODO: Entity iterator?
 			Entity* entity = level->entities + i;
-			f32 xCoord = entity->coord.x * LEVEL_TILE_SIZE;
-			f32 yCoord = entity->coord.z * LEVEL_TILE_SIZE;
-			f32 zCoord = entity->coord.y * LEVEL_TILE_SIZE;
+			f32 xCoord = entity->coord.x * Level::TILE_SIZE;
+			f32 yCoord = entity->coord.z * Level::TILE_SIZE;
+			f32 zCoord = entity->coord.y * Level::TILE_SIZE;
 			v3 pos = V3(xCoord, yCoord, -zCoord);
 			RenderCommandDrawMesh command = {};
 			command.transform = Translation(pos);

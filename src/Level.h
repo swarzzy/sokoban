@@ -103,48 +103,96 @@ namespace soko
 		return result;
 	}
 
-	const f32 LEVEL_TILE_SIZE = 1.0f;
+	enum Direction
+	{
+		DIRECTION_NORTH,
+		DIRECTION_SOUTH,
+		DIRECTION_WEST,
+		DIRECTION_EAST,
+		DIRECTION_UP,
+		DIRECTION_DOWN
+	};
 
 	enum TileValue
 	{
-		TILE_VALUE_NULL = 0,
+		TILE_VALUE_EMPTY = 0,
 		TILE_VALUE_WALL,
-		TILE_VALUE_ENTITY,
 	};
 
 	enum EntityType
 	{
 		ENTITY_TYPE_BLOCK,
 		ENTITY_TYPE_PLAYER,
-		ENTITY_TYPE_PLATE
+		ENTITY_TYPE_PLATE,
+		ENTITY_TYPE_PORTAL
+	};
+
+	enum EntityFlags : u32
+	{
+		ENTITY_FLAG_COLLIDES = (1 << 1),
+		ENTITY_FLAG_MOVABLE = (1 << 2),
+		ENTITY_FLAG_JUST_TELEPORTED = (1 << 3)
 	};
 
 	struct Entity
 	{
+		u32 id;
 		EntityType type;
+		u32 flags;
 		v3i coord;
 		Mesh* mesh;
 		Material* material;
 		Entity* nextEntityInTile;
 		Entity* prevEntityInTile;
+		u32 bindedPortalID;
+		Direction portalDirection;
 	};
+
+	struct TileEntityList
+	{
+		Entity* first;
+	};
+	
+	struct TileEntityListIterator
+	{
+		Entity* ptr;
+		
+		inline TileEntityListIterator& operator++()
+		{
+			ptr = ptr->nextEntityInTile;
+			return *this;
+		}
+		bool operator!=(TileEntityListIterator const& other) const
+		{
+			return ptr != other.ptr;
+		}
+		Entity& operator*()
+		{			
+			return *ptr;
+		}
+	};
+
+	inline TileEntityListIterator begin(TileEntityList& list)
+	{
+		TileEntityListIterator iter = {};
+		iter.ptr = list.first;
+		return iter;
+	}
+
+	inline TileEntityListIterator end(TileEntityList& list)
+	{
+		TileEntityListIterator iter = {};
+		return iter;
+	}
 	
 	struct Tile
 	{
 		// TODO: think about using i16 for less memory footprint
 		v3i coord;
 		TileValue value;
-		Entity* firstEntity;
+		TileEntityList entityList;
 		// TODO: use 4bit offsets from allocator base for less footprint
 		Tile* nextTile;
-	};
-
-	enum MovementDir
-	{
-		MOVE_DIR_FORWARD,
-		MOVE_DIR_BACK,
-		MOVE_DIR_RIGHT,
-		MOVE_DIR_LEFT
 	};
 
 	enum class TileQueryResult
@@ -161,13 +209,14 @@ namespace soko
 
 	struct Level
 	{
-		static const u32 MAX_ENTITIES = 128;
-		static const u32 TILE_TABLE_SIZE = 8192;
+		static constexpr u32 MAX_ENTITIES = 128;
+		static constexpr u32 TILE_TABLE_SIZE = 8192;
+		static constexpr f32 TILE_SIZE = 1.0f;
 
 		// NOTE: Maximum size of the level is 1024-tile-side cube
 		// so count of tiles in cube is less than 2^32
-		static const i32 MAX_DIM = 512;
-		static const i32 MIN_DIM = -511;
+		static constexpr i32 MAX_DIM = 512;
+		static constexpr i32 MIN_DIM = -511;
 		
 		u32 xDim;
 		u32 yDim;
@@ -179,5 +228,33 @@ namespace soko
 		u32 entityCount;
 		Entity entities[MAX_ENTITIES];
 		u32 tileCount;
+		b32 platePressed;
 	};
+
+	inline bool IsSet(const Entity* entity, u32 flag)
+	{
+		return entity->flags & flag;
+	}
+	
+	inline bool IsSet(const Entity& entity, u32 flag)
+	{
+		return entity.flags & flag;
+	}
+
+	inline void SetFlag(Entity* entity, u32 flag)
+	{
+		entity->flags |= flag;
+	}
+	
+	inline void SetFlag(Entity& entity, u32 flag)
+	{
+		entity.flags |= flag;
+	}
+
+
+	inline void UnsetFlag(Entity& entity, u32 flag)
+	{
+		entity.flags &= (~flag);
+	}
+
 }

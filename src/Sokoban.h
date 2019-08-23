@@ -53,12 +53,15 @@ namespace soko
 		b32 useDebugCamera;
 		Mesh cubeMesh;
 		Mesh plateMesh;
+		Mesh portalMesh;
 		Material tileMaterial;
 		Material tilePlayerMaterial;
 		Material tileBlockMaterial;
 		Material redPlateMaterial;
+		Material portalMaterial;
 		u32 overlayCorner;
 		Level level;
 		Player player;
+		b32 platePressed;
 	};
 }

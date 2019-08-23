@@ -336,6 +336,31 @@ namespace soko
 
 			gameState->plateMesh = mesh;
 		}
+		{
+			u32 fileSize = DebugGetFileSize(L"../res/portal.aab");
+			void* fileData = PUSH_SIZE(arena, fileSize);
+			u32 result = DebugReadFile(fileData, fileSize, L"../res/portal.aab");
+			// NOTE: Strict aliasing
+			auto header = (AABMeshHeader*)fileData;
+			SOKO_ASSERT(header->magicValue == AAB_FILE_MAGIC_VALUE, "");
+
+			Mesh mesh = {};
+			mesh.vertexCount = header->verticesCount;
+			mesh.normalCount = header->normalsCount;
+			mesh.uvCount = header->uvsCount;
+			mesh.indexCount = header->indicesCount;
+
+			mesh.vertices = (v3*)((byte*)fileData + header->verticesOffset);
+			mesh.normals = (v3*)((byte*)fileData + header->normalsOffset);
+			mesh.uvs = (v2*)((byte*)fileData + header->uvsOffset);
+			mesh.indices = (u32*)((byte*)fileData + header->indicesOffset);
+
+			RendererLoadMesh(&mesh);
+			SOKO_ASSERT(mesh.gpuVertexBufferHandle, "");
+			SOKO_ASSERT(mesh.gpuIndexBufferHandle, "");
+
+			gameState->portalMesh = mesh;
+		}
 
 		stbi_set_flip_vertically_on_load(1);
 
@@ -411,6 +436,37 @@ namespace soko
 			EndTemporaryMemory(gameState->tempArena);
 			gameState->redPlateMaterial = material;
 		}
+		{
+			i32 widthDiff;
+			i32 heightDiff;
+			i32 bppDiff;
+			BeginTemporaryMemory(gameState->tempArena);
+			unsigned char* diffBitmap = stbi_load("../res/portal_diff.png", &widthDiff, &heightDiff, &bppDiff, 3);
+			i32 widthSpec;
+			i32 heightSpec;
+			i32 bppSpec;
+			unsigned char* specBitmap = stbi_load("../res/portal_spec.png", &widthSpec, &heightSpec, &bppSpec, 3);
+
+
+			Material material = {};
+			material.diffMap.format = GL_RGB8;
+			material.diffMap.width = widthDiff;
+			material.diffMap.height = heightDiff;
+			material.diffMap.data = diffBitmap;
+			material.specMap.format = GL_RGB8;
+			material.specMap.width = widthSpec;
+			material.specMap.height = heightSpec;
+			material.specMap.data = specBitmap;
+
+			RendererLoadTexture(&material.diffMap);
+			RendererLoadTexture(&material.specMap);
+			SOKO_ASSERT(material.diffMap.gpuHandle, "");
+			SOKO_ASSERT(material.specMap.gpuHandle, "");
+
+			EndTemporaryMemory(gameState->tempArena);
+			gameState->portalMaterial = material;
+		}
+
 
 		
 		gameState->level.xDim = 64;
@@ -442,6 +498,7 @@ namespace soko
 
 		Entity playerEntity = {};
 		playerEntity.type = ENTITY_TYPE_PLAYER;
+		playerEntity.flags = ENTITY_FLAG_COLLIDES | ENTITY_FLAG_MOVABLE;
 		playerEntity.coord = V3I(10, 10, 1);
 		playerEntity.mesh = &gameState->cubeMesh;
 		playerEntity.material = &gameState->tilePlayerMaterial;
@@ -450,12 +507,10 @@ namespace soko
 		auto* player = &gameState->player;
 		player->level = &gameState->level;
 		player->e = player->level->entities + playerEntityId;
-		auto[queryResult, playerTile] = GetTile(player->level, player->e->coord, gameState->memoryArena);
-		SOKO_ASSERT(queryResult == TileQueryResult::Found);
-		playerTile->value = TILE_VALUE_ENTITY;
 		
 		Entity entity1 = {};
 		entity1.type = ENTITY_TYPE_BLOCK;
+		entity1.flags = ENTITY_FLAG_COLLIDES | ENTITY_FLAG_MOVABLE;
 		entity1.coord = V3I(5, 7, 1);
 		entity1.mesh = &gameState->cubeMesh;
 		entity1.material = &gameState->tileBlockMaterial;
@@ -464,6 +519,7 @@ namespace soko
 
 		Entity entity2 = {};
 		entity2.type = ENTITY_TYPE_BLOCK;
+		entity2.flags = ENTITY_FLAG_COLLIDES | ENTITY_FLAG_MOVABLE;
 		entity2.coord = V3I(5, 8, 1);
 		entity2.mesh = &gameState->cubeMesh;
 		entity2.material = &gameState->tileBlockMaterial;
@@ -472,6 +528,7 @@ namespace soko
 
 		Entity entity3 = {};
 		entity3.type = ENTITY_TYPE_BLOCK;
+		entity3.flags = ENTITY_FLAG_COLLIDES | ENTITY_FLAG_MOVABLE;
 		entity3.coord = V3I(5, 9, 1);
 		entity3.mesh = &gameState->cubeMesh;
 		entity3.material = &gameState->tileBlockMaterial;
@@ -480,12 +537,35 @@ namespace soko
 
 		Entity plate = {};
 		plate.type = ENTITY_TYPE_PLATE;
+		plate.flags = 0;
 		plate.coord = V3I(10, 9, 1);
 		plate.mesh = &gameState->plateMesh;
 		plate.material = &gameState->redPlateMaterial;
 
 		AddEntity(player->level, plate, gameState->memoryArena);
 
+		Entity portal1 = {};
+		portal1.type = ENTITY_TYPE_PORTAL;
+		portal1.flags = 0;
+		portal1.coord = V3I(12, 12, 1);
+		portal1.mesh = &gameState->portalMesh;
+		portal1.material = &gameState->portalMaterial;
+		portal1.portalDirection = DIRECTION_NORTH;
+
+		Entity* portal1Entity = GetEntity(level, AddEntity(player->level, portal1, gameState->memoryArena));
+
+		Entity portal2 = {};
+		portal2.type = ENTITY_TYPE_PORTAL;
+		portal2.flags = 0;
+		portal2.coord = V3I(17, 17, 1);
+		portal2.mesh = &gameState->portalMesh;
+		portal2.material = &gameState->portalMaterial;
+		portal2.portalDirection = DIRECTION_WEST;
+
+		Entity* portal2Entity = GetEntity(level, AddEntity(player->level, portal2, gameState->memoryArena));
+
+		portal1Entity->bindedPortalID = portal2Entity->id;
+		portal2Entity->bindedPortalID = portal1Entity->id;
 	}
 	
 	void
@@ -521,6 +601,7 @@ namespace soko
 		DEBUG_OVERLAY_TRACE(gameState->camera.conf.position);
 		DEBUG_OVERLAY_TRACE(gameState->level.tileCount);
 		DEBUG_OVERLAY_TRACE(gameState->level.freeTileCount);
+		DEBUG_OVERLAY_TRACE(gameState->level.platePressed);
 		DEBUG_OVERLAY_SLIDER(gameState->camera.conf.position, -60.0f, 60.0f);
 
 		if (JustPressed(GlobalInput.keys[AB::KEY_F1]))
@@ -564,28 +645,28 @@ namespace soko
 			(player->inputFlags & PENDING_MOVEMENT_BIT_FORWARD) == 0)
 		{
 			player->inputFlags |= PENDING_MOVEMENT_BIT_FORWARD;
-			MoveEntity(&gameState->level, player->e, MOVE_DIR_FORWARD, arena, player->reversed);
+			MoveEntity(&gameState->level, player->e, DIRECTION_NORTH, arena, player->reversed);
 		}
 
 		if (JustPressed(GlobalInput.keys[AB::KEY_DOWN]) &&
 			(player->inputFlags & PENDING_MOVEMENT_BIT_BACKWARD) == 0)
 		{
 			player->inputFlags |= PENDING_MOVEMENT_BIT_BACKWARD;
-			MoveEntity(&gameState->level, player->e, MOVE_DIR_BACK, arena, player->reversed);
+			MoveEntity(&gameState->level, player->e, DIRECTION_SOUTH, arena, player->reversed);
 		}
 
 		if (JustPressed(GlobalInput.keys[AB::KEY_RIGHT]) &&
 			(player->inputFlags & PENDING_MOVEMENT_BIT_RIGHT) == 0)
 		{
 			player->inputFlags |= PENDING_MOVEMENT_BIT_RIGHT;
-			MoveEntity(&gameState->level, player->e, MOVE_DIR_RIGHT, arena, player->reversed);
+			MoveEntity(&gameState->level, player->e, DIRECTION_WEST, arena, player->reversed);
 		}
 
 		if (JustPressed(GlobalInput.keys[AB::KEY_LEFT]) &&
 			(player->inputFlags & PENDING_MOVEMENT_BIT_LEFT) == 0)
 		{
 			player->inputFlags |= PENDING_MOVEMENT_BIT_LEFT;
-			MoveEntity(&gameState->level, player->e, MOVE_DIR_LEFT, arena, player->reversed);
+			MoveEntity(&gameState->level, player->e, DIRECTION_EAST, arena, player->reversed);
 		}
 
 		if (JustReleased(GlobalInput.keys[AB::KEY_UP]))
