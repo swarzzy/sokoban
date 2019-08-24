@@ -14,7 +14,7 @@ struct ImGuiContext;
 
 namespace AB
 {	
-    typedef char                byte;
+    typedef uint8_t             byte;
     typedef unsigned char       uchar;
 
     typedef int8_t              i8; 

@@ -361,6 +361,56 @@ namespace soko
 
 			gameState->portalMesh = mesh;
 		}
+		{
+			u32 fileSize = DebugGetFileSize(L"../res/spikes.aab");
+			void* fileData = PUSH_SIZE(arena, fileSize);
+			u32 result = DebugReadFile(fileData, fileSize, L"../res/spikes.aab");
+			// NOTE: Strict aliasing
+			auto header = (AABMeshHeader*)fileData;
+			SOKO_ASSERT(header->magicValue == AAB_FILE_MAGIC_VALUE, "");
+
+			Mesh mesh = {};
+			mesh.vertexCount = header->verticesCount;
+			mesh.normalCount = header->normalsCount;
+			mesh.uvCount = header->uvsCount;
+			mesh.indexCount = header->indicesCount;
+
+			mesh.vertices = (v3*)((byte*)fileData + header->verticesOffset);
+			mesh.normals = (v3*)((byte*)fileData + header->normalsOffset);
+			mesh.uvs = (v2*)((byte*)fileData + header->uvsOffset);
+			mesh.indices = (u32*)((byte*)fileData + header->indicesOffset);
+
+			RendererLoadMesh(&mesh);
+			SOKO_ASSERT(mesh.gpuVertexBufferHandle, "");
+			SOKO_ASSERT(mesh.gpuIndexBufferHandle, "");
+
+			gameState->spikesMesh = mesh;
+		}
+		{
+			u32 fileSize = DebugGetFileSize(L"../res/button.aab");
+			void* fileData = PUSH_SIZE(arena, fileSize);
+			u32 result = DebugReadFile(fileData, fileSize, L"../res/button.aab");
+			// NOTE: Strict aliasing
+			auto header = (AABMeshHeader*)fileData;
+			SOKO_ASSERT(header->magicValue == AAB_FILE_MAGIC_VALUE, "");
+
+			Mesh mesh = {};
+			mesh.vertexCount = header->verticesCount;
+			mesh.normalCount = header->normalsCount;
+			mesh.uvCount = header->uvsCount;
+			mesh.indexCount = header->indicesCount;
+
+			mesh.vertices = (v3*)((byte*)fileData + header->verticesOffset);
+			mesh.normals = (v3*)((byte*)fileData + header->normalsOffset);
+			mesh.uvs = (v2*)((byte*)fileData + header->uvsOffset);
+			mesh.indices = (u32*)((byte*)fileData + header->indicesOffset);
+
+			RendererLoadMesh(&mesh);
+			SOKO_ASSERT(mesh.gpuVertexBufferHandle, "");
+			SOKO_ASSERT(mesh.gpuIndexBufferHandle, "");
+
+			gameState->buttonMesh = mesh;
+		}
 
 		stbi_set_flip_vertically_on_load(1);
 
@@ -467,8 +517,46 @@ namespace soko
 			gameState->portalMaterial = material;
 		}
 
+		{
+			byte bitmap[3];
+			bitmap[0] = 128;
+			bitmap[0] = 128;
+			bitmap[0] = 128;
+			
+			i32 width = 1;
+			i32 height = 1;
+			i32 bpp = 3;
 
-		
+			Material material = {};
+			material.diffMap.format = GL_RGB8;
+			material.diffMap.width = width;
+			material.diffMap.height = height;
+			material.diffMap.data = bitmap;
+			RendererLoadTexture(&material.diffMap);
+			SOKO_ASSERT(material.diffMap.gpuHandle, "");
+
+			gameState->spikesMaterial = material;
+		}
+		{
+			i32 width;
+			i32 height;
+			i32 bpp;
+			BeginTemporaryMemory(gameState->tempArena);
+			unsigned char* diffBitmap = stbi_load("../res/button.png", &width, &height, &bpp, 3);
+
+			Material material = {};
+			material.diffMap.format = GL_RGB8;
+			material.diffMap.width = width;
+			material.diffMap.height = height;
+			material.diffMap.data = diffBitmap;
+			RendererLoadTexture(&material.diffMap);
+			SOKO_ASSERT(material.diffMap.gpuHandle, "");
+
+			EndTemporaryMemory(gameState->tempArena);
+			gameState->buttonMaterial = material;
+		}
+
+
 		gameState->level.xDim = 64;
 		gameState->level.yDim = 64;
 		gameState->level.zDim = 3;
@@ -506,7 +594,7 @@ namespace soko
 
 		auto* player = &gameState->player;
 		player->level = &gameState->level;
-		player->e = player->level->entities + playerEntityId;
+		player->e = GetEntity(player->level, playerEntityId);
 		
 		Entity entity1 = {};
 		entity1.type = ENTITY_TYPE_BLOCK;
@@ -566,6 +654,20 @@ namespace soko
 
 		portal1Entity->bindedPortalID = portal2Entity->id;
 		portal2Entity->bindedPortalID = portal1Entity->id;
+
+		AddEntity(level, ENTITY_TYPE_SPIKES, V3I(15, 15, 1),
+				  &gameState->spikesMesh, &gameState->spikesMaterial, gameState->memoryArena);
+		Entity* button = GetEntity(level, AddEntity(level, ENTITY_TYPE_BUTTON, V3I(4, 4, 1),
+													&gameState->buttonMesh, &gameState->buttonMaterial,
+													gameState->memoryArena));
+		// TODO(emacs): Lambdas indenting
+		button->updateProc = [](Level* level, Entity* entity, void* data) {
+								 GameState* gameState = (GameState*)data;
+								 AddEntity(level, ENTITY_TYPE_BLOCK, V3I(4, 5, 1),
+										   &gameState->cubeMesh, &gameState->tileBlockMaterial,
+										   gameState->memoryArena);
+							 };
+		button->updateProcData = (void*)gameState;
 	}
 	
 	void
@@ -602,6 +704,8 @@ namespace soko
 		DEBUG_OVERLAY_TRACE(gameState->level.tileCount);
 		DEBUG_OVERLAY_TRACE(gameState->level.freeTileCount);
 		DEBUG_OVERLAY_TRACE(gameState->level.platePressed);
+		DEBUG_OVERLAY_TRACE(gameState->level.entityCount);
+		DEBUG_OVERLAY_TRACE(gameState->level.deletedEntityCount);
 		DEBUG_OVERLAY_SLIDER(gameState->camera.conf.position, -60.0f, 60.0f);
 
 		if (JustPressed(GlobalInput.keys[AB::KEY_F1]))

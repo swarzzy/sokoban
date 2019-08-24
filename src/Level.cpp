@@ -19,6 +19,26 @@ namespace soko
 		return result;
 	}
 
+	// NOTE: Checks if it is allowed to place entity on tile
+	// NOT if tile is EMPTY!!!!
+	inline bool TileIsFree(const Tile* tile)
+	{
+		bool result = true;
+		result = tile->value == TILE_VALUE_EMPTY;
+		if (result)
+		{
+			for (const Entity& entity : tile->entityList)
+			{
+				if (IsSet(entity, ENTITY_FLAG_COLLIDES))
+				{
+					result = false;
+					break;
+				}
+			}
+		}
+		return result;
+	}
+
 	inline TileQuery
 	GetTile(Level* level, i32 x, i32 y, i32 z, AB::MemoryArena* arena = nullptr)
 	{
@@ -173,45 +193,146 @@ namespace soko
 		}
 	}
 
+	inline Entity*
+	GetEntityMemory(Level* level, AB::MemoryArena* arena)
+	{
+		Entity* result = nullptr;
+		if (level->entityFreeList)
+		{
+			result = level->entityFreeList;
+			level->entityFreeList = level->entityFreeList->nextEntity;
+			level->deletedEntityCount--;
+			ZERO_STRUCT(Entity, result);
+		}
+		else if (arena)
+		{
+			result = PUSH_STRUCT(arena, Entity);
+		}
+		return result;
+	}
+
+	void
+	DeleteEntity(Level* level, Entity* entity)
+	{
+		u32 entityHash = entity->id % Level::ENTITY_TABLE_SIZE;
+		Entity* prevEntity = nullptr;
+		Entity* bucketEntity = level->entities[entityHash];
+		while (bucketEntity)
+		{
+			if (bucketEntity->id == entity->id)
+			{
+				if (prevEntity)
+				{
+					prevEntity->nextEntity = entity->nextEntity;
+				}
+				else
+				{
+					level->entities[entityHash] = entity->nextEntity;
+				}
+				if (entity->prevEntityInTile)
+				{
+					entity->prevEntityInTile->nextEntityInTile = entity->nextEntityInTile;					
+				}
+				else
+				{
+					auto[result, tile] = GetTile(level, entity->coord);
+					SOKO_ASSERT(result == TileQueryResult::Found);
+					SOKO_ASSERT(tile->entityList.first->id == entity->id);
+					tile->entityList.first = entity->nextEntityInTile;
+				}
+				if (entity->nextEntityInTile)
+				{
+					entity->nextEntityInTile->prevEntityInTile = entity->prevEntityInTile;					
+				}
+				
+				level->entityCount--;
+				entity->nextEntity = level->entityFreeList;
+				level->entityFreeList = entity;
+				level->deletedEntityCount++;
+				break;
+			}
+			prevEntity = bucketEntity;
+			bucketEntity = bucketEntity->nextEntity;
+		}
+	}
+
 	inline u32
 	AddEntity(Level* level, Entity entity, AB::MemoryArena* arena)
 	{
-		u32 id = 0;
-		if (level->entityCount < Level::MAX_ENTITIES)
+		u32 result = 0;
+		TileQuery query = GetTile(level, entity.coord, arena);
+		if (query.result == TileQueryResult::Found)
 		{
-			TileQuery query = GetTile(level, entity.coord, arena);
-			if (query.result == TileQueryResult::Found)
+			Tile* tile = query.tile;
+			if (tile->value != TILE_VALUE_WALL && TileIsFree(tile))
 			{
-				Tile* tile = query.tile;
-				if (tile->value != TILE_VALUE_WALL)
+				// TODO: Better hash
+				u32 entityId = level->entitySerialNumber + 1;
+				u32 entityHash = entityId % Level::ENTITY_TABLE_SIZE;
+				Entity* bucketEntity = level->entities[entityHash];
+				Entity* newEntity = GetEntityMemory(level, arena);
+				if (newEntity)
 				{
-					id = level->entityCount;
+					newEntity->nextEntity = bucketEntity;
+					level->entities[entityHash] = newEntity;
+					level->entitySerialNumber++;
 					level->entityCount++;
-					level->entities[id] = entity;
-					Tile entityTile = {};
 
-					Entity* addedEntity = level->entities + id;
-					addedEntity->id = id;
-					addedEntity->nextEntityInTile = tile->entityList.first;
-					addedEntity->prevEntityInTile = NULL;
+					*newEntity = entity;
+					newEntity->id = entityId;
+					newEntity->nextEntityInTile = tile->entityList.first;
+					newEntity->prevEntityInTile = NULL;
 					if (tile->entityList.first)
 					{
-						tile->entityList.first->prevEntityInTile = addedEntity;					
+						tile->entityList.first->prevEntityInTile = newEntity;					
 					}
-					tile->entityList.first = addedEntity;
+					tile->entityList.first = newEntity;
+					
+					result = entityId;
 				}
-			}				
+			}
+		}				
+		return result;
+	}
+
+	inline u32
+	AddEntity(Level* level, EntityType type, v3i coord,
+			  Mesh* mesh, Material* material, AB::MemoryArena* arena)
+	{
+		u32 result = 0;
+		Entity entity = {};
+		entity.type = type;
+		entity.coord = coord;
+		entity.mesh = mesh;
+		entity.material = material;
+		switch (type)
+		{
+		case ENTITY_TYPE_BLOCK:  { entity.flags = ENTITY_FLAG_MOVABLE | ENTITY_FLAG_COLLIDES; } break;
+		case ENTITY_TYPE_PLAYER: { entity.flags = ENTITY_FLAG_MOVABLE | ENTITY_FLAG_COLLIDES; } break;
+		case ENTITY_TYPE_PLATE:  { entity.flags = 0; } break;
+		case ENTITY_TYPE_PORTAL: { entity.flags = 0; } break;
+		case ENTITY_TYPE_SPIKES: { entity.flags = 0; } break;
+		case ENTITY_TYPE_BUTTON: { entity.flags = 0; } break;
+			INVALID_DEFAULT_CASE;
 		}
-		return id;
+		result = AddEntity(level, entity, arena);
+		return result;
 	}
 
 	inline Entity*
 	GetEntity(Level* level, u32 id)
 	{
 		Entity* result = nullptr;
-		if (id < Level::MAX_ENTITIES)
+		u32 entityHash = id % Level::ENTITY_TABLE_SIZE;
+		Entity* entity = level->entities[entityHash];
+		while (entity)
 		{
-			result = level->entities + id;
+			if (entity->id == id)
+			{
+				result = entity;
+				break;
+			}
+			entity = entity->nextEntity;
 		}
 		return result;
 	}
@@ -273,6 +394,31 @@ namespace soko
 					}
 				}
 			} break;
+			case ENTITY_TYPE_SPIKES: {
+				for (Entity& e : tile->entityList)
+				{
+					if (&e != &entity)
+					{
+						if (e.type != ENTITY_TYPE_PLAYER)
+						{
+							DeleteEntity(level, &e);
+						}
+					}
+				}
+			} break;
+			case ENTITY_TYPE_BUTTON:
+			{
+				// TODO: Pass info about entity that causes an update
+				// instead of travercing all entities all the time
+				for (Entity& e : tile->entityList)
+				{
+					if (e.type == ENTITY_TYPE_BLOCK || e.type == ENTITY_TYPE_PLAYER)
+					{
+						entity.updateProc(level, &entity, entity.updateProcData);
+						break;
+					}
+				}
+			}
 			default: {} break;
 			}			
 		}
@@ -417,24 +563,29 @@ namespace soko
 	void
 	DrawEntities(Level* level, GameState* gameState)
 	{
-		for (u32 i = 1; i < level->entityCount; i++)
+		// TODO: Entity data oriented storage
+		for (u32 i = 0; i < Level::ENTITY_TABLE_SIZE; i++)
 		{
-			// TODO: Entity iterator?
-			Entity* entity = level->entities + i;
-			f32 xCoord = entity->coord.x * Level::TILE_SIZE;
-			f32 yCoord = entity->coord.z * Level::TILE_SIZE;
-			f32 zCoord = entity->coord.y * Level::TILE_SIZE;
-			v3 pos = V3(xCoord, yCoord, -zCoord);
-			RenderCommandDrawMesh command = {};
-			command.transform = Translation(pos);
-			SOKO_ASSERT(entity->mesh);
-			SOKO_ASSERT(entity->material);
-			command.mesh = entity->mesh;
-			command.material = entity->material;
-			RenderGroupPushCommand(gameState->renderGroup, RENDER_COMMAND_DRAW_MESH,
-								   (void*)&command);
-
+			Entity* entity = level->entities[i];
+			while (entity)
+			{
+				f32 xCoord = entity->coord.x * Level::TILE_SIZE;
+				f32 yCoord = entity->coord.z * Level::TILE_SIZE;
+				f32 zCoord = entity->coord.y * Level::TILE_SIZE;
+				v3 pos = V3(xCoord, yCoord, -zCoord);
+				RenderCommandDrawMesh command = {};
+				command.transform = Translation(pos);
+				SOKO_ASSERT(entity->mesh);
+				SOKO_ASSERT(entity->material);
+				command.mesh = entity->mesh;
+				command.material = entity->material;
+				RenderGroupPushCommand(gameState->renderGroup, RENDER_COMMAND_DRAW_MESH,
+									   (void*)&command);
+					
+				entity = entity->nextEntity;
+			}
 		}
+
 	}
 
 }

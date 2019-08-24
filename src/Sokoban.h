@@ -54,11 +54,15 @@ namespace soko
 		Mesh cubeMesh;
 		Mesh plateMesh;
 		Mesh portalMesh;
+		Mesh spikesMesh;
+		Mesh buttonMesh;
 		Material tileMaterial;
 		Material tilePlayerMaterial;
 		Material tileBlockMaterial;
 		Material redPlateMaterial;
 		Material portalMaterial;
+		Material spikesMaterial;
+		Material buttonMaterial;
 		u32 overlayCorner;
 		Level level;
 		Player player;

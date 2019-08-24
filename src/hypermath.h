@@ -18,7 +18,7 @@ typedef uint64_t			u64;
 typedef uintptr_t			uptr;
 
 #undef byte // Defined as unsigned char in rpcndr.h
-typedef char				byte;
+typedef uint8_t				byte;
 typedef u32             	b32;
 typedef unsigned char		uchar;
 

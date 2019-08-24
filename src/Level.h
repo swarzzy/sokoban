@@ -124,7 +124,9 @@ namespace soko
 		ENTITY_TYPE_BLOCK,
 		ENTITY_TYPE_PLAYER,
 		ENTITY_TYPE_PLATE,
-		ENTITY_TYPE_PORTAL
+		ENTITY_TYPE_PORTAL,
+		ENTITY_TYPE_SPIKES,
+		ENTITY_TYPE_BUTTON
 	};
 
 	enum EntityFlags : u32
@@ -134,6 +136,10 @@ namespace soko
 		ENTITY_FLAG_JUST_TELEPORTED = (1 << 3)
 	};
 
+	struct Level;
+	struct Entity;
+	typedef void(UpdateProcFn)(Level* level, Entity* entity, void* data);
+
 	struct Entity
 	{
 		u32 id;
@@ -142,10 +148,14 @@ namespace soko
 		v3i coord;
 		Mesh* mesh;
 		Material* material;
-		Entity* nextEntityInTile;
-		Entity* prevEntityInTile;
 		u32 bindedPortalID;
 		Direction portalDirection;
+		void* updateProcData;
+		UpdateProcFn* updateProc;
+		
+		Entity* nextEntityInTile;
+		Entity* prevEntityInTile;
+		Entity* nextEntity;
 	};
 
 	struct TileEntityList
@@ -172,6 +182,26 @@ namespace soko
 		}
 	};
 
+	struct ConstTileEntityListIterator
+	{
+		const Entity* ptr;
+		
+		inline ConstTileEntityListIterator& operator++()
+		{
+			ptr = ptr->nextEntityInTile;
+			return *this;
+		}
+		bool operator!=(ConstTileEntityListIterator const& other) const
+		{
+			return ptr != other.ptr;
+		}
+		const Entity& operator*() const
+		{			
+			return *ptr;
+		}
+	};
+
+
 	inline TileEntityListIterator begin(TileEntityList& list)
 	{
 		TileEntityListIterator iter = {};
@@ -184,6 +214,20 @@ namespace soko
 		TileEntityListIterator iter = {};
 		return iter;
 	}
+
+	inline ConstTileEntityListIterator begin(const TileEntityList& list)
+	{
+		ConstTileEntityListIterator iter = {};
+		iter.ptr = list.first;
+		return iter;
+	}
+
+	inline ConstTileEntityListIterator end(const TileEntityList& list)
+	{
+		ConstTileEntityListIterator iter = {};
+		return iter;
+	}
+	
 	
 	struct Tile
 	{
@@ -206,11 +250,10 @@ namespace soko
 		Tile* tile;
 	};
 
-
 	struct Level
 	{
-		static constexpr u32 MAX_ENTITIES = 128;
 		static constexpr u32 TILE_TABLE_SIZE = 8192;
+		static constexpr u32 ENTITY_TABLE_SIZE = 1024;
 		static constexpr f32 TILE_SIZE = 1.0f;
 
 		// NOTE: Maximum size of the level is 1024-tile-side cube
@@ -221,13 +264,18 @@ namespace soko
 		u32 xDim;
 		u32 yDim;
 		u32 zDim;
-		// TODO: This fixed for now. Pick size based on level fill percentage?
-		Tile* tiles[TILE_TABLE_SIZE];
+		
+		u32 tileCount;
 		u32 freeTileCount;
 		Tile* tileFreeList;
+		Tile* tiles[TILE_TABLE_SIZE];
+
+		// TODO: Use 64bit IDs for entities
+		u32 entitySerialNumber;
 		u32 entityCount;
-		Entity entities[MAX_ENTITIES];
-		u32 tileCount;
+		u32 deletedEntityCount;
+		Entity* entityFreeList;
+		Entity* entities[ENTITY_TABLE_SIZE];
 		b32 platePressed;
 	};
 
