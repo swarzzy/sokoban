@@ -1,4 +1,5 @@
 // dear imgui, v1.73 WIP
+#include "../hypermath.h"
 // (headers)
 
 // See imgui.cpp file for documentation.

@@ -66,6 +66,10 @@ inline void* ReallocForSTBI(void* p, uptr oldSize, uptr newSize)
 #define Log SOKO_PLATFORM_FUNCTION(Log)
 #define LogAssertV SOKO_PLATFORM_FUNCTION(LogAssertV)
 #define SetInputMode SOKO_PLATFORM_FUNCTION(SetInputMode)
+#define NetCreateSocket SOKO_PLATFORM_FUNCTION(NetCreateSocket)
+#define NetBindSocket SOKO_PLATFORM_FUNCTION(NetBindSocket)
+#define NetSend SOKO_PLATFORM_FUNCTION(NetSend)
+#define NetRecieve SOKO_PLATFORM_FUNCTION(NetRecieve)
 
 #define GL_FUNCTION(func) soko::_GlobalPlatform->gl->_##func
 
@@ -164,8 +168,9 @@ inline void* ReallocForSTBI(void* p, uptr oldSize, uptr newSize)
 
 namespace soko
 {
-	void LogAssert(AB::LogLevel level, const char* file, const char* func, u32 line,
-				   const char* assertStr, const char* fmt, ...)
+	inline void
+	LogAssert(AB::LogLevel level, const char* file, const char* func, u32 line,
+			  const char* assertStr, const char* fmt, ...)
 	{
 		va_list args;
 		va_start(args, fmt);
@@ -173,10 +178,32 @@ namespace soko
 		va_end(args);
 	}
 
-	void LogAssert(AB::LogLevel level, const char* file, const char* func, u32 line,
-				   const char* assertStr)
+	inline void
+	LogAssert(AB::LogLevel level, const char* file, const char* func, u32 line,
+			  const char* assertStr)
 	{
 		LogAssertV(level, file, func, line, assertStr, nullptr, nullptr);
+	}
+
+	inline bool
+	JustPressed(AB::KeyCode code)
+	{
+		bool result = GlobalInput.keys[(u32)code].pressedNow && !GlobalInput.keys[(u32)code].wasPressed;
+		return result;
+	}
+
+	inline bool
+	JustReleased(AB::KeyCode code)
+	{
+		bool result = !GlobalInput.keys[(u32)code].pressedNow && GlobalInput.keys[(u32)code].wasPressed;
+		return result;
+	}
+
+	inline bool
+	IsDown(AB::KeyCode code)
+	{
+		bool result = GlobalInput.keys[(u32)code].pressedNow;
+		return result;
 	}
 }
 
@@ -195,6 +222,7 @@ namespace soko
 #define INVALID_CODE_PATH SOKO_ASSERT(false, "Invalid code path.")
 
 #include "imgui/imgui.h"
+//#include "imgui/imgui_internal.h"
 
 #include "Level.cpp"
 #include "DebugOverlay.cpp"
@@ -229,6 +257,27 @@ GameUpdateAndRender(AB::MemoryArena* arena,
 }
 namespace soko
 {
+
+	Player*
+	AddPlayer(GameState* gameState, v3i coord, AB::MemoryArena* arena)
+	{
+		Player* p = nullptr;
+		if (gameState->playerCount < GameState::MAX_PLAYERS)
+		{
+			p = gameState->players + gameState->playerCount;
+			gameState->playerCount++;
+
+
+			u32 playerId = 	AddEntity(&gameState->level, ENTITY_TYPE_PLAYER, coord,
+									  &gameState->cubeMesh, &gameState->tilePlayerMaterial, arena);
+
+			p->level = &gameState->level;
+			p->e = GetEntity(p->level, playerId);
+			SOKO_ASSERT(p->e);
+		}
+		return p;
+	}
+	
 	void
 	GameInit(AB::MemoryArena* arena, AB::PlatformState* platform)
 	{
@@ -583,7 +632,7 @@ namespace soko
 				}
 			}
 		}
-
+#if 0
 		Entity playerEntity = {};
 		playerEntity.type = ENTITY_TYPE_PLAYER;
 		playerEntity.flags = ENTITY_FLAG_COLLIDES | ENTITY_FLAG_MOVABLE;
@@ -595,6 +644,7 @@ namespace soko
 		auto* player = &gameState->player;
 		player->level = &gameState->level;
 		player->e = GetEntity(player->level, playerEntityId);
+#endif
 		
 		Entity entity1 = {};
 		entity1.type = ENTITY_TYPE_BLOCK;
@@ -603,7 +653,8 @@ namespace soko
 		entity1.mesh = &gameState->cubeMesh;
 		entity1.material = &gameState->tileBlockMaterial;
 
-		AddEntity(player->level, entity1, gameState->memoryArena);
+		AddEntity(level, entity1, gameState->memoryArena);
+		//AddEntity(playerLevel)
 
 		Entity entity2 = {};
 		entity2.type = ENTITY_TYPE_BLOCK;
@@ -612,7 +663,7 @@ namespace soko
 		entity2.mesh = &gameState->cubeMesh;
 		entity2.material = &gameState->tileBlockMaterial;
 
-		AddEntity(player->level, entity2, gameState->memoryArena);
+		AddEntity(level, entity2, gameState->memoryArena);
 
 		Entity entity3 = {};
 		entity3.type = ENTITY_TYPE_BLOCK;
@@ -621,7 +672,7 @@ namespace soko
 		entity3.mesh = &gameState->cubeMesh;
 		entity3.material = &gameState->tileBlockMaterial;
 
-		AddEntity(player->level, entity3, gameState->memoryArena);
+		AddEntity(level, entity3, gameState->memoryArena);
 
 		Entity plate = {};
 		plate.type = ENTITY_TYPE_PLATE;
@@ -630,7 +681,7 @@ namespace soko
 		plate.mesh = &gameState->plateMesh;
 		plate.material = &gameState->redPlateMaterial;
 
-		AddEntity(player->level, plate, gameState->memoryArena);
+		AddEntity(level, plate, gameState->memoryArena);
 
 		Entity portal1 = {};
 		portal1.type = ENTITY_TYPE_PORTAL;
@@ -640,7 +691,7 @@ namespace soko
 		portal1.material = &gameState->portalMaterial;
 		portal1.portalDirection = DIRECTION_NORTH;
 
-		Entity* portal1Entity = GetEntity(level, AddEntity(player->level, portal1, gameState->memoryArena));
+		Entity* portal1Entity = GetEntity(level, AddEntity(level, portal1, gameState->memoryArena));
 
 		Entity portal2 = {};
 		portal2.type = ENTITY_TYPE_PORTAL;
@@ -650,7 +701,7 @@ namespace soko
 		portal2.material = &gameState->portalMaterial;
 		portal2.portalDirection = DIRECTION_WEST;
 
-		Entity* portal2Entity = GetEntity(level, AddEntity(player->level, portal2, gameState->memoryArena));
+		Entity* portal2Entity = GetEntity(level, AddEntity(level, portal2, gameState->memoryArena));
 
 		portal1Entity->bindedPortalID = portal2Entity->id;
 		portal2Entity->bindedPortalID = portal1Entity->id;
@@ -689,26 +740,236 @@ namespace soko
 	{
 	}
 
+	void ShowNetSettings(GameState* gameState)
+	{
+		bool open = true;
+		bool windowCreated = false;
+		ImGui::SetNextWindowSizeConstraints(ImVec2(400, 100), ImVec2(400, 200));
+		if (ImGui::Begin("LAN", &open, ImGuiWindowFlags_AlwaysAutoResize))
+		{
+			windowCreated = true;
+		}
+		
+		if (!gameState->serverInitialized && !gameState->clientInitialized)
+		{
+			if (windowCreated)
+			{
+				if(ImGui::RadioButton("Client", gameState->isServer == 0)) { gameState->isServer = 0; }
+				ImGui::SameLine();
+				if(ImGui::RadioButton("Server", gameState->isServer == 1)) { gameState->isServer = 1; }
+				ImGui::Separator();
+				if (gameState->isServer)
+				{
+					// TODO(emacs): Lambda indentiation in emacs
+					auto numFilter = [](ImGuiInputTextCallbackData* data) -> int
+										 {
+											 return !(data->EventChar >= '0' && data->EventChar <='9');
+										 };
+				
+					char buf[64] = "";
+					FormatString(buf, 64, "%i16", gameState->port);
+					ImGui::InputText("port", buf, 64, ImGuiInputTextFlags_CallbackCharFilter, numFilter);
+					u64 val = strtol(buf, nullptr, 10);
+					bool buttonEnabled = false;
+					if (val > 1023 && val < 65536)
+					{
+						gameState->port = (u16)val;
+					}
+					if (gameState->port > 1023 && gameState->port < 65536)
+					{
+						buttonEnabled = true;			
+					}
+
+					if(ImGui::Button("Create", ImVec2(50.0f, 20.0f)))
+					{
+						if (buttonEnabled)
+						{
+							gameState->serverInitialized = true;
+						}
+					}
+				}
+				else
+				{
+					float width = ImGui::CalcItemWidth();
+					ImGui::BeginGroup();
+					ImGui::PushID("IP");
+					ImGui::TextUnformatted("IP");
+					ImGui::SameLine();
+					bool inputSucceed = true;
+					for (u32 i = 0; i < 4; i++)
+					{
+						ImGui::PushItemWidth(width / 4.0f);
+						ImGui::PushID(i);
+						bool invalidOctet = false;
+						if (gameState->ipOctets[i] > 255)
+						{
+							// Make values over 255 red, and when focus is lost reset it to 255.
+							gameState->ipOctets[i] = 255;
+							invalidOctet = true;
+							ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.0f, 0.0f, 0.0f, 1.0f));
+						}
+						if (gameState->ipOctets[i] < 0)
+						{
+							// Make values below 0 yellow, and when focus is lost reset it to 0.
+							gameState->ipOctets[i] = 0;
+							invalidOctet = true;
+							ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.0f, 1.0f, 0.0f, 1.0f));
+						}
+						ImGui::InputInt("##v", (int*)&gameState->ipOctets[i], 0, 0, ImGuiInputTextFlags_CharsDecimal);
+						if (invalidOctet)
+						{
+							if (inputSucceed)
+							{
+								inputSucceed = false;
+							}
+							ImGui::PopStyleColor();
+						}
+						ImGui::SameLine();
+
+
+						ImGui::PopID();
+						ImGui::PopItemWidth();
+					}
+					if (inputSucceed)
+					{
+						gameState->ipAddress =
+							(gameState->ipOctets[0] << 24) |
+							(gameState->ipOctets[1] << 16) |
+							(gameState->ipOctets[2] << 8) |
+							(gameState->ipOctets[3]);
+					}
+					// TODO(emacs): Lambda indentiation in emacs
+					auto numFilter = [](ImGuiInputTextCallbackData* data) -> int
+										 {
+											 return !(data->EventChar >= '0' && data->EventChar <='9');
+										 };
+				
+
+					ImGui::Text(":");
+					ImGui::SameLine();
+					ImGui::PushItemWidth(width / 4.0f);
+					char buf[64] = "";
+					FormatString(buf, 64, "%i16", gameState->port);
+					ImGui::InputText("", buf, 64, ImGuiInputTextFlags_CallbackCharFilter, numFilter);
+					u64 val = strtol(buf, nullptr, 10);
+					bool buttonEnabled = false;
+					if (val > 1023 && val < 65536)
+					{
+						gameState->port = (u16)val;
+					}
+					if (gameState->port > 1023 && gameState->port < 65536 && inputSucceed)
+					{
+						buttonEnabled = true;			
+					}
+
+					ImGui::PopID();
+					ImGui::EndGroup();
+					
+					
+					if(ImGui::Button("Create", ImVec2(50.0f, 20.0f)))
+					{
+						if (buttonEnabled)
+						{
+							gameState->clientInitialized = true;
+						}
+					}
+					
+				}
+			}
+		}
+		else
+		{
+			gameState->socket = NetCreateSocket();				
+			SOKO_ASSERT(gameState->socket);
+			
+			if (gameState->clientInitialized && !gameState->clientCreated)
+			{
+				gameState->clientCreated = true;
+				gameState->serverAddr.ip = gameState->ipAddress;
+				gameState->serverAddr.port = gameState->port;
+				ImGui::Text("Client conected");
+			}
+			if (gameState->serverInitialized)
+			{
+				if (!gameState->serverCreated)
+				{
+					gameState->serverCreated = true;
+					bool bindResult = NetBindSocket(gameState->socket, gameState->port);
+					SOKO_ASSERT(bindResult);					
+				}
+				ImGui::Text("Server created");
+			}
+		}
+
+		ImGui::End();
+	}
+
 	void
 	GameRender(AB::MemoryArena* arena, AB::PlatformState* platform)
 	{
 		auto* gameState = _GlobalStaticStorage->gameState;
-		//bool show = true;
-		//ImGui::ShowDemoWindow(&show);
+		bool show = true;
 
 		DrawOverlay(gameState);
 		BeginDebugOverlay();
+		ImGui::ShowDemoWindow(&show);
 		DebugOverlayPushStr("Hello!");
-		DEBUG_OVERLAY_TRACE(gameState->player.e->coord);
 		DEBUG_OVERLAY_TRACE(gameState->camera.conf.position);
 		DEBUG_OVERLAY_TRACE(gameState->level.tileCount);
 		DEBUG_OVERLAY_TRACE(gameState->level.freeTileCount);
 		DEBUG_OVERLAY_TRACE(gameState->level.platePressed);
 		DEBUG_OVERLAY_TRACE(gameState->level.entityCount);
 		DEBUG_OVERLAY_TRACE(gameState->level.deletedEntityCount);
-		DEBUG_OVERLAY_SLIDER(gameState->camera.conf.position, -60.0f, 60.0f);
+		ShowNetSettings(gameState);
 
-		if (JustPressed(GlobalInput.keys[AB::KEY_F1]))
+		if (gameState->serverCreated)
+		{
+			auto[status, sz, from] = NetRecieve(gameState->socket, gameState->buffer, 1024);
+			SOKO_ASSERT(status == AB::NetRecieveResult::Success);
+			char clientInput = gameState->buffer[0];
+			PrintString("%i32:%i16 - %c\n", from.ip, from.port, clientInput);
+			
+			switch (clientInput)
+			{
+			case 'w': { gameState->playerY++; } break;
+			case 's': { gameState->playerY--; } break;
+			case 'a': { gameState->playerX--; } break;
+			case 'd': { gameState->playerX++; } break;
+			default: {} break;
+			}
+			PrintString("Player position: x: %i32, y: %i32\n", gameState->playerX, gameState->playerY);
+
+			i32 writeIndex = 0;
+			COPY_BYTES(sizeof(gameState->playerX), gameState->buffer + writeIndex, &gameState->playerX);
+			writeIndex += sizeof(gameState->playerX);
+
+			COPY_BYTES(sizeof(gameState->playerY), gameState->buffer + writeIndex, &gameState->playerY);
+			writeIndex += sizeof(gameState->playerY);
+
+			int buffLen = sizeof(gameState->playerX) + sizeof(gameState->playerY);
+			auto[status_, sz_] = NetSend(gameState->socket, from, gameState->buffer, buffLen);
+			SOKO_ASSERT(status_);
+		}
+		else if (gameState->clientCreated)
+		{
+			scanf_s("\n%c", &gameState->buffer[0], 1);
+			auto[status, sz] = NetSend(gameState->socket, gameState->serverAddr, gameState->buffer, 1);
+			SOKO_ASSERT(status);
+
+			auto[_status, _sz, from] = NetRecieve(gameState->socket, gameState->buffer, 1024);
+			SOKO_ASSERT(_status == AB::NetRecieveResult::Success);
+
+			i32 readIndex = 0;
+			COPY_BYTES(sizeof(gameState->playerX), &gameState->playerX, gameState->buffer + readIndex);
+			readIndex += sizeof(gameState->playerX);
+			COPY_BYTES(sizeof(gameState->playerY), &gameState->playerY, gameState->buffer + readIndex);
+			readIndex += sizeof(gameState->playerY);
+
+			PrintString("x: %i32, y:%i32", gameState->playerX, gameState->playerY);
+		}
+
+
+		if (JustPressed(AB::KEY_F1))
 		{
 			gameState->useDebugCamera = !gameState->useDebugCamera;
 		}
@@ -727,7 +988,7 @@ namespace soko
 		
 		RenderGroupSetCamera(gameState->renderGroup, camConf);
 
-		RendererBeginFrame(gameState->renderer, V2(1280.0f, 800.0f));
+		RendererBeginFrame(gameState->renderer, V2(PlatformGlobals.windowWidth, PlatformGlobals.windowHeight));
 		DirectionalLight light = {};
 		light.dir = Normalize(V3(0.2f, -0.9f, -0.3f));
 		light.ambient = V3(0.3f);
@@ -738,57 +999,138 @@ namespace soko
 		RenderGroupPushCommand(gameState->renderGroup, RENDER_COMMAND_SET_DIR_LIGHT,
 							   (void*)&lightCommand);
 
-		Player* player = &gameState->player;
 
-		if (JustPressed(GlobalInput.keys[AB::KEY_SPACE]))
+		if ((IsDown(AB::KEY_SPACE) ||
+			IsDown(AB::KEY_UP)    ||
+			IsDown(AB::KEY_DOWN)  ||
+			IsDown(AB::KEY_LEFT)  ||
+			IsDown(AB::KEY_RIGHT)) &&
+			!gameState->player1Active)
 		{
-			player->reversed = ! player->reversed;
+			gameState->player1Active = true;
+			gameState->player1 = AddPlayer(gameState, V3I(10, 10, 1), arena);
+		}
+		else
+		{
+			Player* player = gameState->player1;
+			if (JustPressed(AB::KEY_SPACE))
+			{
+				player->reversed = ! player->reversed;
+			}
+
+			if (JustPressed(AB::KEY_UP) &&
+				(player->inputFlags & PENDING_MOVEMENT_BIT_FORWARD) == 0)
+			{
+				player->inputFlags |= PENDING_MOVEMENT_BIT_FORWARD;
+				MoveEntity(&gameState->level, player->e, DIRECTION_NORTH, arena, player->reversed);
+			}
+
+			if (JustPressed(AB::KEY_DOWN) &&
+				(player->inputFlags & PENDING_MOVEMENT_BIT_BACKWARD) == 0)
+			{
+				player->inputFlags |= PENDING_MOVEMENT_BIT_BACKWARD;
+				MoveEntity(&gameState->level, player->e, DIRECTION_SOUTH, arena, player->reversed);
+			}
+
+			if (JustPressed(AB::KEY_RIGHT) &&
+				(player->inputFlags & PENDING_MOVEMENT_BIT_RIGHT) == 0)
+			{
+				player->inputFlags |= PENDING_MOVEMENT_BIT_RIGHT;
+				MoveEntity(&gameState->level, player->e, DIRECTION_WEST, arena, player->reversed);
+			}
+
+			if (JustPressed(AB::KEY_LEFT) &&
+				(player->inputFlags & PENDING_MOVEMENT_BIT_LEFT) == 0)
+			{
+				player->inputFlags |= PENDING_MOVEMENT_BIT_LEFT;
+				MoveEntity(&gameState->level, player->e, DIRECTION_EAST, arena, player->reversed);
+			}
+
+			if (JustReleased(AB::KEY_UP))
+			{
+				player->inputFlags &= ~PENDING_MOVEMENT_BIT_FORWARD;
+			}
+			if (JustReleased(AB::KEY_DOWN))
+			{
+				player->inputFlags &= ~PENDING_MOVEMENT_BIT_BACKWARD;
+			}
+			if (JustReleased(AB::KEY_RIGHT))
+			{
+				player->inputFlags &= ~PENDING_MOVEMENT_BIT_RIGHT;
+			}
+			if (JustReleased(AB::KEY_LEFT))
+			{
+				player->inputFlags &= ~PENDING_MOVEMENT_BIT_LEFT;
+			}				
 		}
 
-		if (JustPressed(GlobalInput.keys[AB::KEY_UP]) &&
-			(player->inputFlags & PENDING_MOVEMENT_BIT_FORWARD) == 0)
+
+		if ((IsDown(AB::KEY_ENTER) ||
+			 IsDown(AB::KEY_NUM8)  ||
+			 IsDown(AB::KEY_NUM5)  ||
+			 IsDown(AB::KEY_NUM4)  ||
+			 IsDown(AB::KEY_NUM6)) &&
+			!gameState->player2Active)
 		{
-			player->inputFlags |= PENDING_MOVEMENT_BIT_FORWARD;
-			MoveEntity(&gameState->level, player->e, DIRECTION_NORTH, arena, player->reversed);
+			gameState->player2Active = true;
+			gameState->player2 = AddPlayer(gameState, V3I(13, 13, 1), arena);
+		}
+		else
+		{
+			Player* player = gameState->player2;
+			if (JustPressed(AB::KEY_ENTER))
+			{
+				player->reversed = ! player->reversed;
+			}
+
+			if (JustPressed(AB::KEY_NUM8) &&
+				(player->inputFlags & PENDING_MOVEMENT_BIT_FORWARD) == 0)
+			{
+				player->inputFlags |= PENDING_MOVEMENT_BIT_FORWARD;
+				MoveEntity(&gameState->level, player->e, DIRECTION_NORTH, arena, player->reversed);
+			}
+
+			if (JustPressed(AB::KEY_NUM5) &&
+				(player->inputFlags & PENDING_MOVEMENT_BIT_BACKWARD) == 0)
+			{
+				player->inputFlags |= PENDING_MOVEMENT_BIT_BACKWARD;
+				MoveEntity(&gameState->level, player->e, DIRECTION_SOUTH, arena, player->reversed);
+			}
+
+			if (JustPressed(AB::KEY_NUM6) &&
+				(player->inputFlags & PENDING_MOVEMENT_BIT_RIGHT) == 0)
+			{
+				player->inputFlags |= PENDING_MOVEMENT_BIT_RIGHT;
+				MoveEntity(&gameState->level, player->e, DIRECTION_WEST, arena, player->reversed);
+			}
+
+			if (JustPressed(AB::KEY_NUM4) &&
+				(player->inputFlags & PENDING_MOVEMENT_BIT_LEFT) == 0)
+			{
+				player->inputFlags |= PENDING_MOVEMENT_BIT_LEFT;
+				MoveEntity(&gameState->level, player->e, DIRECTION_EAST, arena, player->reversed);
+			}
+
+			if (JustReleased(AB::KEY_NUM8))
+			{
+				player->inputFlags &= ~PENDING_MOVEMENT_BIT_FORWARD;
+			}
+			if (JustReleased(AB::KEY_NUM5))
+			{
+				player->inputFlags &= ~PENDING_MOVEMENT_BIT_BACKWARD;
+			}
+			if (JustReleased(AB::KEY_NUM6))
+			{
+				player->inputFlags &= ~PENDING_MOVEMENT_BIT_RIGHT;
+			}
+			if (JustReleased(AB::KEY_NUM4))
+			{
+				player->inputFlags &= ~PENDING_MOVEMENT_BIT_LEFT;
+			}				
 		}
 
-		if (JustPressed(GlobalInput.keys[AB::KEY_DOWN]) &&
-			(player->inputFlags & PENDING_MOVEMENT_BIT_BACKWARD) == 0)
-		{
-			player->inputFlags |= PENDING_MOVEMENT_BIT_BACKWARD;
-			MoveEntity(&gameState->level, player->e, DIRECTION_SOUTH, arena, player->reversed);
-		}
 
-		if (JustPressed(GlobalInput.keys[AB::KEY_RIGHT]) &&
-			(player->inputFlags & PENDING_MOVEMENT_BIT_RIGHT) == 0)
-		{
-			player->inputFlags |= PENDING_MOVEMENT_BIT_RIGHT;
-			MoveEntity(&gameState->level, player->e, DIRECTION_WEST, arena, player->reversed);
-		}
 
-		if (JustPressed(GlobalInput.keys[AB::KEY_LEFT]) &&
-			(player->inputFlags & PENDING_MOVEMENT_BIT_LEFT) == 0)
-		{
-			player->inputFlags |= PENDING_MOVEMENT_BIT_LEFT;
-			MoveEntity(&gameState->level, player->e, DIRECTION_EAST, arena, player->reversed);
-		}
-
-		if (JustReleased(GlobalInput.keys[AB::KEY_UP]))
-		{
-			player->inputFlags &= ~PENDING_MOVEMENT_BIT_FORWARD;
-		}
-		if (JustReleased(GlobalInput.keys[AB::KEY_DOWN]))
-		{
-			player->inputFlags &= ~PENDING_MOVEMENT_BIT_BACKWARD;
-		}
-		if (JustReleased(GlobalInput.keys[AB::KEY_RIGHT]))
-		{
-			player->inputFlags &= ~PENDING_MOVEMENT_BIT_RIGHT;
-		}
-		if (JustReleased(GlobalInput.keys[AB::KEY_LEFT]))
-		{
-			player->inputFlags &= ~PENDING_MOVEMENT_BIT_LEFT;
-		}
 
 		DrawLevel(&gameState->level, gameState);
 		//DrawPlayer(&gameState->player, gameState);

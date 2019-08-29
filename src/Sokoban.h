@@ -4,6 +4,12 @@
 #include "Level.h"
 #include "Camera.h"
 
+// NOTE: For now assume that all msvc target devices are little-endian
+#if defined (AB_COMPILER_MSVC)
+#define SOKO_BYTE_ORDER AB_LITTLE_ENDIAN
+#endif
+
+
 namespace soko
 {
 	struct Mesh
@@ -44,6 +50,7 @@ namespace soko
 
 	struct GameState
 	{
+		static constexpr u32 MAX_PLAYERS = 2;
 		AB::MemoryArena* memoryArena;
 		AB::MemoryArena* tempArena;
 		Renderer* renderer;
@@ -65,7 +72,26 @@ namespace soko
 		Material buttonMaterial;
 		u32 overlayCorner;
 		Level level;
-		Player player;
+		u32 playerCount;
+		Player players[MAX_PLAYERS];
 		b32 platePressed;
+		b32 player1Active;
+		b32 player2Active;
+		Player* player1;
+		Player* player2;
+		b32 isServer;
+		b32 lanModeSelected;
+		u16 port;
+		uptr socket;
+		b32 serverInitialized;
+		b32 clientInitialized;
+		b32 serverCreated;
+		b32 clientCreated;
+		i32 ipOctets[4];
+		u32 ipAddress;
+		AB::NetAddress serverAddr;
+		byte buffer[1024];
+		i32 playerX;
+		i32 playerY;
 	};
 }

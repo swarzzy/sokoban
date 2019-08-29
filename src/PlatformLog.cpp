@@ -1165,7 +1165,7 @@ namespace AB
 		{
 			va_list args;
 			va_start(args, fmt);
-			LogAssert(level, file, func, line, assertStr, fmt, &args);
+			LogAssertV(level, file, func, line, assertStr, fmt, &args);
 			va_end(args);
 		}
 		else

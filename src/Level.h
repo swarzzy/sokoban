@@ -133,7 +133,8 @@ namespace soko
 	{
 		ENTITY_FLAG_COLLIDES = (1 << 1),
 		ENTITY_FLAG_MOVABLE = (1 << 2),
-		ENTITY_FLAG_JUST_TELEPORTED = (1 << 3)
+		ENTITY_FLAG_JUST_TELEPORTED = (1 << 3),
+		ENTITY_FLAG_PLAYER = (1 << 4)
 	};
 
 	struct Level;

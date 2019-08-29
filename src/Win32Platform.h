@@ -20,6 +20,8 @@ namespace AB
 {
 	struct GameCode;
 
+	const WORD WINSOCK_VER = 0x202;
+
 	const TCHAR* WINDOW_CLASS_NAME = TEXT("Aberration Engine Win32");
 
 	const u32 OPENGL_MAJOR_VERSION = 4;

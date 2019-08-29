@@ -10,6 +10,9 @@
 #error Unsupported compiler
 #endif
 
+#define AB_LITTLE_ENDIAN 4321
+#define AB_BIG_ENDIAN 1234
+
 struct ImGuiContext;
 
 namespace AB
@@ -217,6 +220,32 @@ namespace AB
 
 	const u16 DATETIME_STRING_SIZE = 9; // hh:mm:ss\0
 
+	// NOTE: Net functions
+	struct NetAddress
+	{
+		u32 ip;
+		u16 port;
+	};
+
+	struct NetSendResult
+	{
+		bool succeed;
+		u32 bytesSent;
+	};
+
+	struct NetRecieveResult
+	{
+		enum { Success, ConnectionClosed, Error } status;
+		u32 bytesRecieved;
+		NetAddress from;
+	};
+
+	typedef uptr(NetCreateSocketFn)();
+	typedef bool(NetBindSocketFn)(uptr socket, u16 port);
+	typedef NetSendResult(NetSendFn)(uptr socket, NetAddress address, const void* buffer, u32 bufferSize);
+	typedef NetRecieveResult(NetRecieveFn)(uptr socket, void* buffer, u32 bufferSize);
+
+
 	// TODO: Pass some notion is unicode paths allowed to game
 	typedef u32(DebugGetFileSizeFn)(const wchar_t* filename);
 	typedef u32(DebugReadFileFn)(void* buffer, u32 bufferSize, const wchar_t* filename);
@@ -253,6 +282,11 @@ namespace AB
 		LogAssertVFn* LogAssertV;
 		SetInputModeFn* SetInputMode;
 
+		NetCreateSocketFn* NetCreateSocket;
+		NetBindSocketFn* NetBindSocket;
+		NetSendFn* NetSend;
+		NetRecieveFn* NetRecieve;
+
 		AllocForImGuiFn* AllocForImGui;
 		FreeForImGuiFn* FreeForImGui;
 	};
@@ -263,18 +297,6 @@ namespace AB
 		b32 pressedNow;
 		b32 wasPressed;
 	};
-
-	inline bool JustPressed(KeyState state)
-	{
-		bool result = state.pressedNow && !state.wasPressed;
-		return result;
-	}
-
-	inline bool JustReleased(KeyState state)
-	{
-		bool result = !state.pressedNow && state.wasPressed;
-		return result;
-	}
 
 	struct MButtonState
 	{
@@ -355,6 +377,7 @@ namespace AB
 #if defined(AB_PLATFORM_CODE)
 #include "PlatformLog.h"
 
+#define AB_STATIC_ASSERT(expr) static_assert((expr))
 #if defined(AB_CONFIG_DISTRIB)
 
 #define AB_CORE_INFO(format, ...)	do{}while(false)

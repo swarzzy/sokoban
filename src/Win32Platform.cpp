@@ -14,6 +14,13 @@
 #include "imgui/imgui_impl_soko_win32.h"
 #include "imgui/imgui_impl_opengl3.h"
 
+#define _WINSOCK_DEPRECATED_NO_WARNINGS
+#include <winsock2.h>
+#include <stdio.h>
+
+// NOTE: For now assume that all windows devices are little-endian
+#define AB_BYTE_ORDER AB_LITTLE_ENDIAN
+
 
 #define WGL_DRAW_TO_WINDOW_ARB            0x2001
 #define WGL_SUPPORT_OPENGL_ARB            0x2010
@@ -236,7 +243,7 @@ namespace AB
 		// ^^^^ ACTUAL WINDOW
 
 		int attribList[] =
-	   {
+			{
 			WGL_DRAW_TO_WINDOW_ARB, GL_TRUE,
 			WGL_SUPPORT_OPENGL_ARB, GL_TRUE,
 			WGL_DOUBLE_BUFFER_ARB, GL_TRUE,
@@ -249,7 +256,7 @@ namespace AB
 			//SafeCastI32Int(multisampling), 1,
 			//WGL_SAMPLES_ARB, SafeCastI32Int(window->samples),
 			0
-		};
+			};
 
 		int actualPixelFormatID = 0;
 		UINT numFormats = 0;
@@ -270,10 +277,10 @@ namespace AB
 
 		int contextAttribs[] =
 			{
-				WGL_CONTEXT_MAJOR_VERSION_ARB, OPENGL_MAJOR_VERSION,
-				WGL_CONTEXT_MINOR_VERSION_ARB, OPENGL_MINOR_VERSION,
-				WGL_CONTEXT_PROFILE_MASK_ARB, WGL_CONTEXT_CORE_PROFILE_BIT_ARB,
-				0
+			WGL_CONTEXT_MAJOR_VERSION_ARB, OPENGL_MAJOR_VERSION,
+			WGL_CONTEXT_MINOR_VERSION_ARB, OPENGL_MINOR_VERSION,
+			WGL_CONTEXT_PROFILE_MASK_ARB, WGL_CONTEXT_CORE_PROFILE_BIT_ARB,
+			0
 			};
 
 		HGLRC actualGLRC = app->wglCreateContextAttribsARB(actualWindowDC,
@@ -970,6 +977,88 @@ namespace AB
 		return false;
 	}
 
+	// NOTE: SOCKET defined as uptr in Winsock.h
+	// So using handle directly
+	uptr
+	NetCreateSocket()
+	{
+		uptr result = 0;
+		SOCKET sock = ::socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
+		if (sock != INVALID_SOCKET)
+		{
+			AB_STATIC_ASSERT(sizeof(uptr) == sizeof(SOCKET));
+			// TODO: Is that brokes strict aliasing rules???
+			result = *((uptr*)&sock);
+		}
+		return result;
+	}
+
+	bool
+	NetBindSocket(uptr socket, u16 port)
+	{
+		bool result = false;
+		SOCKADDR_IN address = {};
+		address.sin_family = AF_INET;
+		address.sin_port = htons(port);
+		address.sin_addr.s_addr = INADDR_ANY;
+		int bindResult = ::bind(*((SOCKET*)&socket), (SOCKADDR*)&address, sizeof(SOCKADDR_IN));
+		if (bindResult == 0)
+		{
+			result = true;
+		}
+		return result;		
+	}
+
+	NetSendResult
+	NetSend(uptr socket, NetAddress address, const void* buffer, u32 bufferSize)
+	{
+		NetSendResult result = {};
+		SOCKADDR_IN toAddress = {};
+		toAddress.sin_family = AF_INET;
+		toAddress.sin_port = htons(address.port);
+		toAddress.sin_addr.S_un.S_addr = htonl(address.ip);
+		
+		int bytesSent = sendto(socket, (const char*)buffer, bufferSize, 0, (SOCKADDR*)&toAddress, (int)sizeof(SOCKADDR_IN));
+		if (bytesSent != SOCKET_ERROR)
+		{
+			result.succeed = true;
+			result.bytesSent = (u32)bytesSent;
+		}
+
+		return result;
+	}
+
+	static inline NetAddress
+	SockaddrToNetAddress(const SOCKADDR_IN* in)
+	{
+		NetAddress addr = {};
+		addr.ip = ntohl(in->sin_addr.S_un.S_addr);
+		auto port = ntohs(in->sin_port);
+		addr.port = (u16)port;
+		return addr;
+	}
+
+	NetRecieveResult
+	NetRecieve(uptr socket, void* buffer, u32 bufferSize)
+	{
+		NetRecieveResult result = {};
+		SOCKADDR_IN fromAddress = {};
+		int fromLen = sizeof(SOCKADDR_IN);
+		int bytesRecieved = recvfrom(socket, (char*)buffer, bufferSize, 0, (SOCKADDR*)&fromAddress, &fromLen);
+		switch (bytesRecieved)
+		{
+		case SOCKET_ERROR: {result.status = NetRecieveResult::Error; PrintString("%i32\n", WSAGetLastError());} break;
+		case 0: { result.status = NetRecieveResult::ConnectionClosed; } break;
+		default:
+		{
+			result.status = NetRecieveResult::Success;
+			result.bytesRecieved = (u32)bytesRecieved;
+			result.from = SockaddrToNetAddress(&fromAddress);
+		} break;
+		}
+		return result;
+	}
+
 	MemoryArena* AllocateArena(uptr size)
 	{
 		uptr headerSize = sizeof(MemoryArena);
@@ -1040,6 +1129,11 @@ namespace AB
 		app->state.functions.LogAssertV = LogAssertV;
 		app->state.functions.SetInputMode = SetInputMode;
 
+		app->state.functions.NetCreateSocket = NetCreateSocket;
+		app->state.functions.NetBindSocket = NetBindSocket;
+		app->state.functions.NetSend = NetSend;
+		app->state.functions.NetRecieve = NetRecieve;
+
 		app->state.functions.AllocForImGui = AllocForImGui;
 		app->state.functions.FreeForImGui = FreeForImGui;
 
@@ -1076,9 +1170,104 @@ namespace AB
 
 		app->gameLib.GameUpdateAndRender(app->gameArena, &app->state,
 										 GUR_REASON_INIT);
+
+
+		// NOTE: Winsock stuff
+		WSADATA winsockData;
+		auto wsResult = WSAStartup(WINSOCK_VER, &winsockData);
+		AB_CORE_ASSERT(wsResult == 0);
+
+		/*
+		SOCKET sock = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
+		AB_CORE_ASSERT(sock != INVALID_SOCKET);
+
+		i32 playerX = 0;
+		i32 playerY = 0;
+		char buffer[1024];
+  #define SOKO_SERVER
+  #if defined(SOKO_SERVER)
+  SOCKADDR_IN localAddress = {};
+  localAddress.sin_family = AF_INET;
+  localAddress.sin_port = htons(9999);
+  localAddress.sin_addr.s_addr = INADDR_ANY;
+  auto bindResult = bind(sock, (SOCKADDR*)&localAddress, sizeof(localAddress));
+  AB_CORE_ASSERT(bindResult == 0);
+
+  #else
+  SOCKADDR_IN serverAddress = {};
+  serverAddress.sin_family = AF_INET;
+  serverAddress.sin_port = htons(9999);
+  serverAddress.sin_addr.S_un.S_addr = inet_addr("127.0.0.1");
+		
+  char message[1024];
+  gets_s(message, 1024);
+
+  auto sendResult = sendto(sock, message, (int)strlen(message), 0, (SOCKADDR*)&serverAddress, (int)sizeof(serverAddress));
+  AB_CORE_ASSERT(sendResult != SOCKET_ERROR);
+  #endif		
+*/
 		while (app->running)
 		{
 			WindowPollEvents(app);
+/*
+#if defined(SOKO_SERVER)
+			SOCKADDR_IN from = {};
+			int fromSize = sizeof(from);
+			auto bytesRecieved = recvfrom(sock, buffer, 1024, 0, (SOCKADDR*)&from, &fromSize);
+			AB_CORE_ASSERT(bytesRecieved != SOCKET_ERROR);
+			char clientInput = buffer[0];
+			PrintString("%i32.%i32.%i32.%i32:%i32 - %c\n",
+						from.sin_addr.S_un.S_un_b.s_b1,
+						from.sin_addr.S_un.S_un_b.s_b2,
+						from.sin_addr.S_un.S_un_b.s_b3,
+						from.sin_addr.S_un.S_un_b.s_b4,
+						ntohs(from.sin_port), clientInput);
+			
+			switch (clientInput)
+			{
+			case 'w': { playerY++; } break;
+			case 's': { playerY--; } break;
+			case 'a': { playerX--; } break;
+			case 'd': { playerX++; } break;
+			case 'q': { app->running = false; } break;
+			default: {} break;
+			}
+			PrintString("Player position: x: %i32, y: %i32\n", playerX, playerY);
+
+			i32 writeIndex = 0;
+			COPY_BYTES(sizeof(playerX), buffer + writeIndex, &playerX);
+			writeIndex += sizeof(playerX);
+
+			COPY_BYTES(sizeof(playerY), buffer + writeIndex, &playerY);
+			writeIndex += sizeof(playerY);
+
+			COPY_BYTES(sizeof(app->running), buffer + writeIndex, &app->running);
+			int buffLen = sizeof(playerX) + sizeof(playerY) + sizeof(app->running);
+			SOCKADDR* to = (SOCKADDR*)&from;
+			auto sRes = sendto(sock, buffer, buffLen, 0, to, sizeof(SOCKADDR));
+			AB_CORE_ASSERT(sRes != SOCKET_ERROR, "error: %i32", WSAGetLastError());
+#else
+			scanf_s("\n%c", &buffer[0], 1);
+			SOCKADDR* to = (SOCKADDR*)&serverAddress;
+			auto sendRes = sendto(sock, buffer, 1, 0, to, sizeof(SOCKADDR));
+			AB_CORE_ASSERT(sendRes != SOCKET_ERROR);
+
+			SOCKADDR_IN from = {};
+			int fromSize = sizeof(from);
+			auto recieved = recvfrom(sock, buffer, 1024, 0, (SOCKADDR*)&from, &fromSize);
+			AB_CORE_ASSERT(recieved != SOCKET_ERROR);
+
+			i32 readIndex = 0;
+			COPY_BYTES(sizeof(playerX), &playerX, buffer + readIndex);
+			readIndex += sizeof(playerX);
+			COPY_BYTES(sizeof(playerY), &playerY, buffer + readIndex);
+			readIndex += sizeof(playerY);
+			COPY_BYTES(sizeof(app->running), &app->running, buffer + readIndex);
+
+			PrintString("x: %i32, y:%i32, running: %i32", playerX, playerY, app->running);
+			
+#endif
+*/
 
 			ImGui_ImplOpenGL3_NewFrame();
 			soko::ImGui::ImplSokoWin32_NewFrame(app);
@@ -1156,7 +1345,7 @@ namespace AB
 	}
 	
 }
-#if 1
+#if 0
 int
 WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance,
 			LPSTR lpCmdLine, int nShowCmd)

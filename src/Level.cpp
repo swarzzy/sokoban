@@ -308,7 +308,7 @@ namespace soko
 		switch (type)
 		{
 		case ENTITY_TYPE_BLOCK:  { entity.flags = ENTITY_FLAG_MOVABLE | ENTITY_FLAG_COLLIDES; } break;
-		case ENTITY_TYPE_PLAYER: { entity.flags = ENTITY_FLAG_MOVABLE | ENTITY_FLAG_COLLIDES; } break;
+		case ENTITY_TYPE_PLAYER: { entity.flags = ENTITY_FLAG_MOVABLE | ENTITY_FLAG_COLLIDES | ENTITY_FLAG_PLAYER; } break;
 		case ENTITY_TYPE_PLATE:  { entity.flags = 0; } break;
 		case ENTITY_TYPE_PORTAL: { entity.flags = 0; } break;
 		case ENTITY_TYPE_SPIKES: { entity.flags = 0; } break;
@@ -512,8 +512,9 @@ namespace soko
 				{
 					for (Entity& e : pushTile->entityList)
 					{
-						if (IsSet(&e, ENTITY_FLAG_MOVABLE) &&
-							IsSet(&e, ENTITY_FLAG_COLLIDES))
+						if (IsSet(e, ENTITY_FLAG_MOVABLE) &&
+							IsSet(e, ENTITY_FLAG_COLLIDES) &&
+							!IsSet(e, ENTITY_FLAG_PLAYER))
 						{
 							// NOTE: Resolve entity collision
 							MoveEntity(level, &e, dir, arena, reverse, depth - 1);							
