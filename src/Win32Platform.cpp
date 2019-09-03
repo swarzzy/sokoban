@@ -1249,7 +1249,7 @@ namespace AB
     }
 
 }
-#if 0
+#if 1
 int
 WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance,
             LPSTR lpCmdLine, int nShowCmd)

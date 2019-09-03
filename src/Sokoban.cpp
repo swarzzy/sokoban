@@ -11,20 +11,20 @@
 
 namespace soko
 {
-	struct GameState;
-	
-	struct StaticStorage
-	{
-		GameState* gameState;
-	};
+    struct GameState;
 
-	static AB::PlatformState* _GlobalPlatform;
-	static StaticStorage* _GlobalStaticStorage;
+    struct StaticStorage
+    {
+        GameState* gameState;
+    };
 
-	void GameInit(AB::MemoryArena* arena,  AB::PlatformState* platform);
-	void GameReload(AB::MemoryArena* arena,  AB::PlatformState* platform);
-	void GameUpdate(AB::MemoryArena* arena,  AB::PlatformState* platform);
-	void GameRender(AB::MemoryArena* arena,  AB::PlatformState* platform);
+    static AB::PlatformState* _GlobalPlatform;
+    static StaticStorage* _GlobalStaticStorage;
+
+    void GameInit(AB::MemoryArena* arena,  AB::PlatformState* platform);
+    void GameReload(AB::MemoryArena* arena,  AB::PlatformState* platform);
+    void GameUpdate(AB::MemoryArena* arena,  AB::PlatformState* platform);
+    void GameRender(AB::MemoryArena* arena,  AB::PlatformState* platform);
 
 }
 
@@ -34,9 +34,9 @@ namespace soko
 #define STBI_FREE(sz)
 inline void* ReallocForSTBI(void* p, uptr oldSize, uptr newSize)
 {
-	void* newMem = PUSH_SIZE(soko::_GlobalStaticStorage->gameState->tempArena, newSize);
-	COPY_BYTES(oldSize, newMem, p);
-	return newMem;
+    void* newMem = PUSH_SIZE(soko::_GlobalStaticStorage->gameState->tempArena, newSize);
+    COPY_BYTES(oldSize, newMem, p);
+    return newMem;
 }
 // NOTE: Realloc not used in PNG loading code
 #define STBI_REALLOC(p, newsz)
@@ -44,7 +44,7 @@ inline void* ReallocForSTBI(void* p, uptr oldSize, uptr newSize)
 #include "stb/stb_image.h"
 
 #undef STB_IMAGE_IMPLEMENTATION
-	
+
 // NOTE: Actual frame time
 #define GlobalAbsDeltaTime soko::_GlobalPlatform->absDeltaTime
 // NOTE: Frame time corrected by game speed
@@ -57,7 +57,7 @@ inline void* ReallocForSTBI(void* p, uptr oldSize, uptr newSize)
 #else
 #define SOKO_PLATFORM_FUNCTION(func) soko::_GlobalPlatform->functions. func
 #endif
-	
+
 #define DebugGetFileSize SOKO_PLATFORM_FUNCTION(DebugGetFileSize)
 #define DebugReadFile SOKO_PLATFORM_FUNCTION(DebugReadFile)
 #define DebugReadTextFile SOKO_PLATFORM_FUNCTION(DebugReadTextFile)
@@ -168,43 +168,43 @@ inline void* ReallocForSTBI(void* p, uptr oldSize, uptr newSize)
 
 namespace soko
 {
-	inline void
-	LogAssert(AB::LogLevel level, const char* file, const char* func, u32 line,
-			  const char* assertStr, const char* fmt, ...)
-	{
-		va_list args;
-		va_start(args, fmt);
-		LogAssertV(level, file, func, line, assertStr, fmt, &args);
-		va_end(args);
-	}
+    inline void
+    LogAssert(AB::LogLevel level, const char* file, const char* func, u32 line,
+              const char* assertStr, const char* fmt, ...)
+    {
+        va_list args;
+        va_start(args, fmt);
+        LogAssertV(level, file, func, line, assertStr, fmt, &args);
+        va_end(args);
+    }
 
-	inline void
-	LogAssert(AB::LogLevel level, const char* file, const char* func, u32 line,
-			  const char* assertStr)
-	{
-		LogAssertV(level, file, func, line, assertStr, nullptr, nullptr);
-	}
+    inline void
+    LogAssert(AB::LogLevel level, const char* file, const char* func, u32 line,
+              const char* assertStr)
+    {
+        LogAssertV(level, file, func, line, assertStr, nullptr, nullptr);
+    }
 
-	inline bool
-	JustPressed(AB::KeyCode code)
-	{
-		bool result = GlobalInput.keys[(u32)code].pressedNow && !GlobalInput.keys[(u32)code].wasPressed;
-		return result;
-	}
+    inline bool
+    JustPressed(AB::KeyCode code)
+    {
+        bool result = GlobalInput.keys[(u32)code].pressedNow && !GlobalInput.keys[(u32)code].wasPressed;
+        return result;
+    }
 
-	inline bool
-	JustReleased(AB::KeyCode code)
-	{
-		bool result = !GlobalInput.keys[(u32)code].pressedNow && GlobalInput.keys[(u32)code].wasPressed;
-		return result;
-	}
+    inline bool
+    JustReleased(AB::KeyCode code)
+    {
+        bool result = !GlobalInput.keys[(u32)code].pressedNow && GlobalInput.keys[(u32)code].wasPressed;
+        return result;
+    }
 
-	inline bool
-	IsDown(AB::KeyCode code)
-	{
-		bool result = GlobalInput.keys[(u32)code].pressedNow;
-		return result;
-	}
+    inline bool
+    IsDown(AB::KeyCode code)
+    {
+        bool result = GlobalInput.keys[(u32)code].pressedNow;
+        return result;
+    }
 }
 
 // TODO:: Asserts without message
@@ -230,913 +230,1082 @@ namespace soko
 
 extern "C" GAME_CODE_ENTRY void
 GameUpdateAndRender(AB::MemoryArena* arena,
-					AB::PlatformState* platform,
-					AB::GameUpdateAndRenderReason reason)
+                    AB::PlatformState* platform,
+                    AB::GameUpdateAndRenderReason reason)
 {
-	using namespace AB;
-	switch (reason)
-	{
-	case GUR_REASON_INIT:
-	{
-		soko::GameInit(arena, platform);
-	} break;
-	case GUR_REASON_RELOAD:
-	{
-		soko::GameReload(arena, platform);
-	} break;
-	case GUR_REASON_UPDATE:
-	{
-		soko::GameUpdate(arena, platform);
-	} break;
-	case GUR_REASON_RENDER:
-	{
-		soko::GameRender(arena, platform);
-	} break;
-	INVALID_DEFAULT_CASE;
-	}
+    using namespace AB;
+    switch (reason)
+    {
+    case GUR_REASON_INIT:
+    {
+        soko::GameInit(arena, platform);
+    } break;
+    case GUR_REASON_RELOAD:
+    {
+        soko::GameReload(arena, platform);
+    } break;
+    case GUR_REASON_UPDATE:
+    {
+        soko::GameUpdate(arena, platform);
+    } break;
+    case GUR_REASON_RENDER:
+    {
+        soko::GameRender(arena, platform);
+    } break;
+    INVALID_DEFAULT_CASE;
+    }
 }
 namespace soko
 {
 
-	Player*
-	AddPlayer(GameState* gameState, v3i coord, AB::MemoryArena* arena)
-	{
-		Player* p = nullptr;
-		if (gameState->playerCount < GameState::MAX_PLAYERS)
-		{
-			p = gameState->players + gameState->playerCount;
-			gameState->playerCount++;
+    Player*
+    AddPlayer(GameState* gameState, v3i coord, AB::MemoryArena* arena)
+    {
+        Player* p = nullptr;
+        if (gameState->playerCount < GameState::MAX_PLAYERS)
+        {
+            p = gameState->players + gameState->playerCount;
+            gameState->playerCount++;
 
 
-			u32 playerId = 	AddEntity(&gameState->level, ENTITY_TYPE_PLAYER, coord,
-									  &gameState->cubeMesh, &gameState->tilePlayerMaterial, arena);
+            u32 playerId =  AddEntity(&gameState->level, ENTITY_TYPE_PLAYER, coord,
+                                      &gameState->cubeMesh, &gameState->tilePlayerMaterial, arena);
 
-			p->level = &gameState->level;
-			p->e = GetEntity(p->level, playerId);
-			SOKO_ASSERT(p->e);
-		}
-		return p;
-	}
-	
-	void
-	GameInit(AB::MemoryArena* arena, AB::PlatformState* platform)
-	{
-		_GlobalStaticStorage = (StaticStorage*)PUSH_SIZE(arena, KILOBYTES(1));
-		SOKO_ASSERT(_GlobalStaticStorage == arena->begin, 0);
-		_GlobalPlatform = platform;
+            p->level = &gameState->level;
+            p->e = GetEntity(p->level, playerId);
+            SOKO_ASSERT(p->e);
+        }
+        return p;
+    }
 
-		_GlobalPlatform->gameSpeed = 1.0f;
+    void
+    GameInit(AB::MemoryArena* arena, AB::PlatformState* platform)
+    {
+        _GlobalStaticStorage = (StaticStorage*)PUSH_SIZE(arena, KILOBYTES(1));
+        SOKO_ASSERT(_GlobalStaticStorage == arena->begin, 0);
+        _GlobalPlatform = platform;
 
-		auto* tempArena = AllocateSubArena(arena, arena->size / 2);
-		SOKO_ASSERT(tempArena, "Failed to allocate tempArena.");
-		_GlobalStaticStorage->gameState = PUSH_STRUCT(arena, GameState);
-		SOKO_ASSERT(_GlobalStaticStorage->gameState, "");
+        _GlobalPlatform->gameSpeed = 1.0f;
 
-		_GlobalStaticStorage->gameState->tempArena = tempArena;
-		_GlobalStaticStorage->gameState->memoryArena = arena;
+        auto* tempArena = AllocateSubArena(arena, arena->size / 2);
+        SOKO_ASSERT(tempArena, "Failed to allocate tempArena.");
+        _GlobalStaticStorage->gameState = PUSH_STRUCT(arena, GameState);
+        SOKO_ASSERT(_GlobalStaticStorage->gameState, "");
 
-		GameState* gameState = _GlobalStaticStorage->gameState;
+        _GlobalStaticStorage->gameState->tempArena = tempArena;
+        _GlobalStaticStorage->gameState->memoryArena = arena;
 
-		// NOTE: ImGui
-		IMGUI_CHECKVERSION();
-		ImGui::SetAllocatorFunctions(_GlobalPlatform->functions.AllocForImGui,
-									 _GlobalPlatform->functions.FreeForImGui,
-									 _GlobalPlatform->imGuiAllocatorData);
-		ImGui::SetCurrentContext(_GlobalPlatform->imGuiContext);
+        GameState* gameState = _GlobalStaticStorage->gameState;
 
-		gameState->overlayCorner = 1;
+        // NOTE: ImGui
+        IMGUI_CHECKVERSION();
+        ImGui::SetAllocatorFunctions(_GlobalPlatform->functions.AllocForImGui,
+                                     _GlobalPlatform->functions.FreeForImGui,
+                                     _GlobalPlatform->imGuiAllocatorData);
+        ImGui::SetCurrentContext(_GlobalPlatform->imGuiContext);
 
-		gameState->renderer = AllocAndInitRenderer(arena);
-		gameState->renderGroup = AllocateRenderGroup(arena, KILOBYTES(1024), 16384);
+        gameState->overlayCorner = 1;
 
-		CameraConfig camera = {};
-		camera.position = V3(0.0f);
-		camera.front = V3(0.0f, 0.0f, -1.0f);
-		camera.fovDeg = 45.0f;
-		camera.aspectRatio = 16.0f / 9.0f;
-		camera.nearPlane = 0.1f;
-		camera.farPlane = 100.0f;
+        gameState->renderer = AllocAndInitRenderer(arena);
+        gameState->renderGroup = AllocateRenderGroup(arena, KILOBYTES(1024), 16384);
 
-		gameState->debugCamera.conf = camera;
-		gameState->debugCamera.moveSpeed = 3.0f;
-		gameState->debugCamera.rotateSpeed = 60.0f;
-		gameState->debugCamera.moveSmooth = 0.8f;
-		gameState->debugCamera.rotateSmooth = 0.45f;
+        CameraConfig camera = {};
+        camera.position = V3(0.0f);
+        camera.front = V3(0.0f, 0.0f, -1.0f);
+        camera.fovDeg = 45.0f;
+        camera.aspectRatio = 16.0f / 9.0f;
+        camera.nearPlane = 0.1f;
+        camera.farPlane = 100.0f;
 
-		gameState->camera.conf = camera;
-		gameState->camera.longSmooth = 0.3f;
-		gameState->camera.latSmooth = 0.3f;
-		gameState->camera.distSmooth = 0.3f;
-		gameState->camera.rotSpeed = 1000.0f;
-		gameState->camera.zoomSpeed = 5.0f;
-		gameState->camera.moveSpeed = 500.0f;
-		gameState->camera.moveFriction = 8.0f;
+        gameState->debugCamera.conf = camera;
+        gameState->debugCamera.moveSpeed = 3.0f;
+        gameState->debugCamera.rotateSpeed = 60.0f;
+        gameState->debugCamera.moveSmooth = 0.8f;
+        gameState->debugCamera.rotateSmooth = 0.45f;
 
-		RenderGroupSetCamera(gameState->renderGroup, &camera);
+        gameState->camera.conf = camera;
+        gameState->camera.longSmooth = 0.3f;
+        gameState->camera.latSmooth = 0.3f;
+        gameState->camera.distSmooth = 0.3f;
+        gameState->camera.rotSpeed = 1000.0f;
+        gameState->camera.zoomSpeed = 5.0f;
+        gameState->camera.moveSpeed = 500.0f;
+        gameState->camera.moveFriction = 8.0f;
 
-		gameState->renderer->clearColor = V4(0.8f, 0.8f, 0.8f, 1.0f);
-		{
-			u32 fileSize = DebugGetFileSize(L"../res/cube.aab");
-			void* fileData = PUSH_SIZE(arena, fileSize);
-			u32 result = DebugReadFile(fileData, fileSize, L"../res/cube.aab");
-			// NOTE: Strict aliasing
-			auto header = (AABMeshHeader*)fileData;
-			SOKO_ASSERT(header->magicValue == AAB_FILE_MAGIC_VALUE, "");
+        RenderGroupSetCamera(gameState->renderGroup, &camera);
 
-			Mesh mesh = {};
-			mesh.vertexCount = header->verticesCount;
-			mesh.normalCount = header->normalsCount;
-			mesh.uvCount = header->uvsCount;
-			mesh.indexCount = header->indicesCount;
+        gameState->renderer->clearColor = V4(0.8f, 0.8f, 0.8f, 1.0f);
+        {
+            u32 fileSize = DebugGetFileSize(L"../res/cube.aab");
+            void* fileData = PUSH_SIZE(arena, fileSize);
+            u32 result = DebugReadFile(fileData, fileSize, L"../res/cube.aab");
+            // NOTE: Strict aliasing
+            auto header = (AABMeshHeader*)fileData;
+            SOKO_ASSERT(header->magicValue == AAB_FILE_MAGIC_VALUE, "");
 
-			mesh.vertices = (v3*)((byte*)fileData + header->verticesOffset);
-			mesh.normals = (v3*)((byte*)fileData + header->normalsOffset);
-			mesh.uvs = (v2*)((byte*)fileData + header->uvsOffset);
-			mesh.indices = (u32*)((byte*)fileData + header->indicesOffset);
+            Mesh mesh = {};
+            mesh.vertexCount = header->verticesCount;
+            mesh.normalCount = header->normalsCount;
+            mesh.uvCount = header->uvsCount;
+            mesh.indexCount = header->indicesCount;
 
-			RendererLoadMesh(&mesh);
-			SOKO_ASSERT(mesh.gpuVertexBufferHandle, "");
-			SOKO_ASSERT(mesh.gpuIndexBufferHandle, "");
+            mesh.vertices = (v3*)((byte*)fileData + header->verticesOffset);
+            mesh.normals = (v3*)((byte*)fileData + header->normalsOffset);
+            mesh.uvs = (v2*)((byte*)fileData + header->uvsOffset);
+            mesh.indices = (u32*)((byte*)fileData + header->indicesOffset);
 
-			gameState->cubeMesh = mesh;
-		}
-		{
-			u32 fileSize = DebugGetFileSize(L"../res/plate.aab");
-			void* fileData = PUSH_SIZE(arena, fileSize);
-			u32 result = DebugReadFile(fileData, fileSize, L"../res/plate.aab");
-			// NOTE: Strict aliasing
-			auto header = (AABMeshHeader*)fileData;
-			SOKO_ASSERT(header->magicValue == AAB_FILE_MAGIC_VALUE, "");
+            RendererLoadMesh(&mesh);
+            SOKO_ASSERT(mesh.gpuVertexBufferHandle, "");
+            SOKO_ASSERT(mesh.gpuIndexBufferHandle, "");
 
-			Mesh mesh = {};
-			mesh.vertexCount = header->verticesCount;
-			mesh.normalCount = header->normalsCount;
-			mesh.uvCount = header->uvsCount;
-			mesh.indexCount = header->indicesCount;
+            gameState->cubeMesh = mesh;
+        }
+        {
+            u32 fileSize = DebugGetFileSize(L"../res/plate.aab");
+            void* fileData = PUSH_SIZE(arena, fileSize);
+            u32 result = DebugReadFile(fileData, fileSize, L"../res/plate.aab");
+            // NOTE: Strict aliasing
+            auto header = (AABMeshHeader*)fileData;
+            SOKO_ASSERT(header->magicValue == AAB_FILE_MAGIC_VALUE, "");
 
-			mesh.vertices = (v3*)((byte*)fileData + header->verticesOffset);
-			mesh.normals = (v3*)((byte*)fileData + header->normalsOffset);
-			mesh.uvs = (v2*)((byte*)fileData + header->uvsOffset);
-			mesh.indices = (u32*)((byte*)fileData + header->indicesOffset);
+            Mesh mesh = {};
+            mesh.vertexCount = header->verticesCount;
+            mesh.normalCount = header->normalsCount;
+            mesh.uvCount = header->uvsCount;
+            mesh.indexCount = header->indicesCount;
 
-			RendererLoadMesh(&mesh);
-			SOKO_ASSERT(mesh.gpuVertexBufferHandle, "");
-			SOKO_ASSERT(mesh.gpuIndexBufferHandle, "");
+            mesh.vertices = (v3*)((byte*)fileData + header->verticesOffset);
+            mesh.normals = (v3*)((byte*)fileData + header->normalsOffset);
+            mesh.uvs = (v2*)((byte*)fileData + header->uvsOffset);
+            mesh.indices = (u32*)((byte*)fileData + header->indicesOffset);
 
-			gameState->plateMesh = mesh;
-		}
-		{
-			u32 fileSize = DebugGetFileSize(L"../res/portal.aab");
-			void* fileData = PUSH_SIZE(arena, fileSize);
-			u32 result = DebugReadFile(fileData, fileSize, L"../res/portal.aab");
-			// NOTE: Strict aliasing
-			auto header = (AABMeshHeader*)fileData;
-			SOKO_ASSERT(header->magicValue == AAB_FILE_MAGIC_VALUE, "");
+            RendererLoadMesh(&mesh);
+            SOKO_ASSERT(mesh.gpuVertexBufferHandle, "");
+            SOKO_ASSERT(mesh.gpuIndexBufferHandle, "");
 
-			Mesh mesh = {};
-			mesh.vertexCount = header->verticesCount;
-			mesh.normalCount = header->normalsCount;
-			mesh.uvCount = header->uvsCount;
-			mesh.indexCount = header->indicesCount;
+            gameState->plateMesh = mesh;
+        }
+        {
+            u32 fileSize = DebugGetFileSize(L"../res/portal.aab");
+            void* fileData = PUSH_SIZE(arena, fileSize);
+            u32 result = DebugReadFile(fileData, fileSize, L"../res/portal.aab");
+            // NOTE: Strict aliasing
+            auto header = (AABMeshHeader*)fileData;
+            SOKO_ASSERT(header->magicValue == AAB_FILE_MAGIC_VALUE, "");
 
-			mesh.vertices = (v3*)((byte*)fileData + header->verticesOffset);
-			mesh.normals = (v3*)((byte*)fileData + header->normalsOffset);
-			mesh.uvs = (v2*)((byte*)fileData + header->uvsOffset);
-			mesh.indices = (u32*)((byte*)fileData + header->indicesOffset);
+            Mesh mesh = {};
+            mesh.vertexCount = header->verticesCount;
+            mesh.normalCount = header->normalsCount;
+            mesh.uvCount = header->uvsCount;
+            mesh.indexCount = header->indicesCount;
 
-			RendererLoadMesh(&mesh);
-			SOKO_ASSERT(mesh.gpuVertexBufferHandle, "");
-			SOKO_ASSERT(mesh.gpuIndexBufferHandle, "");
+            mesh.vertices = (v3*)((byte*)fileData + header->verticesOffset);
+            mesh.normals = (v3*)((byte*)fileData + header->normalsOffset);
+            mesh.uvs = (v2*)((byte*)fileData + header->uvsOffset);
+            mesh.indices = (u32*)((byte*)fileData + header->indicesOffset);
 
-			gameState->portalMesh = mesh;
-		}
-		{
-			u32 fileSize = DebugGetFileSize(L"../res/spikes.aab");
-			void* fileData = PUSH_SIZE(arena, fileSize);
-			u32 result = DebugReadFile(fileData, fileSize, L"../res/spikes.aab");
-			// NOTE: Strict aliasing
-			auto header = (AABMeshHeader*)fileData;
-			SOKO_ASSERT(header->magicValue == AAB_FILE_MAGIC_VALUE, "");
+            RendererLoadMesh(&mesh);
+            SOKO_ASSERT(mesh.gpuVertexBufferHandle, "");
+            SOKO_ASSERT(mesh.gpuIndexBufferHandle, "");
 
-			Mesh mesh = {};
-			mesh.vertexCount = header->verticesCount;
-			mesh.normalCount = header->normalsCount;
-			mesh.uvCount = header->uvsCount;
-			mesh.indexCount = header->indicesCount;
+            gameState->portalMesh = mesh;
+        }
+        {
+            u32 fileSize = DebugGetFileSize(L"../res/spikes.aab");
+            void* fileData = PUSH_SIZE(arena, fileSize);
+            u32 result = DebugReadFile(fileData, fileSize, L"../res/spikes.aab");
+            // NOTE: Strict aliasing
+            auto header = (AABMeshHeader*)fileData;
+            SOKO_ASSERT(header->magicValue == AAB_FILE_MAGIC_VALUE, "");
 
-			mesh.vertices = (v3*)((byte*)fileData + header->verticesOffset);
-			mesh.normals = (v3*)((byte*)fileData + header->normalsOffset);
-			mesh.uvs = (v2*)((byte*)fileData + header->uvsOffset);
-			mesh.indices = (u32*)((byte*)fileData + header->indicesOffset);
+            Mesh mesh = {};
+            mesh.vertexCount = header->verticesCount;
+            mesh.normalCount = header->normalsCount;
+            mesh.uvCount = header->uvsCount;
+            mesh.indexCount = header->indicesCount;
 
-			RendererLoadMesh(&mesh);
-			SOKO_ASSERT(mesh.gpuVertexBufferHandle, "");
-			SOKO_ASSERT(mesh.gpuIndexBufferHandle, "");
+            mesh.vertices = (v3*)((byte*)fileData + header->verticesOffset);
+            mesh.normals = (v3*)((byte*)fileData + header->normalsOffset);
+            mesh.uvs = (v2*)((byte*)fileData + header->uvsOffset);
+            mesh.indices = (u32*)((byte*)fileData + header->indicesOffset);
 
-			gameState->spikesMesh = mesh;
-		}
-		{
-			u32 fileSize = DebugGetFileSize(L"../res/button.aab");
-			void* fileData = PUSH_SIZE(arena, fileSize);
-			u32 result = DebugReadFile(fileData, fileSize, L"../res/button.aab");
-			// NOTE: Strict aliasing
-			auto header = (AABMeshHeader*)fileData;
-			SOKO_ASSERT(header->magicValue == AAB_FILE_MAGIC_VALUE, "");
+            RendererLoadMesh(&mesh);
+            SOKO_ASSERT(mesh.gpuVertexBufferHandle, "");
+            SOKO_ASSERT(mesh.gpuIndexBufferHandle, "");
 
-			Mesh mesh = {};
-			mesh.vertexCount = header->verticesCount;
-			mesh.normalCount = header->normalsCount;
-			mesh.uvCount = header->uvsCount;
-			mesh.indexCount = header->indicesCount;
+            gameState->spikesMesh = mesh;
+        }
+        {
+            u32 fileSize = DebugGetFileSize(L"../res/button.aab");
+            void* fileData = PUSH_SIZE(arena, fileSize);
+            u32 result = DebugReadFile(fileData, fileSize, L"../res/button.aab");
+            // NOTE: Strict aliasing
+            auto header = (AABMeshHeader*)fileData;
+            SOKO_ASSERT(header->magicValue == AAB_FILE_MAGIC_VALUE, "");
 
-			mesh.vertices = (v3*)((byte*)fileData + header->verticesOffset);
-			mesh.normals = (v3*)((byte*)fileData + header->normalsOffset);
-			mesh.uvs = (v2*)((byte*)fileData + header->uvsOffset);
-			mesh.indices = (u32*)((byte*)fileData + header->indicesOffset);
+            Mesh mesh = {};
+            mesh.vertexCount = header->verticesCount;
+            mesh.normalCount = header->normalsCount;
+            mesh.uvCount = header->uvsCount;
+            mesh.indexCount = header->indicesCount;
 
-			RendererLoadMesh(&mesh);
-			SOKO_ASSERT(mesh.gpuVertexBufferHandle, "");
-			SOKO_ASSERT(mesh.gpuIndexBufferHandle, "");
+            mesh.vertices = (v3*)((byte*)fileData + header->verticesOffset);
+            mesh.normals = (v3*)((byte*)fileData + header->normalsOffset);
+            mesh.uvs = (v2*)((byte*)fileData + header->uvsOffset);
+            mesh.indices = (u32*)((byte*)fileData + header->indicesOffset);
 
-			gameState->buttonMesh = mesh;
-		}
+            RendererLoadMesh(&mesh);
+            SOKO_ASSERT(mesh.gpuVertexBufferHandle, "");
+            SOKO_ASSERT(mesh.gpuIndexBufferHandle, "");
 
-		stbi_set_flip_vertically_on_load(1);
+            gameState->buttonMesh = mesh;
+        }
 
-		{
-			i32 width;
-			i32 height;
-			i32 bpp;
-			BeginTemporaryMemory(gameState->tempArena);
-			unsigned char* diffBitmap = stbi_load("../res/tile.png", &width, &height, &bpp, 3);
+        stbi_set_flip_vertically_on_load(1);
 
-			Material material = {};
-			material.diffMap.format = GL_RGB8;
-			material.diffMap.width = width;
-			material.diffMap.height = height;
-			material.diffMap.data = diffBitmap;
-			RendererLoadTexture(&material.diffMap);
-			SOKO_ASSERT(material.diffMap.gpuHandle, "");
+        {
+            i32 width;
+            i32 height;
+            i32 bpp;
+            BeginTemporaryMemory(gameState->tempArena);
+            unsigned char* diffBitmap = stbi_load("../res/tile.png", &width, &height, &bpp, 3);
 
-			EndTemporaryMemory(gameState->tempArena);
-			gameState->tileMaterial = material;
-		}
-		{
-			i32 width;
-			i32 height;
-			i32 bpp;
-			BeginTemporaryMemory(gameState->tempArena);
-			unsigned char* diffBitmap = stbi_load("../res/tile_player.png", &width, &height, &bpp, 3);
+            Material material = {};
+            material.diffMap.format = GL_RGB8;
+            material.diffMap.width = width;
+            material.diffMap.height = height;
+            material.diffMap.data = diffBitmap;
+            RendererLoadTexture(&material.diffMap);
+            SOKO_ASSERT(material.diffMap.gpuHandle, "");
 
-			Material material = {};
-			material.diffMap.format = GL_RGB8;
-			material.diffMap.width = width;
-			material.diffMap.height = height;
-			material.diffMap.data = diffBitmap;
-			RendererLoadTexture(&material.diffMap);
-			SOKO_ASSERT(material.diffMap.gpuHandle, "");
+            EndTemporaryMemory(gameState->tempArena);
+            gameState->tileMaterial = material;
+        }
+        {
+            i32 width;
+            i32 height;
+            i32 bpp;
+            BeginTemporaryMemory(gameState->tempArena);
+            unsigned char* diffBitmap = stbi_load("../res/tile_player.png", &width, &height, &bpp, 3);
 
-			EndTemporaryMemory(gameState->tempArena);
-			gameState->tilePlayerMaterial = material;
-		}
-		{
-			i32 width;
-			i32 height;
-			i32 bpp;
-			BeginTemporaryMemory(gameState->tempArena);
-			unsigned char* diffBitmap = stbi_load("../res/tile_block.png", &width, &height, &bpp, 3);
+            Material material = {};
+            material.diffMap.format = GL_RGB8;
+            material.diffMap.width = width;
+            material.diffMap.height = height;
+            material.diffMap.data = diffBitmap;
+            RendererLoadTexture(&material.diffMap);
+            SOKO_ASSERT(material.diffMap.gpuHandle, "");
 
-			Material material = {};
-			material.diffMap.format = GL_RGB8;
-			material.diffMap.width = width;
-			material.diffMap.height = height;
-			material.diffMap.data = diffBitmap;
-			RendererLoadTexture(&material.diffMap);
-			SOKO_ASSERT(material.diffMap.gpuHandle, "");
+            EndTemporaryMemory(gameState->tempArena);
+            gameState->tilePlayerMaterial = material;
+        }
+        {
+            i32 width;
+            i32 height;
+            i32 bpp;
+            BeginTemporaryMemory(gameState->tempArena);
+            unsigned char* diffBitmap = stbi_load("../res/tile_block.png", &width, &height, &bpp, 3);
 
-			EndTemporaryMemory(gameState->tempArena);
-			gameState->tileBlockMaterial = material;
-		}
-		{
-			i32 width;
-			i32 height;
-			i32 bpp;
-			BeginTemporaryMemory(gameState->tempArena);
-			unsigned char* diffBitmap = stbi_load("../res/plate_palette.png", &width, &height, &bpp, 3);
+            Material material = {};
+            material.diffMap.format = GL_RGB8;
+            material.diffMap.width = width;
+            material.diffMap.height = height;
+            material.diffMap.data = diffBitmap;
+            RendererLoadTexture(&material.diffMap);
+            SOKO_ASSERT(material.diffMap.gpuHandle, "");
 
-			Material material = {};
-			material.diffMap.format = GL_RGB8;
-			material.diffMap.width = width;
-			material.diffMap.height = height;
-			material.diffMap.data = diffBitmap;
-			RendererLoadTexture(&material.diffMap);
-			SOKO_ASSERT(material.diffMap.gpuHandle, "");
+            EndTemporaryMemory(gameState->tempArena);
+            gameState->tileBlockMaterial = material;
+        }
+        {
+            i32 width;
+            i32 height;
+            i32 bpp;
+            BeginTemporaryMemory(gameState->tempArena);
+            unsigned char* diffBitmap = stbi_load("../res/plate_palette.png", &width, &height, &bpp, 3);
 
-			EndTemporaryMemory(gameState->tempArena);
-			gameState->redPlateMaterial = material;
-		}
-		{
-			i32 widthDiff;
-			i32 heightDiff;
-			i32 bppDiff;
-			BeginTemporaryMemory(gameState->tempArena);
-			unsigned char* diffBitmap = stbi_load("../res/portal_diff.png", &widthDiff, &heightDiff, &bppDiff, 3);
-			i32 widthSpec;
-			i32 heightSpec;
-			i32 bppSpec;
-			unsigned char* specBitmap = stbi_load("../res/portal_spec.png", &widthSpec, &heightSpec, &bppSpec, 3);
+            Material material = {};
+            material.diffMap.format = GL_RGB8;
+            material.diffMap.width = width;
+            material.diffMap.height = height;
+            material.diffMap.data = diffBitmap;
+            RendererLoadTexture(&material.diffMap);
+            SOKO_ASSERT(material.diffMap.gpuHandle, "");
 
-
-			Material material = {};
-			material.diffMap.format = GL_RGB8;
-			material.diffMap.width = widthDiff;
-			material.diffMap.height = heightDiff;
-			material.diffMap.data = diffBitmap;
-			material.specMap.format = GL_RGB8;
-			material.specMap.width = widthSpec;
-			material.specMap.height = heightSpec;
-			material.specMap.data = specBitmap;
-
-			RendererLoadTexture(&material.diffMap);
-			RendererLoadTexture(&material.specMap);
-			SOKO_ASSERT(material.diffMap.gpuHandle, "");
-			SOKO_ASSERT(material.specMap.gpuHandle, "");
-
-			EndTemporaryMemory(gameState->tempArena);
-			gameState->portalMaterial = material;
-		}
-
-		{
-			byte bitmap[3];
-			bitmap[0] = 128;
-			bitmap[0] = 128;
-			bitmap[0] = 128;
-			
-			i32 width = 1;
-			i32 height = 1;
-			i32 bpp = 3;
-
-			Material material = {};
-			material.diffMap.format = GL_RGB8;
-			material.diffMap.width = width;
-			material.diffMap.height = height;
-			material.diffMap.data = bitmap;
-			RendererLoadTexture(&material.diffMap);
-			SOKO_ASSERT(material.diffMap.gpuHandle, "");
-
-			gameState->spikesMaterial = material;
-		}
-		{
-			i32 width;
-			i32 height;
-			i32 bpp;
-			BeginTemporaryMemory(gameState->tempArena);
-			unsigned char* diffBitmap = stbi_load("../res/button.png", &width, &height, &bpp, 3);
-
-			Material material = {};
-			material.diffMap.format = GL_RGB8;
-			material.diffMap.width = width;
-			material.diffMap.height = height;
-			material.diffMap.data = diffBitmap;
-			RendererLoadTexture(&material.diffMap);
-			SOKO_ASSERT(material.diffMap.gpuHandle, "");
-
-			EndTemporaryMemory(gameState->tempArena);
-			gameState->buttonMaterial = material;
-		}
+            EndTemporaryMemory(gameState->tempArena);
+            gameState->redPlateMaterial = material;
+        }
+        {
+            i32 widthDiff;
+            i32 heightDiff;
+            i32 bppDiff;
+            BeginTemporaryMemory(gameState->tempArena);
+            unsigned char* diffBitmap = stbi_load("../res/portal_diff.png", &widthDiff, &heightDiff, &bppDiff, 3);
+            i32 widthSpec;
+            i32 heightSpec;
+            i32 bppSpec;
+            unsigned char* specBitmap = stbi_load("../res/portal_spec.png", &widthSpec, &heightSpec, &bppSpec, 3);
 
 
-		gameState->level.xDim = 64;
-		gameState->level.yDim = 64;
-		gameState->level.zDim = 3;
-		gameState->level.entityCount = 1;
+            Material material = {};
+            material.diffMap.format = GL_RGB8;
+            material.diffMap.width = widthDiff;
+            material.diffMap.height = heightDiff;
+            material.diffMap.data = diffBitmap;
+            material.specMap.format = GL_RGB8;
+            material.specMap.width = widthSpec;
+            material.specMap.height = heightSpec;
+            material.specMap.data = specBitmap;
 
-		u32 tileArraySize = gameState->level.xDim * gameState->level.yDim * gameState->level.zDim;
+            RendererLoadTexture(&material.diffMap);
+            RendererLoadTexture(&material.specMap);
+            SOKO_ASSERT(material.diffMap.gpuHandle, "");
+            SOKO_ASSERT(material.specMap.gpuHandle, "");
 
-		auto* level = &gameState->level;
+            EndTemporaryMemory(gameState->tempArena);
+            gameState->portalMaterial = material;
+        }
 
-		for (u32 x = 0; x < level->xDim; x++)
-		{
-			for (u32 y = 0; y < level->yDim; y++)
-			{
-				auto[queryResult, tile] = GetTile(level, x, y, 0, gameState->memoryArena);
-				SOKO_ASSERT(queryResult == TileQueryResult::Found);
-				tile->value = TILE_VALUE_WALL;
+        {
+            byte bitmap[3];
+            bitmap[0] = 128;
+            bitmap[0] = 128;
+            bitmap[0] = 128;
 
-				if ((x == 0) || (x == level->xDim - 1) ||
-					(y == 0) || (y == level->yDim - 1))
-				{
-					auto[queryResult1, tile1] = GetTile(level, x, y, 1, gameState->memoryArena);
-					SOKO_ASSERT(queryResult1 == TileQueryResult::Found);
-					tile1->value = TILE_VALUE_WALL;
-				}
-			}
-		}
+            i32 width = 1;
+            i32 height = 1;
+            i32 bpp = 3;
+
+            Material material = {};
+            material.diffMap.format = GL_RGB8;
+            material.diffMap.width = width;
+            material.diffMap.height = height;
+            material.diffMap.data = bitmap;
+            RendererLoadTexture(&material.diffMap);
+            SOKO_ASSERT(material.diffMap.gpuHandle, "");
+
+            gameState->spikesMaterial = material;
+        }
+        {
+            i32 width;
+            i32 height;
+            i32 bpp;
+            BeginTemporaryMemory(gameState->tempArena);
+            unsigned char* diffBitmap = stbi_load("../res/button.png", &width, &height, &bpp, 3);
+
+            Material material = {};
+            material.diffMap.format = GL_RGB8;
+            material.diffMap.width = width;
+            material.diffMap.height = height;
+            material.diffMap.data = diffBitmap;
+            RendererLoadTexture(&material.diffMap);
+            SOKO_ASSERT(material.diffMap.gpuHandle, "");
+
+            EndTemporaryMemory(gameState->tempArena);
+            gameState->buttonMaterial = material;
+        }
+
+
+        gameState->level.xDim = 64;
+        gameState->level.yDim = 64;
+        gameState->level.zDim = 3;
+        gameState->level.entityCount = 1;
+
+        u32 tileArraySize = gameState->level.xDim * gameState->level.yDim * gameState->level.zDim;
+
+        auto* level = &gameState->level;
+
+        for (u32 x = 0; x < level->xDim; x++)
+        {
+            for (u32 y = 0; y < level->yDim; y++)
+            {
+                auto[queryResult, tile] = GetTile(level, x, y, 0, gameState->memoryArena);
+                SOKO_ASSERT(queryResult == TileQueryResult::Found);
+                tile->value = TILE_VALUE_WALL;
+
+                if ((x == 0) || (x == level->xDim - 1) ||
+                    (y == 0) || (y == level->yDim - 1))
+                {
+                    auto[queryResult1, tile1] = GetTile(level, x, y, 1, gameState->memoryArena);
+                    SOKO_ASSERT(queryResult1 == TileQueryResult::Found);
+                    tile1->value = TILE_VALUE_WALL;
+                }
+            }
+        }
 #if 0
-		Entity playerEntity = {};
-		playerEntity.type = ENTITY_TYPE_PLAYER;
-		playerEntity.flags = ENTITY_FLAG_COLLIDES | ENTITY_FLAG_MOVABLE;
-		playerEntity.coord = V3I(10, 10, 1);
-		playerEntity.mesh = &gameState->cubeMesh;
-		playerEntity.material = &gameState->tilePlayerMaterial;
-		u32 playerEntityId = AddEntity(&gameState->level, playerEntity, gameState->memoryArena);
+        Entity playerEntity = {};
+        playerEntity.type = ENTITY_TYPE_PLAYER;
+        playerEntity.flags = ENTITY_FLAG_COLLIDES | ENTITY_FLAG_MOVABLE;
+        playerEntity.coord = V3I(10, 10, 1);
+        playerEntity.mesh = &gameState->cubeMesh;
+        playerEntity.material = &gameState->tilePlayerMaterial;
+        u32 playerEntityId = AddEntity(&gameState->level, playerEntity, gameState->memoryArena);
 
-		auto* player = &gameState->player;
-		player->level = &gameState->level;
-		player->e = GetEntity(player->level, playerEntityId);
+        auto* player = &gameState->player;
+        player->level = &gameState->level;
+        player->e = GetEntity(player->level, playerEntityId);
 #endif
-		
-		Entity entity1 = {};
-		entity1.type = ENTITY_TYPE_BLOCK;
-		entity1.flags = ENTITY_FLAG_COLLIDES | ENTITY_FLAG_MOVABLE;
-		entity1.coord = V3I(5, 7, 1);
-		entity1.mesh = &gameState->cubeMesh;
-		entity1.material = &gameState->tileBlockMaterial;
 
-		AddEntity(level, entity1, gameState->memoryArena);
-		//AddEntity(playerLevel)
+        Entity entity1 = {};
+        entity1.type = ENTITY_TYPE_BLOCK;
+        entity1.flags = ENTITY_FLAG_COLLIDES | ENTITY_FLAG_MOVABLE;
+        entity1.coord = V3I(5, 7, 1);
+        entity1.mesh = &gameState->cubeMesh;
+        entity1.material = &gameState->tileBlockMaterial;
 
-		Entity entity2 = {};
-		entity2.type = ENTITY_TYPE_BLOCK;
-		entity2.flags = ENTITY_FLAG_COLLIDES | ENTITY_FLAG_MOVABLE;
-		entity2.coord = V3I(5, 8, 1);
-		entity2.mesh = &gameState->cubeMesh;
-		entity2.material = &gameState->tileBlockMaterial;
+        AddEntity(level, entity1, gameState->memoryArena);
+        //AddEntity(playerLevel)
 
-		AddEntity(level, entity2, gameState->memoryArena);
+        Entity entity2 = {};
+        entity2.type = ENTITY_TYPE_BLOCK;
+        entity2.flags = ENTITY_FLAG_COLLIDES | ENTITY_FLAG_MOVABLE;
+        entity2.coord = V3I(5, 8, 1);
+        entity2.mesh = &gameState->cubeMesh;
+        entity2.material = &gameState->tileBlockMaterial;
 
-		Entity entity3 = {};
-		entity3.type = ENTITY_TYPE_BLOCK;
-		entity3.flags = ENTITY_FLAG_COLLIDES | ENTITY_FLAG_MOVABLE;
-		entity3.coord = V3I(5, 9, 1);
-		entity3.mesh = &gameState->cubeMesh;
-		entity3.material = &gameState->tileBlockMaterial;
+        AddEntity(level, entity2, gameState->memoryArena);
 
-		AddEntity(level, entity3, gameState->memoryArena);
+        Entity entity3 = {};
+        entity3.type = ENTITY_TYPE_BLOCK;
+        entity3.flags = ENTITY_FLAG_COLLIDES | ENTITY_FLAG_MOVABLE;
+        entity3.coord = V3I(5, 9, 1);
+        entity3.mesh = &gameState->cubeMesh;
+        entity3.material = &gameState->tileBlockMaterial;
 
-		Entity plate = {};
-		plate.type = ENTITY_TYPE_PLATE;
-		plate.flags = 0;
-		plate.coord = V3I(10, 9, 1);
-		plate.mesh = &gameState->plateMesh;
-		plate.material = &gameState->redPlateMaterial;
+        AddEntity(level, entity3, gameState->memoryArena);
 
-		AddEntity(level, plate, gameState->memoryArena);
+        Entity plate = {};
+        plate.type = ENTITY_TYPE_PLATE;
+        plate.flags = 0;
+        plate.coord = V3I(10, 9, 1);
+        plate.mesh = &gameState->plateMesh;
+        plate.material = &gameState->redPlateMaterial;
 
-		Entity portal1 = {};
-		portal1.type = ENTITY_TYPE_PORTAL;
-		portal1.flags = 0;
-		portal1.coord = V3I(12, 12, 1);
-		portal1.mesh = &gameState->portalMesh;
-		portal1.material = &gameState->portalMaterial;
-		portal1.portalDirection = DIRECTION_NORTH;
+        AddEntity(level, plate, gameState->memoryArena);
 
-		Entity* portal1Entity = GetEntity(level, AddEntity(level, portal1, gameState->memoryArena));
+        Entity portal1 = {};
+        portal1.type = ENTITY_TYPE_PORTAL;
+        portal1.flags = 0;
+        portal1.coord = V3I(12, 12, 1);
+        portal1.mesh = &gameState->portalMesh;
+        portal1.material = &gameState->portalMaterial;
+        portal1.portalDirection = DIRECTION_NORTH;
 
-		Entity portal2 = {};
-		portal2.type = ENTITY_TYPE_PORTAL;
-		portal2.flags = 0;
-		portal2.coord = V3I(17, 17, 1);
-		portal2.mesh = &gameState->portalMesh;
-		portal2.material = &gameState->portalMaterial;
-		portal2.portalDirection = DIRECTION_WEST;
+        Entity* portal1Entity = GetEntity(level, AddEntity(level, portal1, gameState->memoryArena));
 
-		Entity* portal2Entity = GetEntity(level, AddEntity(level, portal2, gameState->memoryArena));
+        Entity portal2 = {};
+        portal2.type = ENTITY_TYPE_PORTAL;
+        portal2.flags = 0;
+        portal2.coord = V3I(17, 17, 1);
+        portal2.mesh = &gameState->portalMesh;
+        portal2.material = &gameState->portalMaterial;
+        portal2.portalDirection = DIRECTION_WEST;
 
-		portal1Entity->bindedPortalID = portal2Entity->id;
-		portal2Entity->bindedPortalID = portal1Entity->id;
+        Entity* portal2Entity = GetEntity(level, AddEntity(level, portal2, gameState->memoryArena));
 
-		AddEntity(level, ENTITY_TYPE_SPIKES, V3I(15, 15, 1),
-				  &gameState->spikesMesh, &gameState->spikesMaterial, gameState->memoryArena);
-		Entity* button = GetEntity(level, AddEntity(level, ENTITY_TYPE_BUTTON, V3I(4, 4, 1),
-													&gameState->buttonMesh, &gameState->buttonMaterial,
-													gameState->memoryArena));
-		// TODO(emacs): Lambdas indenting
-		button->updateProc = [](Level* level, Entity* entity, void* data) {
-								 GameState* gameState = (GameState*)data;
-								 AddEntity(level, ENTITY_TYPE_BLOCK, V3I(4, 5, 1),
-										   &gameState->cubeMesh, &gameState->tileBlockMaterial,
-										   gameState->memoryArena);
-							 };
-		button->updateProcData = (void*)gameState;
-	}
-	
-	void
-	GameReload(AB::MemoryArena* arena, AB::PlatformState* platform)
-	{
-		_GlobalPlatform = platform;
-		_GlobalStaticStorage = (StaticStorage*)arena->begin;
+        portal1Entity->bindedPortalID = portal2Entity->id;
+        portal2Entity->bindedPortalID = portal1Entity->id;
 
-		IMGUI_CHECKVERSION();
-		ImGui::SetAllocatorFunctions(_GlobalPlatform->functions.AllocForImGui,
-									 _GlobalPlatform->functions.FreeForImGui,
-									 _GlobalPlatform->imGuiAllocatorData);
-		ImGui::SetCurrentContext(_GlobalPlatform->imGuiContext);
+        AddEntity(level, ENTITY_TYPE_SPIKES, V3I(15, 15, 1),
+                  &gameState->spikesMesh, &gameState->spikesMaterial, gameState->memoryArena);
+        Entity* button = GetEntity(level, AddEntity(level, ENTITY_TYPE_BUTTON, V3I(4, 4, 1),
+                                                    &gameState->buttonMesh, &gameState->buttonMaterial,
+                                                    gameState->memoryArena));
+        // TODO(emacs): Lambdas indenting
+        button->updateProc = [](Level* level, Entity* entity, void* data)
+            {
+                GameState* gameState = (GameState*)data;
+                AddEntity(level, ENTITY_TYPE_BLOCK, V3I(4, 5, 1),
+                          &gameState->cubeMesh, &gameState->tileBlockMaterial,
+                          gameState->memoryArena);
+            };
+        button->updateProcData = (void*)gameState;
 
-	}
+    }
 
-	void
-	GameUpdate(AB::MemoryArena* arena, AB::PlatformState* platform)
-	{
-	}
+    void
+    GameReload(AB::MemoryArena* arena, AB::PlatformState* platform)
+    {
+        _GlobalPlatform = platform;
+        _GlobalStaticStorage = (StaticStorage*)arena->begin;
 
-	void ShowNetSettings(GameState* gameState)
-	{
-		bool open = true;
-		bool windowCreated = false;
-		ImGui::SetNextWindowSizeConstraints(ImVec2(400, 100), ImVec2(400, 200));
-		if (ImGui::Begin("LAN", &open, ImGuiWindowFlags_AlwaysAutoResize))
-		{
-			windowCreated = true;
-		}
-		
-		if (!gameState->serverInitialized && !gameState->clientInitialized)
-		{
-			if (windowCreated)
-			{
-				if(ImGui::RadioButton("Client", gameState->isServer == 0)) { gameState->isServer = 0; }
-				ImGui::SameLine();
-				if(ImGui::RadioButton("Server", gameState->isServer == 1)) { gameState->isServer = 1; }
-				ImGui::Separator();
-				if (gameState->isServer)
-				{
-					// TODO(emacs): Lambda indentiation in emacs
-					auto numFilter = [](ImGuiInputTextCallbackData* data) -> int
-										 {
-											 return !(data->EventChar >= '0' && data->EventChar <='9');
-										 };
-				
-					char buf[64] = "";
-					FormatString(buf, 64, "%i16", gameState->port);
-					ImGui::InputText("port", buf, 64, ImGuiInputTextFlags_CallbackCharFilter, numFilter);
-					u64 val = strtol(buf, nullptr, 10);
-					bool buttonEnabled = false;
-					if (val > 1023 && val < 65536)
-					{
-						gameState->port = (u16)val;
-					}
-					if (gameState->port > 1023 && gameState->port < 65536)
-					{
-						buttonEnabled = true;			
-					}
+        IMGUI_CHECKVERSION();
+        ImGui::SetAllocatorFunctions(_GlobalPlatform->functions.AllocForImGui,
+                                     _GlobalPlatform->functions.FreeForImGui,
+                                     _GlobalPlatform->imGuiAllocatorData);
+        ImGui::SetCurrentContext(_GlobalPlatform->imGuiContext);
 
-					if(ImGui::Button("Create", ImVec2(50.0f, 20.0f)))
-					{
-						if (buttonEnabled)
-						{
-							gameState->serverInitialized = true;
-						}
-					}
-				}
-				else
-				{
-					float width = ImGui::CalcItemWidth();
-					ImGui::BeginGroup();
-					ImGui::PushID("IP");
-					ImGui::TextUnformatted("IP");
-					ImGui::SameLine();
-					bool inputSucceed = true;
-					for (u32 i = 0; i < 4; i++)
-					{
-						ImGui::PushItemWidth(width / 4.0f);
-						ImGui::PushID(i);
-						bool invalidOctet = false;
-						if (gameState->ipOctets[i] > 255)
-						{
-							// Make values over 255 red, and when focus is lost reset it to 255.
-							gameState->ipOctets[i] = 255;
-							invalidOctet = true;
-							ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.0f, 0.0f, 0.0f, 1.0f));
-						}
-						if (gameState->ipOctets[i] < 0)
-						{
-							// Make values below 0 yellow, and when focus is lost reset it to 0.
-							gameState->ipOctets[i] = 0;
-							invalidOctet = true;
-							ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.0f, 1.0f, 0.0f, 1.0f));
-						}
-						ImGui::InputInt("##v", (int*)&gameState->ipOctets[i], 0, 0, ImGuiInputTextFlags_CharsDecimal);
-						if (invalidOctet)
-						{
-							if (inputSucceed)
-							{
-								inputSucceed = false;
-							}
-							ImGui::PopStyleColor();
-						}
-						ImGui::SameLine();
+    }
 
+    void
+    GameUpdate(AB::MemoryArena* arena, AB::PlatformState* platform)
+    {
+    }
 
-						ImGui::PopID();
-						ImGui::PopItemWidth();
-					}
-					if (inputSucceed)
-					{
-						gameState->ipAddress =
-							(gameState->ipOctets[0] << 24) |
-							(gameState->ipOctets[1] << 16) |
-							(gameState->ipOctets[2] << 8) |
-							(gameState->ipOctets[3]);
-					}
-					// TODO(emacs): Lambda indentiation in emacs
-					auto numFilter = [](ImGuiInputTextCallbackData* data) -> int
-										 {
-											 return !(data->EventChar >= '0' && data->EventChar <='9');
-										 };
-				
+    void ShowNetSettings(GameState* gameState)
+    {
+        bool open = true;
+        bool windowCreated = false;
+        ImGui::SetNextWindowSizeConstraints(ImVec2(400, 100), ImVec2(400, 200));
+        if (ImGui::Begin("LAN", &open, ImGuiWindowFlags_AlwaysAutoResize))
+        {
+            windowCreated = true;
+            if(ImGui::RadioButton("Client", gameState->gameMode == GAME_MODE_CLIENT)) { gameState->gameMode = GAME_MODE_CLIENT; }
+            ImGui::SameLine();
+            if(ImGui::RadioButton("Server", gameState->gameMode == GAME_MODE_SERVER)) { gameState->gameMode = GAME_MODE_SERVER; }
+            ImGui::SameLine();
+            if(ImGui::RadioButton("Single", gameState->gameMode == GAME_MODE_SINGLE)) { gameState->gameMode = GAME_MODE_SINGLE; }
 
-					ImGui::Text(":");
-					ImGui::SameLine();
-					ImGui::PushItemWidth(width / 4.0f);
-					char buf[64] = "";
-					FormatString(buf, 64, "%i16", gameState->port);
-					ImGui::InputText("", buf, 64, ImGuiInputTextFlags_CallbackCharFilter, numFilter);
-					u64 val = strtol(buf, nullptr, 10);
-					bool buttonEnabled = false;
-					if (val > 1023 && val < 65536)
-					{
-						gameState->port = (u16)val;
-					}
-					if (gameState->port > 1023 && gameState->port < 65536 && inputSucceed)
-					{
-						buttonEnabled = true;			
-					}
+            ImGui::Separator();
+            if (gameState->gameMode == GAME_MODE_SERVER)
+            {
+                // TODO(emacs): Lambda indentiation in emacs
+                auto numFilter = [](ImGuiInputTextCallbackData* data) -> int
+                    {
+                        return !(data->EventChar >= '0' && data->EventChar <='9');
+                    };
 
-					ImGui::PopID();
-					ImGui::EndGroup();
-					
-					
-					if(ImGui::Button("Create", ImVec2(50.0f, 20.0f)))
-					{
-						if (buttonEnabled)
-						{
-							gameState->clientInitialized = true;
-						}
-					}
-					
-				}
-			}
-		}
-		else
-		{
-			gameState->socket = NetCreateSocket();				
-			SOKO_ASSERT(gameState->socket);
-			
-			if (gameState->clientInitialized && !gameState->clientCreated)
-			{
-				gameState->clientCreated = true;
-				gameState->serverAddr.ip = gameState->ipAddress;
-				gameState->serverAddr.port = gameState->port;
-				ImGui::Text("Client conected");
-			}
-			if (gameState->serverInitialized)
-			{
-				if (!gameState->serverCreated)
-				{
-					gameState->serverCreated = true;
-					bool bindResult = NetBindSocket(gameState->socket, gameState->port);
-					SOKO_ASSERT(bindResult);					
-				}
-				ImGui::Text("Server created");
-			}
-		}
+                char buf[64] = "";
+                FormatString(buf, 64, "%i16", gameState->port);
+                ImGui::InputText("port", buf, 64, ImGuiInputTextFlags_CallbackCharFilter, numFilter);
+                u64 val = strtol(buf, nullptr, 10);
+                bool buttonEnabled = false;
+                if (val > 1023 && val < 65536)
+                {
+                    gameState->port = (u16)val;
+                }
+                if (gameState->port > 1023 && gameState->port < 65536)
+                {
+                    buttonEnabled = true;
+                }
 
-		ImGui::End();
-	}
-
-	void
-	GameRender(AB::MemoryArena* arena, AB::PlatformState* platform)
-	{
-		auto* gameState = _GlobalStaticStorage->gameState;
-		bool show = true;
-
-		DrawOverlay(gameState);
-		BeginDebugOverlay();
-		ImGui::ShowDemoWindow(&show);
-		DebugOverlayPushStr("Hello!");
-		DEBUG_OVERLAY_TRACE(gameState->camera.conf.position);
-		DEBUG_OVERLAY_TRACE(gameState->level.tileCount);
-		DEBUG_OVERLAY_TRACE(gameState->level.freeTileCount);
-		DEBUG_OVERLAY_TRACE(gameState->level.platePressed);
-		DEBUG_OVERLAY_TRACE(gameState->level.entityCount);
-		DEBUG_OVERLAY_TRACE(gameState->level.deletedEntityCount);
-		ShowNetSettings(gameState);
-
-		if (gameState->serverCreated)
-		{
-			auto[status, sz, from] = NetRecieve(gameState->socket, gameState->buffer, 1024);
-			SOKO_ASSERT(status == AB::NetRecieveResult::Success);
-			char clientInput = gameState->buffer[0];
-			PrintString("%i32:%i16 - %c\n", from.ip, from.port, clientInput);
-			
-			switch (clientInput)
-			{
-			case 'w': { gameState->playerY++; } break;
-			case 's': { gameState->playerY--; } break;
-			case 'a': { gameState->playerX--; } break;
-			case 'd': { gameState->playerX++; } break;
-			default: {} break;
-			}
-			PrintString("Player position: x: %i32, y: %i32\n", gameState->playerX, gameState->playerY);
-
-			i32 writeIndex = 0;
-			COPY_BYTES(sizeof(gameState->playerX), gameState->buffer + writeIndex, &gameState->playerX);
-			writeIndex += sizeof(gameState->playerX);
-
-			COPY_BYTES(sizeof(gameState->playerY), gameState->buffer + writeIndex, &gameState->playerY);
-			writeIndex += sizeof(gameState->playerY);
-
-			int buffLen = sizeof(gameState->playerX) + sizeof(gameState->playerY);
-			auto[status_, sz_] = NetSend(gameState->socket, from, gameState->buffer, buffLen);
-			SOKO_ASSERT(status_);
-		}
-		else if (gameState->clientCreated)
-		{
-			scanf_s("\n%c", &gameState->buffer[0], 1);
-			auto[status, sz] = NetSend(gameState->socket, gameState->serverAddr, gameState->buffer, 1);
-			SOKO_ASSERT(status);
-
-			auto[_status, _sz, from] = NetRecieve(gameState->socket, gameState->buffer, 1024);
-			SOKO_ASSERT(_status == AB::NetRecieveResult::Success);
-
-			i32 readIndex = 0;
-			COPY_BYTES(sizeof(gameState->playerX), &gameState->playerX, gameState->buffer + readIndex);
-			readIndex += sizeof(gameState->playerX);
-			COPY_BYTES(sizeof(gameState->playerY), &gameState->playerY, gameState->buffer + readIndex);
-			readIndex += sizeof(gameState->playerY);
-
-			PrintString("x: %i32, y:%i32", gameState->playerX, gameState->playerY);
-		}
+                if(ImGui::Button("Create", ImVec2(50.0f, 20.0f)))
+                {
+                    if (buttonEnabled)
+                    {
+                        gameState->gameModeReadyToInit = true;
+                    }
+                }
+            }
+            else if (gameState->gameMode == GAME_MODE_CLIENT)
+            {
+                float width = ImGui::CalcItemWidth();
+                ImGui::BeginGroup();
+                ImGui::PushID("IP");
+                ImGui::TextUnformatted("IP");
+                ImGui::SameLine();
+                bool inputSucceed = true;
+                for (u32 i = 0; i < 4; i++)
+                {
+                    ImGui::PushItemWidth(width / 4.0f);
+                    ImGui::PushID(i);
+                    bool invalidOctet = false;
+                    if (gameState->ipOctets[i] > 255)
+                    {
+                        // Make values over 255 red, and when focus is lost reset it to 255.
+                        gameState->ipOctets[i] = 255;
+                        invalidOctet = true;
+                        ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.0f, 0.0f, 0.0f, 1.0f));
+                    }
+                    if (gameState->ipOctets[i] < 0)
+                    {
+                        // Make values below 0 yellow, and when focus is lost reset it to 0.
+                        gameState->ipOctets[i] = 0;
+                        invalidOctet = true;
+                        ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.0f, 1.0f, 0.0f, 1.0f));
+                    }
+                    ImGui::InputInt("##v", (int*)&gameState->ipOctets[i], 0, 0, ImGuiInputTextFlags_CharsDecimal);
+                    if (invalidOctet)
+                    {
+                        if (inputSucceed)
+                        {
+                            inputSucceed = false;
+                        }
+                        ImGui::PopStyleColor();
+                    }
+                    ImGui::SameLine();
 
 
-		if (JustPressed(AB::KEY_F1))
-		{
-			gameState->useDebugCamera = !gameState->useDebugCamera;
-		}
-
-		CameraConfig* camConf = NULL;
-		if (gameState->useDebugCamera)
-		{
-			UpdateCamera(&gameState->debugCamera);
-			camConf = &gameState->debugCamera.conf;
-		}
-		else
-		{
-			UpdateCamera(&gameState->camera);
-			camConf = &gameState->camera.conf;
-		}
-		
-		RenderGroupSetCamera(gameState->renderGroup, camConf);
-
-		RendererBeginFrame(gameState->renderer, V2(PlatformGlobals.windowWidth, PlatformGlobals.windowHeight));
-		DirectionalLight light = {};
-		light.dir = Normalize(V3(0.2f, -0.9f, -0.3f));
-		light.ambient = V3(0.3f);
-		light.diffuse = V3(0.8f);
-		light.specular = V3(1.0f);
-		RenderCommandSetDirLight lightCommand = {};
-		lightCommand.light = light;
-		RenderGroupPushCommand(gameState->renderGroup, RENDER_COMMAND_SET_DIR_LIGHT,
-							   (void*)&lightCommand);
+                    ImGui::PopID();
+                    ImGui::PopItemWidth();
+                }
+                if (inputSucceed)
+                {
+                    gameState->ipAddress =
+                        (gameState->ipOctets[0] << 24) |
+                        (gameState->ipOctets[1] << 16) |
+                        (gameState->ipOctets[2] << 8) |
+                        (gameState->ipOctets[3]);
+                }
+                // TODO(emacs): Lambda indentiation in emacs
+                auto numFilter = [](ImGuiInputTextCallbackData* data) -> int
+                    {
+                        return !(data->EventChar >= '0' && data->EventChar <='9');
+                    };
 
 
-		if ((IsDown(AB::KEY_SPACE) ||
-			IsDown(AB::KEY_UP)    ||
-			IsDown(AB::KEY_DOWN)  ||
-			IsDown(AB::KEY_LEFT)  ||
-			IsDown(AB::KEY_RIGHT)) &&
-			!gameState->player1Active)
-		{
-			gameState->player1Active = true;
-			gameState->player1 = AddPlayer(gameState, V3I(10, 10, 1), arena);
-		}
-		else
-		{
-			Player* player = gameState->player1;
-			if (JustPressed(AB::KEY_SPACE))
-			{
-				player->reversed = ! player->reversed;
-			}
+                ImGui::Text(":");
+                ImGui::SameLine();
+                ImGui::PushItemWidth(width / 4.0f);
+                char buf[64] = "";
+                FormatString(buf, 64, "%i16", gameState->port);
+                ImGui::InputText("", buf, 64, ImGuiInputTextFlags_CallbackCharFilter, numFilter);
+                u64 val = strtol(buf, nullptr, 10);
+                bool buttonEnabled = false;
+                if (val > 1023 && val < 65536)
+                {
+                    gameState->port = (u16)val;
+                }
+                if (gameState->port > 1023 && gameState->port < 65536 && inputSucceed)
+                {
+                    buttonEnabled = true;
+                }
 
-			if (JustPressed(AB::KEY_UP) &&
-				(player->inputFlags & PENDING_MOVEMENT_BIT_FORWARD) == 0)
-			{
-				player->inputFlags |= PENDING_MOVEMENT_BIT_FORWARD;
-				MoveEntity(&gameState->level, player->e, DIRECTION_NORTH, arena, player->reversed);
-			}
-
-			if (JustPressed(AB::KEY_DOWN) &&
-				(player->inputFlags & PENDING_MOVEMENT_BIT_BACKWARD) == 0)
-			{
-				player->inputFlags |= PENDING_MOVEMENT_BIT_BACKWARD;
-				MoveEntity(&gameState->level, player->e, DIRECTION_SOUTH, arena, player->reversed);
-			}
-
-			if (JustPressed(AB::KEY_RIGHT) &&
-				(player->inputFlags & PENDING_MOVEMENT_BIT_RIGHT) == 0)
-			{
-				player->inputFlags |= PENDING_MOVEMENT_BIT_RIGHT;
-				MoveEntity(&gameState->level, player->e, DIRECTION_WEST, arena, player->reversed);
-			}
-
-			if (JustPressed(AB::KEY_LEFT) &&
-				(player->inputFlags & PENDING_MOVEMENT_BIT_LEFT) == 0)
-			{
-				player->inputFlags |= PENDING_MOVEMENT_BIT_LEFT;
-				MoveEntity(&gameState->level, player->e, DIRECTION_EAST, arena, player->reversed);
-			}
-
-			if (JustReleased(AB::KEY_UP))
-			{
-				player->inputFlags &= ~PENDING_MOVEMENT_BIT_FORWARD;
-			}
-			if (JustReleased(AB::KEY_DOWN))
-			{
-				player->inputFlags &= ~PENDING_MOVEMENT_BIT_BACKWARD;
-			}
-			if (JustReleased(AB::KEY_RIGHT))
-			{
-				player->inputFlags &= ~PENDING_MOVEMENT_BIT_RIGHT;
-			}
-			if (JustReleased(AB::KEY_LEFT))
-			{
-				player->inputFlags &= ~PENDING_MOVEMENT_BIT_LEFT;
-			}				
-		}
+                ImGui::PopID();
+                ImGui::EndGroup();
 
 
-		if ((IsDown(AB::KEY_ENTER) ||
-			 IsDown(AB::KEY_NUM8)  ||
-			 IsDown(AB::KEY_NUM5)  ||
-			 IsDown(AB::KEY_NUM4)  ||
-			 IsDown(AB::KEY_NUM6)) &&
-			!gameState->player2Active)
-		{
-			gameState->player2Active = true;
-			gameState->player2 = AddPlayer(gameState, V3I(13, 13, 1), arena);
-		}
-		else
-		{
-			Player* player = gameState->player2;
-			if (JustPressed(AB::KEY_ENTER))
-			{
-				player->reversed = ! player->reversed;
-			}
+                if(ImGui::Button("Create", ImVec2(50.0f, 20.0f)))
+                {
+                    if (buttonEnabled)
+                    {
+                        gameState->gameModeReadyToInit = true;
+                    }
+                }
+            }
+            else if (gameState->gameMode == GAME_MODE_SINGLE)
+            {
+                if(ImGui::Button("Create", ImVec2(50.0f, 20.0f)))
+                {
+                    gameState->gameModeReadyToInit = true;
+                }
+            }
 
-			if (JustPressed(AB::KEY_NUM8) &&
-				(player->inputFlags & PENDING_MOVEMENT_BIT_FORWARD) == 0)
-			{
-				player->inputFlags |= PENDING_MOVEMENT_BIT_FORWARD;
-				MoveEntity(&gameState->level, player->e, DIRECTION_NORTH, arena, player->reversed);
-			}
+            if (gameState->gameModeReadyToInit && !gameState->gameModeInitialized)
+            {
+                gameState->socket = NetCreateSocket();
+                SOKO_ASSERT(gameState->socket);
 
-			if (JustPressed(AB::KEY_NUM5) &&
-				(player->inputFlags & PENDING_MOVEMENT_BIT_BACKWARD) == 0)
-			{
-				player->inputFlags |= PENDING_MOVEMENT_BIT_BACKWARD;
-				MoveEntity(&gameState->level, player->e, DIRECTION_SOUTH, arena, player->reversed);
-			}
+                gameState->serverAddr.ip = gameState->ipAddress;
+                gameState->serverAddr.port = gameState->port;
+                if (gameState->gameMode == GAME_MODE_SERVER)
+                {
+                    bool bindResult = NetBindSocket(gameState->socket, gameState->port);
+                    SOKO_ASSERT(bindResult);
+                }
+                gameState->gameModeReadyToInit = false;
+                gameState->gameModeInitialized = true;
+            }
+        }
 
-			if (JustPressed(AB::KEY_NUM6) &&
-				(player->inputFlags & PENDING_MOVEMENT_BIT_RIGHT) == 0)
-			{
-				player->inputFlags |= PENDING_MOVEMENT_BIT_RIGHT;
-				MoveEntity(&gameState->level, player->e, DIRECTION_WEST, arena, player->reversed);
-			}
+        ImGui::End();
+    }
 
-			if (JustPressed(AB::KEY_NUM4) &&
-				(player->inputFlags & PENDING_MOVEMENT_BIT_LEFT) == 0)
-			{
-				player->inputFlags |= PENDING_MOVEMENT_BIT_LEFT;
-				MoveEntity(&gameState->level, player->e, DIRECTION_EAST, arena, player->reversed);
-			}
+    void
+    GameRender(AB::MemoryArena* arena, AB::PlatformState* platform)
+    {
+        auto* gameState = _GlobalStaticStorage->gameState;
+        bool show = true;
 
-			if (JustReleased(AB::KEY_NUM8))
-			{
-				player->inputFlags &= ~PENDING_MOVEMENT_BIT_FORWARD;
-			}
-			if (JustReleased(AB::KEY_NUM5))
-			{
-				player->inputFlags &= ~PENDING_MOVEMENT_BIT_BACKWARD;
-			}
-			if (JustReleased(AB::KEY_NUM6))
-			{
-				player->inputFlags &= ~PENDING_MOVEMENT_BIT_RIGHT;
-			}
-			if (JustReleased(AB::KEY_NUM4))
-			{
-				player->inputFlags &= ~PENDING_MOVEMENT_BIT_LEFT;
-			}				
-		}
+        DrawOverlay(gameState);
+        BeginDebugOverlay();
+        ImGui::ShowDemoWindow(&show);
+        DebugOverlayPushStr("Hello!");
+        DEBUG_OVERLAY_TRACE(gameState->camera.conf.position);
+        DEBUG_OVERLAY_TRACE(gameState->level.tileCount);
+        DEBUG_OVERLAY_TRACE(gameState->level.freeTileCount);
+        DEBUG_OVERLAY_TRACE(gameState->level.platePressed);
+        DEBUG_OVERLAY_TRACE(gameState->level.entityCount);
+        DEBUG_OVERLAY_TRACE(gameState->level.deletedEntityCount);
+        ShowNetSettings(gameState);
+
+        if (gameState->gameModeInitialized)
+        {
+            if (gameState->gameMode == GAME_MODE_SERVER)
+            {
+                if (!gameState->remotePlayer)
+                {
+                    gameState->remotePlayer = AddPlayer(gameState, V3I(13, 13, 1), arena);
+                }
+                if (!gameState->controlledPlayer)
+                {
+                    gameState->controlledPlayer = AddPlayer(gameState, V3I(10, 10, 1), arena);
+                }
+
+                byte* buffer = gameState->buffer;
+
+
+                auto[status, sz, from] = NetRecieve(gameState->socket, buffer, 1024);
+                SOKO_ASSERT(status == AB::NetRecieveResult::Success);
+                sz--;
+
+                Player* remPlayer = gameState->remotePlayer;
+                for (u32 i = 0; i < sz; i++)
+                {
+                    AB::KeyCode key = (AB::KeyCode)buffer[i];
+                    switch (key)
+                    {
+                    case AB::KEY_SPACE: { remPlayer->reversed = ! remPlayer->reversed; } break;
+                    case AB::KEY_UP: { MoveEntity(&gameState->level, remPlayer->e, DIRECTION_NORTH, arena, remPlayer->reversed); } break;
+                    case AB::KEY_DOWN: { MoveEntity(&gameState->level, remPlayer->e, DIRECTION_SOUTH, arena, remPlayer->reversed); } break;
+                    case AB::KEY_LEFT: { MoveEntity(&gameState->level, remPlayer->e, DIRECTION_EAST, arena, remPlayer->reversed); } break;
+                    case AB::KEY_RIGHT: { MoveEntity(&gameState->level, remPlayer->e, DIRECTION_WEST, arena, remPlayer->reversed); } break;
+                    default: { PrintString("Unexpected input: %u8\n", key); } break;
+                    }
+                }
+
+                i32 bufferAt = 0;
+
+                Player* player = gameState->controlledPlayer;
+                if (JustPressed(AB::KEY_SPACE))
+                {
+                    player->reversed = ! player->reversed;
+
+                    const byte key = (byte)AB::KEY_SPACE;
+                    COPY_BYTES(sizeof(byte), buffer + bufferAt, &key);
+                    bufferAt += sizeof(byte);
+                }
+
+                if (JustPressed(AB::KEY_UP) &&
+                    (player->inputFlags & PENDING_MOVEMENT_BIT_FORWARD) == 0)
+                {
+                    player->inputFlags |= PENDING_MOVEMENT_BIT_FORWARD;
+                    MoveEntity(&gameState->level, player->e, DIRECTION_NORTH, arena, player->reversed);
+
+                    const byte key = (byte)AB::KEY_UP;
+                    COPY_BYTES(sizeof(byte), buffer + bufferAt, &key);
+                    bufferAt += sizeof(byte);
+                }
+
+                if (JustPressed(AB::KEY_DOWN) &&
+                    (player->inputFlags & PENDING_MOVEMENT_BIT_BACKWARD) == 0)
+                {
+                    player->inputFlags |= PENDING_MOVEMENT_BIT_BACKWARD;
+                    MoveEntity(&gameState->level, player->e, DIRECTION_SOUTH, arena, player->reversed);
+
+                    const byte key = (byte)AB::KEY_DOWN;
+                    COPY_BYTES(sizeof(byte), buffer + bufferAt, &key);
+                    bufferAt += sizeof(byte);
+                }
+
+                if (JustPressed(AB::KEY_RIGHT) &&
+                    (player->inputFlags & PENDING_MOVEMENT_BIT_RIGHT) == 0)
+                {
+                    player->inputFlags |= PENDING_MOVEMENT_BIT_RIGHT;
+                    MoveEntity(&gameState->level, player->e, DIRECTION_WEST, arena, player->reversed);
+
+                    const byte key = (byte)AB::KEY_RIGHT;
+                    COPY_BYTES(sizeof(byte), buffer + bufferAt, &key);
+                    bufferAt += sizeof(byte);
+                }
+
+                if (JustPressed(AB::KEY_LEFT) &&
+                    (player->inputFlags & PENDING_MOVEMENT_BIT_LEFT) == 0)
+                {
+                    player->inputFlags |= PENDING_MOVEMENT_BIT_LEFT;
+                    MoveEntity(&gameState->level, player->e, DIRECTION_EAST, arena, player->reversed);
+
+                    const byte key = (byte)AB::KEY_LEFT;
+                    COPY_BYTES(sizeof(byte), buffer + bufferAt, &key);
+                    bufferAt += sizeof(byte);
+                }
+
+                if (JustReleased(AB::KEY_UP))
+                {
+                    player->inputFlags &= ~PENDING_MOVEMENT_BIT_FORWARD;
+                }
+                if (JustReleased(AB::KEY_DOWN))
+                {
+                    player->inputFlags &= ~PENDING_MOVEMENT_BIT_BACKWARD;
+                }
+                if (JustReleased(AB::KEY_RIGHT))
+                {
+                    player->inputFlags &= ~PENDING_MOVEMENT_BIT_RIGHT;
+                }
+                if (JustReleased(AB::KEY_LEFT))
+                {
+                    player->inputFlags &= ~PENDING_MOVEMENT_BIT_LEFT;
+                }
+
+                auto[status_, sz_] = NetSend(gameState->socket, from, buffer, bufferAt + 1);
+                SOKO_ASSERT(status_);
+            }
+            else if (gameState->gameMode == GAME_MODE_CLIENT)
+            {
+                if (!gameState->controlledPlayer)
+                {
+                    gameState->controlledPlayer = AddPlayer(gameState, V3I(13, 13, 1), arena);
+                }
+
+                if (!gameState->remotePlayer)
+                {
+                    gameState->remotePlayer = AddPlayer(gameState, V3I(10, 10, 1), arena);
+                }
+
+                i32 bufferAt = 0;
+
+                Player* player = gameState->controlledPlayer;
+                byte* buffer = gameState->buffer;
+                if (JustPressed(AB::KEY_SPACE))
+                {
+                    player->reversed = ! player->reversed;
+
+                    const byte key = (byte)AB::KEY_SPACE;
+                    COPY_BYTES(sizeof(byte), buffer + bufferAt, &key);
+                    bufferAt += sizeof(byte);
+                }
+
+                if (JustPressed(AB::KEY_UP) &&
+                    (player->inputFlags & PENDING_MOVEMENT_BIT_FORWARD) == 0)
+                {
+                    player->inputFlags |= PENDING_MOVEMENT_BIT_FORWARD;
+                    MoveEntity(&gameState->level, player->e, DIRECTION_NORTH, arena, player->reversed);
+
+                    const byte key = (byte)AB::KEY_UP;
+                    COPY_BYTES(sizeof(byte), buffer + bufferAt, &key);
+                    bufferAt += sizeof(byte);
+                }
+
+                if (JustPressed(AB::KEY_DOWN) &&
+                    (player->inputFlags & PENDING_MOVEMENT_BIT_BACKWARD) == 0)
+                {
+                    player->inputFlags |= PENDING_MOVEMENT_BIT_BACKWARD;
+                    MoveEntity(&gameState->level, player->e, DIRECTION_SOUTH, arena, player->reversed);
+
+                    const byte key = (byte)AB::KEY_DOWN;
+                    COPY_BYTES(sizeof(byte), buffer + bufferAt, &key);
+                    bufferAt += sizeof(byte);
+                }
+
+                if (JustPressed(AB::KEY_RIGHT) &&
+                    (player->inputFlags & PENDING_MOVEMENT_BIT_RIGHT) == 0)
+                {
+                    player->inputFlags |= PENDING_MOVEMENT_BIT_RIGHT;
+                    MoveEntity(&gameState->level, player->e, DIRECTION_WEST, arena, player->reversed);
+
+                    const byte key = (byte)AB::KEY_RIGHT;
+                    COPY_BYTES(sizeof(byte), buffer + bufferAt, &key);
+                    bufferAt += sizeof(byte);
+                }
+
+                if (JustPressed(AB::KEY_LEFT) &&
+                    (player->inputFlags & PENDING_MOVEMENT_BIT_LEFT) == 0)
+                {
+                    player->inputFlags |= PENDING_MOVEMENT_BIT_LEFT;
+                    MoveEntity(&gameState->level, player->e, DIRECTION_EAST, arena, player->reversed);
+
+                    const byte key = (byte)AB::KEY_LEFT;
+                    COPY_BYTES(sizeof(byte), buffer + bufferAt, &key);
+                    bufferAt += sizeof(byte);
+                }
+
+                if (JustReleased(AB::KEY_UP))
+                {
+                    player->inputFlags &= ~PENDING_MOVEMENT_BIT_FORWARD;
+                }
+                if (JustReleased(AB::KEY_DOWN))
+                {
+                    player->inputFlags &= ~PENDING_MOVEMENT_BIT_BACKWARD;
+                }
+                if (JustReleased(AB::KEY_RIGHT))
+                {
+                    player->inputFlags &= ~PENDING_MOVEMENT_BIT_RIGHT;
+                }
+                if (JustReleased(AB::KEY_LEFT))
+                {
+                    player->inputFlags &= ~PENDING_MOVEMENT_BIT_LEFT;
+                }
+
+                auto[status_, sz_] = NetSend(gameState->socket, gameState->serverAddr, buffer, bufferAt + 1);
+                SOKO_ASSERT(status_);
+
+                auto[status, sz, from] = NetRecieve(gameState->socket, buffer, 1024);
+                SOKO_ASSERT(status == AB::NetRecieveResult::Success);
+                sz--;
+
+                Player* remPlayer = gameState->remotePlayer;
+                for (u32 i = 0; i < sz; i++)
+                {
+                    AB::KeyCode key = (AB::KeyCode)buffer[i];
+                    switch (key)
+                    {
+                    case AB::KEY_SPACE: { remPlayer->reversed = ! remPlayer->reversed; } break;
+                    case AB::KEY_UP: { MoveEntity(&gameState->level, remPlayer->e, DIRECTION_NORTH, arena, remPlayer->reversed); } break;
+                    case AB::KEY_DOWN: { MoveEntity(&gameState->level, remPlayer->e, DIRECTION_SOUTH, arena, remPlayer->reversed); } break;
+                    case AB::KEY_LEFT: { MoveEntity(&gameState->level, remPlayer->e, DIRECTION_EAST, arena, remPlayer->reversed); } break;
+                    case AB::KEY_RIGHT: { MoveEntity(&gameState->level, remPlayer->e, DIRECTION_WEST, arena, remPlayer->reversed); } break;
+                    default: { PrintString("Unexpected input: %u8\n", key); } break;
+                    }
+                }
+            }
+            else if (gameState->gameMode == GAME_MODE_SINGLE)
+            {
+                if (!gameState->controlledPlayer)
+                {
+                    gameState->controlledPlayer = AddPlayer(gameState, V3I(10, 10, 1), arena);
+                }
+                Player* player = gameState->controlledPlayer;
+                if (JustPressed(AB::KEY_SPACE))
+                {
+                    player->reversed = ! player->reversed;
+                }
+
+                if (JustPressed(AB::KEY_UP) &&
+                    (player->inputFlags & PENDING_MOVEMENT_BIT_FORWARD) == 0)
+                {
+                    player->inputFlags |= PENDING_MOVEMENT_BIT_FORWARD;
+                    MoveEntity(&gameState->level, player->e, DIRECTION_NORTH, arena, player->reversed);
+                }
+
+                if (JustPressed(AB::KEY_DOWN) &&
+                    (player->inputFlags & PENDING_MOVEMENT_BIT_BACKWARD) == 0)
+                {
+                    player->inputFlags |= PENDING_MOVEMENT_BIT_BACKWARD;
+                    MoveEntity(&gameState->level, player->e, DIRECTION_SOUTH, arena, player->reversed);
+                }
+
+                if (JustPressed(AB::KEY_RIGHT) &&
+                    (player->inputFlags & PENDING_MOVEMENT_BIT_RIGHT) == 0)
+                {
+                    player->inputFlags |= PENDING_MOVEMENT_BIT_RIGHT;
+                    MoveEntity(&gameState->level, player->e, DIRECTION_WEST, arena, player->reversed);
+                }
+
+                if (JustPressed(AB::KEY_LEFT) &&
+                    (player->inputFlags & PENDING_MOVEMENT_BIT_LEFT) == 0)
+                {
+                    player->inputFlags |= PENDING_MOVEMENT_BIT_LEFT;
+                    MoveEntity(&gameState->level, player->e, DIRECTION_EAST, arena, player->reversed);
+                }
+
+                if (JustReleased(AB::KEY_UP))
+                {
+                    player->inputFlags &= ~PENDING_MOVEMENT_BIT_FORWARD;
+                }
+                if (JustReleased(AB::KEY_DOWN))
+                {
+                    player->inputFlags &= ~PENDING_MOVEMENT_BIT_BACKWARD;
+                }
+                if (JustReleased(AB::KEY_RIGHT))
+                {
+                    player->inputFlags &= ~PENDING_MOVEMENT_BIT_RIGHT;
+                }
+                if (JustReleased(AB::KEY_LEFT))
+                {
+                    player->inputFlags &= ~PENDING_MOVEMENT_BIT_LEFT;
+                }
+
+            }
+            else
+            {
+                INVALID_CODE_PATH;
+            }
+        }
+
+        if (JustPressed(AB::KEY_F1))
+        {
+            gameState->useDebugCamera = !gameState->useDebugCamera;
+        }
+
+        CameraConfig* camConf = NULL;
+        if (gameState->useDebugCamera)
+        {
+            UpdateCamera(&gameState->debugCamera);
+            camConf = &gameState->debugCamera.conf;
+        }
+        else
+        {
+            UpdateCamera(&gameState->camera);
+            camConf = &gameState->camera.conf;
+        }
+
+        RenderGroupSetCamera(gameState->renderGroup, camConf);
+
+        RendererBeginFrame(gameState->renderer, V2(PlatformGlobals.windowWidth, PlatformGlobals.windowHeight));
+        DirectionalLight light = {};
+        light.dir = Normalize(V3(0.2f, -0.9f, -0.3f));
+        light.ambient = V3(0.3f);
+        light.diffuse = V3(0.8f);
+        light.specular = V3(1.0f);
+        RenderCommandSetDirLight lightCommand = {};
+        lightCommand.light = light;
+        RenderGroupPushCommand(gameState->renderGroup, RENDER_COMMAND_SET_DIR_LIGHT,
+                               (void*)&lightCommand);
 
 
 
+#if 0
+        if ((IsDown(AB::KEY_ENTER) ||
+             IsDown(AB::KEY_NUM8)  ||
+             IsDown(AB::KEY_NUM5)  ||
+             IsDown(AB::KEY_NUM4)  ||
+             IsDown(AB::KEY_NUM6)) &&
+            !gameState->player2Active)
+        {
+            gameState->player2Active = true;
+        }
+        else
+        {
+            Player* player = gameState->player2;
+            if (JustPressed(AB::KEY_ENTER))
+            {
+                player->reversed = ! player->reversed;
+            }
 
-		DrawLevel(&gameState->level, gameState);
-		//DrawPlayer(&gameState->player, gameState);
-		DrawEntities(&gameState->level, gameState);
-		FlushRenderGroup(gameState->renderer, gameState->renderGroup);
-	}
+            if (JustPressed(AB::KEY_NUM8) &&
+                (player->inputFlags & PENDING_MOVEMENT_BIT_FORWARD) == 0)
+            {
+                player->inputFlags |= PENDING_MOVEMENT_BIT_FORWARD;
+                MoveEntity(&gameState->level, player->e, DIRECTION_NORTH, arena, player->reversed);
+            }
+
+            if (JustPressed(AB::KEY_NUM5) &&
+                (player->inputFlags & PENDING_MOVEMENT_BIT_BACKWARD) == 0)
+            {
+                player->inputFlags |= PENDING_MOVEMENT_BIT_BACKWARD;
+                MoveEntity(&gameState->level, player->e, DIRECTION_SOUTH, arena, player->reversed);
+            }
+
+            if (JustPressed(AB::KEY_NUM6) &&
+                (player->inputFlags & PENDING_MOVEMENT_BIT_RIGHT) == 0)
+            {
+                player->inputFlags |= PENDING_MOVEMENT_BIT_RIGHT;
+                MoveEntity(&gameState->level, player->e, DIRECTION_WEST, arena, player->reversed);
+            }
+
+            if (JustPressed(AB::KEY_NUM4) &&
+                (player->inputFlags & PENDING_MOVEMENT_BIT_LEFT) == 0)
+            {
+                player->inputFlags |= PENDING_MOVEMENT_BIT_LEFT;
+                MoveEntity(&gameState->level, player->e, DIRECTION_EAST, arena, player->reversed);
+            }
+
+            if (JustReleased(AB::KEY_NUM8))
+            {
+                player->inputFlags &= ~PENDING_MOVEMENT_BIT_FORWARD;
+            }
+            if (JustReleased(AB::KEY_NUM5))
+            {
+                player->inputFlags &= ~PENDING_MOVEMENT_BIT_BACKWARD;
+            }
+            if (JustReleased(AB::KEY_NUM6))
+            {
+                player->inputFlags &= ~PENDING_MOVEMENT_BIT_RIGHT;
+            }
+            if (JustReleased(AB::KEY_NUM4))
+            {
+                player->inputFlags &= ~PENDING_MOVEMENT_BIT_LEFT;
+            }
+        }
+#endif
+
+
+
+        DrawLevel(&gameState->level, gameState);
+        //DrawPlayer(&gameState->player, gameState);
+        DrawEntities(&gameState->level, gameState);
+        FlushRenderGroup(gameState->renderer, gameState->renderGroup);
+    }
 }
 
 #include "RenderGroup.cpp"
