@@ -12,6 +12,21 @@
 
 namespace soko
 {
+
+    enum ClientMessage : byte
+    {
+        CLIENT_MESSAGE_JOIN,
+        CLIENT_MESSAGE_LEAVE,
+        CLIENT_MESSAGE_INPUT
+    };
+
+    enum ServerMessage : byte
+    {
+        SERVER_MESSAGE_JOIN_RESULT,
+        SERVER_MESSAGE_ADD_PLAYER,
+        SERVER_MESSAGE_INPUT
+    };
+
     struct Mesh
     {
         u32 vertexCount;
@@ -56,6 +71,29 @@ namespace soko
         GAME_MODE_SERVER
     };
 
+    struct ClientInput
+    {
+        static constexpr u32 BUFFER_SIZE = 512;
+        u32 bufferAt;
+        byte buffer[BUFFER_SIZE];
+    };
+
+    struct ServerSlot
+    {
+        b32 used;
+        Player* player;
+        ClientInput input;
+        f32 lastMsgTime;
+        AB::NetAddress address;
+    };
+
+    struct PlayerSlot
+    {
+        b32 used;
+        Player* player;
+        ClientInput input;
+    };
+
     struct GameState
     {
         static constexpr u32 MAX_PLAYERS = 2;
@@ -90,11 +128,16 @@ namespace soko
         i32 ipOctets[4];
         u32 ipAddress;
         AB::NetAddress serverAddr;
-        byte buffer[1024];
+        static constexpr u32 NET_BUFFER_SIZE = 1024;
+        byte netBuffer[NET_BUFFER_SIZE];
         i32 playerX;
         i32 playerY;
         u32 gameMode;
         b32 gameModeReadyToInit;
         b32 gameModeInitialized;
+        static constexpr u16 MAX_CONNECTIONS = 2;
+        ServerSlot slots[MAX_CONNECTIONS];
+        i16 clientSlot;
+        PlayerSlot playerSlots[MAX_CONNECTIONS];
     };
 }

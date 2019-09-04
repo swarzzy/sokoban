@@ -978,14 +978,26 @@ namespace AB
     uptr
     NetCreateSocket()
     {
+        AB_STATIC_ASSERT(sizeof(uptr) == sizeof(SOCKET));
         uptr result = 0;
         SOCKET sock = ::socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
         if (sock != INVALID_SOCKET)
         {
-            AB_STATIC_ASSERT(sizeof(uptr) == sizeof(SOCKET));
-            // TODO: Is that brokes strict aliasing rules???
-            result = *((uptr*)&sock);
+            u_long enabled  = 1;
+            int ioctlResult = ioctlsocket(sock, FIONBIO, &enabled);
+            if (ioctlResult == 0)
+            {
+                // TODO: Is that brokes strict aliasing rules???
+                result = *((uptr*)&sock);
+            }
+            else
+            {
+                int closeResult = closesocket(sock);
+                AB_CORE_ASSERT(closeResult == 0);
+            }
+
         }
+
         return result;
     }
 
@@ -1043,7 +1055,17 @@ namespace AB
         int bytesRecieved = recvfrom(socket, (char*)buffer, bufferSize, 0, (SOCKADDR*)&fromAddress, &fromLen);
         switch (bytesRecieved)
         {
-        case SOCKET_ERROR: {result.status = NetRecieveResult::Error; PrintString("%i32\n", WSAGetLastError());} break;
+        case SOCKET_ERROR:
+        {
+            if (WSAGetLastError() == WSAEWOULDBLOCK)
+            {
+                result.status = NetRecieveResult::Nothing;
+            }
+            else
+            {
+                result.status = NetRecieveResult::Error;
+            }
+        } break;
         case 0: { result.status = NetRecieveResult::ConnectionClosed; } break;
         default:
         {

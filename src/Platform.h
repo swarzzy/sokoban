@@ -235,7 +235,7 @@ namespace AB
 
     struct NetRecieveResult
     {
-        enum { Success, ConnectionClosed, Error } status;
+        enum { Success, Nothing, ConnectionClosed, Error } status;
         u32 bytesRecieved;
         NetAddress from;
     };

@@ -103,8 +103,10 @@ namespace soko
         return result;
     }
 
-    enum Direction
+    // NOTE: Should fit in one byte
+    enum Direction : u32
     {
+        DIRECTION_INVALID = 0,
         DIRECTION_NORTH,
         DIRECTION_SOUTH,
         DIRECTION_WEST,
