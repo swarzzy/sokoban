@@ -12,21 +12,6 @@
 
 namespace soko
 {
-
-    enum ClientMessage : byte
-    {
-        CLIENT_MESSAGE_JOIN,
-        CLIENT_MESSAGE_LEAVE,
-        CLIENT_MESSAGE_INPUT
-    };
-
-    enum ServerMessage : byte
-    {
-        SERVER_MESSAGE_JOIN_RESULT,
-        SERVER_MESSAGE_ADD_PLAYER,
-        SERVER_MESSAGE_INPUT
-    };
-
     struct Mesh
     {
         u32 vertexCount;

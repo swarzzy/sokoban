@@ -227,6 +227,7 @@ namespace soko
 #include "Level.cpp"
 #include "DebugOverlay.cpp"
 #include "Camera.cpp"
+#include "Network.h"
 
 extern "C" GAME_CODE_ENTRY void
 GameUpdateAndRender(AB::MemoryArena* arena,
@@ -940,7 +941,7 @@ namespace soko
                     {
                         switch (netBuffer[0])
                         {
-                        case CLIENT_MESSAGE_JOIN:
+                        case net::CLIENT_MESSAGE_JOIN:
                         {
                             i16 clientSlot = -1;
                             u32 packetSize = 0;
@@ -951,6 +952,14 @@ namespace soko
                                     clientSlot = i;
                                 }
                             }
+
+                            u32 netBufferAt = 0;
+                            netBuffer[netBufferAt] = (byte)net::SERVER_MESSAGE_JOIN_RESULT;
+                            netBufferAt += 1;
+
+                            auto msg = (net::ServerJoinResultMsg*)(netBuffer + 1);
+                            netBufferAt += sizeof(net::ServerJoinResultMsg);
+
                             bool slotInitialized = false;
                             if (clientSlot != -1)
                             {
@@ -960,25 +969,15 @@ namespace soko
 
                                 Player* player = AddPlayer(gameState, V3I(playerX, playerY, playerZ), arena);
                                 SOKO_ASSERT(player);
+
                                 if (player)
                                 {
                                     gameState->slots[clientSlot].used = 1;
                                     gameState->slots[clientSlot].address = rcFrom;
                                     gameState->slots[clientSlot].player = player;
 
-                                    u32 netBufferAt = 0;
-                                    netBuffer[netBufferAt] = (byte)SERVER_MESSAGE_JOIN_RESULT;
-                                    netBufferAt += 1;
-                                    netBuffer[netBufferAt] = 1;
-                                    netBufferAt += 1;
-                                    COPY_BYTES(sizeof(i16), (void*)(netBuffer + netBufferAt), &clientSlot);
-                                    netBufferAt += sizeof(i16);
-                                    COPY_BYTES(sizeof(i32), (void*)(netBuffer + netBufferAt), &playerX);
-                                    netBufferAt += sizeof(i32);
-                                    COPY_BYTES(sizeof(i32), (void*)(netBuffer + netBufferAt), &playerY);
-                                    netBufferAt += sizeof(i32);
-                                    COPY_BYTES(sizeof(i32), (void*)(netBuffer + netBufferAt), &playerZ);
-                                    netBufferAt += sizeof(i32);
+                                    msg->succeed = 1;
+                                    msg->newPlayer = {clientSlot, playerX, playerY, playerZ};
 
                                     for (i16 otherSlot = 0;
                                          otherSlot < GameState::MAX_CONNECTIONS;
@@ -989,28 +988,26 @@ namespace soko
                                             ServerSlot* s = gameState->slots + otherSlot;
                                             if (s->used)
                                             {
-                                                COPY_BYTES(sizeof(i16), (void*)(netBuffer + netBufferAt), &otherSlot);
-                                                netBufferAt += sizeof(i16);
-                                                COPY_BYTES(sizeof(i32), (void*)(netBuffer + netBufferAt), &s->player->e->coord.x);
-                                                netBufferAt += sizeof(i32);
-                                                COPY_BYTES(sizeof(i32), (void*)(netBuffer + netBufferAt), &s->player->e->coord.y);
-                                                netBufferAt += sizeof(i32);
-                                                COPY_BYTES(sizeof(i32), (void*)(netBuffer + netBufferAt), &s->player->e->coord.z);
-                                                netBufferAt += sizeof(i32);
+                                                auto data = (net::NewPlayerData*)(netBuffer + netBufferAt);
+                                                netBufferAt += sizeof(net::NewPlayerData);
+
+                                                data->slot = otherSlot;
+                                                data->x = s->player->e->coord.x;
+                                                data->y = s->player->e->coord.y;
+                                                data->z = s->player->e->coord.z;
+                                                msg->otherPlayersCount++;
                                             }
                                         }
                                     }
-
-                                    packetSize = netBufferAt;
                                     slotInitialized = true;
                                 }
                             }
                             if (!slotInitialized)
                             {
-                                netBuffer[0] = (byte)SERVER_MESSAGE_JOIN_RESULT;
-                                netBuffer[1] = 0;
-                                packetSize = 2;
+                                msg->succeed = 0;
                             }
+
+                            packetSize = netBufferAt;
 
                             auto[sndStatus, sndSize] = NetSend(gameState->socket, rcFrom, netBuffer, packetSize);
                             if (!sndStatus && slotInitialized)
@@ -1019,13 +1016,13 @@ namespace soko
                                 gameState->slots[clientSlot].used = 0;
                             }
                         } break;
-                        case CLIENT_MESSAGE_LEAVE:
+                        case net::CLIENT_MESSAGE_LEAVE:
                         {
                             i16 slot;
                             COPY_BYTES(sizeof(i16), &slot, netBuffer + 1);
                             gameState->slots[slot].used = 0;
                         } break;
-                        case CLIENT_MESSAGE_INPUT:
+                        case net::CLIENT_MESSAGE_INPUT:
                         {
                             i16 slotNum;
                             COPY_BYTES(sizeof(i16), &slotNum, netBuffer + 1);
@@ -1161,7 +1158,7 @@ namespace soko
                                 }
 
                                 u32 netBufferAt = 0;
-                                netBuffer[netBufferAt] = SERVER_MESSAGE_INPUT;
+                                netBuffer[netBufferAt] = net::SERVER_MESSAGE_INPUT;
                                 netBufferAt += 1;
                                 i16 slotToSend = (i16)i;
                                 COPY_BYTES(sizeof(i16), netBuffer + netBufferAt, &slotToSend);
@@ -1194,7 +1191,7 @@ namespace soko
 
                 if (!gameState->controlledPlayer && timeToWait >= 29.99f)
                 {
-                    netBuffer[netBufferAt] = CLIENT_MESSAGE_JOIN;
+                    netBuffer[netBufferAt] = net::CLIENT_MESSAGE_JOIN;
                     netBufferAt += 1;
 
                     auto[sndStatus, sndSize] = NetSend(gameState->socket, gameState->serverAddr,
@@ -1211,48 +1208,34 @@ namespace soko
                         NetRecieve(gameState->socket, netBuffer, GameState::NET_BUFFER_SIZE);
                     if (recvStatus == AB::NetRecieveResult::Success && recvSize)
                     {
-                        if (netBuffer[0] == SERVER_MESSAGE_JOIN_RESULT)
+                        if (netBuffer[0] == net::SERVER_MESSAGE_JOIN_RESULT)
                         {
-                            if (netBuffer[1])
+                            auto msg = (net::ServerJoinResultMsg*)(netBuffer + 1);
+                            netBufferAt = sizeof(net::ServerJoinResultMsg) + 1;
+                            if (msg->succeed)
                             {
-                                u32 netBufferAt = 2;
-                                COPY_BYTES(sizeof(i16), &gameState->clientSlot, netBuffer + netBufferAt);
-                                netBufferAt += sizeof(i16);
-                                v3i playerCoord;
-                                COPY_BYTES(sizeof(i32), &playerCoord.x, netBuffer + netBufferAt);
-                                netBufferAt += sizeof(i32);
-                                COPY_BYTES(sizeof(i32), &playerCoord.y, netBuffer + netBufferAt);
-                                netBufferAt += sizeof(i32);
-                                COPY_BYTES(sizeof(i32), &playerCoord.z, netBuffer + netBufferAt);
-                                netBufferAt += sizeof(i32);
-
+                                v3i playerCoord = V3I(msg->newPlayer.x, msg->newPlayer.y, msg->newPlayer.z);
                                 Player* player = AddPlayer(gameState, playerCoord, arena);
                                 SOKO_ASSERT(player);
                                 gameState->controlledPlayer = player;
+                                gameState->clientSlot = msg->newPlayer.slot;
+
                                 // TODO: Check for overflow
                                 gameState->playerSlots[gameState->clientSlot].used = true;
                                 gameState->playerSlots[gameState->clientSlot].player = player;
 
+                                netBufferAt = sizeof(net::ServerJoinResultMsg) + 1;
                                 while (netBufferAt < recvSize)
                                 {
-                                    i16 slot;
-                                    i32 x;
-                                    i32 y;
-                                    i32 z;
-                                    COPY_BYTES(sizeof(i16), &slot, netBuffer + netBufferAt);
-                                    netBufferAt += sizeof(i16);
-                                    COPY_BYTES(sizeof(i32), &x, netBuffer + netBufferAt);
-                                    netBufferAt += sizeof(i32);
-                                    COPY_BYTES(sizeof(i32), &y, netBuffer + netBufferAt);
-                                    netBufferAt += sizeof(i32);
-                                    COPY_BYTES(sizeof(i32), &z, netBuffer + netBufferAt);
-                                    netBufferAt += sizeof(i32);
+                                    auto nextPlayer = (net::NewPlayerData*)(netBuffer + netBufferAt);
+                                    netBufferAt += sizeof(net::NewPlayerData);
 
-                                    Player* player = AddPlayer(gameState, V3I(x, y, z), arena);
+                                    v3i coord = V3I(nextPlayer->x, nextPlayer->y, nextPlayer->z);
+                                    Player* player = AddPlayer(gameState, coord, arena);
                                     SOKO_ASSERT(player);
                                     // TODO: Check for overflow
-                                    gameState->playerSlots[slot].used = true;
-                                    gameState->playerSlots[slot].player = player;
+                                    gameState->playerSlots[nextPlayer->slot].used = true;
+                                    gameState->playerSlots[nextPlayer->slot].player = player;
                                 }
                             }
                         }
@@ -1346,7 +1329,7 @@ namespace soko
                     playerInput->bufferAt = playerBufferAt;
 
                     netBufferAt = 0;
-                    netBuffer[netBufferAt] = CLIENT_MESSAGE_INPUT;
+                    netBuffer[netBufferAt] = net::CLIENT_MESSAGE_INPUT;
                     netBufferAt += 1;
                     i16 slotToSend = gameState->clientSlot;
                     COPY_BYTES(sizeof(i16), netBuffer + netBufferAt, &slotToSend);
@@ -1367,7 +1350,7 @@ namespace soko
                         {
                             switch (netBuffer[0])
                             {
-                            case SERVER_MESSAGE_INPUT:
+                            case net::SERVER_MESSAGE_INPUT:
                             {
                                 i16 slot;
                                 COPY_BYTES(sizeof(i16), &slot, netBuffer + 1);
@@ -1379,7 +1362,7 @@ namespace soko
                                 s->input.bufferAt += rcSize - 3;
                             }
                             break;
-                            case SERVER_MESSAGE_ADD_PLAYER: {} break;
+                            case net::SERVER_MESSAGE_ADD_PLAYER: {} break;
                                 INVALID_DEFAULT_CASE;
                             }
                         }
