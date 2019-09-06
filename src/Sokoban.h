@@ -12,6 +12,33 @@
 
 namespace soko
 {
+    enum PlayerAction : byte
+    {
+        // NOTE: Movement action values should be same
+        // as in Direction enum
+        PlayerAction_MoveNorth = 1,
+        PlayerAction_MoveSouth,
+        PlayerAction_MoveWest,
+        PlayerAction_MoveEast,
+        PlayerAction_MoveUp,
+        PlayerAction_MoveDown,
+        PlayerAction_ToggleInteractionMode,
+    };
+
+    inline bool ActionIsMovement(PlayerAction action)
+    {
+        bool result = (byte)action >= PlayerAction_MoveNorth && (byte)action <= PlayerAction_MoveDown;
+        return result;
+    }
+
+
+    static_assert((byte)PlayerAction_MoveNorth == (byte)DIRECTION_NORTH);
+    static_assert((byte)PlayerAction_MoveSouth == (byte)DIRECTION_SOUTH);
+    static_assert((byte)PlayerAction_MoveWest == (byte)DIRECTION_WEST);
+    static_assert((byte)PlayerAction_MoveEast == (byte)DIRECTION_EAST);
+    static_assert((byte)PlayerAction_MoveUp == (byte)DIRECTION_UP);
+    static_assert((byte)PlayerAction_MoveDown == (byte)DIRECTION_DOWN);
+
     struct Mesh
     {
         u32 vertexCount;

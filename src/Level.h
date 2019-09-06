@@ -106,6 +106,8 @@ namespace soko
     // NOTE: Should fit in one byte
     enum Direction : u32
     {
+        // NOTE: Movement action values should be same
+        // as in PlayerAction enum
         DIRECTION_INVALID = 0,
         DIRECTION_NORTH,
         DIRECTION_SOUTH,

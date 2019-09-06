@@ -227,7 +227,7 @@ namespace soko
 #include "Level.cpp"
 #include "DebugOverlay.cpp"
 #include "Camera.cpp"
-#include "Network.h"
+#include "Network.cpp"
 
 extern "C" GAME_CODE_ENTRY void
 GameUpdateAndRender(AB::MemoryArena* arena,
@@ -939,9 +939,10 @@ namespace soko
                                                           GameState::NET_BUFFER_SIZE);
                     if (rcStatus == AB::NetRecieveResult::Success && rcSize) // TODO: empty packets
                     {
-                        switch (netBuffer[0])
+                        auto header = (net::ClientMsgHeader*)netBuffer;
+                        switch (header->type)
                         {
-                        case net::CLIENT_MESSAGE_JOIN:
+                        case net::ClientMsg_Join:
                         {
                             i16 clientSlot = -1;
                             u32 packetSize = 0;
@@ -954,7 +955,7 @@ namespace soko
                             }
 
                             u32 netBufferAt = 0;
-                            netBuffer[netBufferAt] = (byte)net::SERVER_MESSAGE_JOIN_RESULT;
+                            netBuffer[netBufferAt] = (byte)net::ServerMsg_JoinResult;
                             netBufferAt += 1;
 
                             auto msg = (net::ServerJoinResultMsg*)(netBuffer + 1);
@@ -1016,21 +1017,18 @@ namespace soko
                                 gameState->slots[clientSlot].used = 0;
                             }
                         } break;
-                        case net::CLIENT_MESSAGE_LEAVE:
+                        case net::ClientMsg_Leave:
                         {
-                            i16 slot;
-                            COPY_BYTES(sizeof(i16), &slot, netBuffer + 1);
-                            gameState->slots[slot].used = 0;
+                            // TODO: Check for bounds
+                            gameState->slots[header->slot].used = 0;
                         } break;
-                        case net::CLIENT_MESSAGE_INPUT:
+                        case net::ClientMsg_PlayerAction:
                         {
-                            i16 slotNum;
-                            COPY_BYTES(sizeof(i16), &slotNum, netBuffer + 1);
-                            ServerSlot* slot = gameState->slots + slotNum;
-                            u32 recvInputSize = rcSize - 1 - sizeof(i16);
+                            ServerSlot* slot = gameState->slots + header->slot;
+                            u32 recvInputSize = rcSize - sizeof(net::ClientMsgHeader);
                             // TODO: Handle case when recieved input is too big
                             SOKO_ASSERT(recvInputSize <= (ClientInput::BUFFER_SIZE - slot->input.bufferAt));
-                            COPY_BYTES(recvInputSize, slot->input.buffer + slot->input.bufferAt, netBuffer + 1 + sizeof(i16));
+                            COPY_BYTES(recvInputSize, slot->input.buffer + slot->input.bufferAt, netBuffer + sizeof(net::ClientMsgHeader));
                             slot->input.bufferAt += recvInputSize;
                         } break;
                         INVALID_DEFAULT_CASE;
@@ -1046,137 +1044,60 @@ namespace soko
                     }
                 }
 
-                Player* player = gameState->controlledPlayer;
-                byte* playerInputBuffer = gameState->slots[0].input.buffer;
-                ClientInput* playerInput = &gameState->slots[0].input;
-
-                u32 playerBufferAt = 0;
-                if (JustPressed(AB::KEY_SPACE))
-                {
-                    if (playerBufferAt <= ClientInput::BUFFER_SIZE)
-                    {
-                        const byte key = (byte)AB::KEY_SPACE;
-                        COPY_BYTES(sizeof(byte), playerInputBuffer + playerBufferAt, &key);
-                        playerBufferAt += sizeof(byte);
-                    }
-                    else
-                    {
-                        INVALID_CODE_PATH;
-                    }
-                }
-
-                if (JustPressed(AB::KEY_UP))
-                {
-                    if (playerBufferAt <= ClientInput::BUFFER_SIZE)
-                    {
-                        const byte key = (byte)AB::KEY_UP;
-                        COPY_BYTES(sizeof(byte), playerInputBuffer + playerBufferAt, &key);
-                        playerBufferAt += sizeof(byte);
-                    }
-                    else
-                    {
-                        INVALID_CODE_PATH;
-                    }
-
-                }
-
-                if (JustPressed(AB::KEY_DOWN))
-                {
-                    if (playerBufferAt <= ClientInput::BUFFER_SIZE)
-                    {
-                        const byte key = (byte)AB::KEY_DOWN;
-                        COPY_BYTES(sizeof(byte), playerInputBuffer + playerBufferAt, &key);
-                        playerBufferAt += sizeof(byte);
-                    }
-                    else
-                    {
-                        INVALID_CODE_PATH;
-                    }
-                }
-
-                if (JustPressed(AB::KEY_RIGHT))
-                {
-                    if (playerBufferAt <= ClientInput::BUFFER_SIZE)
-                    {
-                        const byte key = (byte)AB::KEY_RIGHT;
-                        COPY_BYTES(sizeof(byte), playerInputBuffer + playerBufferAt, &key);
-                        playerBufferAt += sizeof(byte);
-                    }
-                    else
-                    {
-                        INVALID_CODE_PATH;
-                    }
-                }
-
-                if (JustPressed(AB::KEY_LEFT))
-                {
-                    if (playerBufferAt <= ClientInput::BUFFER_SIZE)
-                    {
-                        const byte key = (byte)AB::KEY_LEFT;
-                        COPY_BYTES(sizeof(byte), playerInputBuffer + playerBufferAt, &key);
-                        playerBufferAt += sizeof(byte);
-                    }
-                    else
-                    {
-                        INVALID_CODE_PATH;
-                    }
-                }
-
-                SOKO_ASSERT(!playerInput->bufferAt);
-                SOKO_ASSERT(playerBufferAt <= ClientInput::BUFFER_SIZE);
-                playerInput->bufferAt = playerBufferAt;
+                SOKO_ASSERT(!gameState->slots[0].input.bufferAt);
+                net::CollectPlayerInput(&gameState->slots[0].input);
 
                 for (u32 i = 0; i < GameState::MAX_CONNECTIONS; i++)
                 {
                     ServerSlot* slot = gameState->slots + i;
-                    if (slot->used)
+                    if (slot->used && slot->input.bufferAt)
                     {
-                        if (slot->input.bufferAt)
+                        for (u32 inputIndex = 0;
+                             inputIndex < slot->input.bufferAt;
+                             inputIndex++)
                         {
-                            for (u32 inputIndex = 0;
-                                 inputIndex < slot->input.bufferAt;
-                                 inputIndex++)
+                            PlayerAction action = (PlayerAction)slot->input.buffer[inputIndex];
+                            if (ActionIsMovement(action))
                             {
-                                // TODO: Stop passing keycodes through connection
-                                AB::KeyCode key = (AB::KeyCode)slot->input.buffer[inputIndex];
-                                Direction dir = DIRECTION_INVALID;
-                                switch (key)
+                                MoveEntity(&gameState->level,
+                                           slot->player->e,
+                                           (Direction)action, arena,
+                                           slot->player->reversed);
+                            }
+                            else
+                            {
+                                switch (action)
                                 {
-                                case AB::KEY_UP: { dir = DIRECTION_NORTH; } break;
-                                case AB::KEY_DOWN: { dir = DIRECTION_SOUTH; } break;
-                                case AB::KEY_LEFT: { dir = DIRECTION_EAST; } break;
-                                case AB::KEY_RIGHT: { dir = DIRECTION_WEST; } break;
-                                case AB::KEY_SPACE: { slot->player->reversed = !slot->player->reversed; } break;
+                                case PlayerAction_ToggleInteractionMode:
+                                {
+                                    slot->player->reversed = !slot->player->reversed;
+                                } break;
                                 INVALID_DEFAULT_CASE;
-                                }
-                                if (dir != DIRECTION_INVALID)
-                                {
-                                    MoveEntity(&gameState->level,
-                                               slot->player->e,
-                                               dir, arena,
-                                               slot->player->reversed);
-                                }
-
-                                u32 netBufferAt = 0;
-                                netBuffer[netBufferAt] = net::SERVER_MESSAGE_INPUT;
-                                netBufferAt += 1;
-                                i16 slotToSend = (i16)i;
-                                COPY_BYTES(sizeof(i16), netBuffer + netBufferAt, &slotToSend);
-                                netBufferAt += sizeof(i16);
-                                // TODO: Check for buffer overflow
-                                COPY_BYTES(slot->input.bufferAt, netBuffer + netBufferAt, &slot->input.buffer);
-                                netBufferAt += slot->input.bufferAt;
-                                for (u32 sendIndex = 1; sendIndex < GameState::MAX_CONNECTIONS; sendIndex++)
-                                {
-                                    ServerSlot* sendSlot = gameState->slots + sendIndex;
-                                    if (sendSlot->used)
-                                    {
-                                        auto[status, size] = NetSend(gameState->socket, sendSlot->address, netBuffer, netBufferAt);
-                                        SOKO_ASSERT(status);
-                                    }
                                 }
                             }
                         }
+                        auto header = (net::ServerMsgHeader*)netBuffer;
+                        header->type = net::ServerMsg_PlayerAction;
+
+                        auto msg = (net::ServerPlayerActionMsg*)(netBuffer + sizeof(net::ServerMsgHeader));
+
+                        msg->slot = (i16)i;
+
+                        u32 inputOffset = sizeof(net::ServerMsgHeader) + sizeof(net::ServerPlayerActionMsg);
+                        // TODO: Check for buffer overflow
+                        COPY_BYTES(slot->input.bufferAt, netBuffer + inputOffset, slot->input.buffer);
+                        inputOffset += slot->input.bufferAt;
+                        for (u32 sendIndex = 1; sendIndex < GameState::MAX_CONNECTIONS; sendIndex++)
+                        {
+                                ServerSlot* sendSlot = gameState->slots + sendIndex;
+                                if (sendSlot->used)
+                                {
+                                    auto[status, size] = NetSend(gameState->socket,
+                                                                 sendSlot->address,
+                                                                 netBuffer, inputOffset);
+                                    SOKO_ASSERT(status);
+                                }
+                            }
                         slot->input.bufferAt = 0;
                     }
                 }
@@ -1191,7 +1112,7 @@ namespace soko
 
                 if (!gameState->controlledPlayer && timeToWait >= 29.99f)
                 {
-                    netBuffer[netBufferAt] = net::CLIENT_MESSAGE_JOIN;
+                    netBuffer[netBufferAt] = net::ClientMsg_Join;
                     netBufferAt += 1;
 
                     auto[sndStatus, sndSize] = NetSend(gameState->socket, gameState->serverAddr,
@@ -1208,7 +1129,7 @@ namespace soko
                         NetRecieve(gameState->socket, netBuffer, GameState::NET_BUFFER_SIZE);
                     if (recvStatus == AB::NetRecieveResult::Success && recvSize)
                     {
-                        if (netBuffer[0] == net::SERVER_MESSAGE_JOIN_RESULT)
+                        if (netBuffer[0] == net::ServerMsg_JoinResult)
                         {
                             auto msg = (net::ServerJoinResultMsg*)(netBuffer + 1);
                             netBufferAt = sizeof(net::ServerJoinResultMsg) + 1;
@@ -1243,100 +1164,22 @@ namespace soko
                 }
                 else
                 {
-
-
                     // TODO: Handle connection failing
                     SOKO_ASSERT(gameState->clientSlot);
 
-                    Player* player = gameState->controlledPlayer;
-                    byte* playerInputBuffer = gameState->playerSlots[gameState->clientSlot].input.buffer;
-                    ClientInput* playerInput = &gameState->playerSlots[gameState->clientSlot].input;
+                    SOKO_ASSERT(!gameState->playerSlots[gameState->clientSlot].input.bufferAt);
+                    auto* playerInput = &gameState->playerSlots[gameState->clientSlot].input;
+                    net::CollectPlayerInput(playerInput);
 
-                    u32 playerBufferAt = 0;
-                    if (JustPressed(AB::KEY_SPACE))
-                    {
-                        if (playerBufferAt <= ClientInput::BUFFER_SIZE)
-                        {
-                            const byte key = (byte)AB::KEY_SPACE;
-                            COPY_BYTES(sizeof(byte), playerInputBuffer + playerBufferAt, &key);
-                            playerBufferAt += sizeof(byte);
-                        }
-                        else
-                        {
-                            INVALID_CODE_PATH;
-                        }
-                    }
+                    auto header = (net::ClientMsgHeader*)netBuffer;
+                    header->type = net::ClientMsg_PlayerAction;
+                    header->slot = gameState->clientSlot;
 
-                    if (JustPressed(AB::KEY_UP))
-                    {
-                        if (playerBufferAt <= ClientInput::BUFFER_SIZE)
-                        {
-                            const byte key = (byte)AB::KEY_UP;
-                            COPY_BYTES(sizeof(byte), playerInputBuffer + playerBufferAt, &key);
-                            playerBufferAt += sizeof(byte);
-                        }
-                        else
-                        {
-                            INVALID_CODE_PATH;
-                        }
-
-                    }
-
-                    if (JustPressed(AB::KEY_DOWN))
-                    {
-                        if (playerBufferAt <= ClientInput::BUFFER_SIZE)
-                        {
-                            const byte key = (byte)AB::KEY_DOWN;
-                            COPY_BYTES(sizeof(byte), playerInputBuffer + playerBufferAt, &key);
-                            playerBufferAt += sizeof(byte);
-                        }
-                        else
-                        {
-                            INVALID_CODE_PATH;
-                        }
-                    }
-
-                    if (JustPressed(AB::KEY_RIGHT))
-                    {
-                        if (playerBufferAt <= ClientInput::BUFFER_SIZE)
-                        {
-                            const byte key = (byte)AB::KEY_RIGHT;
-                            COPY_BYTES(sizeof(byte), playerInputBuffer + playerBufferAt, &key);
-                            playerBufferAt += sizeof(byte);
-                        }
-                        else
-                        {
-                            INVALID_CODE_PATH;
-                        }
-                    }
-
-                    if (JustPressed(AB::KEY_LEFT))
-                    {
-                        if (playerBufferAt <= ClientInput::BUFFER_SIZE)
-                        {
-                            const byte key = (byte)AB::KEY_LEFT;
-                            COPY_BYTES(sizeof(byte), playerInputBuffer + playerBufferAt, &key);
-                            playerBufferAt += sizeof(byte);
-                        }
-                        else
-                        {
-                            INVALID_CODE_PATH;
-                        }
-                    }
-
-                    SOKO_ASSERT(!playerInput->bufferAt);
-                    SOKO_ASSERT(playerBufferAt <= ClientInput::BUFFER_SIZE);
-                    playerInput->bufferAt = playerBufferAt;
-
-                    netBufferAt = 0;
-                    netBuffer[netBufferAt] = net::CLIENT_MESSAGE_INPUT;
-                    netBufferAt += 1;
-                    i16 slotToSend = gameState->clientSlot;
-                    COPY_BYTES(sizeof(i16), netBuffer + netBufferAt, &slotToSend);
-                    netBufferAt += sizeof(i16);
+                    u32 netBufferAt = sizeof(net::ClientMsgHeader);
                     // TODO: Check for buffer overflow
-                    COPY_BYTES(playerBufferAt, netBuffer + netBufferAt, playerInputBuffer);
-                    netBufferAt += playerBufferAt;
+                    COPY_BYTES(playerInput->bufferAt,
+                               netBuffer + netBufferAt, playerInput->buffer);
+                    netBufferAt += playerInput->bufferAt;
                     auto[status, size] = NetSend(gameState->socket, gameState->serverAddr, netBuffer, netBufferAt);
                     SOKO_ASSERT(status);
                     // TODO: Use some temporary buffer instead of player input buffer
@@ -1348,21 +1191,22 @@ namespace soko
                                                                     GameState::NET_BUFFER_SIZE);
                         if (rcStatus == AB::NetRecieveResult::Success && rcSize) // TODO: empty packets
                         {
-                            switch (netBuffer[0])
+                            auto header = (net::ServerMsgHeader*)netBuffer;
+                            switch (header->type)
                             {
-                            case net::SERVER_MESSAGE_INPUT:
+                            case net::ServerMsg_PlayerAction:
                             {
-                                i16 slot;
-                                COPY_BYTES(sizeof(i16), &slot, netBuffer + 1);
-                                // TODO: Check for bounds violation
-                                PlayerSlot* s = gameState->playerSlots + slot;
+                                auto msg = (net::ServerPlayerActionMsg*)(netBuffer + sizeof(net::ServerMsgHeader));
+
+                                PlayerSlot* s = gameState->playerSlots + msg->slot;
                                 // TODO: Validate _of_do_something_ with controlled
                                 // player input
-                                COPY_BYTES(rcSize - 3, s->input.buffer, netBuffer + 3);
-                                s->input.bufferAt += rcSize - 3;
+                                u32 offset = sizeof(net::ServerMsgHeader) + sizeof(net::ServerPlayerActionMsg);
+                                COPY_BYTES(rcSize - offset, s->input.buffer, netBuffer + offset);
+                                s->input.bufferAt += rcSize - offset;
                             }
                             break;
-                            case net::SERVER_MESSAGE_ADD_PLAYER: {} break;
+                            case net::ServerMsg_AddPlayer: {} break;
                                 INVALID_DEFAULT_CASE;
                             }
                         }
@@ -1374,42 +1218,39 @@ namespace soko
                         {
                             INVALID_CODE_PATH;
                         }
-
                     }
 
                     for (u32 i = 0; i < GameState::MAX_CONNECTIONS; i++)
                     {
                         PlayerSlot* slot = gameState->playerSlots + i;
-                        if (slot->used)
+                        if (slot->used && slot->input.bufferAt)
                         {
-                            if (slot->input.bufferAt)
+                            for (u32 inputIndex = 0;
+                                 inputIndex < slot->input.bufferAt;
+                                 inputIndex++)
                             {
-                                for (u32 inputIndex = 0;
-                                     inputIndex < slot->input.bufferAt;
-                                     inputIndex++)
+                                // TODO: Stop passing keycodes through connection
+                                PlayerAction action = (PlayerAction)slot->input.buffer[inputIndex];
+                                if (ActionIsMovement(action))
                                 {
-                                    // TODO: Stop passing keycodes through connection
-                                    AB::KeyCode key = (AB::KeyCode)slot->input.buffer[inputIndex];
-                                    Direction dir = DIRECTION_INVALID;
-                                    switch (key)
+                                    MoveEntity(&gameState->level,
+                                               slot->player->e,
+                                               (Direction)action, arena,
+                                               slot->player->reversed);
+                                }
+                                else
+                                {
+                                    switch (action)
                                     {
-                                    case AB::KEY_UP: { dir = DIRECTION_NORTH; } break;
-                                    case AB::KEY_DOWN: { dir = DIRECTION_SOUTH; } break;
-                                    case AB::KEY_LEFT: { dir = DIRECTION_EAST; } break;
-                                    case AB::KEY_RIGHT: { dir = DIRECTION_WEST; } break;
-                                    case AB::KEY_SPACE: { slot->player->reversed = !slot->player->reversed; } break;
-                                        INVALID_DEFAULT_CASE;
-                                    }
-                                    if (dir != DIRECTION_INVALID)
+                                    case PlayerAction_ToggleInteractionMode:
                                     {
-                                        MoveEntity(&gameState->level,
-                                                   slot->player->e,
-                                                   dir, arena,
-                                                   slot->player->reversed);
+                                        slot->player->reversed = !slot->player->reversed;
+                                    } break;
+                                    INVALID_DEFAULT_CASE;
                                     }
                                 }
-                                slot->input.bufferAt = 0;
                             }
+                            slot->input.bufferAt = 0;
                         }
                     }
                 }

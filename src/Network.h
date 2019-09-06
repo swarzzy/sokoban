@@ -2,24 +2,31 @@
 
 namespace  soko { namespace net
 {
-    enum ClientMessage : byte
+    enum ClientMsgType : byte
     {
-        CLIENT_MESSAGE_JOIN,
-        CLIENT_MESSAGE_LEAVE,
-        CLIENT_MESSAGE_INPUT
+        ClientMsg_Join,
+        ClientMsg_Leave,
+        ClientMsg_PlayerAction
     };
 
-    enum ServerMessage : byte
+    enum ServerMsgType : byte
     {
-        SERVER_MESSAGE_JOIN_RESULT,
-        SERVER_MESSAGE_ADD_PLAYER,
-        SERVER_MESSAGE_INPUT
+        ServerMsg_JoinResult,
+        ServerMsg_AddPlayer,
+        ServerMsg_PlayerAction
     };
 
 #pragma pack(push, 1)
-    struct ClientJoinMsg
-    {
 
+    struct ClientMsgHeader
+    {
+        ClientMsgType type;
+        i16 slot;
+    };
+
+    struct ServerMsgHeader
+    {
+        ServerMsgType type;
     };
 
     struct NewPlayerData
@@ -36,6 +43,11 @@ namespace  soko { namespace net
         u8 otherPlayersCount;
         NewPlayerData newPlayer;
         // .. other players ...
+    };
+
+    struct ServerPlayerActionMsg
+    {
+        i16 slot;
     };
 #pragma pack(pop)
 }}
