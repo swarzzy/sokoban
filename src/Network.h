@@ -2,6 +2,33 @@
 
 namespace  soko { namespace net
 {
+    struct InputBuffer
+    {
+        static constexpr u32 SIZE = 128;
+        u32 at;
+        PlayerAction base[SIZE];
+    };
+
+    struct ServerSlot
+    {
+        Player* player;
+        InputBuffer inputBuffer;
+        AB::NetAddress address;
+        f32 lastMsgTime;
+    };
+
+    struct ServerState
+    {
+        const_val u32 SLOTS_NUM = 2;
+        const_val u32 SOCKET_BUFFER_SIZE = 1024;
+        const_val u32 PLAYER_SLOT = 0;
+        uptr socket;
+        u16 port;
+        bool slotsOccupancy[SLOTS_NUM];
+        ServerSlot slots[SLOTS_NUM];
+        byte socketBuffer[SOCKET_BUFFER_SIZE];
+    };
+
     enum ClientMsgType : byte
     {
         ClientMsg_Join,

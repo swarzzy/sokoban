@@ -13,6 +13,8 @@
 #define AB_LITTLE_ENDIAN 4321
 #define AB_BIG_ENDIAN 1234
 
+#define const_val static constexpr
+
 struct ImGuiContext;
 
 namespace AB

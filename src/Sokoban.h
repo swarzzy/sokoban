@@ -9,6 +9,10 @@
 #define SOKO_BYTE_ORDER AB_LITTLE_ENDIAN
 #endif
 
+namespace soko::net
+{
+    struct ServerState;
+}
 
 namespace soko
 {
@@ -59,14 +63,6 @@ namespace soko
         Texture specMap;
     };
 
-    enum PlayerPendingMovementBit : u32
-    {
-        PENDING_MOVEMENT_BIT_FORWARD = 0x1,
-        PENDING_MOVEMENT_BIT_BACKWARD = 0x2,
-        PENDING_MOVEMENT_BIT_LEFT = 0x4,
-        PENDING_MOVEMENT_BIT_RIGHT = 0x8
-    };
-
     struct Player
     {
         Entity* e;
@@ -88,15 +84,6 @@ namespace soko
         static constexpr u32 BUFFER_SIZE = 512;
         u32 bufferAt;
         byte buffer[BUFFER_SIZE];
-    };
-
-    struct ServerSlot
-    {
-        b32 used;
-        Player* player;
-        ClientInput input;
-        f32 lastMsgTime;
-        AB::NetAddress address;
     };
 
     struct PlayerSlot
@@ -142,14 +129,11 @@ namespace soko
         AB::NetAddress serverAddr;
         static constexpr u32 NET_BUFFER_SIZE = 1024;
         byte netBuffer[NET_BUFFER_SIZE];
-        i32 playerX;
-        i32 playerY;
         u32 gameMode;
         b32 gameModeReadyToInit;
         b32 gameModeInitialized;
-        static constexpr u16 MAX_CONNECTIONS = 2;
-        ServerSlot slots[MAX_CONNECTIONS];
         i16 clientSlot;
-        PlayerSlot playerSlots[MAX_CONNECTIONS];
+        PlayerSlot playerSlots[2];
+        net::ServerState* server;
     };
 }

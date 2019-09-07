@@ -722,6 +722,9 @@ namespace soko
             };
         button->updateProcData = (void*)gameState;
 
+        gameState->port = 9999;
+        gameState->ipOctets[0] = 127;
+        gameState->ipOctets[3] = 1;
     }
 
     void
@@ -743,7 +746,7 @@ namespace soko
     {
     }
 
-    void ShowNetSettings(GameState* gameState)
+    void ShowNetSettings(GameState* gameState, AB::MemoryArena* arena)
     {
         bool open = true;
         bool windowCreated = false;
@@ -884,15 +887,25 @@ namespace soko
 
             if (gameState->gameModeReadyToInit && !gameState->gameModeInitialized)
             {
-                gameState->socket = NetCreateSocket();
-                SOKO_ASSERT(gameState->socket);
+                uptr socket = NetCreateSocket();
+                SOKO_ASSERT(socket);
 
                 gameState->serverAddr.ip = gameState->ipAddress;
                 gameState->serverAddr.port = gameState->port;
                 if (gameState->gameMode == GAME_MODE_SERVER)
                 {
-                    bool bindResult = NetBindSocket(gameState->socket, gameState->port);
+                    SOKO_ASSERT(!gameState->server);
+                    gameState->server = PUSH_STRUCT(arena, net::ServerState);
+                    SOKO_ASSERT(gameState->server);
+                    gameState->server->socket = socket;
+                    gameState->server->port = gameState->port;
+                    bool bindResult = NetBindSocket(gameState->server->socket,
+                                                    gameState->server->port);
                     SOKO_ASSERT(bindResult);
+                }
+                else
+                {
+                    gameState->socket = socket;
                 }
                 gameState->gameModeReadyToInit = false;
                 gameState->gameModeInitialized = true;
@@ -918,7 +931,7 @@ namespace soko
         DEBUG_OVERLAY_TRACE(gameState->level.platePressed);
         DEBUG_OVERLAY_TRACE(gameState->level.entityCount);
         DEBUG_OVERLAY_TRACE(gameState->level.deletedEntityCount);
-        ShowNetSettings(gameState);
+        ShowNetSettings(gameState, arena);
 
         if (gameState->gameModeInitialized)
         {
@@ -927,16 +940,16 @@ namespace soko
                 if (!gameState->controlledPlayer)
                 {
                     gameState->controlledPlayer = AddPlayer(gameState, V3I(10, 10, 1), arena);
-                    gameState->slots[0].used = true;
-                    gameState->slots[0].player = gameState->controlledPlayer;
+                    gameState->server->slotsOccupancy[net::ServerState::PLAYER_SLOT] = 1;
+                    gameState->server->slots[net::ServerState::PLAYER_SLOT].player = gameState->controlledPlayer;
                 }
 
-                byte* netBuffer = gameState->netBuffer;
+                byte* netBuffer = gameState->server->socketBuffer;
 
                 while (true)
                 {
-                    auto[rcStatus, rcSize, rcFrom] = NetRecieve(gameState->socket, netBuffer,
-                                                          GameState::NET_BUFFER_SIZE);
+                    auto[rcStatus, rcSize, rcFrom] =
+                        NetRecieve(gameState->server->socket, netBuffer, GameState::NET_BUFFER_SIZE);
                     if (rcStatus == AB::NetRecieveResult::Success && rcSize) // TODO: empty packets
                     {
                         auto header = (net::ClientMsgHeader*)netBuffer;
@@ -946,9 +959,9 @@ namespace soko
                         {
                             i16 clientSlot = -1;
                             u32 packetSize = 0;
-                            for (u32 i = 0; i < GameState::MAX_CONNECTIONS; i++)
+                            for (u32 i = 0; i < net::ServerState::SLOTS_NUM; i++)
                             {
-                                if (!gameState->slots[i].used)
+                                if (!gameState->server->slotsOccupancy[i])
                                 {
                                     clientSlot = i;
                                 }
@@ -973,22 +986,22 @@ namespace soko
 
                                 if (player)
                                 {
-                                    gameState->slots[clientSlot].used = 1;
-                                    gameState->slots[clientSlot].address = rcFrom;
-                                    gameState->slots[clientSlot].player = player;
+                                    gameState->server->slotsOccupancy[clientSlot] = 1;
+                                    gameState->server->slots[clientSlot].address = rcFrom;
+                                    gameState->server->slots[clientSlot].player = player;
 
                                     msg->succeed = 1;
                                     msg->newPlayer = {clientSlot, playerX, playerY, playerZ};
 
                                     for (i16 otherSlot = 0;
-                                         otherSlot < GameState::MAX_CONNECTIONS;
+                                         otherSlot < net::ServerState::SLOTS_NUM;
                                          otherSlot++)
                                     {
                                         if (otherSlot != clientSlot)
                                         {
-                                            ServerSlot* s = gameState->slots + otherSlot;
-                                            if (s->used)
+                                            if (gameState->server->slotsOccupancy[otherSlot])
                                             {
+                                                net::ServerSlot* s = gameState->server->slots + otherSlot;
                                                 auto data = (net::NewPlayerData*)(netBuffer + netBufferAt);
                                                 netBufferAt += sizeof(net::NewPlayerData);
 
@@ -1010,26 +1023,26 @@ namespace soko
 
                             packetSize = netBufferAt;
 
-                            auto[sndStatus, sndSize] = NetSend(gameState->socket, rcFrom, netBuffer, packetSize);
+                            auto[sndStatus, sndSize] = NetSend(gameState->server->socket, rcFrom, netBuffer, packetSize);
                             if (!sndStatus && slotInitialized)
                             {
                                 // TODO: Message: failed to connect client
-                                gameState->slots[clientSlot].used = 0;
+                                gameState->server->slotsOccupancy[clientSlot] = 0;
                             }
                         } break;
                         case net::ClientMsg_Leave:
                         {
                             // TODO: Check for bounds
-                            gameState->slots[header->slot].used = 0;
+                            gameState->server->slotsOccupancy[header->slot] = 0;
                         } break;
                         case net::ClientMsg_PlayerAction:
                         {
-                            ServerSlot* slot = gameState->slots + header->slot;
+                            net::ServerSlot* slot = gameState->server->slots + header->slot;
                             u32 recvInputSize = rcSize - sizeof(net::ClientMsgHeader);
                             // TODO: Handle case when recieved input is too big
-                            SOKO_ASSERT(recvInputSize <= (ClientInput::BUFFER_SIZE - slot->input.bufferAt));
-                            COPY_BYTES(recvInputSize, slot->input.buffer + slot->input.bufferAt, netBuffer + sizeof(net::ClientMsgHeader));
-                            slot->input.bufferAt += recvInputSize;
+                            SOKO_ASSERT(recvInputSize <= (net::InputBuffer::SIZE - slot->inputBuffer.at));
+                            COPY_BYTES(recvInputSize, slot->inputBuffer.base + slot->inputBuffer.at, netBuffer + sizeof(net::ClientMsgHeader));
+                            slot->inputBuffer.at += recvInputSize;
                         } break;
                         INVALID_DEFAULT_CASE;
                         }
@@ -1044,19 +1057,20 @@ namespace soko
                     }
                 }
 
-                SOKO_ASSERT(!gameState->slots[0].input.bufferAt);
-                net::CollectPlayerInput(&gameState->slots[0].input);
+                SOKO_ASSERT(!gameState->server->slots[net::ServerState::PLAYER_SLOT].inputBuffer.at);
+                net::CollectPlayerInput(&gameState->server->slots[net::ServerState::PLAYER_SLOT].inputBuffer);
 
-                for (u32 i = 0; i < GameState::MAX_CONNECTIONS; i++)
+                for (u32 i = 0; i < net::ServerState::SLOTS_NUM; i++)
                 {
-                    ServerSlot* slot = gameState->slots + i;
-                    if (slot->used && slot->input.bufferAt)
+                    b32 slotOccupied = gameState->server->slotsOccupancy[i];
+                    net::ServerSlot* slot = gameState->server->slots + i;
+                    if (slotOccupied && slot->inputBuffer.at)
                     {
                         for (u32 inputIndex = 0;
-                             inputIndex < slot->input.bufferAt;
+                             inputIndex < slot->inputBuffer.at;
                              inputIndex++)
                         {
-                            PlayerAction action = (PlayerAction)slot->input.buffer[inputIndex];
+                            PlayerAction action = (PlayerAction)slot->inputBuffer.base[inputIndex];
                             if (ActionIsMovement(action))
                             {
                                 MoveEntity(&gameState->level,
@@ -1085,20 +1099,20 @@ namespace soko
 
                         u32 inputOffset = sizeof(net::ServerMsgHeader) + sizeof(net::ServerPlayerActionMsg);
                         // TODO: Check for buffer overflow
-                        COPY_BYTES(slot->input.bufferAt, netBuffer + inputOffset, slot->input.buffer);
-                        inputOffset += slot->input.bufferAt;
-                        for (u32 sendIndex = 1; sendIndex < GameState::MAX_CONNECTIONS; sendIndex++)
+                        COPY_BYTES(slot->inputBuffer.at, netBuffer + inputOffset, slot->inputBuffer.base);
+                        inputOffset += slot->inputBuffer.at;
+                        for (u32 sendIndex = 1; sendIndex < net::ServerState::SLOTS_NUM; sendIndex++)
                         {
-                                ServerSlot* sendSlot = gameState->slots + sendIndex;
-                                if (sendSlot->used)
-                                {
-                                    auto[status, size] = NetSend(gameState->socket,
-                                                                 sendSlot->address,
-                                                                 netBuffer, inputOffset);
-                                    SOKO_ASSERT(status);
-                                }
+                            if (gameState->server->slotsOccupancy[sendIndex])
+                            {
+                                net::ServerSlot* sendSlot = gameState->server->slots + sendIndex;
+                                auto[status, size] = NetSend(gameState->server->socket,
+                                                             sendSlot->address,
+                                                             netBuffer, inputOffset);
+                                SOKO_ASSERT(status);
                             }
-                        slot->input.bufferAt = 0;
+                        }
+                        slot->inputBuffer.at = 0;
                     }
                 }
             }
@@ -1220,7 +1234,8 @@ namespace soko
                         }
                     }
 
-                    for (u32 i = 0; i < GameState::MAX_CONNECTIONS; i++)
+                    // TODO: Counter of connected players
+                    for (u32 i = 0; i < net::ServerState::SLOTS_NUM; i++)
                     {
                         PlayerSlot* slot = gameState->playerSlots + i;
                         if (slot->used && slot->input.bufferAt)
@@ -1267,51 +1282,25 @@ namespace soko
                     player->reversed = ! player->reversed;
                 }
 
-                if (JustPressed(AB::KEY_UP) &&
-                    (player->inputFlags & PENDING_MOVEMENT_BIT_FORWARD) == 0)
+                if (JustPressed(AB::KEY_UP))
                 {
-                    player->inputFlags |= PENDING_MOVEMENT_BIT_FORWARD;
                     MoveEntity(&gameState->level, player->e, DIRECTION_NORTH, arena, player->reversed);
                 }
 
-                if (JustPressed(AB::KEY_DOWN) &&
-                    (player->inputFlags & PENDING_MOVEMENT_BIT_BACKWARD) == 0)
+                if (JustPressed(AB::KEY_DOWN))
                 {
-                    player->inputFlags |= PENDING_MOVEMENT_BIT_BACKWARD;
                     MoveEntity(&gameState->level, player->e, DIRECTION_SOUTH, arena, player->reversed);
                 }
 
-                if (JustPressed(AB::KEY_RIGHT) &&
-                    (player->inputFlags & PENDING_MOVEMENT_BIT_RIGHT) == 0)
+                if (JustPressed(AB::KEY_RIGHT))
                 {
-                    player->inputFlags |= PENDING_MOVEMENT_BIT_RIGHT;
                     MoveEntity(&gameState->level, player->e, DIRECTION_WEST, arena, player->reversed);
                 }
 
-                if (JustPressed(AB::KEY_LEFT) &&
-                    (player->inputFlags & PENDING_MOVEMENT_BIT_LEFT) == 0)
+                if (JustPressed(AB::KEY_LEFT))
                 {
-                    player->inputFlags |= PENDING_MOVEMENT_BIT_LEFT;
                     MoveEntity(&gameState->level, player->e, DIRECTION_EAST, arena, player->reversed);
                 }
-
-                if (JustReleased(AB::KEY_UP))
-                {
-                    player->inputFlags &= ~PENDING_MOVEMENT_BIT_FORWARD;
-                }
-                if (JustReleased(AB::KEY_DOWN))
-                {
-                    player->inputFlags &= ~PENDING_MOVEMENT_BIT_BACKWARD;
-                }
-                if (JustReleased(AB::KEY_RIGHT))
-                {
-                    player->inputFlags &= ~PENDING_MOVEMENT_BIT_RIGHT;
-                }
-                if (JustReleased(AB::KEY_LEFT))
-                {
-                    player->inputFlags &= ~PENDING_MOVEMENT_BIT_LEFT;
-                }
-
             }
             else
             {
