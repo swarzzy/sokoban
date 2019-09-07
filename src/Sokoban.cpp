@@ -890,12 +890,10 @@ namespace soko
                 uptr socket = NetCreateSocket();
                 SOKO_ASSERT(socket);
 
-                gameState->serverAddr.ip = gameState->ipAddress;
-                gameState->serverAddr.port = gameState->port;
                 if (gameState->gameMode == GAME_MODE_SERVER)
                 {
                     SOKO_ASSERT(!gameState->server);
-                    gameState->server = PUSH_STRUCT(arena, net::ServerState);
+                    gameState->server = PUSH_STRUCT(arena, net::Server);
                     SOKO_ASSERT(gameState->server);
                     gameState->server->socket = socket;
                     gameState->server->port = gameState->port;
@@ -905,8 +903,14 @@ namespace soko
                 }
                 else
                 {
-                    gameState->socket = socket;
+                    SOKO_ASSERT(!gameState->client);
+                    gameState->client = PUSH_STRUCT(arena, net::Client);
+                    SOKO_ASSERT(gameState->client);
+                    gameState->client->socket = socket;
+                    gameState->client->serverAddr.ip = gameState->ipAddress;
+                    gameState->client->serverAddr.port = gameState->port;
                 }
+
                 gameState->gameModeReadyToInit = false;
                 gameState->gameModeInitialized = true;
             }
@@ -940,8 +944,8 @@ namespace soko
                 if (!gameState->controlledPlayer)
                 {
                     gameState->controlledPlayer = AddPlayer(gameState, V3I(10, 10, 1), arena);
-                    gameState->server->slotsOccupancy[net::ServerState::PLAYER_SLOT] = 1;
-                    gameState->server->slots[net::ServerState::PLAYER_SLOT].player = gameState->controlledPlayer;
+                    gameState->server->slotsOccupancy[net::Server::PLAYER_SLOT] = 1;
+                    gameState->server->slots[net::Server::PLAYER_SLOT].player = gameState->controlledPlayer;
                 }
 
                 byte* netBuffer = gameState->server->socketBuffer;
@@ -949,7 +953,7 @@ namespace soko
                 while (true)
                 {
                     auto[rcStatus, rcSize, rcFrom] =
-                        NetRecieve(gameState->server->socket, netBuffer, GameState::NET_BUFFER_SIZE);
+                        NetRecieve(gameState->server->socket, netBuffer, net::Server::SOCKET_BUFFER_SIZE);
                     if (rcStatus == AB::NetRecieveResult::Success && rcSize) // TODO: empty packets
                     {
                         auto header = (net::ClientMsgHeader*)netBuffer;
@@ -959,7 +963,7 @@ namespace soko
                         {
                             i16 clientSlot = -1;
                             u32 packetSize = 0;
-                            for (u32 i = 0; i < net::ServerState::SLOTS_NUM; i++)
+                            for (u32 i = 0; i < net::Server::SLOTS_NUM; i++)
                             {
                                 if (!gameState->server->slotsOccupancy[i])
                                 {
@@ -994,7 +998,7 @@ namespace soko
                                     msg->newPlayer = {clientSlot, playerX, playerY, playerZ};
 
                                     for (i16 otherSlot = 0;
-                                         otherSlot < net::ServerState::SLOTS_NUM;
+                                         otherSlot < net::Server::SLOTS_NUM;
                                          otherSlot++)
                                     {
                                         if (otherSlot != clientSlot)
@@ -1057,10 +1061,10 @@ namespace soko
                     }
                 }
 
-                SOKO_ASSERT(!gameState->server->slots[net::ServerState::PLAYER_SLOT].inputBuffer.at);
-                net::CollectPlayerInput(&gameState->server->slots[net::ServerState::PLAYER_SLOT].inputBuffer);
+                SOKO_ASSERT(!gameState->server->slots[net::Server::PLAYER_SLOT].inputBuffer.at);
+                net::CollectPlayerInput(&gameState->server->slots[net::Server::PLAYER_SLOT].inputBuffer);
 
-                for (u32 i = 0; i < net::ServerState::SLOTS_NUM; i++)
+                for (u32 i = 0; i < net::Server::SLOTS_NUM; i++)
                 {
                     b32 slotOccupied = gameState->server->slotsOccupancy[i];
                     net::ServerSlot* slot = gameState->server->slots + i;
@@ -1101,7 +1105,7 @@ namespace soko
                         // TODO: Check for buffer overflow
                         COPY_BYTES(slot->inputBuffer.at, netBuffer + inputOffset, slot->inputBuffer.base);
                         inputOffset += slot->inputBuffer.at;
-                        for (u32 sendIndex = 1; sendIndex < net::ServerState::SLOTS_NUM; sendIndex++)
+                        for (u32 sendIndex = 1; sendIndex < net::Server::SLOTS_NUM; sendIndex++)
                         {
                             if (gameState->server->slotsOccupancy[sendIndex])
                             {
@@ -1118,7 +1122,7 @@ namespace soko
             }
             else if (gameState->gameMode == GAME_MODE_CLIENT)
             {
-                byte* netBuffer = gameState->netBuffer;
+                byte* netBuffer = gameState->client->socketBuffer;
                 u32 netBufferAt = 0;
 
                 // TODO: This is totally crappy hack
@@ -1129,7 +1133,8 @@ namespace soko
                     netBuffer[netBufferAt] = net::ClientMsg_Join;
                     netBufferAt += 1;
 
-                    auto[sndStatus, sndSize] = NetSend(gameState->socket, gameState->serverAddr,
+                    auto[sndStatus, sndSize] = NetSend(gameState->client->socket,
+                                                       gameState->client->serverAddr,
                                                        netBuffer, netBufferAt);
                     // TODO: Try again!
                     SOKO_ASSERT(sndStatus);
@@ -1140,7 +1145,7 @@ namespace soko
                 {
                     timeToWait -= GlobalAbsDeltaTime;
                     auto[recvStatus, recvSize, recvFrom] =
-                        NetRecieve(gameState->socket, netBuffer, GameState::NET_BUFFER_SIZE);
+                        NetRecieve(gameState->client->socket, netBuffer, net::Server::SOCKET_BUFFER_SIZE);
                     if (recvStatus == AB::NetRecieveResult::Success && recvSize)
                     {
                         if (netBuffer[0] == net::ServerMsg_JoinResult)
@@ -1153,11 +1158,11 @@ namespace soko
                                 Player* player = AddPlayer(gameState, playerCoord, arena);
                                 SOKO_ASSERT(player);
                                 gameState->controlledPlayer = player;
-                                gameState->clientSlot = msg->newPlayer.slot;
+                                gameState->client->playerSlot = msg->newPlayer.slot;
 
                                 // TODO: Check for overflow
-                                gameState->playerSlots[gameState->clientSlot].used = true;
-                                gameState->playerSlots[gameState->clientSlot].player = player;
+                                gameState->client->slotsOccupancy[gameState->client->playerSlot] = 1;
+                                gameState->client->slots[gameState->client->playerSlot].player = player;
 
                                 netBufferAt = sizeof(net::ServerJoinResultMsg) + 1;
                                 while (netBufferAt < recvSize)
@@ -1169,8 +1174,8 @@ namespace soko
                                     Player* player = AddPlayer(gameState, coord, arena);
                                     SOKO_ASSERT(player);
                                     // TODO: Check for overflow
-                                    gameState->playerSlots[nextPlayer->slot].used = true;
-                                    gameState->playerSlots[nextPlayer->slot].player = player;
+                                    gameState->client->slotsOccupancy[nextPlayer->slot] = 1;
+                                    gameState->client->slots[nextPlayer->slot].player = player;
                                 }
                             }
                         }
@@ -1179,30 +1184,30 @@ namespace soko
                 else
                 {
                     // TODO: Handle connection failing
-                    SOKO_ASSERT(gameState->clientSlot);
+                    SOKO_ASSERT(gameState->client->playerSlot);
 
-                    SOKO_ASSERT(!gameState->playerSlots[gameState->clientSlot].input.bufferAt);
-                    auto* playerInput = &gameState->playerSlots[gameState->clientSlot].input;
+                    SOKO_ASSERT(!gameState->client->slots[gameState->client->playerSlot].inputBuffer.at);
+                    auto* playerInput = &gameState->client->slots[gameState->client->playerSlot].inputBuffer;
                     net::CollectPlayerInput(playerInput);
 
                     auto header = (net::ClientMsgHeader*)netBuffer;
                     header->type = net::ClientMsg_PlayerAction;
-                    header->slot = gameState->clientSlot;
+                    header->slot = gameState->client->playerSlot;
 
                     u32 netBufferAt = sizeof(net::ClientMsgHeader);
                     // TODO: Check for buffer overflow
-                    COPY_BYTES(playerInput->bufferAt,
-                               netBuffer + netBufferAt, playerInput->buffer);
-                    netBufferAt += playerInput->bufferAt;
-                    auto[status, size] = NetSend(gameState->socket, gameState->serverAddr, netBuffer, netBufferAt);
+                    COPY_BYTES(playerInput->at,
+                               netBuffer + netBufferAt, playerInput->base);
+                    netBufferAt += playerInput->at;
+                    auto[status, size] = NetSend(gameState->client->socket, gameState->client->serverAddr, netBuffer, netBufferAt);
                     SOKO_ASSERT(status);
                     // TODO: Use some temporary buffer instead of player input buffer
-                    playerInput->bufferAt = 0;
+                    playerInput->at = 0;
 
                     while (true)
                     {
-                        auto[rcStatus, rcSize, rcFrom] = NetRecieve(gameState->socket, netBuffer,
-                                                                    GameState::NET_BUFFER_SIZE);
+                        auto[rcStatus, rcSize, rcFrom] = NetRecieve(gameState->client->socket, netBuffer,
+                                                                    net::Server::SOCKET_BUFFER_SIZE);
                         if (rcStatus == AB::NetRecieveResult::Success && rcSize) // TODO: empty packets
                         {
                             auto header = (net::ServerMsgHeader*)netBuffer;
@@ -1212,12 +1217,12 @@ namespace soko
                             {
                                 auto msg = (net::ServerPlayerActionMsg*)(netBuffer + sizeof(net::ServerMsgHeader));
 
-                                PlayerSlot* s = gameState->playerSlots + msg->slot;
+                                net::ClientSlot* s = gameState->client->slots + msg->slot;
                                 // TODO: Validate _of_do_something_ with controlled
                                 // player input
                                 u32 offset = sizeof(net::ServerMsgHeader) + sizeof(net::ServerPlayerActionMsg);
-                                COPY_BYTES(rcSize - offset, s->input.buffer, netBuffer + offset);
-                                s->input.bufferAt += rcSize - offset;
+                                COPY_BYTES(rcSize - offset, s->inputBuffer.base, netBuffer + offset);
+                                s->inputBuffer.at += rcSize - offset;
                             }
                             break;
                             case net::ServerMsg_AddPlayer: {} break;
@@ -1235,17 +1240,18 @@ namespace soko
                     }
 
                     // TODO: Counter of connected players
-                    for (u32 i = 0; i < net::ServerState::SLOTS_NUM; i++)
+                    for (u32 i = 0; i < net::Server::SLOTS_NUM; i++)
                     {
-                        PlayerSlot* slot = gameState->playerSlots + i;
-                        if (slot->used && slot->input.bufferAt)
+                        net::ClientSlot* slot = gameState->client->slots + i;
+                        bool slotOccupied = gameState->client->slotsOccupancy[i];
+                        if (slotOccupied && slot->inputBuffer.at)
                         {
                             for (u32 inputIndex = 0;
-                                 inputIndex < slot->input.bufferAt;
+                                 inputIndex < slot->inputBuffer.at;
                                  inputIndex++)
                             {
                                 // TODO: Stop passing keycodes through connection
-                                PlayerAction action = (PlayerAction)slot->input.buffer[inputIndex];
+                                PlayerAction action = (PlayerAction)slot->inputBuffer.base[inputIndex];
                                 if (ActionIsMovement(action))
                                 {
                                     MoveEntity(&gameState->level,
@@ -1265,7 +1271,7 @@ namespace soko
                                     }
                                 }
                             }
-                            slot->input.bufferAt = 0;
+                            slot->inputBuffer.at = 0;
                         }
                     }
                 }

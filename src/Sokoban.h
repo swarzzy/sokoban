@@ -11,7 +11,8 @@
 
 namespace soko::net
 {
-    struct ServerState;
+    struct Server;
+    struct Client;
 }
 
 namespace soko
@@ -126,14 +127,15 @@ namespace soko
         uptr socket;
         i32 ipOctets[4];
         u32 ipAddress;
-        AB::NetAddress serverAddr;
-        static constexpr u32 NET_BUFFER_SIZE = 1024;
-        byte netBuffer[NET_BUFFER_SIZE];
+        //AB::NetAddress serverAddr;
+        //static constexpr u32 NET_BUFFER_SIZE = 1024;
+        //byte netBuffer[NET_BUFFER_SIZE];
         u32 gameMode;
         b32 gameModeReadyToInit;
         b32 gameModeInitialized;
-        i16 clientSlot;
-        PlayerSlot playerSlots[2];
-        net::ServerState* server;
+        //i16 clientSlot;
+        //PlayerSlot playerSlots[2];
+        net::Server* server;
+        net::Client* client;
     };
 }

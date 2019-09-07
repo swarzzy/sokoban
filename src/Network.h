@@ -17,7 +17,7 @@ namespace  soko { namespace net
         f32 lastMsgTime;
     };
 
-    struct ServerState
+    struct Server
     {
         const_val u32 SLOTS_NUM = 2;
         const_val u32 SOCKET_BUFFER_SIZE = 1024;
@@ -27,6 +27,22 @@ namespace  soko { namespace net
         bool slotsOccupancy[SLOTS_NUM];
         ServerSlot slots[SLOTS_NUM];
         byte socketBuffer[SOCKET_BUFFER_SIZE];
+    };
+
+    struct ClientSlot
+    {
+        Player* player;
+        InputBuffer inputBuffer;
+    };
+
+    struct Client
+    {
+        uptr socket;
+        AB::NetAddress serverAddr;
+        i16 playerSlot;
+        bool slotsOccupancy[Server::SLOTS_NUM];
+        ClientSlot slots[Server::SLOTS_NUM];
+        byte socketBuffer[Server::SOCKET_BUFFER_SIZE];
     };
 
     enum ClientMsgType : byte
