@@ -96,7 +96,7 @@ namespace soko
 
     struct GameState
     {
-        static constexpr u32 MAX_PLAYERS = 2;
+        static constexpr u32 MAX_PLAYERS = 4;
         AB::MemoryArena* memoryArena;
         AB::MemoryArena* tempArena;
         Renderer* renderer;

@@ -244,14 +244,9 @@ namespace soko
         Tile* nextTile;
     };
 
-    enum class TileQueryResult
-    {
-        Empty = 0, OutOfBounds, Found, AllocationError
-    };
-
     struct TileQuery
     {
-        TileQueryResult result;
+        enum { Empty = 0, OutOfBounds, Found, AllocationError } result;
         Tile* tile;
     };
 

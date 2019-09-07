@@ -19,7 +19,7 @@ namespace  soko { namespace net
 
     struct Server
     {
-        const_val u32 SLOTS_NUM = 2;
+        const_val u32 SLOTS_NUM = 4;
         const_val u32 SOCKET_BUFFER_SIZE = 1024;
         const_val u32 PLAYER_SLOT = 0;
         uptr socket;
@@ -91,6 +91,11 @@ namespace  soko { namespace net
     struct ServerPlayerActionMsg
     {
         i16 slot;
+    };
+
+    struct ServerAddPlayerMsg
+    {
+        NewPlayerData newPlayer;
     };
 #pragma pack(pop)
 }}

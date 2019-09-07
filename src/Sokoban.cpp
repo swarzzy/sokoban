@@ -621,14 +621,14 @@ namespace soko
             for (u32 y = 0; y < level->yDim; y++)
             {
                 auto[queryResult, tile] = GetTile(level, x, y, 0, gameState->memoryArena);
-                SOKO_ASSERT(queryResult == TileQueryResult::Found);
+                SOKO_ASSERT(queryResult == TileQuery::Found);
                 tile->value = TILE_VALUE_WALL;
 
                 if ((x == 0) || (x == level->xDim - 1) ||
                     (y == 0) || (y == level->yDim - 1))
                 {
                     auto[queryResult1, tile1] = GetTile(level, x, y, 1, gameState->memoryArena);
-                    SOKO_ASSERT(queryResult1 == TileQueryResult::Found);
+                    SOKO_ASSERT(queryResult1 == TileQuery::Found);
                     tile1->value = TILE_VALUE_WALL;
                 }
             }
@@ -978,14 +978,16 @@ namespace soko
                             auto msg = (net::ServerJoinResultMsg*)(netBuffer + 1);
                             netBufferAt += sizeof(net::ServerJoinResultMsg);
 
+                            Player* player = 0;
                             bool slotInitialized = false;
                             if (clientSlot != -1)
                             {
-                                i32 playerX = 13;
-                                i32 playerY = 13;
-                                i32 playerZ = 1;
+                                // TODO: Aaargh!! Using static
+                                static i32 playerCount = 0;
+                                v3i coord = V3I(13 + playerCount, 13, 1);
+                                playerCount++;
 
-                                Player* player = AddPlayer(gameState, V3I(playerX, playerY, playerZ), arena);
+                                player = AddPlayer(gameState, coord, arena);
                                 SOKO_ASSERT(player);
 
                                 if (player)
@@ -995,7 +997,7 @@ namespace soko
                                     gameState->server->slots[clientSlot].player = player;
 
                                     msg->succeed = 1;
-                                    msg->newPlayer = {clientSlot, playerX, playerY, playerZ};
+                                    msg->newPlayer = {clientSlot, coord.x, coord.y, coord.z};
 
                                     for (i16 otherSlot = 0;
                                          otherSlot < net::Server::SLOTS_NUM;
@@ -1032,6 +1034,29 @@ namespace soko
                             {
                                 // TODO: Message: failed to connect client
                                 gameState->server->slotsOccupancy[clientSlot] = 0;
+                            }
+
+                            // NOTE: Recieving new player data to all other players
+                            if (slotInitialized && sndStatus)
+                            {
+                                netBufferAt = 0;
+                                auto header = (net::ServerMsgHeader*)netBuffer;
+                                netBufferAt += sizeof(net::ServerMsgHeader);
+                                header->type = net::ServerMsg_AddPlayer;
+                                auto msg = (net::ServerAddPlayerMsg*)(netBuffer + netBufferAt);
+                                msg->newPlayer = {clientSlot, player->e->coord.x, player->e->coord.y, player->e->coord.z};
+                                netBufferAt += sizeof(net::ServerAddPlayerMsg);
+
+                                for (u32 i = 0; i < net::Server::SLOTS_NUM; i++)
+                                {
+                                    bool slotOccupied = gameState->server->slotsOccupancy[i];
+                                    if (slotOccupied && (i != clientSlot) && (i != net::Server::PLAYER_SLOT))
+                                    {
+                                        auto* s = gameState->server->slots + i;
+                                        auto[sndStatus, sndSize] = NetSend(gameState->server->socket, s->address, netBuffer, netBufferAt);
+                                        SOKO_ASSERT(sndStatus);
+                                    }
+                                }
                             }
                         } break;
                         case net::ClientMsg_Leave:
@@ -1213,6 +1238,17 @@ namespace soko
                             auto header = (net::ServerMsgHeader*)netBuffer;
                             switch (header->type)
                             {
+                            case net::ServerMsg_AddPlayer:
+                            {
+                                auto msg = (net::ServerAddPlayerMsg*)(netBuffer + sizeof(net::ServerMsgHeader));
+                                SOKO_ASSERT(!gameState->client->slotsOccupancy[msg->newPlayer.slot]);
+                                gameState->client->slotsOccupancy[msg->newPlayer.slot] = 1;
+                                auto* s = gameState->client->slots + msg->newPlayer.slot;
+                                v3i coord = V3I(msg->newPlayer.x, msg->newPlayer.y, msg->newPlayer.z);
+                                Player* player = AddPlayer(gameState, coord, arena);
+                                SOKO_ASSERT(player);
+                                s->player = player;
+                            } break;
                             case net::ServerMsg_PlayerAction:
                             {
                                 auto msg = (net::ServerPlayerActionMsg*)(netBuffer + sizeof(net::ServerMsgHeader));
@@ -1225,7 +1261,6 @@ namespace soko
                                 s->inputBuffer.at += rcSize - offset;
                             }
                             break;
-                            case net::ServerMsg_AddPlayer: {} break;
                                 INVALID_DEFAULT_CASE;
                             }
                         }

@@ -47,7 +47,7 @@ namespace soko
             y > Level::MAX_DIM || y < Level::MIN_DIM ||
             z > Level::MAX_DIM || z < Level::MIN_DIM)
         {
-            result.result = TileQueryResult::OutOfBounds;
+            result.result = TileQuery::OutOfBounds;
         }
         else
         {
@@ -61,7 +61,7 @@ namespace soko
                     tile->coord.y == y &&
                     tile->coord.z == z)
                 {
-                    result.result = TileQueryResult::Found;
+                    result.result = TileQuery::Found;
                     result.tile = tile;
                 }
                 else
@@ -73,7 +73,7 @@ namespace soko
                             nextTile->coord.y == y &&
                             nextTile->coord.z == z)
                         {
-                            result.result = TileQueryResult::Found;
+                            result.result = TileQuery::Found;
                             result.tile = nextTile;
                             break;
                         }
@@ -103,7 +103,7 @@ namespace soko
 
                 if (!newTile)
                 {
-                    result.result = TileQueryResult::AllocationError;
+                    result.result = TileQuery::AllocationError;
                 }
                 else
                 {
@@ -121,7 +121,7 @@ namespace soko
                     newTile->coord.z = z;
                     level->tileCount++;
 
-                    result.result = TileQueryResult::Found;
+                    result.result = TileQuery::Found;
                     result.tile = newTile;
 
                 }
@@ -236,7 +236,7 @@ namespace soko
                 else
                 {
                     auto[result, tile] = GetTile(level, entity->coord);
-                    SOKO_ASSERT(result == TileQueryResult::Found);
+                    SOKO_ASSERT(result == TileQuery::Found);
                     SOKO_ASSERT(tile->entityList.first->id == entity->id);
                     tile->entityList.first = entity->nextEntityInTile;
                 }
@@ -261,7 +261,7 @@ namespace soko
     {
         u32 result = 0;
         TileQuery query = GetTile(level, entity.coord, arena);
-        if (query.result == TileQueryResult::Found)
+        if (query.result == TileQuery::Found)
         {
             Tile* tile = query.tile;
             if (tile->value != TILE_VALUE_WALL && TileIsFree(tile))
@@ -429,11 +429,11 @@ namespace soko
     {
         bool result = false;
         TileQuery oldTileQuery = GetTile(level, entity->coord);
-        SOKO_ASSERT(oldTileQuery.result == TileQueryResult::Found);
+        SOKO_ASSERT(oldTileQuery.result == TileQuery::Found);
         Tile* oldTile = oldTileQuery.tile;
 
         TileQuery desiredTileQuery = GetTile(level, desiredCoord, arena);
-        if (desiredTileQuery.result == TileQueryResult::Found)
+        if (desiredTileQuery.result == TileQuery::Found)
         {
             Tile* desiredTile = desiredTileQuery.tile;
             bool tileIsFree = desiredTile->value != TILE_VALUE_WALL;
@@ -504,7 +504,7 @@ namespace soko
                 result = ChangeEntityLocation(level, entity, desiredPos, arena);
             }
 
-            if (pushRes == TileQueryResult::Found && pushTile->value != TILE_VALUE_WALL)
+            if (pushRes == TileQuery::Found && pushTile->value != TILE_VALUE_WALL)
             {
                 Entity* entityInTile = pushTile->entityList.first;
                 bool recursive = (bool)depth;
@@ -542,7 +542,7 @@ namespace soko
                 for (u32 z = 0; z < level->zDim; z++)
                 {
                     auto[queryResult, tile] = GetTile(level, x, y, z);
-                    if (queryResult == TileQueryResult::Found && tile->value == TILE_VALUE_WALL)
+                    if (queryResult == TileQuery::Found && tile->value == TILE_VALUE_WALL)
                     {
                         f32 xCoord = x * Level::TILE_SIZE;
                         f32 yCoord = z * Level::TILE_SIZE;
