@@ -588,5 +588,4 @@ namespace soko
         }
 
     }
-
 }

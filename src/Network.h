@@ -21,7 +21,7 @@ namespace  soko { namespace net
     {
         const_val u32 SLOTS_NUM = 4;
         const_val u32 SOCKET_BUFFER_SIZE = 1024;
-        const_val u32 PLAYER_SLOT = 0;
+        const_val u32 LOCAL_PLAYER_SLOT = 0;
         uptr socket;
         u16 port;
         bool slotsOccupancy[SLOTS_NUM];
@@ -56,6 +56,7 @@ namespace  soko { namespace net
     {
         ServerMsg_JoinResult,
         ServerMsg_AddPlayer,
+        ServerMsg_DeletePlayer,
         ServerMsg_PlayerAction
     };
 
@@ -96,6 +97,11 @@ namespace  soko { namespace net
     struct ServerAddPlayerMsg
     {
         NewPlayerData newPlayer;
+    };
+
+    struct ServerDeletePlayerMsg
+    {
+        i16 slot;
     };
 #pragma pack(pop)
 }}

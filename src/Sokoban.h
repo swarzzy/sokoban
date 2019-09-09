@@ -118,7 +118,7 @@ namespace soko
         Material buttonMaterial;
         u32 overlayCorner;
         Level level;
-        u32 playerCount;
+        bool playersOccupancy[MAX_PLAYERS];
         Player players[MAX_PLAYERS];
         b32 platePressed;
         Player* controlledPlayer;
@@ -133,6 +133,7 @@ namespace soko
         u32 gameMode;
         b32 gameModeReadyToInit;
         b32 gameModeInitialized;
+        b32 shouldDisconnect;
         //i16 clientSlot;
         //PlayerSlot playerSlots[2];
         net::Server* server;
