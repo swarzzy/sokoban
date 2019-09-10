@@ -587,28 +587,27 @@ namespace soko
         }
 
 
-        gameState->level.xDim = 64;
-        gameState->level.yDim = 64;
-        gameState->level.zDim = 3;
         gameState->level.entityCount = 1;
-
-        u32 tileArraySize = gameState->level.xDim * gameState->level.yDim * gameState->level.zDim;
 
         auto* level = &gameState->level;
 
-        for (u32 x = 0; x < level->xDim; x++)
+        Chunk* chunk = GetChunk(&gameState->level, 0, 0, 0, arena);
+        //Chunk* chunk = GetChunk(&gameState->level, 1, 1, 1, arena);
+        SOKO_ASSERT(chunk);
+
+        for (u32 x = 0; x < Chunk::DIM; x++)
         {
-            for (u32 y = 0; y < level->yDim; y++)
+            for (u32 y = 0; y < Chunk::DIM; y++)
             {
-                auto[queryResult, tile] = GetTile(level, x, y, 0, gameState->memoryArena);
-                SOKO_ASSERT(queryResult == TileQuery::Found);
+                Tile* tile = GetTileInChunk(chunk, x, y, 0);
+                SOKO_ASSERT(tile);
                 tile->value = TILE_VALUE_WALL;
 
-                if ((x == 0) || (x == level->xDim - 1) ||
-                    (y == 0) || (y == level->yDim - 1))
+                if ((x == 0) || (x == Chunk::DIM - 1) ||
+                    (y == 0) || (y == Chunk::DIM - 1))
                 {
-                    auto[queryResult1, tile1] = GetTile(level, x, y, 1, gameState->memoryArena);
-                    SOKO_ASSERT(queryResult1 == TileQuery::Found);
+                    Tile* tile1 = GetTileInChunk(chunk, x, y, 1);
+                    SOKO_ASSERT(tile1);
                     tile1->value = TILE_VALUE_WALL;
                 }
             }
@@ -917,8 +916,6 @@ namespace soko
         //ImGui::ShowDemoWindow(&show);
         DebugOverlayPushStr("Hello!");
         DEBUG_OVERLAY_TRACE(gameState->camera.conf.position);
-        DEBUG_OVERLAY_TRACE(gameState->level.tileCount);
-        DEBUG_OVERLAY_TRACE(gameState->level.freeTileCount);
         DEBUG_OVERLAY_TRACE(gameState->level.platePressed);
         DEBUG_OVERLAY_TRACE(gameState->level.entityCount);
         DEBUG_OVERLAY_TRACE(gameState->level.deletedEntityCount);

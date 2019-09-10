@@ -332,5 +332,27 @@ namespace soko::net
         }
 
     }
+#if 0
+    void
+    ClientTryToConnect(GameState* gameState)
+    {
+        Client* client = gameState->client;
+
+        byte* buffer = client->socketBuffer;
+
+        if (!gameState->controlledPlayer && timeToWait >= 29.99f)
+        {
+            netBuffer[netBufferAt] = net::ClientMsg_Join;
+            netBufferAt += 1;
+
+            auto[sndStatus, sndSize] = NetSend(gameState->client->socket,
+                                               gameState->client->serverAddr,
+                                               netBuffer, netBufferAt);
+            // TODO: Try again!
+            SOKO_ASSERT(sndStatus);
+        }
+
+    }
+    #endif
 
 }

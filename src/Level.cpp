@@ -19,6 +19,116 @@ namespace soko
         return result;
     }
 
+    inline Chunk*
+    GetChunk(Level* level, i32 x, i32 y, i32 z, AB::MemoryArena* arena = 0)
+    {
+        Chunk* result = 0;
+
+        SOKO_ASSERT(x >= Level::MIN_DIM_CHUNKS && x <= Level::MAX_DIM_CHUNKS);
+        SOKO_ASSERT(y >= Level::MIN_DIM_CHUNKS && y <= Level::MAX_DIM_CHUNKS);
+        SOKO_ASSERT(z >= Level::MIN_DIM_CHUNKS && z <= Level::MAX_DIM_CHUNKS);
+
+        u32 xIndex = (u32)(x + Level::MAX_DIM_CHUNKS - 1);
+        u32 yIndex = (u32)(y + Level::MAX_DIM_CHUNKS - 1);
+        u32 zIndex = (u32)(z + Level::MAX_DIM_CHUNKS - 1);
+
+        u32 chunkTableIndex =
+            zIndex * Level::FULL_DIM_CHUNKS * Level::FULL_DIM_CHUNKS +
+            yIndex * Level::FULL_DIM_CHUNKS +
+            xIndex;
+
+        if (chunkTableIndex <= (Level::MAX_DIM * 2) * (Level::MAX_DIM * 2) * (Level::MAX_DIM * 2))
+        {
+            result = level->chunkTable[chunkTableIndex];
+            if (!result && arena)
+            {
+                result = PUSH_STRUCT(arena, Chunk);
+                if (result)
+                {
+                    // TODO: Do I need to store this?
+                    result->coord = V3I(xIndex, yIndex, zIndex);
+                    level->chunkTable[chunkTableIndex] = result;
+                    level->chunkCount++;
+
+                    for (u32 tileZ = 0; tileZ < Chunk::DIM; tileZ++)
+                    {
+                        for (u32 tileY = 0; tileY < Chunk::DIM; tileY++)
+                        {
+                            for (u32 tileX = 0; tileX < Chunk::DIM; tileX++)
+                            {
+                                u32 tileIndex = tileZ * Chunk::DIM * Chunk::DIM + tileY * Chunk::DIM + tileX;
+                                Tile* tile = result->tiles + tileIndex;
+                                tile->coord = V3I(x * Chunk::DIM + tileX, y * Chunk::DIM + tileY, z * Chunk::DIM + tileZ);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        return result;
+    }
+
+    inline static Tile*
+    GetTileInChunkInternal(Chunk* chunk, u32 x, u32 y, u32 z)
+    {
+        // TODO: Actial check?
+        SOKO_ASSERT(x < Chunk::DIM);
+        SOKO_ASSERT(y < Chunk::DIM);
+        SOKO_ASSERT(z < Chunk::DIM);
+
+        Tile* tile = 0;
+        tile = chunk->tiles + (z * Chunk::DIM * Chunk::DIM + y * Chunk::DIM + x);
+
+        return tile;
+    }
+
+    inline Tile*
+    GetTileInChunk(Chunk* chunk, u32 x, u32 y, u32 z)
+    {
+        Tile* result = 0;
+        if (x < Chunk::DIM &&
+            y < Chunk::DIM &&
+            z < Chunk::DIM)
+        {
+            result = GetTileInChunkInternal(chunk, x, y, z);
+        }
+        return result;
+    }
+
+    Tile*
+    GetTile(Level* level, i32 x, i32 y, i32 z, AB::MemoryArena* arena = 0)
+    {
+        Tile* result = 0;
+        // TODO: Real check instead of asserts
+        SOKO_ASSERT(x >= Level::MIN_DIM && x <= Level::MAX_DIM);
+        SOKO_ASSERT(y >= Level::MIN_DIM && y <= Level::MAX_DIM);
+        SOKO_ASSERT(z >= Level::MIN_DIM && z <= Level::MAX_DIM);
+
+        u32 chunkX = x >> Chunk::BIT_SHIFT;
+        u32 chunkY = y >> Chunk::BIT_SHIFT;
+        u32 chunkZ = z >> Chunk::BIT_SHIFT;
+
+        u32 tileX = x & Chunk::BIT_MASK;
+        u32 tileY = y & Chunk::BIT_MASK;
+        u32 tileZ = z & Chunk::BIT_MASK;
+
+        Chunk* chunk = GetChunk(level, chunkX, chunkY, chunkZ, arena);
+
+        if (chunk)
+        {
+            result = GetTileInChunkInternal(chunk, tileX, tileY, tileZ);
+        }
+        return result;
+    }
+
+    inline Tile*
+    GetTile(Level* level, v3i coord, AB::MemoryArena* arena = 0)
+    {
+        Tile* result = GetTile(level, coord.x, coord.y, coord.z, arena);
+        return result;
+    }
+
     // NOTE: Checks if it is allowed to place entity on tile
     // NOT if tile is EMPTY!!!!
     inline bool TileIsFree(const Tile* tile)
@@ -39,6 +149,7 @@ namespace soko
         return result;
     }
 
+    #if 0
     inline TileQuery
     GetTile(Level* level, i32 x, i32 y, i32 z, AB::MemoryArena* arena = nullptr)
     {
@@ -130,7 +241,6 @@ namespace soko
         return result;
     }
 
-
     inline TileQuery
     GetTile(Level* level, v3i coord, AB::MemoryArena* arena = NULL)
     {
@@ -192,6 +302,7 @@ namespace soko
             }
         }
     }
+#endif
 
     inline Entity*
     GetEntityMemory(Level* level, AB::MemoryArena* arena)
@@ -235,8 +346,8 @@ namespace soko
                 }
                 else
                 {
-                    auto[result, tile] = GetTile(level, entity->coord);
-                    SOKO_ASSERT(result == TileQuery::Found);
+                    Tile* tile = GetTile(level, entity->coord);
+                    SOKO_ASSERT(tile);
                     SOKO_ASSERT(tile->entityList.first->id == entity->id);
                     tile->entityList.first = entity->nextEntityInTile;
                 }
@@ -260,10 +371,9 @@ namespace soko
     AddEntity(Level* level, Entity entity, AB::MemoryArena* arena)
     {
         u32 result = 0;
-        TileQuery query = GetTile(level, entity.coord, arena);
-        if (query.result == TileQuery::Found)
+        Tile* tile = GetTile(level, entity.coord, arena);
+        if (tile)
         {
-            Tile* tile = query.tile;
             if (tile->value != TILE_VALUE_WALL && TileIsFree(tile))
             {
                 // TODO: Better hash
@@ -428,14 +538,12 @@ namespace soko
     ChangeEntityLocation(Level* level, Entity* entity, v3i desiredCoord, AB::MemoryArena* arena)
     {
         bool result = false;
-        TileQuery oldTileQuery = GetTile(level, entity->coord);
-        SOKO_ASSERT(oldTileQuery.result == TileQuery::Found);
-        Tile* oldTile = oldTileQuery.tile;
+        Tile* oldTile = GetTile(level, entity->coord);
+        SOKO_ASSERT(oldTile);
 
-        TileQuery desiredTileQuery = GetTile(level, desiredCoord, arena);
-        if (desiredTileQuery.result == TileQuery::Found)
+        Tile* desiredTile = GetTile(level, desiredCoord, arena);
+        if (desiredTile)
         {
-            Tile* desiredTile = desiredTileQuery.tile;
             bool tileIsFree = desiredTile->value != TILE_VALUE_WALL;
             // TODO: For all entities in tile (iterator)
             if (tileIsFree)
@@ -476,7 +584,6 @@ namespace soko
                 UpdateEntitiesInTile(level, oldTile, arena);
                 UpdateEntitiesInTile(level, desiredTile, arena);
 
-                FreeTileIfEmpty(level, oldTile);
                 result = true;
             }
         }
@@ -492,9 +599,9 @@ namespace soko
         v3i revDesiredPos = entity->coord;
         revDesiredPos -= DirToUnitOffset(dir);
 
-        auto[desRes, desiredTile] = GetTile(level, desiredPos, arena);
-        auto[oldRes, oldTile] = GetTile(level, entity->coord);
-        auto[pushRes, pushTile] = GetTile(level, reverse ? revDesiredPos : desiredPos);
+        Tile* desiredTile = GetTile(level, desiredPos, arena);
+        Tile* oldTile = GetTile(level, entity->coord);
+        Tile* pushTile = GetTile(level, reverse ? revDesiredPos : desiredPos);
 
         SOKO_ASSERT(oldTile);
         if (desiredTile)
@@ -504,7 +611,7 @@ namespace soko
                 result = ChangeEntityLocation(level, entity, desiredPos, arena);
             }
 
-            if (pushRes == TileQuery::Found && pushTile->value != TILE_VALUE_WALL)
+            if (pushTile && pushTile->value != TILE_VALUE_WALL)
             {
                 Entity* entityInTile = pushTile->entityList.first;
                 bool recursive = (bool)depth;
@@ -535,26 +642,33 @@ namespace soko
     DrawLevel(Level* level, GameState* gameState)
     {
         // TODO: Sparseness
-        for (u32 x = 0; x < level->xDim; x++)
+        for (u32 chunkIndex = 0; chunkIndex < Level::CHUNK_TABLE_SIZE; chunkIndex++)
         {
-            for (u32 y = 0; y < level->yDim; y++)
+            Chunk* chunk = level->chunkTable[chunkIndex];
+            if (chunk)
             {
-                for (u32 z = 0; z < level->zDim; z++)
+                for (u32 x = 0; x < Chunk::DIM; x++)
                 {
-                    auto[queryResult, tile] = GetTile(level, x, y, z);
-                    if (queryResult == TileQuery::Found && tile->value == TILE_VALUE_WALL)
+                    for (u32 y = 0; y < Chunk::DIM; y++)
                     {
-                        f32 xCoord = x * Level::TILE_SIZE;
-                        f32 yCoord = z * Level::TILE_SIZE;
-                        f32 zCoord = y * Level::TILE_SIZE;
-                        v3 pos = V3(xCoord, yCoord, -zCoord);
-                        RenderCommandDrawMesh command = {};
-                        command.transform = Translation(pos);
-                        command.mesh = &gameState->cubeMesh;
-                        command.material = &gameState->tileMaterial;
-                        RenderGroupPushCommand(gameState->renderGroup, RENDER_COMMAND_DRAW_MESH,
-                                               (void*)&command);
+                        for (u32 z = 0; z < Chunk::DIM; z++)
+                        {
+                            Tile* tile = GetTileInChunk(chunk, x, y, z);
+                            if (tile && tile->value == TILE_VALUE_WALL)
+                            {
+                                f32 xCoord = tile->coord.x * Level::TILE_SIZE;
+                                f32 yCoord = tile->coord.z * Level::TILE_SIZE;
+                                f32 zCoord = tile->coord.y * Level::TILE_SIZE;
+                                v3 pos = V3(xCoord, yCoord, -zCoord);
+                                RenderCommandDrawMesh command = {};
+                                command.transform = Translation(pos);
+                                command.mesh = &gameState->cubeMesh;
+                                command.material = &gameState->tileMaterial;
+                                RenderGroupPushCommand(gameState->renderGroup, RENDER_COMMAND_DRAW_MESH,
+                                                       (void*)&command);
 
+                            }
+                        }
                     }
                 }
             }

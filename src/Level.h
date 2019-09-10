@@ -244,31 +244,34 @@ namespace soko
         Tile* nextTile;
     };
 
-    struct TileQuery
+    struct Chunk
     {
-        enum { Empty = 0, OutOfBounds, Found, AllocationError } result;
-        Tile* tile;
+        const_val u32 BIT_SHIFT = 5;
+        const_val u32 BIT_MASK = (1 << BIT_SHIFT) - 1;
+        const_val u32 DIM = 1 << BIT_SHIFT;
+        v3i coord;
+        Tile tiles[DIM * DIM * DIM];
     };
 
     struct Level
     {
-        static constexpr u32 TILE_TABLE_SIZE = 8192;
-        static constexpr u32 ENTITY_TABLE_SIZE = 1024;
-        static constexpr f32 TILE_SIZE = 1.0f;
+        const_val i32 MAX_DIM = 512;
+        const_val i32 MIN_DIM = -511;
+
+        const_val u32 FULL_DIM_CHUNKS = (MAX_DIM * 2) / Chunk::DIM;
+        const_val i32 MAX_DIM_CHUNKS = FULL_DIM_CHUNKS / 2;
+        const_val i32 MIN_DIM_CHUNKS = -1 * MAX_DIM_CHUNKS + 1;
+        const_val u32 CHUNK_TABLE_SIZE = FULL_DIM_CHUNKS * FULL_DIM_CHUNKS * FULL_DIM_CHUNKS;
+        const_val u32 ENTITY_TABLE_SIZE = 1024;
+        const_val f32 TILE_SIZE = 1.0f;
 
         // NOTE: Maximum size of the level is 1024-tile-side cube
         // so count of tiles in cube is less than 2^32
-        static constexpr i32 MAX_DIM = 512;
-        static constexpr i32 MIN_DIM = -511;
 
-        u32 xDim;
-        u32 yDim;
-        u32 zDim;
-
-        u32 tileCount;
-        u32 freeTileCount;
-        Tile* tileFreeList;
-        Tile* tiles[TILE_TABLE_SIZE];
+        u32 chunkCount;
+        // TODO: Use fixed size hash table with intrenal chaining
+        // for runtime
+        Chunk* chunkTable[CHUNK_TABLE_SIZE];
 
         // TODO: Use 64bit IDs for entities
         u32 entitySerialNumber;
