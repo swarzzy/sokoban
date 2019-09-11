@@ -61,6 +61,7 @@ inline void* ReallocForSTBI(void* p, uptr oldSize, uptr newSize)
 #define DebugGetFileSize SOKO_PLATFORM_FUNCTION(DebugGetFileSize)
 #define DebugReadFile SOKO_PLATFORM_FUNCTION(DebugReadFile)
 #define DebugReadTextFile SOKO_PLATFORM_FUNCTION(DebugReadTextFile)
+#define DebugWriteFile SOKO_PLATFORM_FUNCTION(DebugWriteFile)
 #define FormatString SOKO_PLATFORM_FUNCTION(FormatString)
 #define PrintString SOKO_PLATFORM_FUNCTION(PrintString)
 #define Log SOKO_PLATFORM_FUNCTION(Log)
@@ -211,10 +212,12 @@ namespace soko
 // NOTE: Panic macro should not be stripped in release build
 #if defined(AB_COMPILER_CLANG)
 #define SOKO_INFO(format, ...) Log(AB::LOG_INFO, __FILE__, __func__, __LINE__, format, ##__VA_ARGS__)
+#define SOKO_WARN(format, ...) Log(AB::LOG_WARN, __FILE__, __func__, __LINE__, format, ##__VA_ARGS__)
 #define SOKO_ASSERT(expr, ...) do { if (!(expr)) {soko::LogAssert(AB::LOG_FATAL, __FILE__, __func__, __LINE__, #expr, ##__VA_ARGS__); AB_DEBUG_BREAK();}} while(false)
 #define SOKO_PANIC(format, ...) do{ Log(AB::LOG_FATAL, __FILE__, __func__, __LINE__, format, ##__VA_ARGS__); abort();} while(false)
 #else
 #define SOKO_INFO(format, ...) Log(AB::LOG_INFO, __FILE__, __func__, __LINE__, format, __VA_ARGS__)
+#define SOKO_WARN(format, ...) Log(AB::LOG_WARN, __FILE__, __func__, __LINE__, format, __VA_ARGS__)
 #define SOKO_ASSERT(expr, ...) do { if (!(expr)) {soko::LogAssert(AB::LOG_FATAL, __FILE__, __func__, __LINE__, #expr, __VA_ARGS__); AB_DEBUG_BREAK();}} while(false)
 #define SOKO_PANIC(format, ...) do{ Log(AB::LOG_FATAL, __FILE__, __func__, __LINE__, format, __VA_ARGS__); abort();} while(false)
 #endif
@@ -321,8 +324,8 @@ namespace soko
             void* fileData = PUSH_SIZE(arena, fileSize);
             u32 result = DebugReadFile(fileData, fileSize, L"../res/cube.aab");
             // NOTE: Strict aliasing
-            auto header = (AABMeshHeader*)fileData;
-            SOKO_ASSERT(header->magicValue == AAB_FILE_MAGIC_VALUE, "");
+            auto header = (AB::AABMeshHeader*)fileData;
+            SOKO_ASSERT(header->magicValue == AB::AAB_FILE_MAGIC_VALUE, "");
 
             Mesh mesh = {};
             mesh.vertexCount = header->verticesCount;
@@ -346,8 +349,8 @@ namespace soko
             void* fileData = PUSH_SIZE(arena, fileSize);
             u32 result = DebugReadFile(fileData, fileSize, L"../res/plate.aab");
             // NOTE: Strict aliasing
-            auto header = (AABMeshHeader*)fileData;
-            SOKO_ASSERT(header->magicValue == AAB_FILE_MAGIC_VALUE, "");
+            auto header = (AB::AABMeshHeader*)fileData;
+            SOKO_ASSERT(header->magicValue == AB::AAB_FILE_MAGIC_VALUE, "");
 
             Mesh mesh = {};
             mesh.vertexCount = header->verticesCount;
@@ -371,8 +374,8 @@ namespace soko
             void* fileData = PUSH_SIZE(arena, fileSize);
             u32 result = DebugReadFile(fileData, fileSize, L"../res/portal.aab");
             // NOTE: Strict aliasing
-            auto header = (AABMeshHeader*)fileData;
-            SOKO_ASSERT(header->magicValue == AAB_FILE_MAGIC_VALUE, "");
+            auto header = (AB::AABMeshHeader*)fileData;
+            SOKO_ASSERT(header->magicValue == AB::AAB_FILE_MAGIC_VALUE, "");
 
             Mesh mesh = {};
             mesh.vertexCount = header->verticesCount;
@@ -396,8 +399,8 @@ namespace soko
             void* fileData = PUSH_SIZE(arena, fileSize);
             u32 result = DebugReadFile(fileData, fileSize, L"../res/spikes.aab");
             // NOTE: Strict aliasing
-            auto header = (AABMeshHeader*)fileData;
-            SOKO_ASSERT(header->magicValue == AAB_FILE_MAGIC_VALUE, "");
+            auto header = (AB::AABMeshHeader*)fileData;
+            SOKO_ASSERT(header->magicValue == AB::AAB_FILE_MAGIC_VALUE, "");
 
             Mesh mesh = {};
             mesh.vertexCount = header->verticesCount;
@@ -421,8 +424,8 @@ namespace soko
             void* fileData = PUSH_SIZE(arena, fileSize);
             u32 result = DebugReadFile(fileData, fileSize, L"../res/button.aab");
             // NOTE: Strict aliasing
-            auto header = (AABMeshHeader*)fileData;
-            SOKO_ASSERT(header->magicValue == AAB_FILE_MAGIC_VALUE, "");
+            auto header = (AB::AABMeshHeader*)fileData;
+            SOKO_ASSERT(header->magicValue == AB::AAB_FILE_MAGIC_VALUE, "");
 
             Mesh mesh = {};
             mesh.vertexCount = header->verticesCount;
@@ -587,10 +590,7 @@ namespace soko
         }
 
 
-        gameState->level.entityCount = 1;
-
-        auto* level = &gameState->level;
-
+#if 0
         Chunk* chunk = GetChunk(&gameState->level, 0, 0, 0, arena);
         //Chunk* chunk = GetChunk(&gameState->level, 1, 1, 1, arena);
         SOKO_ASSERT(chunk);
@@ -612,6 +612,19 @@ namespace soko
                 }
             }
         }
+
+        BeginTemporaryMemory(gameState->tempArena);
+        bool saveResult = SaveLevel(&gameState->level, L"testLevel.aab", gameState->tempArena);
+        SOKO_ASSERT(saveResult);
+        EndTemporaryMemory(gameState->tempArena);
+#else
+        BeginTemporaryMemory(gameState->tempArena);
+        gameState->level = LoadLevel(L"testLevel.aab", gameState->memoryArena, gameState->tempArena);
+        SOKO_ASSERT(gameState->level);
+        EndTemporaryMemory(gameState->tempArena);
+#endif
+        auto* level = gameState->level;
+        gameState->level->entityCount = 1;
 #if 0
         Entity playerEntity = {};
         playerEntity.type = ENTITY_TYPE_PLAYER;
@@ -916,9 +929,9 @@ namespace soko
         //ImGui::ShowDemoWindow(&show);
         DebugOverlayPushStr("Hello!");
         DEBUG_OVERLAY_TRACE(gameState->camera.conf.position);
-        DEBUG_OVERLAY_TRACE(gameState->level.platePressed);
-        DEBUG_OVERLAY_TRACE(gameState->level.entityCount);
-        DEBUG_OVERLAY_TRACE(gameState->level.deletedEntityCount);
+        DEBUG_OVERLAY_TRACE(gameState->level->platePressed);
+        DEBUG_OVERLAY_TRACE(gameState->level->entityCount);
+        DEBUG_OVERLAY_TRACE(gameState->level->deletedEntityCount);
         ShowNetSettings(gameState, arena);
 
         if (gameState->gameModeInitialized)
@@ -1102,7 +1115,7 @@ namespace soko
                                     PlayerAction action = (PlayerAction)slot->inputBuffer.base[inputIndex];
                                     if (ActionIsMovement(action))
                                     {
-                                        MoveEntity(&gameState->level,
+                                        MoveEntity(gameState->level,
                                                    slot->player->e,
                                                    (Direction)action, arena,
                                                    slot->player->reversed);
@@ -1139,22 +1152,22 @@ namespace soko
 
                 if (JustPressed(AB::KEY_UP))
                 {
-                    MoveEntity(&gameState->level, player->e, DIRECTION_NORTH, arena, player->reversed);
+                    MoveEntity(gameState->level, player->e, DIRECTION_NORTH, arena, player->reversed);
                 }
 
                 if (JustPressed(AB::KEY_DOWN))
                 {
-                    MoveEntity(&gameState->level, player->e, DIRECTION_SOUTH, arena, player->reversed);
+                    MoveEntity(gameState->level, player->e, DIRECTION_SOUTH, arena, player->reversed);
                 }
 
                 if (JustPressed(AB::KEY_RIGHT))
                 {
-                    MoveEntity(&gameState->level, player->e, DIRECTION_WEST, arena, player->reversed);
+                    MoveEntity(gameState->level, player->e, DIRECTION_WEST, arena, player->reversed);
                 }
 
                 if (JustPressed(AB::KEY_LEFT))
                 {
-                    MoveEntity(&gameState->level, player->e, DIRECTION_EAST, arena, player->reversed);
+                    MoveEntity(gameState->level, player->e, DIRECTION_EAST, arena, player->reversed);
                 }
             }
             else
@@ -1262,9 +1275,9 @@ namespace soko
 
 
 
-        DrawLevel(&gameState->level, gameState);
+        DrawLevel(gameState->level, gameState);
         //DrawPlayer(&gameState->player, gameState);
-        DrawEntities(&gameState->level, gameState);
+        DrawEntities(gameState->level, gameState);
         FlushRenderGroup(gameState->renderer, gameState->renderGroup);
     }
 }

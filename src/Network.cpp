@@ -113,7 +113,7 @@ namespace soko::net
                     PlayerAction action = (PlayerAction)slot->inputBuffer.base[inputIndex];
                     if (ActionIsMovement(action))
                     {
-                        MoveEntity(&gameState->level,
+                        MoveEntity(gameState->level,
                                    slot->player->e,
                                    (Direction)action, gameState->memoryArena,
                                    slot->player->reversed);

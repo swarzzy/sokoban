@@ -876,7 +876,7 @@ namespace AB
                     BOOL result = ReadFile(fileHandle, buffer, (DWORD)fileSize.QuadPart, &read, 0);
                     if (!result && !(read == (DWORD)fileSize.QuadPart))
                     {
-                        AB_CORE_ERROR("Failed to read file.");
+                        AB_CORE_WARN("Failed to read file.");
                     }
                     else
                     {
@@ -954,7 +954,7 @@ namespace AB
         return fileSize;
     }
 
-    b32 DebugWriteFile(const wchar_t* filename, void* data, u32 dataSize)
+    bool DebugWriteFile(const wchar_t* filename, void* data, u32 dataSize)
     {
         HANDLE fileHandle = CreateFile(filename, GENERIC_WRITE, 0, 0,
                                        CREATE_ALWAYS, 0, 0);
@@ -1141,6 +1141,7 @@ namespace AB
         app->state.functions.DebugGetFileSize = DebugGetFileSize;
         app->state.functions.DebugReadFile = DebugReadFileToBuffer;
         app->state.functions.DebugReadTextFile = DebugReadTextFileToBuffer;
+        app->state.functions.DebugWriteFile = DebugWriteFile;
         app->state.functions.FormatString = FormatString;
         app->state.functions.PrintString = PrintString;
         app->state.functions.Log = Log;

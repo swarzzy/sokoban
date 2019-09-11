@@ -702,4 +702,140 @@ namespace soko
         }
 
     }
+#pragma pack(push, 1)
+
+    struct SerializedTile
+    {
+        TileValue value;
+    };
+
+    struct SerializedChunk
+    {
+        v3i coord;
+        SerializedTile tiles[Chunk::DIM * Chunk::DIM * Chunk::DIM];
+    };
+#pragma pack(pop)
+
+    bool
+    SaveLevel(const Level* level, const wchar_t* filename, AB::MemoryArena* arena)
+    {
+        bool result = false;
+        uptr bufferSize = sizeof(AB::AABLevelHeader) + sizeof(SerializedChunk) * level->chunkCount;
+        byte* buffer = (byte*)PUSH_SIZE(arena, bufferSize);
+        if (buffer)
+        {
+            auto header = (AB::AABLevelHeader*)buffer;
+            header->magicValue = AB::AAB_FILE_MAGIC_VALUE;
+            header->version = AB::AAB_FILE_VERSION;
+            // TODO: Is that should be size of data placed after header?
+            header->assetSize = bufferSize - sizeof(AB::AABLevelHeader);
+            header->assetType = AB::AAB_FILE_TYPE_LEVEL;
+            header->chunkCount = level->chunkCount;
+            header->firstChunkOffset = sizeof(AB::AABLevelHeader);
+
+            auto chunks = (SerializedChunk*)(buffer + header->firstChunkOffset);
+
+            u32 chunksWritten = 0;
+            for (u32 i = 0; i < Level::CHUNK_TABLE_SIZE; i++)
+            {
+                Chunk* chunk = level->chunkTable[i];
+                if (chunk)
+                {
+                    chunksWritten++;
+                    SOKO_ASSERT(chunksWritten <= header->chunkCount);
+                    chunks[chunksWritten - 1].coord = chunk->coord;
+                    for (u32 tileInd = 0;
+                         tileInd < (Chunk::DIM * Chunk::DIM * Chunk::DIM);
+                         tileInd++)
+                    {
+                        chunks[chunksWritten - 1].tiles[tileInd].value = chunk->tiles[tileInd].value;
+                    }
+                }
+            }
+
+            SOKO_ASSERT(bufferSize <= 0xffffffff);
+            result = DebugWriteFile(filename, buffer, (u32)bufferSize);
+        }
+        return result;
+    }
+
+    Level*
+    LoadLevel(const wchar_t* filename, AB::MemoryArena* arenaForLevel, AB::MemoryArena* tempArena)
+    {
+        Level* result = 0;
+        u32 fileSize = DebugGetFileSize(filename);
+        if (fileSize)
+        {
+            byte* buffer = (byte*)PUSH_SIZE(tempArena, fileSize);
+            u32 bytesRead = DebugReadFile(buffer, fileSize, filename);
+            if (bytesRead == fileSize)
+            {
+                auto header = (AB::AABLevelHeader*)buffer;
+                if (header->magicValue == AB::AAB_FILE_MAGIC_VALUE &&
+                    header->version == AB::AAB_FILE_VERSION &&
+                    header->assetType == AB::AAB_FILE_TYPE_LEVEL)
+                {
+                    Level* loadedLevel = PUSH_STRUCT(arenaForLevel, Level);
+                    if (loadedLevel)
+                    {
+                        //loadedLevel->chunkCount = header->chunkCount;
+                        auto chunks = (SerializedChunk*)(buffer + header->firstChunkOffset);
+                        for (u32 chunkIdx = 0; chunkIdx < header->chunkCount; chunkIdx++)
+                        {
+                            SerializedChunk* sChunk = chunks + chunkIdx;
+                            Chunk* newChunk = PUSH_STRUCT(arenaForLevel, Chunk);
+                            if (newChunk)
+                            {
+                                newChunk->coord = sChunk->coord;
+                                u32 chunkIdx =
+                                    sChunk->coord.z * Level::FULL_DIM_CHUNKS * Level::FULL_DIM_CHUNKS +
+                                    sChunk->coord.y * Level::FULL_DIM_CHUNKS +
+                                    sChunk->coord.x;
+
+                                loadedLevel->chunkTable[chunkIdx] = newChunk;
+                                loadedLevel->chunkCount++;
+                                for (u32 z = 0; z < Chunk::DIM; z++)
+                                {
+                                    for (u32 y = 0; y < Chunk::DIM; y++)
+                                    {
+                                        for (u32 x = 0; x < Chunk::DIM; x++)
+                                        {
+                                            u32 tileIdx =
+                                                z * Chunk::DIM * Chunk::DIM +
+                                                y * Chunk::DIM +
+                                                x;
+
+                                            newChunk->tiles[tileIdx].coord = V3I(x, y, z);
+                                            newChunk->tiles[tileIdx].value = sChunk->tiles[tileIdx].value;
+                                        }
+                                    }
+                                }
+                            }
+                            else
+                            {
+                                char buff[512];
+                                auto strConvRes = wcstombs(buff, filename, 512);
+                                if (strConvRes != (std::size_t)(-1))
+                                {
+                                    SOKO_WARN("Failed to allocate chunk (x: %i32, y: %i32, z: %i32) while loading level from file: %s",
+                                              sChunk->coord.x, sChunk->coord.y, sChunk->coord.z, buff);
+                                }
+                                else
+                                {
+                                    SOKO_WARN("Failed to allocate chunk (x: %i32, y: %i32, z: %i32) while loading level from file: <filename print error>",
+                                              sChunk->coord.x, sChunk->coord.y, sChunk->coord.z);
+                                }
+
+                            }
+                        }
+                        SOKO_ASSERT(loadedLevel->chunkCount == header->chunkCount);
+                        result = loadedLevel;
+                    }
+                }
+
+            }
+        }
+        return result;
+    }
+
 }

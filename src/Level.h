@@ -240,8 +240,6 @@ namespace soko
         v3i coord;
         TileValue value;
         TileEntityList entityList;
-        // TODO: use 4bit offsets from allocator base for less footprint
-        Tile* nextTile;
     };
 
     struct Chunk
@@ -249,6 +247,7 @@ namespace soko
         const_val u32 BIT_SHIFT = 5;
         const_val u32 BIT_MASK = (1 << BIT_SHIFT) - 1;
         const_val u32 DIM = 1 << BIT_SHIFT;
+        const_val u32 TILE_COUNT = DIM * DIM * DIM;
         v3i coord;
         Tile tiles[DIM * DIM * DIM];
     };

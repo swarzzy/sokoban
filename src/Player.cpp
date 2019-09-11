@@ -20,13 +20,13 @@ namespace soko
         if (freePlayerIndex != -1)
         {
 
-            u32 playerId =  AddEntity(&gameState->level, ENTITY_TYPE_PLAYER, coord,
+            u32 playerId =  AddEntity(gameState->level, ENTITY_TYPE_PLAYER, coord,
                                       &gameState->cubeMesh, &gameState->tilePlayerMaterial, arena);
 
             if (playerId)
             {
                 p = gameState->players + freePlayerIndex;
-                p->level = &gameState->level;
+                p->level = gameState->level;
                 p->e = GetEntity(p->level, playerId);
                 SOKO_ASSERT(p->e);
                 gameState->playersOccupancy[freePlayerIndex] = true;

@@ -117,7 +117,7 @@ namespace soko
         Material spikesMaterial;
         Material buttonMaterial;
         u32 overlayCorner;
-        Level level;
+        Level* level;
         bool playersOccupancy[MAX_PLAYERS];
         Player players[MAX_PLAYERS];
         b32 platePressed;

@@ -252,6 +252,7 @@ namespace AB
     typedef u32(DebugGetFileSizeFn)(const wchar_t* filename);
     typedef u32(DebugReadFileFn)(void* buffer, u32 bufferSize, const wchar_t* filename);
     typedef u32(DebugReadTextFileFn)(void* buffer, u32 bufferSize, const wchar_t* filename);
+    typedef bool(DebugWriteFileFn)(const wchar_t* filename, void* data, u32 dataSize);
     typedef i32(FormatStringFn)(char* buffer, u32 bufferSize, const char* fmt, ...);
     typedef void(PrintStringFn)(const char* fmt, ...);
     typedef void(LogFn)(LogLevel level, const char* file, const char* func, u32 line, const char* fmt, ...);
@@ -278,6 +279,7 @@ namespace AB
         DebugGetFileSizeFn* DebugGetFileSize;
         DebugReadFileFn* DebugReadFile;
         DebugReadTextFileFn* DebugReadTextFile;
+        DebugWriteFileFn* DebugWriteFile;
         FormatStringFn* FormatString;
         PrintStringFn* PrintString;
         LogFn* Log;
