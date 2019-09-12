@@ -837,5 +837,4 @@ namespace soko
         }
         return result;
     }
-
 }

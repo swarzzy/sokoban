@@ -1272,7 +1272,7 @@ namespace AB
     }
 
 }
-#if 1
+#if !defined(AB_ENABLE_CONSOLE_WINDOW)
 int
 WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance,
             LPSTR lpCmdLine, int nShowCmd)

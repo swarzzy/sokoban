@@ -138,5 +138,7 @@ namespace soko
         //PlayerSlot playerSlots[2];
         net::Server* server;
         net::Client* client;
+        u32 testChunkMesh;
+        u64 testMeshQuadCount;
     };
 }

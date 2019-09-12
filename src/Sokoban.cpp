@@ -232,6 +232,7 @@ namespace soko
 #include "Camera.cpp"
 #include "Player.cpp"
 #include "Network.cpp"
+#include "MeshGen.cpp"
 
 extern "C" GAME_CODE_ENTRY void
 GameUpdateAndRender(AB::MemoryArena* arena,
@@ -622,6 +623,17 @@ namespace soko
         gameState->level = LoadLevel(L"testLevel.aab", gameState->memoryArena, gameState->tempArena);
         SOKO_ASSERT(gameState->level);
         EndTemporaryMemory(gameState->tempArena);
+        Chunk* chunk = GetChunk(gameState->level, 0, 0, 0);
+
+        BeginTemporaryMemory(gameState->tempArena);
+        ChunkMesh chunkMesh = GenChunkMesh(chunk, gameState->tempArena);
+        u32 meshHandle = RendererLoadChunkMesh(&chunkMesh);
+        SOKO_ASSERT(meshHandle);
+        gameState->testChunkMesh = meshHandle;
+        gameState->testMeshQuadCount = chunkMesh.quadCount;
+
+        EndTemporaryMemory(gameState->tempArena);
+
 #endif
         auto* level = gameState->level;
         gameState->level->entityCount = 1;
@@ -1206,8 +1218,16 @@ namespace soko
         RenderGroupPushCommand(gameState->renderGroup, RENDER_COMMAND_SET_DIR_LIGHT,
                                (void*)&lightCommand);
 
-
-
+        RenderGroupPushCommand(gameState->renderGroup,
+                               RENDER_COMMAND_BEGIN_CHUNK_MESH_BATCH, 0);
+        RenderCommandPushChunkMesh c = {};
+        c.offset = V3(0.0f);
+        c.meshIndex = gameState->testChunkMesh;
+        c.quadCount = gameState->testMeshQuadCount;
+        RenderGroupPushCommand(gameState->renderGroup,
+                               RENDER_COMMAND_PUSH_CHUNK_MESH, (void*)&c);
+        RenderGroupPushCommand(gameState->renderGroup,
+                               RENDER_COMMAND_END_CHUNK_MESH_BATCH, 0);
 #if 0
         if ((IsDown(AB::KEY_ENTER) ||
              IsDown(AB::KEY_NUM8)  ||

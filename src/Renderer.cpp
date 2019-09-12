@@ -93,6 +93,88 @@ void main()
     out_Color = ambient + diffuse + specular;
 })";
 
+    static const char* CHUNK_VERTEX_SOURCE = R"(
+#version 330 core
+layout (location = 0) in vec3 a_Position;
+layout (location = 1) in vec3 a_Normal;
+layout (location = 2) in float a_TileId;
+
+out vec3 v_Position;
+out vec3 v_MeshSpacePos;
+//out vec4 v_LightSpacePosition;
+flat out float v_TileId;
+out vec3 v_Normal;
+
+uniform mat4 u_ModelMatrix;
+uniform mat3 u_NormalMatrix;
+uniform mat4 u_ViewProjMatrix;
+//uniform mat4 u_LightSpaceMatrix;
+
+#define TERRAIN_TEX_ARRAY_NUM_LAYERS 32
+
+void main()
+{
+    v_TileId = a_TileId;
+    v_MeshSpacePos = v_Position;
+    v_Position = (u_ModelMatrix * vec4(a_Position, 1.0f)).xyz;
+    v_Normal = u_NormalMatrix * a_Normal;
+    //v_LightSpacePosition = u_LightSpaceMatrix * modelMatrix * vec4(a_Position, 1.0f);
+    gl_Position = u_ViewProjMatrix * u_ModelMatrix * vec4(a_Position, 1.0f);
+})";
+
+    static const char* CHUNK_FRAG_SOURCE = R"(
+#version 330 core
+in vec3 v_Position;
+in vec3 v_MeshSpacePos;
+//in vec4 v_LightSpacePosition;
+flat in float v_TileId;
+in vec3 v_Normal;
+
+out vec4 color;
+
+struct DirLight
+{
+    vec3 dir;
+    vec3 ambient;
+    vec3 diffuse;
+    vec3 specular;
+};
+
+uniform DirLight u_DirLight;
+uniform vec3 u_ViewPos;
+uniform sampler2DArray u_TerrainAtlas;
+
+vec3 CalcDirectionalLight(DirLight light, vec3 normal,
+                          vec3 viewDir,
+                          vec3 diffSample)
+{
+    vec3 lightDir = normalize(-light.dir);
+    vec3 lightDirReflected = reflect(-lightDir, normal);
+
+    float Kd = max(dot(normal, lightDir), 0.0);
+
+    vec3 ambient = light.ambient * diffSample;
+    vec3 diffuse = Kd * light.diffuse * diffSample;
+    return ambient + diffuse;
+}
+
+void main()
+{
+    vec3 normal = normalize(v_Normal);
+    vec3 viewDir = normalize(u_ViewPos - v_Position);
+
+    vec3 diffSample;
+    float alpha;
+    vec2 tileUV = vec2(dot(normal.zxy, v_MeshSpacePos), dot(normal.yzx, v_MeshSpacePos));
+    diffSample = texture(u_TerrainAtlas, vec3(tileUV.x, tileUV.y, v_TileId)).rgb;
+    diffSample = vec3(1.0f, 0.0f, 1.0f);
+    alpha = 1.0f;
+
+    vec3 directional = CalcDirectionalLight(u_DirLight, normal, viewDir, diffSample);
+
+    color = vec4(directional, alpha);
+})";
+
     static GLuint
     _CreateProgram(const char* vertexSource, const char* fragmentSource)
     {
@@ -230,23 +312,82 @@ void main()
         return result;
     }
 
+    static ChunkProgram
+    _CreateChunkProgram()
+    {
+        ChunkProgram result = {};
+        auto handle = _CreateProgram(CHUNK_VERTEX_SOURCE, CHUNK_FRAG_SOURCE);
+        if (handle)
+        {
+            result.handle = handle;
+            result.viewProjLocation = glGetUniformLocation(handle, "u_ViewProjMatrix");
+            result.modelMtxLocation = glGetUniformLocation(handle, "u_ModelMatrix");
+            result.normalMtxLocation = glGetUniformLocation(handle, "u_NormalMatrix");
+            result.dirLightDirLoc = glGetUniformLocation(handle, "u_DirLight.dir");
+            result.dirLightAmbLoc = glGetUniformLocation(handle, "u_DirLight.ambient");
+            result.dirLightDiffLoc = glGetUniformLocation(handle, "u_DirLight.diffuse");
+            result.dirLightSpecLoc = glGetUniformLocation(handle, "u_DirLight.specular");
+            result.viewPosLocation = glGetUniformLocation(handle, "u_ViewPos");
+            result.terrainAtlasLoc = glGetUniformLocation(handle, "u_TerrainAtlas");
+
+            result.atlasSampler = 0;
+            result.atlasSlot = GL_TEXTURE0;
+
+            glUseProgram(handle);
+
+            glUniform1i(result.terrainAtlasLoc, result.atlasSampler);
+
+            glUseProgram(0);
+        }
+        return result;
+    }
+
     Renderer*
     AllocAndInitRenderer(AB::MemoryArena* arena)
     {
         Renderer* renderer = nullptr;
         renderer = PUSH_STRUCT(arena, Renderer);
-        SOKO_ASSERT(renderer, "");
+        SOKO_ASSERT(renderer);
 
         renderer->lineProgram = _CreateLineProgram();
-        SOKO_ASSERT(renderer->lineProgram.handle, "");
+        SOKO_ASSERT(renderer->lineProgram.handle);
 
         renderer->meshProgram = _CreateMeshProgram();
-        SOKO_ASSERT(renderer->meshProgram.handle, "");
+        SOKO_ASSERT(renderer->meshProgram.handle);
+
+        renderer->chunkProgram = _CreateChunkProgram();
+        SOKO_ASSERT(renderer->chunkProgram.handle);
 
         GLuint lineBufferHandle;
         glGenBuffers(1, &lineBufferHandle);
-        SOKO_ASSERT(lineBufferHandle, "");
+        SOKO_ASSERT(lineBufferHandle);
         renderer->lineBufferHandle = lineBufferHandle;
+
+        GLuint chunkIndexBuffer;
+        u32 indexCount = Renderer::MAX_CHUNK_QUADS * Renderer::INDICES_PER_CHUNK_QUAD;
+        SOKO_ASSERT(indexCount % Renderer::INDICES_PER_CHUNK_QUAD == 0);
+        uptr size = indexCount * sizeof(u32);
+
+        glGenBuffers(1, &chunkIndexBuffer);
+        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, chunkIndexBuffer);
+        glBufferData(GL_ELEMENT_ARRAY_BUFFER, size, 0, GL_STATIC_DRAW);
+        u32* buffer = (u32*)glMapBuffer(GL_ELEMENT_ARRAY_BUFFER, GL_READ_WRITE);
+
+        u32 k = 0;
+        for (u32 i = 0; i < indexCount; i += Renderer::INDICES_PER_CHUNK_QUAD)
+        {
+            SOKO_ASSERT(i < indexCount);
+            buffer[i] = k + 2;
+            buffer[i + 1] = k + 1;
+            buffer[i + 2] = k;
+            buffer[i + 3] = k;
+            buffer[i + 4] = k + 3;
+            buffer[i + 5] = k + 2;
+            k += 4;
+        }
+
+        glUnmapBuffer(GL_ELEMENT_ARRAY_BUFFER);
+        renderer->chunkIndexBuffer = chunkIndexBuffer;
 
         return renderer;
     }
@@ -288,6 +429,59 @@ RendererLoadMesh(Mesh* mesh)
             mesh->gpuIndexBufferHandle = iboHandle;
         }
     }
+}
+
+u32 RendererLoadChunkMesh(ChunkMesh* mesh)
+{
+    u32 result;
+    GLuint handle;
+    static_assert(sizeof(u32) == sizeof(GLuint));
+
+    glGenBuffers(1, &handle);
+    if (handle)
+    {
+        glBindBuffer(GL_ARRAY_BUFFER, handle);
+        uptr bufferSize = mesh->quadCount * 4 * (sizeof(v3) + sizeof(v3) + sizeof(byte));
+        glBufferData(GL_ARRAY_BUFFER, bufferSize, 0, GL_STATIC_DRAW);
+
+#pragma pack(push, 1)
+        struct Vertex
+        {
+            v3 pos;
+            v3 normal;
+            byte tileId;
+        };
+#pragma pack(pop)
+
+        // TODO: Use glBufferSubData
+        Vertex* buffer;
+        buffer = (Vertex*)glMapBuffer(GL_ARRAY_BUFFER, GL_READ_WRITE);
+        SOKO_ASSERT(buffer);
+        u32 bufferCount = 0;
+        u32 blockCount = 0;
+        ChunkMeshVertexBlock* block = mesh->tail;
+        if (block)
+        {
+            do
+            {
+                blockCount++;
+                for (u32 i = 0; i < block->at; i++)
+                {
+                    buffer[bufferCount].pos = block->positions[i];
+                    buffer[bufferCount].normal = block->normals[i];
+                    buffer[bufferCount].tileId = block->tileIds[i];
+                    bufferCount++;
+                }
+                block = block->prevBlock;
+            }
+            while(block);
+        }
+
+        glUnmapBuffer(GL_ARRAY_BUFFER);
+        glBindBuffer(GL_ARRAY_BUFFER, 0);
+        result = handle;
+    }
+    return result;
 }
 
 void RendererLoadTexture(Texture* texture)
@@ -349,6 +543,7 @@ void RendererLoadTexture(Texture* texture)
 
             bool firstLineShaderInvocation = true;
             bool firstMeshShaderInvocation = true;
+            bool firstChunkMeshShaderInvocation = true;
 
             for (u32 i = 0; i < group->commandQueueAt; i++)
             {
@@ -450,6 +645,57 @@ void RendererLoadTexture(Texture* texture)
 
                     glDrawElements(GL_TRIANGLES, mesh->indexCount, GL_UNSIGNED_INT, 0);
                 } break;
+
+                case RENDER_COMMAND_BEGIN_CHUNK_MESH_BATCH:
+                {
+                    auto* chunkProg = &renderer->chunkProgram;
+                    glUseProgram(chunkProg->handle);
+
+                    if (firstChunkMeshShaderInvocation)
+                    {
+                        firstChunkMeshShaderInvocation = false;
+                        glUniformMatrix4fv(chunkProg->viewProjLocation,
+                                           1, GL_FALSE, viewProj.data);
+                        glUniform3fv(chunkProg->dirLightDirLoc, 1, group->dirLight.dir.data);
+                        glUniform3fv(chunkProg->dirLightAmbLoc, 1, group->dirLight.ambient.data);
+                        glUniform3fv(chunkProg->dirLightDiffLoc, 1, group->dirLight.diffuse.data);
+                        glUniform3fv(chunkProg->dirLightSpecLoc, 1, group->dirLight.specular.data);
+                        glUniform3fv(chunkProg->viewPosLocation, 1, group->cameraConfig.position.data);
+                    }
+
+                    for (u32 i = 0; i < command->instanceCount; i++)
+                    {
+                        auto* data = ((RenderCommandPushChunkMesh*)(group->renderBuffer + command->rbOffset)) + i;
+
+                        m4x4 world = Translation(data->offset);
+                        glUniformMatrix4fv(chunkProg->modelMtxLocation,
+                                           1, GL_FALSE, world.data);
+
+                        m4x4 invModel = world;
+                        bool inverted = Inverse(&invModel);
+                        SOKO_ASSERT(inverted);
+                        m3x3 normalMatrix = M3x3(&Transpose(&invModel));
+
+                        glUniformMatrix3fv(chunkProg->normalMtxLocation,
+                                           1, GL_FALSE, normalMatrix.data);
+
+                        glBindBuffer(GL_ARRAY_BUFFER, data->meshIndex);
+
+                        GLsizei stride = sizeof(v3) + sizeof(v3) + sizeof(byte);
+                        glEnableVertexAttribArray(0);
+                        glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, stride, (void*)0);
+                        glEnableVertexAttribArray(1);
+                        glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, stride, (void*)(sizeof(v3)));
+                        glEnableVertexAttribArray(2);
+                        glVertexAttribPointer(2, 1, GL_UNSIGNED_BYTE, GL_FALSE, stride, (void*)(sizeof(v3) * 2));
+
+                        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, renderer->chunkIndexBuffer);
+
+                        GLsizei numIndices = (GLsizei)(data->quadCount * Renderer::INDICES_PER_CHUNK_QUAD);
+                        glDrawElements(GL_TRIANGLES, numIndices, GL_UNSIGNED_INT, 0);
+                    }
+                } break;
+
                 }
             }
             RenderGroupResetQueue(group);
