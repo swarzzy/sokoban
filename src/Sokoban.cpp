@@ -167,46 +167,46 @@ inline void* ReallocForSTBI(void* p, uptr oldSize, uptr newSize)
 #define glDetachShader GL_FUNCTION(glDetachShader)
 #define glDeleteProgram GL_FUNCTION(glDeleteProgram)
 
-namespace soko
+    namespace soko
+    {
+inline void
+LogAssert(AB::LogLevel level, const char* file, const char* func, u32 line,
+          const char* assertStr, const char* fmt, ...)
 {
-    inline void
-    LogAssert(AB::LogLevel level, const char* file, const char* func, u32 line,
-              const char* assertStr, const char* fmt, ...)
-    {
-        va_list args;
-        va_start(args, fmt);
-        LogAssertV(level, file, func, line, assertStr, fmt, &args);
-        va_end(args);
-    }
-
-    inline void
-    LogAssert(AB::LogLevel level, const char* file, const char* func, u32 line,
-              const char* assertStr)
-    {
-        LogAssertV(level, file, func, line, assertStr, nullptr, nullptr);
-    }
-
-    inline bool
-    JustPressed(AB::KeyCode code)
-    {
-        bool result = GlobalInput.keys[(u32)code].pressedNow && !GlobalInput.keys[(u32)code].wasPressed;
-        return result;
-    }
-
-    inline bool
-    JustReleased(AB::KeyCode code)
-    {
-        bool result = !GlobalInput.keys[(u32)code].pressedNow && GlobalInput.keys[(u32)code].wasPressed;
-        return result;
-    }
-
-    inline bool
-    IsDown(AB::KeyCode code)
-    {
-        bool result = GlobalInput.keys[(u32)code].pressedNow;
-        return result;
-    }
+    va_list args;
+    va_start(args, fmt);
+    LogAssertV(level, file, func, line, assertStr, fmt, &args);
+    va_end(args);
 }
+
+        inline void
+        LogAssert(AB::LogLevel level, const char* file, const char* func, u32 line,
+                  const char* assertStr)
+        {
+            LogAssertV(level, file, func, line, assertStr, nullptr, nullptr);
+        }
+
+        inline bool
+        JustPressed(AB::KeyCode code)
+        {
+            bool result = GlobalInput.keys[(u32)code].pressedNow && !GlobalInput.keys[(u32)code].wasPressed;
+            return result;
+        }
+
+        inline bool
+        JustReleased(AB::KeyCode code)
+        {
+            bool result = !GlobalInput.keys[(u32)code].pressedNow && GlobalInput.keys[(u32)code].wasPressed;
+            return result;
+        }
+
+        inline bool
+        IsDown(AB::KeyCode code)
+        {
+            bool result = GlobalInput.keys[(u32)code].pressedNow;
+            return result;
+        }
+    }
 
 // TODO:: Asserts without message
 // NOTE: Panic macro should not be stripped in release build
@@ -233,6 +233,7 @@ namespace soko
 #include "Player.cpp"
 #include "Network.cpp"
 #include "MeshGen.cpp"
+
 
 extern "C" GAME_CODE_ENTRY void
 GameUpdateAndRender(AB::MemoryArena* arena,
@@ -621,6 +622,7 @@ namespace soko
 #else
         BeginTemporaryMemory(gameState->tempArena);
         gameState->level = LoadLevel(L"testLevel.aab", gameState->memoryArena, gameState->tempArena);
+#if 0
         SOKO_ASSERT(gameState->level);
         EndTemporaryMemory(gameState->tempArena);
         Chunk* chunk = GetChunk(gameState->level, 0, 0, 0);
@@ -631,7 +633,7 @@ namespace soko
         SOKO_ASSERT(meshHandle);
         gameState->testChunkMesh = meshHandle;
         gameState->testMeshQuadCount = chunkMesh.quadCount;
-
+#endif
         EndTemporaryMemory(gameState->tempArena);
 
 #endif

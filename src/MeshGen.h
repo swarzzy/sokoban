@@ -2,6 +2,7 @@
 
 namespace soko
 {
+    struct Chunk;
     struct ChunkMeshVertexBlock
     {
         const_val u32 CAPACITY = 4096;
@@ -17,9 +18,13 @@ namespace soko
     struct ChunkMesh
     {
         u64 vertexCount;
-        u32 quadCount;
+        u64 quadCount;
         u32 blockCount;
         ChunkMeshVertexBlock* head;
         ChunkMeshVertexBlock* tail;
     };
+
+    ChunkMesh GenChunkMesh(Chunk* chunk, AB::MemoryArena* arena);
+
+
 }

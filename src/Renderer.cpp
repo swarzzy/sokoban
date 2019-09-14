@@ -165,7 +165,7 @@ void main()
 
     vec3 diffSample;
     float alpha;
-    vec2 tileUV = vec2(dot(normal.zxy, v_MeshSpacePos), dot(normal.yzx, v_MeshSpacePos));
+    vec2 tileUV = vec2(dot(normal.zxy, v_MeshSpacePos), dot(normal.yzx, v_MeshSpacePos)) - vec2(0.5f);
     diffSample = texture(u_TerrainAtlas, vec3(tileUV.x, tileUV.y, v_TileId)).rgb;
     //diffSample = vec3(tileUV.x, tileUV.y, 0.0f);
     alpha = 1.0f;
@@ -377,12 +377,12 @@ void main()
         for (u32 i = 0; i < indexCount; i += Renderer::INDICES_PER_CHUNK_QUAD)
         {
             SOKO_ASSERT(i < indexCount);
-            buffer[i] = k + 2;
+            buffer[i] = k;
             buffer[i + 1] = k + 1;
-            buffer[i + 2] = k;
-            buffer[i + 3] = k;
+            buffer[i + 2] = k + 2;
+            buffer[i + 3] = k + 2;
             buffer[i + 4] = k + 3;
-            buffer[i + 5] = k + 2;
+            buffer[i + 5] = k + 0;
             k += 4;
         }
 
@@ -459,9 +459,9 @@ RendererLoadMesh(Mesh* mesh)
     }
 }
 
-u32 RendererLoadChunkMesh(ChunkMesh* mesh)
+LoadedChunkMesh RendererLoadChunkMesh(ChunkMesh* mesh)
 {
-    u32 result;
+    LoadedChunkMesh result = {};
     GLuint handle;
     static_assert(sizeof(u32) == sizeof(GLuint));
 
@@ -507,7 +507,8 @@ u32 RendererLoadChunkMesh(ChunkMesh* mesh)
 
         glUnmapBuffer(GL_ARRAY_BUFFER);
         glBindBuffer(GL_ARRAY_BUFFER, 0);
-        result = handle;
+        result.gpuHandle = handle;
+        result.quadCount = mesh->quadCount;
     }
     return result;
 }

@@ -33,6 +33,8 @@ namespace soko
             mesh->blockCount++;
         }
 
+        // NOTE: Converting to right-handed system
+        position.z *= -1.0f;
         mesh->head->positions[mesh->head->at] = position;
         mesh->head->normals[mesh->head->at] = normal;
         mesh->head->tileIds[mesh->head->at] = tileId;
@@ -87,32 +89,32 @@ namespace soko
 
                     if (testTile && testTile->value)
                     {
-                        v3 offset = V3(tileX * Level::TILE_SIZE,
+                        v3 offset = V3((tileX * Level::TILE_SIZE),
                                        tileZ * Level::TILE_SIZE,
-                                       tileY * Level::TILE_SIZE);
+                                       (tileY * Level::TILE_SIZE));
 
-                        v3 min = offset;
-                        v3 max = offset + V3(Level::TILE_SIZE);
+                        v3 min = offset - 0.5f * V3(Level::TILE_SIZE);;
+                        v3 max = offset + 0.5f * V3(Level::TILE_SIZE);
 
                         TileValue val = testTile->value;
 
-                        v3 vtx0 = min;
-                        v3 vtx1 = V3(max.x, min.y, min.z);
-                        v3 vtx2 = V3(max.x, min.y, max.z);
-                        v3 vtx3 = V3(min.x, min.y, max.z);
+                        v3 vtx0 = V3(min.x, min.y, max.z);
+                        v3 vtx1 = V3(max.x, min.y, max.z);
+                        v3 vtx2 = V3(max.x, max.y, max.z);
+                        v3 vtx3 = V3(min.x, max.y, max.z);
 
-                        v3 vtx4 = V3(min.x, max.y, min.z);
-                        v3 vtx5 = V3(max.x, max.y, min.z);
-                        v3 vtx6 = V3(max.x, max.y, max.z);
-                        v3 vtx7 = V3(min.x, max.y, max.z);
+                        v3 vtx4 = V3(min.x, min.y, min.z);
+                        v3 vtx5 = V3(max.x, min.y, min.z);
+                        v3 vtx6 = V3(max.x, max.y, min.z);
+                        v3 vtx7 = V3(min.x, max.y, min.z);
 
                         if (!TileNotEmpty(upTile))
                         {
-                            PushChunkMeshQuad(&mesh, arena, vtx5, vtx6, vtx7, vtx4, val);
+                            PushChunkMeshQuad(&mesh, arena, vtx3, vtx7, vtx6, vtx2, val);
                         }
                         if (!TileNotEmpty(dnTile))
                         {
-                            PushChunkMeshQuad(&mesh, arena, vtx0, vtx3, vtx2, vtx1, val);
+                            PushChunkMeshQuad(&mesh, arena, vtx4, vtx0, vtx1, vtx5, val);
                         }
                         if (!TileNotEmpty(rTile))
                         {
@@ -120,15 +122,15 @@ namespace soko
                         }
                         if (!TileNotEmpty(lTile))
                         {
-                            PushChunkMeshQuad(&mesh, arena, vtx3, vtx0, vtx4, vtx7, val);
+                            PushChunkMeshQuad(&mesh, arena, vtx4, vtx7, vtx3, vtx0, val);
                         }
                         if (!TileNotEmpty(fTile))
                         {
-                            PushChunkMeshQuad(&mesh, arena, vtx2, vtx3, vtx7, vtx6, val);
+                            PushChunkMeshQuad(&mesh, arena, vtx0, vtx3, vtx2, vtx1, val);
                         }
                         if (!TileNotEmpty(bTile))
                         {
-                            PushChunkMeshQuad(&mesh, arena, vtx0, vtx1, vtx5, vtx4, val);
+                            PushChunkMeshQuad(&mesh, arena, vtx5, vtx6, vtx7, vtx4, val);
                         }
                     }
                 }

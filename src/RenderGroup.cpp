@@ -376,7 +376,4 @@ namespace soko
                                RENDER_COMMAND_DRAW_LINE_END,
                                (void*)(0));
     }
-
-
-
 }

@@ -1,5 +1,6 @@
 #pragma once
 #include "Platform.h"
+#include "Renderer.h"
 
 namespace soko
 {
@@ -250,6 +251,7 @@ namespace soko
         const_val u32 TILE_COUNT = DIM * DIM * DIM;
         v3i coord;
         Tile tiles[DIM * DIM * DIM];
+        LoadedChunkMesh mesh;
     };
 
     struct Level

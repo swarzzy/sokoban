@@ -641,38 +641,29 @@ namespace soko
     void
     DrawLevel(Level* level, GameState* gameState)
     {
+        RenderGroupPushCommand(gameState->renderGroup,
+                               RENDER_COMMAND_BEGIN_CHUNK_MESH_BATCH, 0);
         // TODO: Sparseness
         for (u32 chunkIndex = 0; chunkIndex < Level::CHUNK_TABLE_SIZE; chunkIndex++)
         {
             Chunk* chunk = level->chunkTable[chunkIndex];
             if (chunk)
             {
-                for (u32 x = 0; x < Chunk::DIM; x++)
-                {
-                    for (u32 y = 0; y < Chunk::DIM; y++)
-                    {
-                        for (u32 z = 0; z < Chunk::DIM; z++)
-                        {
-                            Tile* tile = GetTileInChunk(chunk, x, y, z);
-                            if (tile && tile->value == TILE_VALUE_WALL)
-                            {
-                                f32 xCoord = tile->coord.x * Level::TILE_SIZE;
-                                f32 yCoord = tile->coord.z * Level::TILE_SIZE;
-                                f32 zCoord = tile->coord.y * Level::TILE_SIZE;
-                                v3 pos = V3(xCoord, yCoord, -zCoord);
-                                RenderCommandDrawMesh command = {};
-                                command.transform = Translation(pos);
-                                command.mesh = &gameState->cubeMesh;
-                                command.material = &gameState->tileMaterial;
-                                RenderGroupPushCommand(gameState->renderGroup, RENDER_COMMAND_DRAW_MESH,
-                                                       (void*)&command);
-
-                            }
-                        }
-                    }
-                }
+                f32 chunkSize = Level::TILE_SIZE * Chunk::DIM;
+                // TODO: FIX That subtraction
+                v3 chunkCoord = V3((f32)chunk->coord.x, (f32)chunk->coord.z, (f32)chunk->coord.y) - V3(Level::MAX_DIM_CHUNKS) + 1;
+                //chunkCoord.z *= -1.0f;
+                v3 offset = Hadamard(chunkCoord, V3(chunkSize));
+                RenderCommandPushChunkMesh c = {};
+                c.offset = offset;
+                c.meshIndex = chunk->mesh.gpuHandle;
+                c.quadCount = chunk->mesh.quadCount;;
+                RenderGroupPushCommand(gameState->renderGroup,
+                                       RENDER_COMMAND_PUSH_CHUNK_MESH, (void*)&c);
             }
         }
+        RenderGroupPushCommand(gameState->renderGroup,
+                               RENDER_COMMAND_END_CHUNK_MESH_BATCH, 0);
     }
 
     void
@@ -810,6 +801,9 @@ namespace soko
                                         }
                                     }
                                 }
+                                ChunkMesh mesh = GenChunkMesh(newChunk, tempArena);
+                                LoadedChunkMesh loadedMesh = RendererLoadChunkMesh(&mesh);
+                                newChunk->mesh = loadedMesh;
                             }
                             else
                             {
