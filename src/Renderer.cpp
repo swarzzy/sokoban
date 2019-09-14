@@ -643,7 +643,8 @@ void RendererLoadTexture(Texture* texture)
                     m4x4 invModel = data->transform;
                     bool inverted = Inverse(&invModel);
                     SOKO_ASSERT(inverted, "");
-                    m3x3 normalMatrix = M3x3(&Transpose(&invModel));
+                    m4x4 transModel = Transpose(&invModel);
+                    m3x3 normalMatrix = M3x3(&transModel);
 
                     glUniformMatrix3fv(meshProg->normalMtxLocation,
                                        1, GL_FALSE, normalMatrix.data);
@@ -705,7 +706,8 @@ void RendererLoadTexture(Texture* texture)
                         m4x4 invModel = world;
                         bool inverted = Inverse(&invModel);
                         SOKO_ASSERT(inverted);
-                        m3x3 normalMatrix = M3x3(&Transpose(&invModel));
+                        m4x4 transModel = Transpose(&invModel);
+                        m3x3 normalMatrix = M3x3(&transModel);
 
                         glUniformMatrix3fv(chunkProg->normalMtxLocation,
                                            1, GL_FALSE, normalMatrix.data);

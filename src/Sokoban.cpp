@@ -593,7 +593,8 @@ namespace soko
 
 
 #if 0
-        Chunk* chunk = GetChunk(&gameState->level, 0, 0, 0, arena);
+        gameState->level = PUSH_STRUCT(arena, Level);
+        Chunk* chunk = GetChunk(gameState->level, 0, 0, 0, arena);
         //Chunk* chunk = GetChunk(&gameState->level, 1, 1, 1, arena);
         SOKO_ASSERT(chunk);
 
@@ -616,7 +617,7 @@ namespace soko
         }
 
         BeginTemporaryMemory(gameState->tempArena);
-        bool saveResult = SaveLevel(&gameState->level, L"testLevel.aab", gameState->tempArena);
+        bool saveResult = SaveLevel(gameState->level, L"testLevel.aab", gameState->tempArena);
         SOKO_ASSERT(saveResult);
         EndTemporaryMemory(gameState->tempArena);
 #else
@@ -783,7 +784,7 @@ namespace soko
                 {
                     gameState->port = (u16)val;
                 }
-                if (gameState->port > 1023 && gameState->port < 65536)
+                if (gameState->port > 1023 && gameState->port < 65535)
                 {
                     buttonEnabled = true;
                 }
@@ -865,7 +866,7 @@ namespace soko
                 {
                     gameState->port = (u16)val;
                 }
-                if (gameState->port > 1023 && gameState->port < 65536 && inputSucceed)
+                if (gameState->port > 1023 && gameState->port < 65535 && inputSucceed)
                 {
                     buttonEnabled = true;
                 }

@@ -23,7 +23,7 @@ namespace soko
             FormatString(fpsBuffer, 128, "FPS: %11i32\nUPS: % 11i32\ndT(abs):  %.4f32\ndT(game): %.4f32",
                          PlatformGlobals.fps, PlatformGlobals.ups,
                          GlobalAbsDeltaTime, GlobalGameDeltaTime);
-            ImGui::Text(fpsBuffer);
+            ImGui::Text("%s", fpsBuffer);
             if (ImGui::BeginPopupContextWindow())
             {
                 if (ImGui::MenuItem("Custom",       NULL, corner == -1)) corner = -1;
@@ -74,7 +74,7 @@ namespace soko
                          ImGuiWindowFlags_NoNav))
         {
             ImGui::Separator();
-            ImGui::Text(string);
+            ImGui::Text("%s", string);
         }
         ImGui::End();
     }
@@ -93,7 +93,7 @@ namespace soko
             ImGui::Separator();
             char buffer[128];
             FormatString(buffer, 128, "%s: x: %u32; y: %u32; z: %u32", title, var.x, var.y, var.z);
-            ImGui::Text(buffer);
+            ImGui::Text("%s", buffer);
         }
         ImGui::End();
     }
@@ -112,7 +112,7 @@ namespace soko
             ImGui::Separator();
             char buffer[128];
             FormatString(buffer, 128, "%s: x: %i32; y: %i32; z: %i32", title, var.x, var.y, var.z);
-            ImGui::Text(buffer);
+            ImGui::Text("%s", buffer);
         }
         ImGui::End();
     }
@@ -132,7 +132,7 @@ namespace soko
             ImGui::Separator();
             char buffer[128];
             FormatString(buffer, 128, "%s: x: %.3f32; y: %.3f32; z: %.3f32", title, var.x, var.y, var.z);
-            ImGui::Text(buffer);
+            ImGui::Text("%s", buffer);
         }
         ImGui::End();
     }
@@ -151,7 +151,7 @@ namespace soko
             ImGui::Separator();
             char buffer[128];
             FormatString(buffer, 128, "%s: x: %u32", title, var);
-            ImGui::Text(buffer);
+            ImGui::Text("%s", buffer);
         }
         ImGui::End();
     }
