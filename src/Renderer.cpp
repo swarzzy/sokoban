@@ -115,7 +115,7 @@ uniform mat4 u_ViewProjMatrix;
 void main()
 {
     v_TileId = a_TileId;
-    v_MeshSpacePos = v_Position;
+    v_MeshSpacePos = a_Position;
     v_Position = (u_ModelMatrix * vec4(a_Position, 1.0f)).xyz;
     v_Normal = u_NormalMatrix * a_Normal;
     //v_LightSpacePosition = u_LightSpaceMatrix * modelMatrix * vec4(a_Position, 1.0f);
@@ -167,7 +167,7 @@ void main()
     float alpha;
     vec2 tileUV = vec2(dot(normal.zxy, v_MeshSpacePos), dot(normal.yzx, v_MeshSpacePos));
     diffSample = texture(u_TerrainAtlas, vec3(tileUV.x, tileUV.y, v_TileId)).rgb;
-    diffSample = vec3(1.0f, 0.0f, 1.0f);
+    //diffSample = vec3(tileUV.x, tileUV.y, 0.0f);
     alpha = 1.0f;
 
     vec3 directional = CalcDirectionalLight(u_DirLight, normal, viewDir, diffSample);
@@ -343,7 +343,7 @@ void main()
     }
 
     Renderer*
-    AllocAndInitRenderer(AB::MemoryArena* arena)
+    AllocAndInitRenderer(AB::MemoryArena* arena, AB::MemoryArena* tempArena)
     {
         Renderer* renderer = nullptr;
         renderer = PUSH_STRUCT(arena, Renderer);
@@ -388,6 +388,34 @@ void main()
 
         glUnmapBuffer(GL_ELEMENT_ARRAY_BUFFER);
         renderer->chunkIndexBuffer = chunkIndexBuffer;
+
+        i32 width;
+        i32 height;
+        i32 bpp;
+        BeginTemporaryMemory(tempArena);
+        unsigned char* bitmap = stbi_load("../res/tile.png", &width, &height, &bpp, 3);
+
+        GLuint terrainTexArray;
+        glGenTextures(1, &terrainTexArray);
+        glBindTexture(GL_TEXTURE_2D_ARRAY, terrainTexArray);
+        // TODO : STUDY: glTexStorage and glTexSubImage
+        glTexImage3D(GL_TEXTURE_2D_ARRAY, 0, GL_RGB8,
+                     Renderer::TILE_TEX_DIM, Renderer::TILE_TEX_DIM,
+                     Renderer::TERRAIN_TEX_ARRAY_SIZE,
+                     0, GL_RGB, GL_UNSIGNED_BYTE, 0);
+
+        glTexSubImage3D(GL_TEXTURE_2D_ARRAY, 0, 0, 0, TerrainTexture_Block,
+                        Renderer::TILE_TEX_DIM, Renderer::TILE_TEX_DIM, 1,
+                        GL_RGB, GL_UNSIGNED_BYTE, bitmap);
+
+        glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_WRAP_S, GL_REPEAT);
+        glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_WRAP_T, GL_REPEAT);
+        glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+        glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+
+        EndTemporaryMemory(tempArena);
+        glBindTexture(GL_TEXTURE_2D_ARRAY, 0);
+        renderer->tileTexArrayHandle = terrainTexArray;
 
         return renderer;
     }
@@ -650,6 +678,8 @@ void RendererLoadTexture(Texture* texture)
                 {
                     auto* chunkProg = &renderer->chunkProgram;
                     glUseProgram(chunkProg->handle);
+                    glActiveTexture(chunkProg->atlasSlot);
+                    glBindTexture(GL_TEXTURE_2D_ARRAY, renderer->tileTexArrayHandle);
 
                     if (firstChunkMeshShaderInvocation)
                     {
@@ -704,5 +734,3 @@ void RendererLoadTexture(Texture* texture)
     }
 
 }
-
-

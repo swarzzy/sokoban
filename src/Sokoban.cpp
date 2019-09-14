@@ -291,7 +291,7 @@ namespace soko
 
         gameState->overlayCorner = 1;
 
-        gameState->renderer = AllocAndInitRenderer(arena);
+        gameState->renderer = AllocAndInitRenderer(arena, tempArena);
         gameState->renderGroup = AllocateRenderGroup(arena, KILOBYTES(1024), 16384);
 
         CameraConfig camera = {};
@@ -717,13 +717,12 @@ namespace soko
                                                     &gameState->buttonMesh, &gameState->buttonMaterial,
                                                     gameState->memoryArena));
         // TODO(emacs): Lambdas indenting
-        button->updateProc = [](Level* level, Entity* entity, void* data)
-            {
-                GameState* gameState = (GameState*)data;
-                AddEntity(level, ENTITY_TYPE_BLOCK, V3I(4, 5, 1),
-                          &gameState->cubeMesh, &gameState->tileBlockMaterial,
-                          gameState->memoryArena);
-            };
+        button->updateProc = [](Level* level, Entity* entity, void* data) {
+            GameState* gameState = (GameState*)data;
+            AddEntity(level, ENTITY_TYPE_BLOCK, V3I(4, 5, 1),
+                      &gameState->cubeMesh, &gameState->tileBlockMaterial,
+                      gameState->memoryArena);
+        };
         button->updateProcData = (void*)gameState;
 
         gameState->port = 9999;
@@ -1311,4 +1310,3 @@ namespace soko
 #include "imgui/imgui_draw.cpp"
 #include "imgui/imgui_widgets.cpp"
 #include "imgui/imgui_demo.cpp"
-

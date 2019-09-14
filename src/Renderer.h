@@ -50,14 +50,23 @@ namespace soko
         GLint terrainAtlasLoc;
     };
 
+    enum TerrainTexture
+    {
+        TerrainTexture_Null = 0,
+        TerrainTexture_Block,
+    };
 
     struct Renderer
     {
+        const_val u32 TILE_TEX_DIM = 256;
+        const_val u32 TERRAIN_TEX_ARRAY_SIZE = 32;
         const_val u32 MAX_CHUNK_QUADS = Chunk::DIM * Chunk::DIM * Chunk::DIM * 4 / 2;
         const_val u32 INDICES_PER_CHUNK_QUAD = 6;
         LineProgram lineProgram;
         MeshProgram meshProgram;
         ChunkProgram chunkProgram;
+
+        GLuint tileTexArrayHandle;
 
         GLuint lineBufferHandle;
         GLuint chunkIndexBuffer;
@@ -73,7 +82,7 @@ namespace soko
         void* data;
     };
 
-    Renderer* AllocAndInitRenderer(AB::MemoryArena* arena);
+    Renderer* AllocAndInitRenderer(AB::MemoryArena* arena, AB::MemoryArena* tempArena);
     void RendererLoadMesh(Mesh* mesh);
     u32 RendererLoadChunkMesh(ChunkMesh* mesh);
     void RendererLoadTexture(Texture* texture);
