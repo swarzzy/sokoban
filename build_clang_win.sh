@@ -16,7 +16,7 @@ GameLinkerFlags=""
 
 ConfigCompilerFlags=$DebugCompilerFlags
 
-g++ -save-temps=obj -DAB_PLATFORM_CODE -o $BinOutDir/Soko.exe $CommonDefines $IncludeDirs $CommonCompilerFlags $ConfigCompilerFlags src/Win32Platform.cpp $PlatformLinkerFlags
-g++ -save-temps=obj -o $BinOutDir/SokoGame.dll $CommonDefines $IncludeDirs $CommonCompilerFlags $ConfigCompilerFlags src/Sokoban.cpp -shared  $AppLinkerFlags
+clang++ -save-temps=obj -DAB_PLATFORM_CODE -o $BinOutDir/Soko.exe $CommonDefines $IncludeDirs $CommonCompilerFlags $ConfigCompilerFlags src/Win32Platform.cpp $PlatformLinkerFlags
+clang++ -save-temps=obj -o $BinOutDir/SokoGame.dll $CommonDefines $IncludeDirs $CommonCompilerFlags $ConfigCompilerFlags src/Sokoban.cpp -shared  $AppLinkerFlags
 
 #ctime -end ctime.ctm
