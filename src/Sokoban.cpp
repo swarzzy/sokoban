@@ -593,26 +593,31 @@ namespace soko
 
 
 #if 0
-        gameState->level = PUSH_STRUCT(arena, Level);
-        Chunk* chunk = GetChunk(gameState->level, 0, 0, 0, arena);
-        //Chunk* chunk = GetChunk(&gameState->level, 1, 1, 1, arena);
-        SOKO_ASSERT(chunk);
-
-        for (u32 x = 0; x < Chunk::DIM; x++)
+        gameState->level = CreateLevel(arena, 32 * 32);
+        for (i32 chunkX = Level::MIN_DIM_CHUNKS + 5; chunkX < Level::MAX_DIM_CHUNKS - 5; chunkX++)
         {
-            for (u32 y = 0; y < Chunk::DIM; y++)
+            for (i32 chunkY = Level::MIN_DIM_CHUNKS + 5; chunkY < Level::MAX_DIM_CHUNKS - 5; chunkY++)
             {
-                Tile* tile = GetTileInChunk(chunk, x, y, 0);
-                SOKO_ASSERT(tile);
-                tile->value = TILE_VALUE_WALL;
+                Chunk* chunk = InitChunk(gameState->level, chunkX, chunkY, 0);
+                SOKO_ASSERT(chunk);
 
-                if ((x == 0) || (x == Chunk::DIM - 1) ||
-                    (y == 0) || (y == Chunk::DIM - 1))
+                for (u32 x = 0; x < Chunk::DIM; x++)
                 {
-                    Tile* tile1 = GetTileInChunk(chunk, x, y, 1);
-                    SOKO_ASSERT(tile1);
-                    tile1->value = TILE_VALUE_WALL;
-                }
+                    for (u32 y = 0; y < Chunk::DIM; y++)
+                    {
+                        Tile* tile = GetTileInChunk(chunk, x, y, 0);
+                        SOKO_ASSERT(tile);
+                        tile->value = TILE_VALUE_WALL;
+
+                        if ((x == 0) || (x == Chunk::DIM - 1) ||
+                            (y == 0) || (y == Chunk::DIM - 1))
+                        {
+                            Tile* tile1 = GetTileInChunk(chunk, x, y, 1);
+                            SOKO_ASSERT(tile1);
+                            tile1->value = TILE_VALUE_WALL;
+                        }
+                    }               }
+
             }
         }
 

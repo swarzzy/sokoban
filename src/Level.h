@@ -249,30 +249,33 @@ namespace soko
         const_val u32 BIT_MASK = (1 << BIT_SHIFT) - 1;
         const_val u32 DIM = 1 << BIT_SHIFT;
         const_val u32 TILE_COUNT = DIM * DIM * DIM;
+        bool loaded;
         v3i coord;
         Tile tiles[DIM * DIM * DIM];
         LoadedChunkMesh mesh;
     };
 
+
     struct Level
     {
+        const_val i32 INVALID_COORD = 0x7fffffff;
         const_val i32 MAX_DIM = 512;
         const_val i32 MIN_DIM = -511;
 
-        const_val u32 FULL_DIM_CHUNKS = (MAX_DIM * 2) / Chunk::DIM;
+        const_val u32 FULL_DIM_CHUNKS = (MAX_DIM * 2) / Chunk::DIM; // 32
         const_val i32 MAX_DIM_CHUNKS = FULL_DIM_CHUNKS / 2;
         const_val i32 MIN_DIM_CHUNKS = -1 * MAX_DIM_CHUNKS + 1;
-        const_val u32 CHUNK_TABLE_SIZE = FULL_DIM_CHUNKS * FULL_DIM_CHUNKS * FULL_DIM_CHUNKS;
         const_val u32 ENTITY_TABLE_SIZE = 1024;
         const_val f32 TILE_SIZE = 1.0f;
 
         // NOTE: Maximum size of the level is 1024-tile-side cube
         // so count of tiles in cube is less than 2^32
 
-        u32 chunkCount;
-        // TODO: Use fixed size hash table with intrenal chaining
-        // for runtime
-        Chunk* chunkTable[CHUNK_TABLE_SIZE];
+        u32 loadedChunksCount;
+        // TODO: @Robustness Store linked list of loaded chunks
+        // for fast traversing
+        u32 chunkTableSize;
+        Chunk* chunkTable;
 
         // TODO: Use 64bit IDs for entities
         u32 entitySerialNumber;

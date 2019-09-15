@@ -43,7 +43,7 @@ namespace AB
     // @TODO: Error here
     const u32 UINT32_MAX = 0xffffffff;
     const i32 INT32_MIN = -(i32)(2147483648);
-    const i32 INT32_MAX = (i32)(2147483647);
+    const i32 INT32_MAX = (i32)(0x7fffffff);
     const f32 FLOAT_MAX = FLT_MAX;
 */
 

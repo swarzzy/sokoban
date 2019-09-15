@@ -19,8 +19,27 @@ namespace soko
         return result;
     }
 
+    Level* CreateLevel(AB::MemoryArena* arena, u32 chunksNum)
+    {
+        SOKO_ASSERT(chunksNum <= Level::FULL_DIM_CHUNKS * Level::FULL_DIM_CHUNKS * Level::FULL_DIM_CHUNKS);
+        Level* result = 0;
+        result = PUSH_STRUCT(arena, Level);
+        if (result)
+        {
+            result->chunkTable = PUSH_ARRAY(arena, Chunk, chunksNum);
+            SOKO_ASSERT(result->chunkTable);
+            result->chunkTableSize = chunksNum;
+            for (u32 i = 0; i < chunksNum; i++)
+            {
+                Chunk* chunk = result->chunkTable + i;
+                chunk->coord = V3I(Level::INVALID_COORD);
+            }
+        }
+        return result;
+    }
+
     inline Chunk*
-    GetChunk(Level* level, i32 x, i32 y, i32 z, AB::MemoryArena* arena = 0)
+    GetChunk(Level* level, i32 x, i32 y, i32 z)
     {
         Chunk* result = 0;
 
@@ -28,44 +47,88 @@ namespace soko
         SOKO_ASSERT(y >= Level::MIN_DIM_CHUNKS && y <= Level::MAX_DIM_CHUNKS);
         SOKO_ASSERT(z >= Level::MIN_DIM_CHUNKS && z <= Level::MAX_DIM_CHUNKS);
 
-        u32 xIndex = (u32)(x + Level::MAX_DIM_CHUNKS - 1);
-        u32 yIndex = (u32)(y + Level::MAX_DIM_CHUNKS - 1);
-        u32 zIndex = (u32)(z + Level::MAX_DIM_CHUNKS - 1);
+        // TODO: Better hash
+        u32 hash = (Abs(x) * 7 + Abs(y) * Abs(13) + Abs(z) * 23) % level->chunkTableSize;
 
-        u32 chunkTableIndex =
-            zIndex * Level::FULL_DIM_CHUNKS * Level::FULL_DIM_CHUNKS +
-            yIndex * Level::FULL_DIM_CHUNKS +
-            xIndex;
-
-        if (chunkTableIndex <= (Level::MAX_DIM * 2) * (Level::MAX_DIM * 2) * (Level::MAX_DIM * 2))
+        for (u32 offset = 0; offset < level->chunkTableSize; offset++)
         {
-            result = level->chunkTable[chunkTableIndex];
-            if (!result && arena)
+            u32 index = hash + offset;
+            if (index > (level->chunkTableSize - 1))
             {
-                result = PUSH_STRUCT(arena, Chunk);
-                if (result)
-                {
-                    // TODO: Do I need to store this?
-                    result->coord = V3I(xIndex, yIndex, zIndex);
-                    level->chunkTable[chunkTableIndex] = result;
-                    level->chunkCount++;
+                index -= level->chunkTableSize;
+            }
+            Chunk* chunk = level->chunkTable + index;
+            if (chunk->loaded &&
+                chunk->coord.x == x &&
+                chunk->coord.y == y &&
+                chunk->coord.z == z)
+            {
+                result = chunk;
+                break;
+            }
+        }
+        return result;
+    }
 
-                    for (u32 tileZ = 0; tileZ < Chunk::DIM; tileZ++)
+    inline Chunk*
+    GetChunk(Level* level, v3i coord)
+    {
+        Chunk* result = GetChunk(level, coord.x, coord.y, coord.z);
+        return result;
+    }
+
+    inline Chunk*
+    InitChunk(Level* level, i32 x, i32 y, i32 z)
+    {
+        Chunk* result = 0;
+
+        SOKO_ASSERT(x >= Level::MIN_DIM_CHUNKS && x <= Level::MAX_DIM_CHUNKS);
+        SOKO_ASSERT(y >= Level::MIN_DIM_CHUNKS && y <= Level::MAX_DIM_CHUNKS);
+        SOKO_ASSERT(z >= Level::MIN_DIM_CHUNKS && z <= Level::MAX_DIM_CHUNKS);
+
+        // TODO: Better hash
+        u32 hash = (Abs(x) * 7 + Abs(y) * Abs(13) + Abs(z) * 23) % level->chunkTableSize;
+
+        for (u32 offset = 0; offset < level->chunkTableSize; offset++)
+        {
+            u32 index = hash + offset;
+            if (index > (level->chunkTableSize - 1))
+            {
+                index -= level->chunkTableSize;
+            }
+            Chunk* chunk = level->chunkTable + index;
+            if (!chunk->loaded)
+            {
+                chunk->loaded = true;
+                chunk->coord = V3I(x, y, z);
+                result = chunk;
+                break;
+            }
+        }
+
+        level->loadedChunksCount++;
+        if (result)
+        {
+            for (u32 tileZ = 0; tileZ < Chunk::DIM; tileZ++)
+            {
+                for (u32 tileY = 0; tileY < Chunk::DIM; tileY++)
+                {
+                    for (u32 tileX = 0; tileX < Chunk::DIM; tileX++)
                     {
-                        for (u32 tileY = 0; tileY < Chunk::DIM; tileY++)
-                        {
-                            for (u32 tileX = 0; tileX < Chunk::DIM; tileX++)
-                            {
-                                u32 tileIndex = tileZ * Chunk::DIM * Chunk::DIM + tileY * Chunk::DIM + tileX;
-                                Tile* tile = result->tiles + tileIndex;
-                                tile->coord = V3I(x * Chunk::DIM + tileX, y * Chunk::DIM + tileY, z * Chunk::DIM + tileZ);
-                            }
-                        }
+                        u32 tileIndex = tileZ * Chunk::DIM * Chunk::DIM + tileY * Chunk::DIM + tileX;
+                        Tile* tile = result->tiles + tileIndex;
+                        tile->coord = V3I(x * Chunk::DIM + tileX, y * Chunk::DIM + tileY, z * Chunk::DIM + tileZ);
                     }
                 }
             }
         }
+        return result;
+    }
 
+    inline Chunk*
+    InitChunk(Level* level, v3i coord)
+    {
+        Chunk* result = InitChunk(level, coord.x, coord.y, coord.z);
         return result;
     }
 
@@ -113,7 +176,7 @@ namespace soko
         u32 tileY = y & Chunk::BIT_MASK;
         u32 tileZ = z & Chunk::BIT_MASK;
 
-        Chunk* chunk = GetChunk(level, chunkX, chunkY, chunkZ, arena);
+        Chunk* chunk = GetChunk(level, chunkX, chunkY, chunkZ);
 
         if (chunk)
         {
@@ -148,161 +211,6 @@ namespace soko
         }
         return result;
     }
-
-    #if 0
-    inline TileQuery
-    GetTile(Level* level, i32 x, i32 y, i32 z, AB::MemoryArena* arena = nullptr)
-    {
-        TileQuery result = {};
-        if (x > Level::MAX_DIM || x < Level::MIN_DIM ||
-            y > Level::MAX_DIM || y < Level::MIN_DIM ||
-            z > Level::MAX_DIM || z < Level::MIN_DIM)
-        {
-            result.result = TileQuery::OutOfBounds;
-        }
-        else
-        {
-            // TODO: Better hash
-            u32 tileHash = (Abs(x) * 22 + Abs(y) * 12 + Abs(z) * 7) % Level::TILE_TABLE_SIZE;
-            Tile* tile = level->tiles[tileHash];
-            if (tile)
-            {
-                // TODO: Collapse to do-while
-                if (tile->coord.x == x &&
-                    tile->coord.y == y &&
-                    tile->coord.z == z)
-                {
-                    result.result = TileQuery::Found;
-                    result.tile = tile;
-                }
-                else
-                {
-                    while (tile->nextTile)
-                    {
-                        Tile* nextTile = tile->nextTile;
-                        if (nextTile->coord.x == x &&
-                            nextTile->coord.y == y &&
-                            nextTile->coord.z == z)
-                        {
-                            result.result = TileQuery::Found;
-                            result.tile = nextTile;
-                            break;
-                        }
-                        else
-                        {
-                            tile = tile->nextTile;
-                        }
-                    }
-                }
-            }
-            // NOTE: Allocation call always should be called with arena
-            // Even if it takes space from freelist
-            if (!result.tile && arena)
-            {
-                Tile* newTile = nullptr;
-                if (level->tileFreeList)
-                {
-                    newTile = level->tileFreeList;
-                    level->tileFreeList = newTile->nextTile;
-                    level->freeTileCount--;
-                    ZERO_STRUCT(Tile, newTile);
-                }
-                else
-                {
-                    newTile = PUSH_STRUCT(arena, Tile);
-                }
-
-                if (!newTile)
-                {
-                    result.result = TileQuery::AllocationError;
-                }
-                else
-                {
-                    if (!tile)
-                    {
-                        level->tiles[tileHash] = newTile;
-                    }
-                    else
-                    {
-                        tile->nextTile = newTile;
-                    }
-
-                    newTile->coord.x = x;
-                    newTile->coord.y = y;
-                    newTile->coord.z = z;
-                    level->tileCount++;
-
-                    result.result = TileQuery::Found;
-                    result.tile = newTile;
-
-                }
-            }
-        }
-        return result;
-    }
-
-    inline TileQuery
-    GetTile(Level* level, v3i coord, AB::MemoryArena* arena = NULL)
-    {
-        TileQuery result = GetTile(level, coord.x, coord.y, coord.z, arena);
-        return result;
-    }
-
-    void
-    FreeTileIfEmpty(Level* level, Tile* tile)
-    {
-        if (tile->value == TILE_VALUE_EMPTY && !tile->entityList.first)
-        {
-            i32 x = tile->coord.x;
-            i32 y = tile->coord.y;
-            i32 z = tile->coord.z;
-            // TODO: This is the same code as in GetTile
-            // TODO: Better hash
-            u32 tileHash = (Abs(x) * 22 + Abs(y) * 12 + Abs(z) * 7) % Level::TILE_TABLE_SIZE;
-            Tile* currentTile = level->tiles[tileHash];
-            bool found = false;
-            if (currentTile)
-            {
-                // TODO: Collapse to do-while
-                if (currentTile->coord.x == x &&
-                    currentTile->coord.y == y &&
-                    currentTile->coord.z == z)
-                {
-                    level->tiles[tileHash] = currentTile->nextTile;
-                    found = true;
-                }
-                else
-                {
-                    while (currentTile->nextTile)
-                    {
-                        Tile* nextTile = currentTile->nextTile;
-                        if (nextTile->coord.x == x &&
-                            nextTile->coord.y == y &&
-                            nextTile->coord.z == z)
-                        {
-                            currentTile->nextTile = tile->nextTile;
-                            found = true;
-                            break;
-                        }
-                        else
-                        {
-                            currentTile = currentTile->nextTile;
-                        }
-                    }
-                }
-
-            }
-            SOKO_ASSERT(found);
-            if (found)
-            {
-                tile->nextTile = level->tileFreeList;
-                level->tileFreeList = tile;
-                level->freeTileCount++;
-                level->tileCount--;
-            }
-        }
-    }
-#endif
 
     inline Entity*
     GetEntityMemory(Level* level, AB::MemoryArena* arena)
@@ -644,14 +552,14 @@ namespace soko
         RenderGroupPushCommand(gameState->renderGroup,
                                RENDER_COMMAND_BEGIN_CHUNK_MESH_BATCH, 0);
         // TODO: Sparseness
-        for (u32 chunkIndex = 0; chunkIndex < Level::CHUNK_TABLE_SIZE; chunkIndex++)
+        for (u32 chunkIndex = 0; chunkIndex < level->chunkTableSize; chunkIndex++)
         {
-            Chunk* chunk = level->chunkTable[chunkIndex];
+            Chunk* chunk = level->chunkTable + chunkIndex;
             if (chunk)
             {
                 f32 chunkSize = Level::TILE_SIZE * Chunk::DIM;
                 // TODO: FIX That subtraction
-                v3 chunkCoord = V3((f32)chunk->coord.x, (f32)chunk->coord.z, (f32)chunk->coord.y) - V3(Level::MAX_DIM_CHUNKS) + 1;
+                v3 chunkCoord = V3((f32)chunk->coord.x, (f32)chunk->coord.z, (f32)chunk->coord.y);
                 //chunkCoord.z *= -1.0f;
                 v3 offset = Hadamard(chunkCoord, V3(chunkSize));
                 RenderCommandPushChunkMesh c = {};
@@ -711,7 +619,7 @@ namespace soko
     SaveLevel(const Level* level, const wchar_t* filename, AB::MemoryArena* arena)
     {
         bool result = false;
-        uptr bufferSize = sizeof(AB::AABLevelHeader) + sizeof(SerializedChunk) * level->chunkCount;
+        uptr bufferSize = sizeof(AB::AABLevelHeader) + sizeof(SerializedChunk) * level->loadedChunksCount;
         byte* buffer = (byte*)PUSH_SIZE(arena, bufferSize);
         if (buffer)
         {
@@ -721,16 +629,16 @@ namespace soko
             // TODO: Is that should be size of data placed after header?
             header->assetSize = bufferSize - sizeof(AB::AABLevelHeader);
             header->assetType = AB::AAB_FILE_TYPE_LEVEL;
-            header->chunkCount = level->chunkCount;
+            header->chunkCount = level->loadedChunksCount;
             header->firstChunkOffset = sizeof(AB::AABLevelHeader);
 
             auto chunks = (SerializedChunk*)(buffer + header->firstChunkOffset);
 
             u32 chunksWritten = 0;
-            for (u32 i = 0; i < Level::CHUNK_TABLE_SIZE; i++)
+            for (u32 i = 0; i < level->chunkTableSize; i++)
             {
-                Chunk* chunk = level->chunkTable[i];
-                if (chunk)
+                Chunk* chunk = level->chunkTable + i;
+                if (chunk->loaded)
                 {
                     chunksWritten++;
                     SOKO_ASSERT(chunksWritten <= header->chunkCount);
@@ -766,7 +674,7 @@ namespace soko
                     header->version == AB::AAB_FILE_VERSION &&
                     header->assetType == AB::AAB_FILE_TYPE_LEVEL)
                 {
-                    Level* loadedLevel = PUSH_STRUCT(arenaForLevel, Level);
+                    Level* loadedLevel = CreateLevel(arenaForLevel, header->chunkCount);
                     if (loadedLevel)
                     {
                         //loadedLevel->chunkCount = header->chunkCount;
@@ -774,17 +682,9 @@ namespace soko
                         for (u32 chunkIdx = 0; chunkIdx < header->chunkCount; chunkIdx++)
                         {
                             SerializedChunk* sChunk = chunks + chunkIdx;
-                            Chunk* newChunk = PUSH_STRUCT(arenaForLevel, Chunk);
+                            Chunk* newChunk = InitChunk(loadedLevel, sChunk->coord);
                             if (newChunk)
                             {
-                                newChunk->coord = sChunk->coord;
-                                u32 chunkIdx =
-                                    sChunk->coord.z * Level::FULL_DIM_CHUNKS * Level::FULL_DIM_CHUNKS +
-                                    sChunk->coord.y * Level::FULL_DIM_CHUNKS +
-                                    sChunk->coord.x;
-
-                                loadedLevel->chunkTable[chunkIdx] = newChunk;
-                                loadedLevel->chunkCount++;
                                 for (u32 z = 0; z < Chunk::DIM; z++)
                                 {
                                     for (u32 y = 0; y < Chunk::DIM; y++)
@@ -822,7 +722,7 @@ namespace soko
 
                             }
                         }
-                        SOKO_ASSERT(loadedLevel->chunkCount == header->chunkCount);
+                        SOKO_ASSERT(loadedLevel->loadedChunksCount == header->chunkCount);
                         result = loadedLevel;
                     }
                 }

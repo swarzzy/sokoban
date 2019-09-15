@@ -31,8 +31,8 @@ namespace AB
 
     const u32 WINDOW_TITLE_SIZE = 32;
 
-    const uptr MAIN_ARENA_SIZE = MEGABYTES(128);
-    const uptr GAME_ARENA_SIZE = MEGABYTES(110);
+    const uptr MAIN_ARENA_SIZE = MEGABYTES(2048);
+    const uptr GAME_ARENA_SIZE = MEGABYTES(2000);
 
     const ConsoleColor CONSOLE_DEFAULT_TEXT_COLOR = CONSOLE_COLOR_DARKWHITE;
     const ConsoleColor CONSOLE_DEFAULT_BACK_COLOR = CONSOLE_COLOR_BLACK;
@@ -101,4 +101,3 @@ namespace AB
     static void Win32Initialize(Application* app);
     unsigned int WGLLoadFunctions(Application* app, HDC windowDC);
 };
-
