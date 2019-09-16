@@ -3,6 +3,7 @@
 #include "Renderer.h"
 #include "Level.h"
 #include "Camera.h"
+#include "GameMenu.h"
 
 // NOTE: For now assume that all msvc target devices are little-endian
 #if defined (AB_COMPILER_MSVC)
@@ -96,6 +97,8 @@ namespace soko
 
     struct GameState
     {
+        u32 gameMode;
+        GameMenu mainMenu;
         static constexpr u32 MAX_PLAYERS = 4;
         AB::MemoryArena* memoryArena;
         AB::MemoryArena* tempArena;
@@ -130,7 +133,6 @@ namespace soko
         //AB::NetAddress serverAddr;
         //static constexpr u32 NET_BUFFER_SIZE = 1024;
         //byte netBuffer[NET_BUFFER_SIZE];
-        u32 gameMode;
         b32 gameModeReadyToInit;
         b32 gameModeInitialized;
         b32 shouldDisconnect;

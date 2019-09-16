@@ -33,6 +33,8 @@ namespace soko
             {
                 Chunk* chunk = result->chunkTable + i;
                 chunk->coord = V3I(Level::INVALID_COORD);
+                // NOTE: Reserving null entity
+                result->entityCount = 1;
             }
         }
         return result;
