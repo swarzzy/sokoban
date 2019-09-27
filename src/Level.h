@@ -1,6 +1,7 @@
 #pragma once
 #include "Platform.h"
 #include "Renderer.h"
+#include "MeshGen.h"
 
 namespace soko
 {
@@ -245,28 +246,17 @@ namespace soko
 
     struct Chunk
     {
-        const_val u32 BIT_SHIFT = 5;
-        const_val u32 BIT_MASK = (1 << BIT_SHIFT) - 1;
-        const_val u32 DIM = 1 << BIT_SHIFT;
-        const_val u32 TILE_COUNT = DIM * DIM * DIM;
         bool loaded;
         v3i coord;
-        Tile tiles[DIM * DIM * DIM];
-        LoadedChunkMesh mesh;
+        Tile tiles[CHUNK_TILE_COUNT];
+        LoadedChunkMesh loadedMesh;
+        ChunkMesh mesh;
     };
-
 
     struct Level
     {
-        const_val i32 INVALID_COORD = 0x7fffffff;
-        const_val i32 MAX_DIM = 512;
-        const_val i32 MIN_DIM = -511;
-
-        const_val u32 FULL_DIM_CHUNKS = (MAX_DIM * 2) / Chunk::DIM; // 32
-        const_val i32 MAX_DIM_CHUNKS = FULL_DIM_CHUNKS / 2;
-        const_val i32 MIN_DIM_CHUNKS = -1 * MAX_DIM_CHUNKS + 1;
-        const_val u32 ENTITY_TABLE_SIZE = 1024;
-        const_val f32 TILE_SIZE = 1.0f;
+        AB::MemoryArena* levelArena;
+        u32 globalChunkMeshBlockCount;
 
         // NOTE: Maximum size of the level is 1024-tile-side cube
         // so count of tiles in cube is less than 2^32
@@ -282,7 +272,7 @@ namespace soko
         u32 entityCount;
         u32 deletedEntityCount;
         Entity* entityFreeList;
-        Entity* entities[ENTITY_TABLE_SIZE];
+        Entity* entities[LEVEL_ENTITY_TABLE_SIZE];
         b32 platePressed;
     };
 

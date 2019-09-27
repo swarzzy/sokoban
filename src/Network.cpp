@@ -332,27 +332,125 @@ namespace soko::net
         }
 
     }
-#if 0
-    void
-    ClientTryToConnect(GameState* gameState)
-    {
-        Client* client = gameState->client;
 
+    // TODO: Store client and server in transient slorage in order to delete
+    // when it no longer needed
+
+    bool InitializeClient(GameState* gameState)
+    {
+        bool result = false;
+        if (!gameState->client)
+        {
+            gameState->client = PUSH_STRUCT(gameState->memoryArena, net::Client);
+            if (gameState->client)
+            {
+                uptr socket = NetCreateSocket();
+                if (socket)
+                {
+                    gameState->client->joinTimeout = 15.0f;
+                    gameState->client->socket = socket;
+                    result = true;
+                }
+            }
+        }
+        return result;
+    }
+
+    ConnectionStatus
+    ClientTryToConnect(GameState* gameState, AB::NetAddress serverAddr = {})
+    {
+        ConnectionStatus result = ConnectionStatus_None;
+        Client* client = gameState->client;
         byte* buffer = client->socketBuffer;
 
-        if (!gameState->controlledPlayer && timeToWait >= 29.99f)
-        {
-            netBuffer[netBufferAt] = net::ClientMsg_Join;
-            netBufferAt += 1;
+        ConnectionStatus currentStatus = client->connectionStatus;
 
-            auto[sndStatus, sndSize] = NetSend(gameState->client->socket,
-                                               gameState->client->serverAddr,
-                                               netBuffer, netBufferAt);
-            // TODO: Try again!
-            SOKO_ASSERT(sndStatus);
+        if (currentStatus == ConnectionStatus_None)
+        {
+            u32 bufferAt = 0;
+            client->serverAddr = serverAddr;
+            buffer[bufferAt] = net::ClientMsg_Join;
+            bufferAt += 1;
+
+            auto[sndStatus, sndSize] = NetSend(client->socket, serverAddr,
+                                               buffer, bufferAt);
+            if (sndStatus)
+            {
+                client->waitingTime = client->joinTimeout;
+                result = ConnectionStatus_Waiting;
+            }
         }
 
-    }
-    #endif
+        if (client->waitingTime)
+        {
+            client->waitingTime -= GlobalAbsDeltaTime;
 
+            auto[recvStatus, recvSize, recvFrom] =
+                NetRecieve(client->socket, buffer, net::Server::SOCKET_BUFFER_SIZE);
+            if (recvStatus == AB::NetRecieveResult::Success && recvSize)
+            {
+                if (buffer[0] == net::ServerMsg_JoinResult)
+                {
+                    auto msg = (net::ServerJoinResultMsg*)(buffer + 1);
+                    u32 bufferAt = sizeof(net::ServerJoinResultMsg) + 1;
+                    if (msg->succeed)
+                    {
+                        v3i playerCoord = V3I(msg->newPlayer.x, msg->newPlayer.y, msg->newPlayer.z);
+                        Player* player = AddPlayer(gameState, playerCoord, gameState->memoryArena);
+                        if (player)
+                        {
+                            gameState->controlledPlayer = player;
+                            gameState->client->playerSlot = msg->newPlayer.slot;
+
+                            // TODO: Check for overflow
+                            gameState->client->slotsOccupancy[gameState->client->playerSlot] = 1;
+                            gameState->client->slots[gameState->client->playerSlot].player = player;
+
+                            bufferAt = sizeof(net::ServerJoinResultMsg) + 1;
+
+                            i32 levelNameLength = msg->levelNameLength;
+                            char* levelName = (char*)(buffer + bufferAt);
+                            bufferAt += levelNameLength;
+                            // TODO Clenup on level name size constants
+                            wchar_t nameBuffer[CLIENT_LEVEL_NAME_LEN];
+                            mbstowcs(nameBuffer, levelName, CLIENT_LEVEL_NAME_LEN);
+                            if (DebugGetFileSize(nameBuffer))
+                            {
+                                COPY_BYTES(sizeof(wchar_t) * CLIENT_LEVEL_NAME_LEN, client->levelName, nameBuffer);
+                                while (bufferAt < recvSize)
+                                {
+                                    auto nextPlayer = (net::NewPlayerData*)(buffer + bufferAt);
+                                    bufferAt += sizeof(net::NewPlayerData);
+
+                                    v3i coord = V3I(nextPlayer->x, nextPlayer->y, nextPlayer->z);
+                                    Player* player = AddPlayer(gameState, coord, gameState->memoryArena);
+                                    SOKO_ASSERT(player);
+                                    // TODO: Check for overflow
+                                    gameState->client->slotsOccupancy[nextPlayer->slot] = 1;
+                                    gameState->client->slots[nextPlayer->slot].player = player;
+                                }
+                                result = ConnectionStatus_Connected;
+                            }
+                        }
+                    }
+                }
+            }
+            else if (recvStatus == AB::NetRecieveResult::Nothing)
+            {
+                result = ConnectionStatus_Waiting;
+            }
+            else
+            {
+                result = ConnectionStatus_None;
+                client->serverAddr;
+                // TODO: Log error
+            }
+        }
+        else
+        {
+            client->serverAddr;
+            // TODO: Log timeout
+        }
+        return result;
+    }
 }

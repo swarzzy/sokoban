@@ -29,37 +29,23 @@ rem set RendererLinkerFlags=/INCREMENTAL:NO /OPT:REF /MACHINE:X64 /DLL /OUT:%Bin
 
 set ConfigCompilerFlags=%DebugCompilerFlags%
 echo Building platform...
-cl /MP /W3 /DAB_PLATFORM_CODE /Fo%ObjOutDir% %CommonDefines% %CommonCompilerFlags% %ConfigCompilerFlags% src/Win32Platform.cpp /link %PlatformLinkerFlags%
-set PlatformResult=%ERRORLEVEL%
+start /b "__soko_compilation__" cmd /c cl /W3 /FS /DAB_PLATFORM_CODE /Fo%ObjOutDir% %CommonDefines% %CommonCompilerFlags% %ConfigCompilerFlags% src/Win32Platform.cpp /link %PlatformLinkerFlags%
+rem cl /MP /W3 /FS /DAB_PLATFORM_CODE /Fo%ObjOutDir% %CommonDefines% %CommonCompilerFlags% %ConfigCompilerFlags% src/Win32Platform.cpp /link %PlatformLinkerFlags%
+
+echo Building game...
+start /b /wait "__soko_compilation__" cmd /c cl /W3 /FS /Fo%ObjOutDir% %CommonDefines% %CommonCompilerFlags% %ConfigCompilerFlags% src/Sokoban.cpp /link %GameLinkerFlags%
+rem cl /MP /W3 /FS /Fo%ObjOutDir% %CommonDefines% %CommonCompilerFlags% %ConfigCompilerFlags% src/Sokoban.cpp /link %GameLinkerFlags%
+
 rem echo Building renderer...
 rem cl /MP /W3 /Fo%ObjOutDir% %CommonDefines% %CommonCompilerFlags% %ConfigCompilerFlags% src/Renderer.cpp /link %RendererLinkerFlags%
 rem set RendererResult=%ERRORLEVEL%
-echo Building game...
-cl /MP /W3 /Fo%ObjOutDir% %CommonDefines% %CommonCompilerFlags% %ConfigCompilerFlags% src/Sokoban.cpp /link %GameLinkerFlags%
-set GameResult=%ERRORLEVEL%
 
 set BuildArg=run
 
-if "%PlatformResult%" == "0" (
-echo Platform was built successfully
-rem if "%RendererResult%" == "0" (
-rem echo Renderer was built successfully
-if "%GameResult%" == "0" (
-echo Game was built successfully
 if "%1" == "%BuildArg%" (
 pushd build
 start "Sokoban" Soko.exe
 popd
 )
-) else (
-echo Game build error
-)
-rem ) else (
-rem echo Renderer build error
-rem )
-) else (
-echo Platform build error
-)
-
 ctime -end ctime.ctm
 :end

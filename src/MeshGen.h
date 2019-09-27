@@ -25,6 +25,4 @@ namespace soko
     };
 
     ChunkMesh GenChunkMesh(Chunk* chunk, AB::MemoryArena* arena);
-
-
 }

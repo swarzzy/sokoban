@@ -76,7 +76,7 @@ namespace soko
     enum GameMode
     {
         GAME_MODE_MENU = 0,
-        GAME_MODE_SINGLE,
+kk        GAME_MODE_SINGLE,
         GAME_MODE_CLIENT,
         GAME_MODE_SERVER
     };

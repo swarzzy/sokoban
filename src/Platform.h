@@ -13,7 +13,11 @@
 #define AB_LITTLE_ENDIAN 4321
 #define AB_BIG_ENDIAN 1234
 
+// TODO: Deprecated
 #define const_val static constexpr
+#define constant static constexpr
+
+#define internal static
 
 struct ImGuiContext;
 
@@ -46,6 +50,7 @@ namespace AB
     const i32 INT32_MAX = (i32)(0x7fffffff);
     const f32 FLOAT_MAX = FLT_MAX;
 */
+    constexpr uptr UPTR_MAX = UINTPTR_MAX;
 
     const u32 MOUSE_BUTTONS_COUNT = 5;
 
@@ -258,6 +263,9 @@ namespace AB
     typedef void(LogFn)(LogLevel level, const char* file, const char* func, u32 line, const char* fmt, ...);
     typedef void(LogAssertVFn)(LogLevel level, const char* file, const char* func, u32 line, const char* assertStr, const char* fmt, va_list* args);
 
+    typedef MemoryArena*(QueryNewArenaFn)(uptr size);
+    typedef void(FreeArenaFn)(MemoryArena* arena);
+
     typedef void*(AllocForImGuiFn)(size_t sz, void* data);
     typedef void(FreeForImGuiFn)(void* ptr, void* data);
 
@@ -290,6 +298,9 @@ namespace AB
         NetBindSocketFn* NetBindSocket;
         NetSendFn* NetSend;
         NetRecieveFn* NetRecieve;
+
+        QueryNewArenaFn* QueryNewArena;
+        FreeArenaFn* FreeArena;
 
         AllocForImGuiFn* AllocForImGui;
         FreeForImGuiFn* FreeForImGui;

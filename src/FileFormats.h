@@ -50,6 +50,7 @@ namespace AB
         u64 assetSize;
         u32 assetType;
         u32 chunkCount;
+        u32 chunkMeshBlockCount;
         u64 firstChunkOffset;
     };
 #pragma pack (pop)

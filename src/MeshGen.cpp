@@ -58,11 +58,11 @@ namespace soko
     GenChunkMesh(Chunk* chunk, AB::MemoryArena* arena)
     {
         ChunkMesh mesh = {};
-        for (u32 tileZ = 0; tileZ < Chunk::DIM; tileZ++)
+        for (u32 tileZ = 0; tileZ < CHUNK_DIM; tileZ++)
         {
-            for (u32 tileY = 0; tileY < Chunk::DIM; tileY++)
+            for (u32 tileY = 0; tileY < CHUNK_DIM; tileY++)
             {
-                for (u32 tileX = 0; tileX < Chunk::DIM; tileX++)
+                for (u32 tileX = 0; tileX < CHUNK_DIM; tileX++)
                 {
                     // TODO: Invalid coord define
                     u32 tileXMinusOne = tileX - 1;
@@ -89,12 +89,12 @@ namespace soko
 
                     if (testTile && testTile->value)
                     {
-                        v3 offset = V3((tileX * Level::TILE_SIZE),
-                                       tileZ * Level::TILE_SIZE,
-                                       (tileY * Level::TILE_SIZE));
+                        v3 offset = V3((tileX * LEVEL_TILE_SIZE),
+                                       tileZ * LEVEL_TILE_SIZE,
+                                       (tileY * LEVEL_TILE_SIZE));
 
-                        v3 min = offset - 0.5f * V3(Level::TILE_SIZE);;
-                        v3 max = offset + 0.5f * V3(Level::TILE_SIZE);
+                        v3 min = offset - 0.5f * V3(LEVEL_TILE_SIZE);;
+                        v3 max = offset + 0.5f * V3(LEVEL_TILE_SIZE);
 
                         TileValue val = testTile->value;
 

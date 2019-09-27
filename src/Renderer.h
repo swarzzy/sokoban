@@ -3,11 +3,11 @@
 #include "RenderGroup.h"
 #include "OpenGL.h"
 #include "Memory.h"
-#include "MeshGen.h"
-//#include "Level.h"
 
 namespace soko
 {
+    struct ChunkMesh;
+
     struct LoadedChunkMesh
     {
         u32 gpuHandle;
@@ -61,9 +61,6 @@ namespace soko
         TerrainTexture_Null = 0,
         TerrainTexture_Block,
     };
-
-    // TODO: IMPORTANT: move this to other file
-    static constexpr u32 CHUNK_DIM = 32;
 
     struct Renderer
     {

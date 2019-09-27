@@ -35,14 +35,28 @@ namespace  soko { namespace net
         InputBuffer inputBuffer;
     };
 
+    enum ConnectionStatus
+    {
+        ConnectionStatus_None = 0,
+        ConnectionStatus_Waiting,
+        ConnectionStatus_Connected
+    };
+
+    // TODO: Cleanup on this constants and level names and stuff
+    constexpr u32 CLIENT_LEVEL_NAME_LEN = 256;
+
     struct Client
     {
+        ConnectionStatus connectionStatus;
+        float joinTimeout;
+        float waitingTime;
         uptr socket;
         AB::NetAddress serverAddr;
         i16 playerSlot;
         bool slotsOccupancy[Server::SLOTS_NUM];
         ClientSlot slots[Server::SLOTS_NUM];
         byte socketBuffer[Server::SOCKET_BUFFER_SIZE];
+        wchar_t levelName[CLIENT_LEVEL_NAME_LEN];
     };
 
     enum ClientMsgType : byte
@@ -86,6 +100,8 @@ namespace  soko { namespace net
         u8 succeed;
         u8 otherPlayersCount;
         NewPlayerData newPlayer;
+        u16 levelNameLength;
+        // .. level filename ...
         // .. other players ...
     };
 

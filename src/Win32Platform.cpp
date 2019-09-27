@@ -1,8 +1,5 @@
 #include "Win32Platform.h"
 
-//#define HYPERMATH_IMPL
-//#include <hypermath.h>
-
 #include "Memory.h"
 #include "OpenGL.h"
 #include "OpenGLLoader.h"
@@ -20,7 +17,6 @@
 
 // NOTE: For now assume that all windows devices are little-endian
 #define AB_BYTE_ORDER AB_LITTLE_ENDIAN
-
 
 #define WGL_DRAW_TO_WINDOW_ARB            0x2001
 #define WGL_SUPPORT_OPENGL_ARB            0x2010
@@ -535,7 +531,8 @@ namespace AB
                 app->state.input.keys[key].pressedNow = state;
                 // TODO: Temorary
                 if (app->state.input.keys[KEY_L].pressedNow &&
-                    !app->state.input.keys[KEY_L].wasPressed)
+                    !app->state.input.keys[KEY_L].wasPressed &&
+                    app->state.input.keys[KEY_CTRL].pressedNow)
                 {
                     WindowToggleFullscreen(app, !app->fullscreen);
                 }
@@ -584,7 +581,22 @@ namespace AB
 
                 if (io)
                 {
-                    io->AddInputCharacter((unsigned int)wParam);
+                    DWORD wChar = (DWORD)wParam;
+                    if (wChar <= 127)
+                    {
+                        io->AddInputCharacter((unsigned int)wParam);
+                    }
+                    else
+                    {
+                        // TODO: utf8 input support
+                        // NOTE: swap lower and upper part.
+                        BYTE low = (BYTE)(wChar & 0x00FF);
+                        BYTE high = (BYTE)((wChar & 0xFF00) >> 8);
+                        wChar = MAKEWORD(high, low);
+                        wchar_t ch[6];
+                        MultiByteToWideChar(CP_OEMCP, 0, (LPCSTR)&wChar, 4, ch, 3);
+                        io->AddInputCharacter(ch[0]);
+                    }
                 }
             } break;
             // ^^^^ KEYBOARD INPUT
@@ -866,21 +878,22 @@ namespace AB
         {
             if (GetFileSizeEx(fileHandle, &fileSize))
             {
-                if (fileSize.QuadPart > bufferSize)
+                DWORD readSize = (DWORD)bufferSize;
+                if (fileSize.QuadPart < bufferSize)
                 {
-                    CloseHandle(fileHandle);
+                    readSize = (DWORD)fileSize.QuadPart;
                 }
                 if (buffer)
                 {
                     DWORD read;
-                    BOOL result = ReadFile(fileHandle, buffer, (DWORD)fileSize.QuadPart, &read, 0);
-                    if (!result && !(read == (DWORD)fileSize.QuadPart))
+                    BOOL result = ReadFile(fileHandle, buffer, readSize, &read, 0);
+                    if (!result && !(read == readSize))
                     {
                         AB_CORE_WARN("Failed to read file.");
                     }
                     else
                     {
-                        written = SafeCastU64U32(fileSize.QuadPart);
+                        written = read;
                     }
                 }
             }
@@ -1095,6 +1108,13 @@ namespace AB
         return (MemoryArena*)mem;
     }
 
+    void FreeArena(MemoryArena* arena)
+    {
+        void* base = (void*)((byte*)arena->begin - sizeof(MemoryArena));
+        auto result = VirtualFree(base, 0, MEM_RELEASE);
+        AB_CORE_ASSERT(result);
+    }
+
     static Application* GlobalApplication = nullptr;
 
     void SetInputMode(InputMode mode)
@@ -1152,6 +1172,9 @@ namespace AB
         app->state.functions.NetBindSocket = NetBindSocket;
         app->state.functions.NetSend = NetSend;
         app->state.functions.NetRecieve = NetRecieve;
+
+        app->state.functions.QueryNewArena = AllocateArena;
+        app->state.functions.FreeArena = FreeArena;
 
         app->state.functions.AllocForImGui = AllocForImGui;
         app->state.functions.FreeForImGui = FreeForImGui;
