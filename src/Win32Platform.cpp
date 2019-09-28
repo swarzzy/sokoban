@@ -988,7 +988,7 @@ namespace AB
 
     // NOTE: SOCKET defined as uptr in Winsock.h
     // So using handle directly
-    uptr
+    internal uptr
     NetCreateSocket()
     {
         AB_STATIC_ASSERT(sizeof(uptr) == sizeof(SOCKET));
@@ -1014,7 +1014,18 @@ namespace AB
         return result;
     }
 
-    bool
+    internal bool
+    NetCloseSocket(uptr socket)
+    {
+        bool result = 0;
+        if (::closesocket(socket) == 0)
+        {
+            result = 1;
+        }
+        return result;
+    }
+
+    internal bool
     NetBindSocket(uptr socket, u16 port)
     {
         bool result = false;
@@ -1169,6 +1180,7 @@ namespace AB
         app->state.functions.SetInputMode = SetInputMode;
 
         app->state.functions.NetCreateSocket = NetCreateSocket;
+        app->state.functions.NetCloseSocket = NetCloseSocket;
         app->state.functions.NetBindSocket = NetBindSocket;
         app->state.functions.NetSend = NetSend;
         app->state.functions.NetRecieve = NetRecieve;

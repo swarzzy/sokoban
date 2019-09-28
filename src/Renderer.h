@@ -62,12 +62,13 @@ namespace soko
         TerrainTexture_Block,
     };
 
+    constant u32 RENDERER_TILE_TEX_DIM = 256;
+    constant u32 RENDERER_TERRAIN_TEX_ARRAY_SIZE = 32;
+    constant u32 RENDERER_MAX_CHUNK_QUADS = CHUNK_DIM * CHUNK_DIM * CHUNK_DIM * 4 / 2;
+    constant u32 RENDERER_INDICES_PER_CHUNK_QUAD = 6;
+
     struct Renderer
     {
-        const_val u32 TILE_TEX_DIM = 256;
-        const_val u32 TERRAIN_TEX_ARRAY_SIZE = 32;
-        const_val u32 MAX_CHUNK_QUADS = CHUNK_DIM * CHUNK_DIM * CHUNK_DIM * 4 / 2;
-        const_val u32 INDICES_PER_CHUNK_QUAD = 6;
         LineProgram lineProgram;
         MeshProgram meshProgram;
         ChunkProgram chunkProgram;

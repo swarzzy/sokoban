@@ -3,15 +3,17 @@
 namespace soko
 {
     struct Chunk;
+
+    constant u32 CHUNK_MESH_VERTEX_BLOCK_CAPACITY = 4096;
+
     struct ChunkMeshVertexBlock
     {
-        const_val u32 CAPACITY = 4096;
         ChunkMeshVertexBlock* nextBlock;
         ChunkMeshVertexBlock* prevBlock;
         u32 at;
-        v3 positions[CAPACITY];
-        v3 normals[CAPACITY];
-        byte tileIds[CAPACITY];
+        v3 positions[CHUNK_MESH_VERTEX_BLOCK_CAPACITY];
+        v3 normals[CHUNK_MESH_VERTEX_BLOCK_CAPACITY];
+        byte tileIds[CHUNK_MESH_VERTEX_BLOCK_CAPACITY];
     };
 
 
@@ -24,5 +26,5 @@ namespace soko
         ChunkMeshVertexBlock* tail;
     };
 
-    ChunkMesh GenChunkMesh(Chunk* chunk, AB::MemoryArena* arena);
+    internal bool GenChunkMesh(Chunk* chunk, ChunkMesh* outMesh, AB::MemoryArena* arena);
 }

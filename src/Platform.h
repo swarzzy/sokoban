@@ -13,8 +13,6 @@
 #define AB_LITTLE_ENDIAN 4321
 #define AB_BIG_ENDIAN 1234
 
-// TODO: Deprecated
-#define const_val static constexpr
 #define constant static constexpr
 
 #define internal static
@@ -247,7 +245,10 @@ namespace AB
         NetAddress from;
     };
 
+    typedef uptr Socket;
+
     typedef uptr(NetCreateSocketFn)();
+    typedef bool(NetCloseSocketFn)(uptr socket);
     typedef bool(NetBindSocketFn)(uptr socket, u16 port);
     typedef NetSendResult(NetSendFn)(uptr socket, NetAddress address, const void* buffer, u32 bufferSize);
     typedef NetRecieveResult(NetRecieveFn)(uptr socket, void* buffer, u32 bufferSize);
@@ -295,6 +296,7 @@ namespace AB
         SetInputModeFn* SetInputMode;
 
         NetCreateSocketFn* NetCreateSocket;
+        NetCloseSocketFn* NetCloseSocket;
         NetBindSocketFn* NetBindSocket;
         NetSendFn* NetSend;
         NetRecieveFn* NetRecieve;

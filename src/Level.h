@@ -276,6 +276,13 @@ namespace soko
         b32 platePressed;
     };
 
+    struct LevelMetaInfo
+    {
+        u32 chunkCount;
+        u32 chunkMeshBlockCount;
+    };
+
+
     inline bool IsSet(const Entity* entity, u32 flag)
     {
         return entity->flags & flag;

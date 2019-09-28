@@ -1,4 +1,6 @@
 #pragma once
+#include "Platform.h"
+#include "NetMessages.h"
 
 namespace soko
 {
@@ -11,8 +13,9 @@ namespace soko
         MainMenu_ConfigureServer,
         MainMenu_CreateServer,
         MainMenu_ConfigureClient,
-        MainMenu_TryConnectToServer,
+        MainMenu_ClientWaitForServerState,
         MainMenu_ClientLoadLevel,
+        MainMenu_ClientConnectToServer,
         MainMenu_Error
     };
 
@@ -26,9 +29,12 @@ namespace soko
         AB::NetAddress serverAddress;
         int ipOctets[4];
         int inputPort;
+        AB::Socket socket;
     };
 
-    static constexpr u32 LEVEL_PATH_BUFFER_SIZE = 256;
+    static constexpr u32 LEVEL_PATH_BUFFER_SIZE = SERVER_MAX_LEVEL_NAME_LEN;
+
+    namespace net { struct Client; }
 
     struct GameMenu
     {
@@ -36,7 +42,10 @@ namespace soko
         MainMenuState state;
         char levelPathBuffer[LEVEL_PATH_BUFFER_SIZE];
         wchar_t wLevelPathBuffer[LEVEL_PATH_BUFFER_SIZE];
+        LevelMetaInfo levelMetaInfo;
         ServerConfig serverConf;
         ClientConfig clientConf;
+        net::Client* client;
+        Level* level;
     };
 }

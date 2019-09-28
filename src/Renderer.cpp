@@ -364,8 +364,8 @@ void main()
         renderer->lineBufferHandle = lineBufferHandle;
 
         GLuint chunkIndexBuffer;
-        u32 indexCount = Renderer::MAX_CHUNK_QUADS * Renderer::INDICES_PER_CHUNK_QUAD;
-        SOKO_ASSERT(indexCount % Renderer::INDICES_PER_CHUNK_QUAD == 0);
+        u32 indexCount = RENDERER_MAX_CHUNK_QUADS * RENDERER_INDICES_PER_CHUNK_QUAD;
+        SOKO_ASSERT(indexCount % RENDERER_INDICES_PER_CHUNK_QUAD == 0);
         uptr size = indexCount * sizeof(u32);
 
         glGenBuffers(1, &chunkIndexBuffer);
@@ -374,7 +374,7 @@ void main()
         u32* buffer = (u32*)glMapBuffer(GL_ELEMENT_ARRAY_BUFFER, GL_READ_WRITE);
 
         u32 k = 0;
-        for (u32 i = 0; i < indexCount; i += Renderer::INDICES_PER_CHUNK_QUAD)
+        for (u32 i = 0; i < indexCount; i += RENDERER_INDICES_PER_CHUNK_QUAD)
         {
             SOKO_ASSERT(i < indexCount);
             buffer[i] = k;
@@ -400,12 +400,12 @@ void main()
         glBindTexture(GL_TEXTURE_2D_ARRAY, terrainTexArray);
         // TODO : STUDY: glTexStorage and glTexSubImage
         glTexImage3D(GL_TEXTURE_2D_ARRAY, 0, GL_RGB8,
-                     Renderer::TILE_TEX_DIM, Renderer::TILE_TEX_DIM,
-                     Renderer::TERRAIN_TEX_ARRAY_SIZE,
+                     RENDERER_TILE_TEX_DIM, RENDERER_TILE_TEX_DIM,
+                     RENDERER_TERRAIN_TEX_ARRAY_SIZE,
                      0, GL_RGB, GL_UNSIGNED_BYTE, 0);
 
         glTexSubImage3D(GL_TEXTURE_2D_ARRAY, 0, 0, 0, TerrainTexture_Block,
-                        Renderer::TILE_TEX_DIM, Renderer::TILE_TEX_DIM, 1,
+                        RENDERER_TILE_TEX_DIM, RENDERER_TILE_TEX_DIM, 1,
                         GL_RGB, GL_UNSIGNED_BYTE, bitmap);
 
         glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_WRAP_S, GL_REPEAT);
@@ -724,7 +724,7 @@ void RendererLoadTexture(Texture* texture)
 
                         glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, renderer->chunkIndexBuffer);
 
-                        GLsizei numIndices = (GLsizei)(data->quadCount * Renderer::INDICES_PER_CHUNK_QUAD);
+                        GLsizei numIndices = (GLsizei)(data->quadCount * RENDERER_INDICES_PER_CHUNK_QUAD);
                         glDrawElements(GL_TRIANGLES, numIndices, GL_UNSIGNED_INT, 0);
                     }
                 } break;

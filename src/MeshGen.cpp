@@ -2,62 +2,86 @@
 
 namespace soko
 {
-    static inline bool
+    inline bool
     TileNotEmpty(const Tile* tile)
     {
         bool result = tile && (bool)tile->value;
         return result;
     }
 
-    static inline void
+    inline bool
     PushChunkMeshVertex(ChunkMesh* mesh, AB::MemoryArena* arena,
                         v3 position, v3 normal, byte tileId)
     {
+        bool result = 0;
+        bool memoryIsAvailable = 1;
         if (!mesh->head)
         {
             mesh->head = PUSH_STRUCT(arena, ChunkMeshVertexBlock);
-            ZERO_STRUCT(ChunkMeshVertexBlock, mesh->head);
-            mesh->tail = mesh->head;
-            SOKO_ASSERT(mesh->head);
-            mesh->blockCount++;
+            if (mesh->head)
+            {
+                ZERO_STRUCT(ChunkMeshVertexBlock, mesh->head);
+                mesh->tail = mesh->head;
+                mesh->blockCount++;
+                memoryIsAvailable = 1;
+            }
+            else
+            {
+                memoryIsAvailable = 0;
+            }
         }
-        else if (mesh->head->at >= ChunkMeshVertexBlock::CAPACITY)
+        else if (mesh->head->at >= CHUNK_MESH_VERTEX_BLOCK_CAPACITY)
         {
             ChunkMeshVertexBlock* newBlock = PUSH_STRUCT(arena, ChunkMeshVertexBlock);
-            SOKO_ASSERT(newBlock);
-            ZERO_STRUCT(ChunkMeshVertexBlock, newBlock);
-            mesh->head->prevBlock = newBlock;
-            newBlock->nextBlock = mesh->head;
+            if (newBlock)
+            {
+                ZERO_STRUCT(ChunkMeshVertexBlock, newBlock);
+                mesh->head->prevBlock = newBlock;
+                newBlock->nextBlock = mesh->head;
 
-            mesh->head = newBlock;
-            mesh->blockCount++;
+                mesh->head = newBlock;
+                mesh->blockCount++;
+                memoryIsAvailable = 1;
+            }
+            else
+            {
+                memoryIsAvailable = 0;
+            }
         }
 
-        // NOTE: Converting to right-handed system
-        position.z *= -1.0f;
-        mesh->head->positions[mesh->head->at] = position;
-        mesh->head->normals[mesh->head->at] = normal;
-        mesh->head->tileIds[mesh->head->at] = tileId;
-        mesh->head->at++;
-        mesh->vertexCount++;
+        if (memoryIsAvailable)
+        {
+            // NOTE: Converting to right-handed system
+            position.z *= -1.0f;
+            mesh->head->positions[mesh->head->at] = position;
+            mesh->head->normals[mesh->head->at] = normal;
+            mesh->head->tileIds[mesh->head->at] = tileId;
+            mesh->head->at++;
+            mesh->vertexCount++;
+            result = 1;
+        }
+        return result;
     }
 
-    static inline void
+    inline bool
     PushChunkMeshQuad(ChunkMesh* mesh, AB::MemoryArena* arena,
                       v3 vtx0, v3 vtx1, v3 vtx2, v3 vtx3, TileValue val)
     {
         v3 normal = Cross(vtx3 - vtx0, vtx1 - vtx0);
-        PushChunkMeshVertex(mesh, arena, vtx0, normal, val);
-        PushChunkMeshVertex(mesh, arena, vtx1, normal, val);
-        PushChunkMeshVertex(mesh, arena, vtx2, normal, val);
-        PushChunkMeshVertex(mesh, arena, vtx3, normal, val);
-        mesh->quadCount++;
+        bool result =
+            PushChunkMeshVertex(mesh, arena, vtx0, normal, val) &&
+            PushChunkMeshVertex(mesh, arena, vtx1, normal, val) &&
+            PushChunkMeshVertex(mesh, arena, vtx2, normal, val) &&
+            PushChunkMeshVertex(mesh, arena, vtx3, normal, val);
+            mesh->quadCount++;
+            return result;
     }
 
-    ChunkMesh
-    GenChunkMesh(Chunk* chunk, AB::MemoryArena* arena)
+    internal bool
+    GenChunkMesh(Chunk* chunk, ChunkMesh* outMesh, AB::MemoryArena* arena)
     {
-        ChunkMesh mesh = {};
+        bool result = 1;
+        ZERO_STRUCT(ChunkMesh, outMesh);
         for (u32 tileZ = 0; tileZ < CHUNK_DIM; tileZ++)
         {
             for (u32 tileY = 0; tileY < CHUNK_DIM; tileY++)
@@ -110,32 +134,38 @@ namespace soko
 
                         if (!TileNotEmpty(upTile))
                         {
-                            PushChunkMeshQuad(&mesh, arena, vtx3, vtx7, vtx6, vtx2, val);
+                            result = result && PushChunkMeshQuad(outMesh, arena, vtx3, vtx7, vtx6, vtx2, val);
                         }
                         if (!TileNotEmpty(dnTile))
                         {
-                            PushChunkMeshQuad(&mesh, arena, vtx4, vtx0, vtx1, vtx5, val);
+                            result = result && PushChunkMeshQuad(outMesh, arena, vtx4, vtx0, vtx1, vtx5, val);
                         }
                         if (!TileNotEmpty(rTile))
                         {
-                            PushChunkMeshQuad(&mesh, arena, vtx1, vtx2, vtx6, vtx5, val);
+                            result = result && PushChunkMeshQuad(outMesh, arena, vtx1, vtx2, vtx6, vtx5, val);
                         }
                         if (!TileNotEmpty(lTile))
                         {
-                            PushChunkMeshQuad(&mesh, arena, vtx4, vtx7, vtx3, vtx0, val);
+                            result = result && PushChunkMeshQuad(outMesh, arena, vtx4, vtx7, vtx3, vtx0, val);
                         }
                         if (!TileNotEmpty(fTile))
                         {
-                            PushChunkMeshQuad(&mesh, arena, vtx0, vtx3, vtx2, vtx1, val);
+                            result = result && PushChunkMeshQuad(outMesh, arena, vtx0, vtx3, vtx2, vtx1, val);
                         }
                         if (!TileNotEmpty(bTile))
                         {
-                            PushChunkMeshQuad(&mesh, arena, vtx5, vtx6, vtx7, vtx4, val);
+                            result = result && PushChunkMeshQuad(outMesh, arena, vtx5, vtx6, vtx7, vtx4, val);
                         }
+                    }
+
+                    if (!result)
+                    {
+                        goto loopEnd;
                     }
                 }
             }
         }
-        return mesh;
+    loopEnd:
+        return result;
     }
 }

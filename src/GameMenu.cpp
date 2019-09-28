@@ -1,94 +1,98 @@
 namespace soko
 {
     internal Level*
-    InitializeLevel(const wchar_t* filename, u32 filenameSize, GameState* gameState)
+    InitializeLevel(const wchar_t* filename, AB::MemoryArena* levelArena, GameState* gameState)
     {
         BeginTemporaryMemory(gameState->tempArena);
-        gameState->level = LoadLevel(filename, gameState->tempArena);
+        Level* level = LoadLevel(filename, levelArena, gameState->tempArena);
         EndTemporaryMemory(gameState->tempArena);
+        if (level)
+        {
+            gameState->level = level;
 
-        auto level = gameState->level;
+            Entity entity1 = {};
+            entity1.type = ENTITY_TYPE_BLOCK;
+            entity1.flags = ENTITY_FLAG_COLLIDES | ENTITY_FLAG_MOVABLE;
+            entity1.coord = V3I(5, 7, 1);
+            entity1.mesh = &gameState->cubeMesh;
+            entity1.material = &gameState->tileBlockMaterial;
 
-        Entity entity1 = {};
-        entity1.type = ENTITY_TYPE_BLOCK;
-        entity1.flags = ENTITY_FLAG_COLLIDES | ENTITY_FLAG_MOVABLE;
-        entity1.coord = V3I(5, 7, 1);
-        entity1.mesh = &gameState->cubeMesh;
-        entity1.material = &gameState->tileBlockMaterial;
+            AddEntity(level, entity1, gameState->memoryArena);
+            //AddEntity(playerLevel)
 
-        AddEntity(level, entity1, gameState->memoryArena);
-        //AddEntity(playerLevel)
+            Entity entity2 = {};
+            entity2.type = ENTITY_TYPE_BLOCK;
+            entity2.flags = ENTITY_FLAG_COLLIDES | ENTITY_FLAG_MOVABLE;
+            entity2.coord = V3I(5, 8, 1);
+            entity2.mesh = &gameState->cubeMesh;
+            entity2.material = &gameState->tileBlockMaterial;
 
-        Entity entity2 = {};
-        entity2.type = ENTITY_TYPE_BLOCK;
-        entity2.flags = ENTITY_FLAG_COLLIDES | ENTITY_FLAG_MOVABLE;
-        entity2.coord = V3I(5, 8, 1);
-        entity2.mesh = &gameState->cubeMesh;
-        entity2.material = &gameState->tileBlockMaterial;
+            AddEntity(level, entity2, gameState->memoryArena);
 
-        AddEntity(level, entity2, gameState->memoryArena);
+            Entity entity3 = {};
+            entity3.type = ENTITY_TYPE_BLOCK;
+            entity3.flags = ENTITY_FLAG_COLLIDES | ENTITY_FLAG_MOVABLE;
+            entity3.coord = V3I(5, 9, 1);
+            entity3.mesh = &gameState->cubeMesh;
+            entity3.material = &gameState->tileBlockMaterial;
 
-        Entity entity3 = {};
-        entity3.type = ENTITY_TYPE_BLOCK;
-        entity3.flags = ENTITY_FLAG_COLLIDES | ENTITY_FLAG_MOVABLE;
-        entity3.coord = V3I(5, 9, 1);
-        entity3.mesh = &gameState->cubeMesh;
-        entity3.material = &gameState->tileBlockMaterial;
+            AddEntity(level, entity3, gameState->memoryArena);
 
-        AddEntity(level, entity3, gameState->memoryArena);
+            Entity plate = {};
+            plate.type = ENTITY_TYPE_PLATE;
+            plate.flags = 0;
+            plate.coord = V3I(10, 9, 1);
+            plate.mesh = &gameState->plateMesh;
+            plate.material = &gameState->redPlateMaterial;
 
-        Entity plate = {};
-        plate.type = ENTITY_TYPE_PLATE;
-        plate.flags = 0;
-        plate.coord = V3I(10, 9, 1);
-        plate.mesh = &gameState->plateMesh;
-        plate.material = &gameState->redPlateMaterial;
+            AddEntity(level, plate, gameState->memoryArena);
 
-        AddEntity(level, plate, gameState->memoryArena);
+            Entity portal1 = {};
+            portal1.type = ENTITY_TYPE_PORTAL;
+            portal1.flags = 0;
+            portal1.coord = V3I(12, 12, 1);
+            portal1.mesh = &gameState->portalMesh;
+            portal1.material = &gameState->portalMaterial;
+            portal1.portalDirection = DIRECTION_NORTH;
 
-        Entity portal1 = {};
-        portal1.type = ENTITY_TYPE_PORTAL;
-        portal1.flags = 0;
-        portal1.coord = V3I(12, 12, 1);
-        portal1.mesh = &gameState->portalMesh;
-        portal1.material = &gameState->portalMaterial;
-        portal1.portalDirection = DIRECTION_NORTH;
+            Entity* portal1Entity = GetEntity(level, AddEntity(level, portal1, gameState->memoryArena));
 
-        Entity* portal1Entity = GetEntity(level, AddEntity(level, portal1, gameState->memoryArena));
+            Entity portal2 = {};
+            portal2.type = ENTITY_TYPE_PORTAL;
+            portal2.flags = 0;
+            portal2.coord = V3I(17, 17, 1);
+            portal2.mesh = &gameState->portalMesh;
+            portal2.material = &gameState->portalMaterial;
+            portal2.portalDirection = DIRECTION_WEST;
 
-        Entity portal2 = {};
-        portal2.type = ENTITY_TYPE_PORTAL;
-        portal2.flags = 0;
-        portal2.coord = V3I(17, 17, 1);
-        portal2.mesh = &gameState->portalMesh;
-        portal2.material = &gameState->portalMaterial;
-        portal2.portalDirection = DIRECTION_WEST;
+            Entity* portal2Entity = GetEntity(level, AddEntity(level, portal2, gameState->memoryArena));
 
-        Entity* portal2Entity = GetEntity(level, AddEntity(level, portal2, gameState->memoryArena));
+            portal1Entity->bindedPortalID = portal2Entity->id;
+            portal2Entity->bindedPortalID = portal1Entity->id;
 
-        portal1Entity->bindedPortalID = portal2Entity->id;
-        portal2Entity->bindedPortalID = portal1Entity->id;
+            AddEntity(level, ENTITY_TYPE_SPIKES, V3I(15, 15, 1),
+                      &gameState->spikesMesh, &gameState->spikesMaterial, gameState->memoryArena);
+            Entity* button = GetEntity(level, AddEntity(level, ENTITY_TYPE_BUTTON, V3I(4, 4, 1),
+                                                        &gameState->buttonMesh, &gameState->buttonMaterial,
+                                                        gameState->memoryArena));
+            // TODO(emacs): Lambdas indenting
+            button->updateProc = [](Level* level, Entity* entity, void* data) {
+                GameState* gameState = (GameState*)data;
+                AddEntity(level, ENTITY_TYPE_BLOCK, V3I(4, 5, 1),
+                          &gameState->cubeMesh, &gameState->tileBlockMaterial,
+                          gameState->memoryArena);
+            };
+            button->updateProcData = (void*)gameState;
+        }
 
-        AddEntity(level, ENTITY_TYPE_SPIKES, V3I(15, 15, 1),
-                  &gameState->spikesMesh, &gameState->spikesMaterial, gameState->memoryArena);
-        Entity* button = GetEntity(level, AddEntity(level, ENTITY_TYPE_BUTTON, V3I(4, 4, 1),
-                                                    &gameState->buttonMesh, &gameState->buttonMaterial,
-                                                    gameState->memoryArena));
-        // TODO(emacs): Lambdas indenting
-        button->updateProc = [](Level* level, Entity* entity, void* data) {
-            GameState* gameState = (GameState*)data;
-            AddEntity(level, ENTITY_TYPE_BLOCK, V3I(4, 5, 1),
-                      &gameState->cubeMesh, &gameState->tileBlockMaterial,
-                      gameState->memoryArena);
-        };
-        button->updateProcData = (void*)gameState;
-        return gameState->level;
+        return level;
     }
 
     internal void
     MenuModeSelection(GameMenu* menu)
     {
         ZERO_ARRAY(char, LEVEL_PATH_BUFFER_SIZE, menu->levelPathBuffer);
+        ZERO_ARRAY(wchar_t, LEVEL_PATH_BUFFER_SIZE, menu->wLevelPathBuffer);
         ZERO_STRUCT(ServerConfig, &menu->serverConf);
         ZERO_STRUCT(ClientConfig, &menu->clientConf);
         if(ImGui::Button("Single", ImVec2(100, 60))) { menu->state = MainMenu_SingleSelectLevel; menu->gameMode = GAME_MODE_SINGLE; };
@@ -110,7 +114,7 @@ namespace soko
         ImGui::PopID();
         if (ImGui::Button("Load", ImVec2(60, 20)))
         {
-            if (ValidateLevelFile(menu->wLevelPathBuffer))
+            if (GetLevelMetaInfo(menu->wLevelPathBuffer, &menu->levelMetaInfo))
             {
                 menu->state = MainMenu_SingleLoadLevel;
             }
@@ -137,7 +141,7 @@ namespace soko
         ImGui::Separator();
 
         auto numFilter = [](ImGuiInputTextCallbackData* data) -> int {
-                return !(data->EventChar >= '0' && data->EventChar <='9');
+            return !(data->EventChar >= '0' && data->EventChar <='9');
         };
 
         char buf[64] = "";
@@ -167,7 +171,7 @@ namespace soko
 
         if (ImGui::Button("Load", ImVec2(60, 20)))
         {
-            if (DebugGetFileSize(menu->wLevelPathBuffer))
+            if (GetLevelMetaInfo(menu->wLevelPathBuffer, &menu->levelMetaInfo))
             {
                 if (portIsCorrect)
                 {
@@ -192,10 +196,18 @@ namespace soko
     MenuCreateServer(GameState* gameState, GameMenu* menu)
     {
         MainMenuState nextState = MainMenu_ConfigureServer;
-        if (InitializeLevel(menu->wLevelPathBuffer, LEVEL_PATH_BUFFER_SIZE, gameState))
+        uptr arenaSize = CalcLevelArenaSize(&menu->levelMetaInfo);
+        arenaSize += sizeof(net::Server);
+        MemoryArena* levelArena = PLATFORM_QUERY_NEW_ARENA(arenaSize);
+        SOKO_ASSERT(levelArena);
+
+        net::Server* server = net::InitializeServer(levelArena, menu->serverConf.port);
+        if (server)
         {
-            if (net::InitializeServer(gameState, gameState->memoryArena, menu->serverConf.port))
+            gameState->server = server;
+            if (InitializeLevel(menu->wLevelPathBuffer, levelArena, gameState))
             {
+                COPY_BYTES(SERVER_MAX_LEVEL_NAME_LEN, server->levelName, menu->levelPathBuffer);
                 gameState->port = menu->serverConf.port;
                 // TODO: Player placement (level start positions)
                 gameState->controlledPlayer = AddPlayer(gameState, V3I(10, 10, 1), gameState->memoryArena);
@@ -203,12 +215,21 @@ namespace soko
                 {
                     if (net::ServerAddPlayer(gameState->server,
                                              gameState->controlledPlayer,
-                                             net::Server::LOCAL_PLAYER_SLOT, {}))
+                                             net::SERVER_LOCAL_PLAYER_SLOT, {}))
                     {
                         nextState = MainMenu_EnterLevel;
                     }
                 }
             }
+            else
+            {
+                PLATFORM_FREE_ARENA(levelArena);
+            }
+        }
+        else
+        {
+            NetCloseSocket(server->socket);
+            PLATFORM_FREE_ARENA(levelArena);
         }
         menu->state = nextState;
     }
@@ -279,6 +300,7 @@ namespace soko
             ipInputSucceed)
         {
             inputSucceed = true;
+            menu->clientConf.serverAddress.port = (i16)menu->clientConf.inputPort;
         }
 
         ImGui::PopID();
@@ -288,7 +310,21 @@ namespace soko
         {
             if (inputSucceed)
             {
-                menu->state = MainMenu_TryConnectToServer;
+                Socket socket = NetCreateSocket();
+                if (socket)
+                {
+                    menu->clientConf.socket = socket;
+                    if (net::SendServerStateQuery(socket, menu->clientConf.serverAddress))
+                    {
+                        menu->state = MainMenu_ClientWaitForServerState;
+                    }
+                    else
+                    {
+                        bool result = NetCloseSocket(socket);
+                        SOKO_ASSERT(result);
+                    }
+
+                }
             }
         }
 
@@ -301,26 +337,144 @@ namespace soko
     }
 
     internal void
-    MenuTryConnectToServer(GameState* gameState, GameMenu* menu)
+    MenuClientWaitForServerState(GameMenu* menu)
     {
-        auto status = net::ClientTryToConnect(gameState, menu->clientConf.serverAddress);
-        switch (status)
+#define CLEANUP bool result = NetCloseSocket(menu->clientConf.socket); SOKO_ASSERT(result); menu->clientConf.socket = 0; menu->state = MainMenu_ModeSelection
+        // TODO: Waiting timer
+        byte buffer[512];
+        i32 result = net::ClientWaitForServerState(menu->clientConf.socket, buffer, 512);
+        switch (result)
         {
-        case net::ConnectionStatus_Waiting: { menu->state = MainMenu_TryConnectToServer; } break;
-        case net::ConnectionStatus_None: { menu->state = MainMenu_ModeSelection; } break;
-        case net::ConnectionStatus_Connected: { menu->state = MainMenu_ClientLoadLevel; } break;
-            INVALID_DEFAULT_CASE;
+        case 1:
+        {
+            auto stateMsg = (ServerMsgState*)(buffer + sizeof(ServerMsgHeader));
+            auto levelName = (char*)stateMsg + sizeof(ServerMsgState);
+            SOKO_ASSERT(stateMsg->levelNameStrLen <= SERVER_MAX_LEVEL_NAME_LEN);
+            if (stateMsg->hasAvailableSlot)
+            {
+                COPY_BYTES(stateMsg->levelNameStrLen, menu->levelPathBuffer, levelName);
+                mbstowcs(menu->wLevelPathBuffer, levelName, SERVER_MAX_LEVEL_NAME_LEN);
+
+                if (GetLevelMetaInfo(menu->wLevelPathBuffer, &menu->levelMetaInfo))
+                {
+                    menu->state = MainMenu_ClientLoadLevel;
+                }
+                else
+                {
+                    SOKO_INFO("Can not find level file");
+                    CLEANUP;
+                }
+            }
+            else
+            {
+                SOKO_INFO("Server is full");
+                CLEANUP;
+            }
+
+        } break;
+        case -1:
+        {
+            SOKO_INFO("Failed to get server state.");
+            CLEANUP;
+        } break;
+        default: {} break;
         }
+#undef CLEANUP
     }
 
     internal void
     ClientLoadLevel(GameMenu* menu, GameState* gameState)
     {
-        if (InitializeLevel(gameState->client->levelName, net::CLIENT_LEVEL_NAME_LEN, gameState))
+        uptr arenaSize = CalcLevelArenaSize(&menu->levelMetaInfo);
+        arenaSize += sizeof(net::Client);
+        arenaSize += 8; // Safety pad
+        MemoryArena* levelArena = PLATFORM_QUERY_NEW_ARENA(arenaSize);
+        SOKO_ASSERT(levelArena);
+        net::Client* client = PUSH_STRUCT(levelArena, net::Client);
+        if (client)
         {
-            // TODO: Send result back to server
-            menu->state = MainMenu_EnterLevel;
+            client->serverAddr = menu->clientConf.serverAddress;
+            client->socket = menu->clientConf.socket;
+            COPY_BYTES(SERVER_MAX_LEVEL_NAME_LEN, &client->levelName, &menu->levelPathBuffer);
+
+            Level* level = InitializeLevel(menu->wLevelPathBuffer, levelArena, gameState);
+            if (level)
+            {
+                if (net::ClientSendConnectionQuery(client->socket, client->serverAddr))
+                {
+                    menu->level = level;
+                    menu->client = client;
+                    // TODO: Temporary
+                    gameState->client = client;
+                    menu->state = MainMenu_ClientConnectToServer;
+                    return;
+                }
+            }
         }
+
+        PLATFORM_FREE_ARENA(levelArena);
+        menu->state = MainMenu_ConfigureClient;
+        bool result = NetCloseSocket(menu->clientConf.socket);
+        SOKO_ASSERT(result);
+        menu->clientConf.socket = 0;
+    }
+
+    void Foo()
+    {
+    }
+
+    internal void
+    MenuClientConnectToServer(GameMenu* menu, GameState* gameState)
+    {
+        i32 result = net::ClientWaitForConnectionResult(menu->client->socket, menu->client->socketBuffer, net::SERVER_SOCKET_BUFFER_SIZE);
+
+        if (result > 0)
+        {
+            auto msg = (ServerJoinResultMsg*)(menu->client->socketBuffer + sizeof(ServerMsgHeader));
+            u32 msgSize = (u32)result - sizeof(ServerMsgHeader);
+            if (net::ClientEstablishConnection(menu->client, msg, msgSize, gameState))
+            {
+                menu->state = MainMenu_EnterLevel;
+            }
+
+        }
+        else if (result == 0)
+        {
+
+        }
+        else
+        {
+            SOKO_INFO("Error while trying connct to server");
+            goto cleanup;
+        }
+
+        return;
+
+    cleanup:
+        PLATFORM_FREE_ARENA(menu->level->levelArena);
+        menu->state = MainMenu_ConfigureClient;
+        NetCloseSocket(menu->clientConf.socket);
+        SOKO_ASSERT(result);
+        menu->clientConf.socket = 0;
+    }
+
+    internal void
+    SingleLoadLevel(GameMenu* menu, GameState* gameState)
+    {
+        MainMenuState nextState = MainMenu_SingleSelectLevel;
+        uptr arenaSize = CalcLevelArenaSize(&menu->levelMetaInfo);
+        MemoryArena* levelArena = PLATFORM_QUERY_NEW_ARENA(arenaSize);
+        SOKO_ASSERT(levelArena);
+        Level* level = InitializeLevel(menu->wLevelPathBuffer, levelArena, gameState);
+        if (level)
+        {
+            nextState = MainMenu_EnterLevel;
+        }
+        else
+        {
+            PLATFORM_FREE_ARENA(levelArena);
+        }
+        menu->state = nextState;
     }
 
     internal void
@@ -340,16 +494,15 @@ namespace soko
         {
         case MainMenu_ModeSelection: { MenuModeSelection(menu); } break;
         case MainMenu_SingleSelectLevel: { MenuSingleSelectLevel(menu); } break;
-        case MainMenu_SingleLoadLevel:
-        {
-            InitializeLevel(menu->wLevelPathBuffer, LEVEL_PATH_BUFFER_SIZE, gameState) ? menu->state = MainMenu_EnterLevel : menu->state = MainMenu_Error;
-        } break;
+        case MainMenu_SingleLoadLevel: { SingleLoadLevel(menu, gameState); } break;
         case MainMenu_ConfigureServer: { MenuServerSettings(menu); } break;
         case MainMenu_CreateServer: { MenuCreateServer(gameState, menu); } break;
         case MainMenu_ConfigureClient: { MenuClientSettings(menu); } break;
-        case MainMenu_TryConnectToServer: { MenuTryConnectToServer(gameState, menu); } break;
+        case MainMenu_ClientWaitForServerState: { MenuClientWaitForServerState(menu); } break;
+        case MainMenu_ClientConnectToServer: { MenuClientConnectToServer(menu, gameState); } break;
         case MainMenu_ClientLoadLevel: { ClientLoadLevel(menu, gameState); } break;
-        case MainMenu_EnterLevel: { gameState->gameMode = menu->gameMode; };
+        case MainMenu_EnterLevel: { gameState->gameMode = menu->gameMode; } break;
+        INVALID_DEFAULT_CASE;
         }
 
         ImGui::End();

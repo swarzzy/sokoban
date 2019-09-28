@@ -23,18 +23,21 @@ namespace soko
     {
         SOKO_ASSERT(chunksNum <= LEVEL_FULL_DIM_CHUNKS * LEVEL_FULL_DIM_CHUNKS * LEVEL_FULL_DIM_CHUNKS);
         Level* result = 0;
-        result = PUSH_STRUCT(arena, Level);
-        if (result)
+        Level* level = PUSH_STRUCT(arena, Level);
+        if (level)
         {
-            result->chunkTable = PUSH_ARRAY(arena, Chunk, chunksNum);
-            SOKO_ASSERT(result->chunkTable);
-            result->chunkTableSize = chunksNum;
-            for (u32 i = 0; i < chunksNum; i++)
+            level->chunkTable = PUSH_ARRAY(arena, Chunk, chunksNum);
+            if (level->chunkTable)
             {
-                Chunk* chunk = result->chunkTable + i;
-                chunk->coord = V3I(LEVEL_INVALID_COORD);
-                // NOTE: Reserving null entity
-                result->entityCount = 1;
+                level->chunkTableSize = chunksNum;
+                for (u32 i = 0; i < chunksNum; i++)
+                {
+                    Chunk* chunk = level->chunkTable + i;
+                    chunk->coord = V3I(LEVEL_INVALID_COORD);
+                    // NOTE: Reserving null entity
+                    level->entityCount = 1;
+                }
+                result = level;
             }
         }
         return result;
@@ -663,7 +666,7 @@ namespace soko
     }
 
     internal bool
-    ValidateLevelFile(const wchar_t* filename)
+    GetLevelMetaInfo(const wchar_t* filename, LevelMetaInfo* outInfo)
     {
         bool result = 0;
         u32 fileSize = DebugGetFileSize(filename);
@@ -674,16 +677,37 @@ namespace soko
             if (headerResult == sizeof(AABLevelHeader) &&
                 header.magicValue == AAB_FILE_MAGIC_VALUE &&
                 header.version == AAB_FILE_VERSION &&
-                header.assetType == AAB_FILE_TYPE_LEVEL)
+                header.assetType == AAB_FILE_TYPE_LEVEL &&
+                header.chunkCount &&
+                header.chunkMeshBlockCount)
             {
                 result = 1;
+                if (outInfo)
+                {
+                    ZERO_STRUCT(LevelMetaInfo, outInfo);
+                    outInfo->chunkCount = header.chunkCount;
+                    outInfo->chunkMeshBlockCount = header.chunkMeshBlockCount;
+                }
             }
         }
         return result;
     }
 
+    inline uptr
+    CalcLevelArenaSize(const LevelMetaInfo* info)
+    {
+        uptr result = 0;
+        u64 levelSize = sizeof(Level) + sizeof(Chunk) * info->chunkCount;
+        uptr chunkMeshDataSize = sizeof(ChunkMeshVertexBlock) * info->chunkMeshBlockCount;
+        SOKO_ASSERT(levelSize <= AB::UPTR_MAX);
+        // NOTE: Adding some random value just in case
+        uptr safetyPad = 128 + alignof(ChunkMeshVertexBlock) * info->chunkMeshBlockCount;
+        result = (uptr)levelSize + chunkMeshDataSize + safetyPad;
+        return result;
+    }
+
     internal Level*
-    LoadLevel(const wchar_t* filename, AB::MemoryArena* tempArena)
+    LoadLevel(const wchar_t* filename, AB::MemoryArena* levelArena, AB::MemoryArena* tempArena)
     {
         Level* result = 0;
         u32 fileSize = DebugGetFileSize(filename);
@@ -696,63 +720,67 @@ namespace soko
                 header.version == AB::AAB_FILE_VERSION &&
                 header.assetType == AB::AAB_FILE_TYPE_LEVEL)
             {
-                uptr levelSize = sizeof(Level) + sizeof(Chunk) * header.chunkCount;
-                uptr chunkMeshDataSize = sizeof(ChunkMeshVertexBlock) * header.chunkMeshBlockCount;
-                SOKO_ASSERT(levelSize <= AB::UPTR_MAX);
-                uptr safetyPad = 128 + alignof(ChunkMeshVertexBlock) * header.chunkMeshBlockCount;
-                uptr arenaSize = (uptr)levelSize + chunkMeshDataSize + safetyPad;
-                AB::MemoryArena* arena = PLATFORM_QUERY_NEW_ARENA(arenaSize);
-                if (arena)
+                void* fileBuffer = PUSH_SIZE(tempArena, fileSize);
+                if (fileBuffer)
                 {
-                    void* fileBuffer = PUSH_SIZE(tempArena, fileSize);
-                    if (fileBuffer)
+                    u32 bytesRead = DebugReadFile(fileBuffer, fileSize, filename);
+                    if (bytesRead == fileSize)
                     {
-                        u32 bytesRead = DebugReadFile(fileBuffer, fileSize, filename);
-                        if (bytesRead == fileSize)
+                        Level* loadedLevel = CreateLevel(levelArena, header.chunkCount);
+                        if (loadedLevel)
                         {
-                            Level* loadedLevel = CreateLevel(arena, header.chunkCount);
-                            if (loadedLevel)
+                            loadedLevel->levelArena = levelArena;
+                            auto chunks = (SerializedChunk*)((byte*)fileBuffer + header.firstChunkOffset);
+                            for (u32 chunkIdx = 0; chunkIdx < header.chunkCount; chunkIdx++)
                             {
-                                loadedLevel->levelArena = arena;
-                                auto chunks = (SerializedChunk*)((byte*)fileBuffer + header.firstChunkOffset);
-                                for (u32 chunkIdx = 0; chunkIdx < header.chunkCount; chunkIdx++)
+                                SerializedChunk* sChunk = chunks + chunkIdx;
+                                Chunk* newChunk = InitChunk(loadedLevel, sChunk->coord);
+                                if (newChunk)
                                 {
-                                    SerializedChunk* sChunk = chunks + chunkIdx;
-                                    Chunk* newChunk = InitChunk(loadedLevel, sChunk->coord);
-                                    if (newChunk)
+                                    for (u32 z = 0; z < CHUNK_DIM; z++)
                                     {
-                                        for (u32 z = 0; z < CHUNK_DIM; z++)
+                                        for (u32 y = 0; y < CHUNK_DIM; y++)
                                         {
-                                            for (u32 y = 0; y < CHUNK_DIM; y++)
+                                            for (u32 x = 0; x < CHUNK_DIM; x++)
                                             {
-                                                for (u32 x = 0; x < CHUNK_DIM; x++)
-                                                {
-                                                    u32 tileIdx =
-                                                        z * CHUNK_DIM * CHUNK_DIM +
-                                                        y * CHUNK_DIM +
-                                                        x;
+                                                u32 tileIdx =
+                                                    z * CHUNK_DIM * CHUNK_DIM +
+                                                    y * CHUNK_DIM +
+                                                    x;
 
-                                                    newChunk->tiles[tileIdx].coord = V3I(x, y, z);
-                                                    newChunk->tiles[tileIdx].value = sChunk->tiles[tileIdx].value;
-                                                }
+                                                newChunk->tiles[tileIdx].coord = V3I(x, y, z);
+                                                newChunk->tiles[tileIdx].value = sChunk->tiles[tileIdx].value;
                                             }
                                         }
-                                        // TODO: Store meshes on the cpu and load on the gpu only when necessary
-                                        ChunkMesh mesh = GenChunkMesh(newChunk, arena);
+                                    }
+                                    // TODO: Store meshes on the cpu and load on the gpu only when necessary
+                                    ChunkMesh mesh;
+                                    if (GenChunkMesh(newChunk, &mesh, levelArena))
+                                    {
+                                        // TODO: Check if loading failed
                                         LoadedChunkMesh loadedMesh = RendererLoadChunkMesh(&mesh);
                                         newChunk->loadedMesh = loadedMesh;
                                         newChunk->mesh = mesh;
                                         loadedLevel->globalChunkMeshBlockCount += mesh.blockCount;
                                     }
+                                    else
+                                    {
+                                        goto end;
+                                    }
                                 }
-                                SOKO_ASSERT(loadedLevel->loadedChunksCount == header.chunkCount);
-                                result = loadedLevel;
+                                else
+                                {
+                                    goto end;
+                                }
                             }
+                            SOKO_ASSERT(loadedLevel->loadedChunksCount == header.chunkCount);
+                            result = loadedLevel;
                         }
                     }
                 }
             }
         }
+    end:
         return result;
     }
 }
