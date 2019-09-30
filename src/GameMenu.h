@@ -16,6 +16,7 @@ namespace soko
         MainMenu_ClientWaitForServerState,
         MainMenu_ClientLoadLevel,
         MainMenu_ClientConnectToServer,
+        MainMenu_GenTestLevel,
         MainMenu_Error
     };
 
@@ -38,14 +39,13 @@ namespace soko
 
     struct GameMenu
     {
-        u32 gameMode; // GameMode
         MainMenuState state;
+        // NOTE: Will be zeroed from this member
         char levelPathBuffer[LEVEL_PATH_BUFFER_SIZE];
         wchar_t wLevelPathBuffer[LEVEL_PATH_BUFFER_SIZE];
         LevelMetaInfo levelMetaInfo;
         ServerConfig serverConf;
         ClientConfig clientConf;
-        net::Client* client;
-        Level* level;
+        GameSession session;
     };
 }

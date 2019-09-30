@@ -93,10 +93,9 @@ namespace soko::net
     }
 
     void
-    ServerSendOutputMessages(GameState* gameState)
+    ServerSendOutputMessages(GameState* gameState, Level* level, Server* server)
     {
-        Server* server = gameState->server;
-        byte* buffer = gameState->server->socketBuffer;
+        byte* buffer = server->socketBuffer;
         for (u32 i = 0; i < SERVER_SLOTS_NUM; i++)
         {
             b32 slotOccupied = server->slotsOccupancy[i];
@@ -110,7 +109,7 @@ namespace soko::net
                     PlayerAction action = (PlayerAction)slot->inputBuffer.base[inputIndex];
                     if (ActionIsMovement(action))
                     {
-                        MoveEntity(gameState->level,
+                        MoveEntity(level,
                                    slot->player->e,
                                    (Direction)action, gameState->memoryArena,
                                    slot->player->reversed);
@@ -141,7 +140,7 @@ namespace soko::net
                 inputOffset += slot->inputBuffer.at;
                 for (u32 sendIndex = 1; sendIndex < net::SERVER_SLOTS_NUM; sendIndex++)
                 {
-                    if (gameState->server->slotsOccupancy[sendIndex])
+                    if (server->slotsOccupancy[sendIndex])
                     {
                         ServerSlot* sendSlot = server->slots + sendIndex;
                         auto[status, size] = NetSend(server->socket,
@@ -156,9 +155,8 @@ namespace soko::net
     }
 
     void
-    ServerPollInputMessages(GameState* gameState)
+    ServerPollInputMessages(GameState* gameState, Server* server)
     {
-        Server* server = gameState->server;
         while (true)
         {
             auto[rcStatus, rcSize, rcFrom] = NetRecieve(server->socket, server->socketBuffer,
@@ -206,7 +204,7 @@ namespace soko::net
                         v3i coord = V3I(13 + playerCount, 13, 1);
                         playerCount++;
 
-                        player = AddPlayer(gameState, coord, gameState->memoryArena);
+                        player = AddPlayer(gameState, gameState->session.level, coord, gameState->memoryArena);
 
                         if (player)
                         {
@@ -221,7 +219,7 @@ namespace soko::net
                                 {
                                     if (otherSlot != freeSlot)
                                     {
-                                        if (gameState->server->slotsOccupancy[otherSlot])
+                                        if (server->slotsOccupancy[otherSlot])
                                         {
                                             ServerSlot* s = server->slots + otherSlot;
                                             auto data = (NewPlayerData*)(buffer + bufferAt);
@@ -251,7 +249,7 @@ namespace soko::net
                     if (!sndStatus && slotInitialized)
                     {
                         DeletePlayer(gameState, player);
-                        gameState->server->slotsOccupancy[freeSlot] = 0;
+                        server->slotsOccupancy[freeSlot] = 0;
                     }
 
                     // NOTE: Recieving new player data to all other players
@@ -453,7 +451,7 @@ namespace soko::net
         if (msg->succeed)
         {
             v3i playerCoord = V3I(msg->newPlayer.x, msg->newPlayer.y, msg->newPlayer.z);
-            Player* player = AddPlayer(gameState, playerCoord, gameState->memoryArena);
+            Player* player = AddPlayer(gameState, gameState->session.level, playerCoord, gameState->memoryArena);
             if (player)
             {
                 gameState->controlledPlayer = player;
@@ -470,7 +468,7 @@ namespace soko::net
                     bufferAt += sizeof(NewPlayerData);
 
                     v3i coord = V3I(nextPlayer->x, nextPlayer->y, nextPlayer->z);
-                    Player* player = AddPlayer(gameState, coord, gameState->memoryArena);
+                    Player* player = AddPlayer(gameState, gameState->session.level, coord, gameState->memoryArena);
                     SOKO_ASSERT(player);
                     // TODO: Check for overflow
                     client->slotsOccupancy[nextPlayer->slot] = 1;

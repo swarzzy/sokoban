@@ -2,6 +2,8 @@
 #include "hypermath.h"
 #undef HYPERMATH_IMPL
 #include "Constants.h"
+
+#include "GameSession.h"
 #include "Sokoban.h"
 #include "Memory.h"
 
@@ -600,50 +602,11 @@ namespace soko
         }
 
 
-#if 0
-        BeginTemporaryMemory(gameState->tempArena);
-        gameState->level = CreateLevel(arena, 8 * 8);
-        for (i32 chunkX = LEVEL_MIN_DIM_CHUNKS; chunkX < LEVEL_MAX_DIM_CHUNKS; chunkX++)
-        {
-            for (i32 chunkY = LEVEL_MIN_DIM_CHUNKS; chunkY < LEVEL_MAX_DIM_CHUNKS; chunkY++)
-            {
-                Chunk* chunk = InitChunk(gameState->level, chunkX, chunkY, 0);
-                SOKO_ASSERT(chunk);
 
-                for (u32 x = 0; x < CHUNK_DIM; x++)
-                {
-                    for (u32 y = 0; y < CHUNK_DIM; y++)
-                    {
-                        Tile* tile = GetTileInChunk(chunk, x, y, 0);
-                        SOKO_ASSERT(tile);
-                        tile->value = TILE_VALUE_WALL;
-
-                        if ((x == 0) || (x == CHUNK_DIM - 1) ||
-                            (y == 0) || (y == CHUNK_DIM - 1))
-                        {
-                            Tile* tile1 = GetTileInChunk(chunk, x, y, 1);
-                            SOKO_ASSERT(tile1);
-                            tile1->value = TILE_VALUE_WALL;
-                        }
-                    }
-                }
-                ChunkMesh mesh = GenChunkMesh(chunk, gameState->tempArena);
-                chunk->mesh = mesh;
-                gameState->level->globalChunkMeshBlockCount += mesh.blockCount;
-
-            }
-        }
-        EndTemporaryMemory(gameState->tempArena);
-        BeginTemporaryMemory(gameState->tempArena);
-        bool saveResult = SaveLevel(gameState->level, L"testLevel.aab", gameState->tempArena);
-        SOKO_ASSERT(saveResult);
-        EndTemporaryMemory(gameState->tempArena);
-#endif
-
-    auto* level = gameState->level;
-    gameState->port = 9999;
-    gameState->ipOctets[0] = 127;
-    gameState->ipOctets[3] = 1;
+        //auto* level = gameState->level;
+        //gameState->port = 9999;
+        //gameState->ipOctets[0] = 127;
+        //gameState->ipOctets[3] = 1;
 }
 
     void
@@ -677,61 +640,66 @@ namespace soko
         //ImGui::ShowDemoWindow(&show);
         DebugOverlayPushStr("Hello!");
         DEBUG_OVERLAY_TRACE(gameState->camera.conf.position);
-        DEBUG_OVERLAY_TRACE(gameState->level->platePressed);
-        DEBUG_OVERLAY_TRACE(gameState->level->entityCount);
-        DEBUG_OVERLAY_TRACE(gameState->level->deletedEntityCount);
+        //DEBUG_OVERLAY_TRACE(gameState->level->platePressed);
+        //DEBUG_OVERLAY_TRACE(gameState->level->entityCount);
+        //DEBUG_OVERLAY_TRACE(gameState->level->deletedEntityCount);
 
-        if (gameState->gameMode == GAME_MODE_SERVER)
+        if (gameState->globalGameMode == GAME_MODE_SERVER)
         {
-            net::ServerPollInputMessages(gameState);
+            net::Server* server = gameState->session.server;
+            net::ServerPollInputMessages(gameState, server);
 
             // TODO: Move input buffers to player
-            SOKO_ASSERT(!gameState->server->slots[net::SERVER_LOCAL_PLAYER_SLOT].inputBuffer.at);
-            CollectPlayerInput(&gameState->server->slots[net::SERVER_LOCAL_PLAYER_SLOT].inputBuffer);
+            SOKO_ASSERT(!server->slots[net::SERVER_LOCAL_PLAYER_SLOT].inputBuffer.at);
+            CollectPlayerInput(&server->slots[net::SERVER_LOCAL_PLAYER_SLOT].inputBuffer);
 
-            net::ServerSendOutputMessages(gameState);
+            net::ServerSendOutputMessages(gameState, gameState->session.level, server);
         }
-        else if (gameState->gameMode == GAME_MODE_CLIENT)
+        else if (gameState->globalGameMode == GAME_MODE_CLIENT)
         {
-            byte* netBuffer = gameState->client->socketBuffer;
+            net::Client* client = gameState->session.client;
+            byte* netBuffer = client->socketBuffer;
             u32 netBufferAt = 0;
 
             {
+#if 0
+                // TODO: @ShouldDisconnect
                 if (gameState->shouldDisconnect)
                 {
                     auto header = (ClientMsgHeader*)netBuffer;
                     header->type = ClientMsg_Leave;
-                    header->slot = gameState->client->playerSlot;
-                    auto[status, size] = NetSend(gameState->client->socket, gameState->client->serverAddr, netBuffer, sizeof(ClientMsgHeader));
+                    header->slot = client->playerSlot;
+                    auto[status, size] = NetSend(client->socket, client->serverAddr, netBuffer, sizeof(ClientMsgHeader));
                     SOKO_ASSERT(status);
                 }
                 else
+#endif
                 {
 
                     // TODO: Handle connection failing
-                    SOKO_ASSERT(gameState->client->playerSlot);
+                    SOKO_ASSERT(client->playerSlot);
 
-                    SOKO_ASSERT(!gameState->client->slots[gameState->client->playerSlot].inputBuffer.at);
-                    auto* playerInput = &gameState->client->slots[gameState->client->playerSlot].inputBuffer;
+                    SOKO_ASSERT(!client->slots[client->playerSlot].inputBuffer.at);
+                    auto* playerInput = &client->slots[client->playerSlot].inputBuffer;
                     net::CollectPlayerInput(playerInput);
 
                     auto header = (ClientMsgHeader*)netBuffer;
                     header->type = ClientMsg_PlayerAction;
-                    header->slot = gameState->client->playerSlot;
+                    header->slot = client->playerSlot;
 
                     u32 netBufferAt = sizeof(ClientMsgHeader);
                     // TODO: Check for buffer overflow
                     COPY_BYTES(playerInput->at,
                                netBuffer + netBufferAt, playerInput->base);
                     netBufferAt += playerInput->at;
-                    auto[status, size] = NetSend(gameState->client->socket, gameState->client->serverAddr, netBuffer, netBufferAt);
+                    auto[status, size] = NetSend(client->socket, client->serverAddr, netBuffer, netBufferAt);
                     SOKO_ASSERT(status);
                     // TODO: Use some temporary buffer instead of player input buffer
                     playerInput->at = 0;
 
                     while (true)
                     {
-                        auto[rcStatus, rcSize, rcFrom] = NetRecieve(gameState->client->socket, netBuffer,
+                        auto[rcStatus, rcSize, rcFrom] = NetRecieve(client->socket, netBuffer,
                                                                     net::SERVER_SOCKET_BUFFER_SIZE);
                         if (rcStatus == AB::NetRecieveResult::Success && rcSize) // TODO: empty packets
                         {
@@ -743,21 +711,21 @@ namespace soko
                                 auto msg = (ServerDeletePlayerMsg*)(netBuffer + sizeof(ServerMsgHeader));
                                 if (msg->slot >= 0 && msg->slot < net::SERVER_SLOTS_NUM)
                                 {
-                                    bool occupied = gameState->client->slotsOccupancy[msg->slot];
+                                    bool occupied = client->slotsOccupancy[msg->slot];
                                     SOKO_ASSERT(occupied);
-                                    gameState->client->slotsOccupancy[msg->slot] = false;
-                                    net::ClientSlot* s = gameState->client->slots + msg->slot;
+                                    client->slotsOccupancy[msg->slot] = false;
+                                    net::ClientSlot* s = client->slots + msg->slot;
                                     DeletePlayer(gameState, s->player);
                                 }
                             } break;
                             case ServerMsg_AddPlayer:
                             {
                                 auto msg = (ServerAddPlayerMsg*)(netBuffer + sizeof(ServerMsgHeader));
-                                SOKO_ASSERT(!gameState->client->slotsOccupancy[msg->newPlayer.slot]);
-                                gameState->client->slotsOccupancy[msg->newPlayer.slot] = 1;
-                                auto* s = gameState->client->slots + msg->newPlayer.slot;
+                                SOKO_ASSERT(!client->slotsOccupancy[msg->newPlayer.slot]);
+                                client->slotsOccupancy[msg->newPlayer.slot] = 1;
+                                auto* s = client->slots + msg->newPlayer.slot;
                                 v3i coord = V3I(msg->newPlayer.x, msg->newPlayer.y, msg->newPlayer.z);
-                                Player* player = AddPlayer(gameState, coord, arena);
+                                Player* player = AddPlayer(gameState, gameState->session.level, coord, arena);
                                 SOKO_ASSERT(player);
                                 s->player = player;
                             } break;
@@ -765,7 +733,7 @@ namespace soko
                             {
                                 auto msg = (ServerPlayerActionMsg*)(netBuffer + sizeof(ServerMsgHeader));
 
-                                net::ClientSlot* s = gameState->client->slots + msg->slot;
+                                net::ClientSlot* s = client->slots + msg->slot;
                                 // TODO: Validate _of_do_something_ with controlled
                                 // player input
                                 u32 offset = sizeof(ServerMsgHeader) + sizeof(ServerPlayerActionMsg);
@@ -789,8 +757,8 @@ namespace soko
                     // TODO: Counter of connected players
                     for (u32 i = 0; i < net::SERVER_SLOTS_NUM; i++)
                     {
-                        net::ClientSlot* slot = gameState->client->slots + i;
-                        bool slotOccupied = gameState->client->slotsOccupancy[i];
+                        net::ClientSlot* slot = client->slots + i;
+                        bool slotOccupied = client->slotsOccupancy[i];
                         if (slotOccupied && slot->inputBuffer.at)
                         {
                             for (u32 inputIndex = 0;
@@ -801,7 +769,7 @@ namespace soko
                                 PlayerAction action = (PlayerAction)slot->inputBuffer.base[inputIndex];
                                 if (ActionIsMovement(action))
                                 {
-                                    MoveEntity(gameState->level,
+                                    MoveEntity(gameState->session.level,
                                                slot->player->e,
                                                (Direction)action, arena,
                                                slot->player->reversed);
@@ -825,11 +793,11 @@ namespace soko
             }
         }
 
-        else if (gameState->gameMode == GAME_MODE_SINGLE)
+        else if (gameState->globalGameMode == GAME_MODE_SINGLE)
         {
             if (!gameState->controlledPlayer)
             {
-                gameState->controlledPlayer = AddPlayer(gameState, V3I(10, 10, 1), arena);
+                gameState->controlledPlayer = AddPlayer(gameState, gameState->session.level, V3I(10, 10, 1), arena);
             }
             Player* player = gameState->controlledPlayer;
             if (JustPressed(AB::KEY_SPACE))
@@ -839,22 +807,22 @@ namespace soko
 
             if (JustPressed(AB::KEY_UP))
             {
-                MoveEntity(gameState->level, player->e, DIRECTION_NORTH, arena, player->reversed);
+                MoveEntity(gameState->session.level, player->e, DIRECTION_NORTH, arena, player->reversed);
             }
 
             if (JustPressed(AB::KEY_DOWN))
             {
-                MoveEntity(gameState->level, player->e, DIRECTION_SOUTH, arena, player->reversed);
+                MoveEntity(gameState->session.level, player->e, DIRECTION_SOUTH, arena, player->reversed);
             }
 
             if (JustPressed(AB::KEY_RIGHT))
             {
-                MoveEntity(gameState->level, player->e, DIRECTION_EAST, arena, player->reversed);
+                MoveEntity(gameState->session.level, player->e, DIRECTION_EAST, arena, player->reversed);
             }
 
             if (JustPressed(AB::KEY_LEFT))
             {
-                MoveEntity(gameState->level, player->e, DIRECTION_WEST, arena, player->reversed);
+                MoveEntity(gameState->session.level, player->e, DIRECTION_WEST, arena, player->reversed);
             }
         }
         else
@@ -891,7 +859,7 @@ namespace soko
         lightCommand.light = light;
         RenderGroupPushCommand(gameState->renderGroup, RENDER_COMMAND_SET_DIR_LIGHT,
                                (void*)&lightCommand);
-
+#if 0
         RenderGroupPushCommand(gameState->renderGroup,
                                RENDER_COMMAND_BEGIN_CHUNK_MESH_BATCH, 0);
         RenderCommandPushChunkMesh c = {};
@@ -902,19 +870,18 @@ namespace soko
                                RENDER_COMMAND_PUSH_CHUNK_MESH, (void*)&c);
         RenderGroupPushCommand(gameState->renderGroup,
                                RENDER_COMMAND_END_CHUNK_MESH_BATCH, 0);
+#endif
 
-        DrawLevel(gameState->level, gameState);
-        DrawEntities(gameState->level, gameState);
+        DrawLevel(gameState->session.level, gameState);
+        DrawEntities(gameState->session.level, gameState);
         FlushRenderGroup(gameState->renderer, gameState->renderGroup);
     }
 
     void
     GameRender(AB::MemoryArena* arena, AB::PlatformState* platform)
     {
-        // TODO: move ot out of here
         auto* gameState = _GlobalStaticStorage->gameState;
-        //net::InitializeClient(gameState);
-        switch (gameState->gameMode)
+        switch (gameState->globalGameMode)
         {
         case GAME_MODE_MENU: { MenuUpdateAndRender(&gameState->mainMenu, gameState); } break;
         default: { DoOtherStuff(gameState); }break;

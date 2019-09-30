@@ -8,8 +8,6 @@ namespace soko
         EndTemporaryMemory(gameState->tempArena);
         if (level)
         {
-            gameState->level = level;
-
             Entity entity1 = {};
             entity1.type = ENTITY_TYPE_BLOCK;
             entity1.flags = ENTITY_FLAG_COLLIDES | ENTITY_FLAG_MOVABLE;
@@ -88,20 +86,65 @@ namespace soko
         return level;
     }
 
+    enum MenuCleanupFlags : u32
+    {
+        MenuCleanup_Common = 0x1,
+        MenuCleanup_NetSpecific = 0x2
+    };
+
+    internal void
+    MenuCleanup(GameMenu* menu, MainMenuState nextState, u32 flags)
+    {
+        if (flags & MenuCleanup_NetSpecific)
+        {
+            if (menu->session.gameMode = GAME_MODE_SERVER)
+            {
+                if (menu->session.server)
+                {
+                    bool result = NetCloseSocket(menu->session.server->socket);
+                    SOKO_ASSERT(result);
+                }
+            }
+            else if (menu->session.gameMode = GAME_MODE_CLIENT)
+            {
+                if (menu->session.client)
+                {
+                    bool result = NetCloseSocket(menu->session.client->socket);
+                    SOKO_ASSERT(result);
+                }
+            }
+            else
+            {
+                INVALID_CODE_PATH;
+            }
+
+
+            if (menu->session.sessionArena)
+            {
+                PLATFORM_FREE_ARENA(menu->session.sessionArena);
+            }
+
+        }
+
+        if (flags & MenuCleanup_Common)
+        {
+            ZERO_FROM_MEMBER(GameMenu, levelPathBuffer, menu);
+        }
+
+        menu->state = nextState;
+    }
+
     internal void
     MenuModeSelection(GameMenu* menu)
     {
-        ZERO_ARRAY(char, LEVEL_PATH_BUFFER_SIZE, menu->levelPathBuffer);
-        ZERO_ARRAY(wchar_t, LEVEL_PATH_BUFFER_SIZE, menu->wLevelPathBuffer);
-        ZERO_STRUCT(ServerConfig, &menu->serverConf);
-        ZERO_STRUCT(ClientConfig, &menu->clientConf);
-        if(ImGui::Button("Single", ImVec2(100, 60))) { menu->state = MainMenu_SingleSelectLevel; menu->gameMode = GAME_MODE_SINGLE; };
-        if(ImGui::Button("Create session", ImVec2(100, 60))) { menu->state = MainMenu_ConfigureServer; menu->gameMode = GAME_MODE_SERVER; };
-        if(ImGui::Button("Connect", ImVec2(100, 60))) { menu->state = MainMenu_ConfigureClient; menu->gameMode = GAME_MODE_CLIENT; };
+        if(ImGui::Button("Single", ImVec2(100, 60))) { menu->state = MainMenu_SingleSelectLevel; menu->session.gameMode = GAME_MODE_SINGLE; };
+        if(ImGui::Button("Create session", ImVec2(100, 60))) { menu->state = MainMenu_ConfigureServer; menu->session.gameMode = GAME_MODE_SERVER; };
+        if(ImGui::Button("Connect", ImVec2(100, 60))) { menu->state = MainMenu_ConfigureClient; menu->session.gameMode = GAME_MODE_CLIENT; };
+        if(ImGui::Button("Gen test level", ImVec2(100, 60))) { menu->state = MainMenu_GenTestLevel; };
     }
 
-    internal
-    void MenuSingleSelectLevel(GameMenu* menu)
+    internal void
+    MenuSingleSelectLevel(GameMenu* menu)
     {
         ImGui::Text("Load level");
         ImGui::Separator();
@@ -133,6 +176,29 @@ namespace soko
         }
 
     }
+
+    internal void
+    SingleLoadLevel(GameMenu* menu, GameState* gameState)
+    {
+        MainMenuState nextState = MainMenu_SingleSelectLevel;
+        uptr arenaSize = CalcLevelArenaSize(&menu->levelMetaInfo);
+        MemoryArena* levelArena = PLATFORM_QUERY_NEW_ARENA(arenaSize);
+        SOKO_ASSERT(levelArena);
+        // TODO: Remove level from GameState
+        Level* level = InitializeLevel(menu->wLevelPathBuffer, levelArena, gameState);
+        if (level)
+        {
+            menu->session.sessionArena = levelArena;
+            menu->session.level = level;
+            nextState = MainMenu_EnterLevel;
+        }
+        else
+        {
+            PLATFORM_FREE_ARENA(levelArena);
+        }
+        menu->state = nextState;
+    }
+
 
     internal void
     MenuServerSettings(GameMenu* menu)
@@ -200,38 +266,34 @@ namespace soko
         arenaSize += sizeof(net::Server);
         MemoryArena* levelArena = PLATFORM_QUERY_NEW_ARENA(arenaSize);
         SOKO_ASSERT(levelArena);
+        menu->session.sessionArena = levelArena;
 
         net::Server* server = net::InitializeServer(levelArena, menu->serverConf.port);
         if (server)
         {
-            gameState->server = server;
-            if (InitializeLevel(menu->wLevelPathBuffer, levelArena, gameState))
+            menu->session.server = server;
+            Level* level = InitializeLevel(menu->wLevelPathBuffer, levelArena, gameState);
+            if (level)
             {
                 COPY_BYTES(SERVER_MAX_LEVEL_NAME_LEN, server->levelName, menu->levelPathBuffer);
-                gameState->port = menu->serverConf.port;
+                //gameState->port = menu->serverConf.port;
                 // TODO: Player placement (level start positions)
-                gameState->controlledPlayer = AddPlayer(gameState, V3I(10, 10, 1), gameState->memoryArena);
+                gameState->controlledPlayer = AddPlayer(gameState, gameState->session.level, V3I(10, 10, 1), gameState->memoryArena);
                 if (gameState->controlledPlayer)
                 {
-                    if (net::ServerAddPlayer(gameState->server,
+                    if (net::ServerAddPlayer(server,
                                              gameState->controlledPlayer,
                                              net::SERVER_LOCAL_PLAYER_SLOT, {}))
                     {
-                        nextState = MainMenu_EnterLevel;
+                        menu->state = MainMenu_EnterLevel;
+                        menu->session.level = level;
+                        return;
                     }
                 }
             }
-            else
-            {
-                PLATFORM_FREE_ARENA(levelArena);
-            }
         }
-        else
-        {
-            NetCloseSocket(server->socket);
-            PLATFORM_FREE_ARENA(levelArena);
-        }
-        menu->state = nextState;
+        MenuCleanup(menu, MainMenu_ConfigureServer,
+                    MenuCleanup_NetSpecific);
     }
 
     internal void
@@ -313,7 +375,7 @@ namespace soko
                 Socket socket = NetCreateSocket();
                 if (socket)
                 {
-                    menu->clientConf.socket = socket;
+                    menu->session.client->socket = socket;
                     if (net::SendServerStateQuery(socket, menu->clientConf.serverAddress))
                     {
                         menu->state = MainMenu_ClientWaitForServerState;
@@ -339,7 +401,6 @@ namespace soko
     internal void
     MenuClientWaitForServerState(GameMenu* menu)
     {
-#define CLEANUP bool result = NetCloseSocket(menu->clientConf.socket); SOKO_ASSERT(result); menu->clientConf.socket = 0; menu->state = MainMenu_ModeSelection
         // TODO: Waiting timer
         byte buffer[512];
         i32 result = net::ClientWaitForServerState(menu->clientConf.socket, buffer, 512);
@@ -358,28 +419,27 @@ namespace soko
                 if (GetLevelMetaInfo(menu->wLevelPathBuffer, &menu->levelMetaInfo))
                 {
                     menu->state = MainMenu_ClientLoadLevel;
+                    return;
                 }
                 else
                 {
                     SOKO_INFO("Can not find level file");
-                    CLEANUP;
                 }
             }
             else
             {
                 SOKO_INFO("Server is full");
-                CLEANUP;
             }
 
         } break;
         case -1:
         {
             SOKO_INFO("Failed to get server state.");
-            CLEANUP;
         } break;
         default: {} break;
         }
-#undef CLEANUP
+        MenuCleanup(menu, MainMenu_ConfigureClient,
+                    MenuCleanup_Common | MenuCleanup_NetSpecific);
     }
 
     internal void
@@ -390,9 +450,11 @@ namespace soko
         arenaSize += 8; // Safety pad
         MemoryArena* levelArena = PLATFORM_QUERY_NEW_ARENA(arenaSize);
         SOKO_ASSERT(levelArena);
+        menu->session.sessionArena = levelArena;
         net::Client* client = PUSH_STRUCT(levelArena, net::Client);
         if (client)
         {
+            menu->session.client = client;
             client->serverAddr = menu->clientConf.serverAddress;
             client->socket = menu->clientConf.socket;
             COPY_BYTES(SERVER_MAX_LEVEL_NAME_LEN, &client->levelName, &menu->levelPathBuffer);
@@ -402,37 +464,27 @@ namespace soko
             {
                 if (net::ClientSendConnectionQuery(client->socket, client->serverAddr))
                 {
-                    menu->level = level;
-                    menu->client = client;
-                    // TODO: Temporary
-                    gameState->client = client;
+                    menu->session.level = level;
                     menu->state = MainMenu_ClientConnectToServer;
                     return;
                 }
             }
         }
 
-        PLATFORM_FREE_ARENA(levelArena);
-        menu->state = MainMenu_ConfigureClient;
-        bool result = NetCloseSocket(menu->clientConf.socket);
-        SOKO_ASSERT(result);
-        menu->clientConf.socket = 0;
-    }
-
-    void Foo()
-    {
+        MenuCleanup(menu, MainMenu_ConfigureClient,
+                    MenuCleanup_Common | MenuCleanup_NetSpecific);
     }
 
     internal void
     MenuClientConnectToServer(GameMenu* menu, GameState* gameState)
     {
-        i32 result = net::ClientWaitForConnectionResult(menu->client->socket, menu->client->socketBuffer, net::SERVER_SOCKET_BUFFER_SIZE);
+        i32 result = net::ClientWaitForConnectionResult(menu->session.client->socket, menu->session.client->socketBuffer, net::SERVER_SOCKET_BUFFER_SIZE);
 
         if (result > 0)
         {
-            auto msg = (ServerJoinResultMsg*)(menu->client->socketBuffer + sizeof(ServerMsgHeader));
+            auto msg = (ServerJoinResultMsg*)(menu->session.client->socketBuffer + sizeof(ServerMsgHeader));
             u32 msgSize = (u32)result - sizeof(ServerMsgHeader);
-            if (net::ClientEstablishConnection(menu->client, msg, msgSize, gameState))
+            if (net::ClientEstablishConnection(menu->session.client, msg, msgSize, gameState))
             {
                 menu->state = MainMenu_EnterLevel;
             }
@@ -445,36 +497,16 @@ namespace soko
         else
         {
             SOKO_INFO("Error while trying connct to server");
-            goto cleanup;
+            MenuCleanup(menu, MainMenu_ConfigureClient,
+                        MenuCleanup_Common | MenuCleanup_NetSpecific);
         }
-
-        return;
-
-    cleanup:
-        PLATFORM_FREE_ARENA(menu->level->levelArena);
-        menu->state = MainMenu_ConfigureClient;
-        NetCloseSocket(menu->clientConf.socket);
-        SOKO_ASSERT(result);
-        menu->clientConf.socket = 0;
     }
 
     internal void
-    SingleLoadLevel(GameMenu* menu, GameState* gameState)
+    MenuEnterLevel(GameMenu* menu, GameState* gameState)
     {
-        MainMenuState nextState = MainMenu_SingleSelectLevel;
-        uptr arenaSize = CalcLevelArenaSize(&menu->levelMetaInfo);
-        MemoryArena* levelArena = PLATFORM_QUERY_NEW_ARENA(arenaSize);
-        SOKO_ASSERT(levelArena);
-        Level* level = InitializeLevel(menu->wLevelPathBuffer, levelArena, gameState);
-        if (level)
-        {
-            nextState = MainMenu_EnterLevel;
-        }
-        else
-        {
-            PLATFORM_FREE_ARENA(levelArena);
-        }
-        menu->state = nextState;
+        gameState->globalGameMode = menu->session.gameMode;
+        gameState->session = menu->session;
     }
 
     internal void
@@ -501,7 +533,8 @@ namespace soko
         case MainMenu_ClientWaitForServerState: { MenuClientWaitForServerState(menu); } break;
         case MainMenu_ClientConnectToServer: { MenuClientConnectToServer(menu, gameState); } break;
         case MainMenu_ClientLoadLevel: { ClientLoadLevel(menu, gameState); } break;
-        case MainMenu_EnterLevel: { gameState->gameMode = menu->gameMode; } break;
+        case MainMenu_GenTestLevel: { GenTestLevel(gameState->tempArena); menu->state = MainMenu_ModeSelection; } break;
+        case MainMenu_EnterLevel: { MenuEnterLevel(menu, gameState); } break;
         INVALID_DEFAULT_CASE;
         }
 

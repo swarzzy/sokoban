@@ -73,14 +73,6 @@ namespace soko
         bool reversed;
     };
 
-    enum GameMode
-    {
-        GAME_MODE_MENU = 0,
-        GAME_MODE_SINGLE,
-        GAME_MODE_CLIENT,
-        GAME_MODE_SERVER
-    };
-
     struct ClientInput
     {
         static constexpr u32 BUFFER_SIZE = 512;
@@ -97,8 +89,10 @@ namespace soko
 
     struct GameState
     {
-        u32 gameMode;
+        GameMode globalGameMode;
         GameMenu mainMenu;
+        GameSession session;
+
         static constexpr u32 MAX_PLAYERS = 4;
         AB::MemoryArena* memoryArena;
         AB::MemoryArena* tempArena;
@@ -120,27 +114,9 @@ namespace soko
         Material spikesMaterial;
         Material buttonMaterial;
         u32 overlayCorner;
-        Level* level;
         bool playersOccupancy[MAX_PLAYERS];
         Player players[MAX_PLAYERS];
         b32 platePressed;
         Player* controlledPlayer;
-        Player* remotePlayer;
-        u16 port;
-        uptr socket;
-        i32 ipOctets[4];
-        u32 ipAddress;
-        //AB::NetAddress serverAddr;
-        //static constexpr u32 NET_BUFFER_SIZE = 1024;
-        //byte netBuffer[NET_BUFFER_SIZE];
-        b32 gameModeReadyToInit;
-        b32 gameModeInitialized;
-        b32 shouldDisconnect;
-        //i16 clientSlot;
-        //PlayerSlot playerSlots[2];
-        net::Server* server;
-        net::Client* client;
-        u32 testChunkMesh;
-        u64 testMeshQuadCount;
     };
 }

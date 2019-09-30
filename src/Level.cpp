@@ -560,17 +560,15 @@ namespace soko
         for (u32 chunkIndex = 0; chunkIndex < level->chunkTableSize; chunkIndex++)
         {
             Chunk* chunk = level->chunkTable + chunkIndex;
-            if (chunk)
+            if (chunk)// && chunk->coord.x == 0 && chunk->coord.y == 0)
             {
                 f32 chunkSize = LEVEL_TILE_SIZE * CHUNK_DIM;
-                // TODO: FIX That subtraction
                 v3 chunkCoord = V3((f32)chunk->coord.x, (f32)chunk->coord.z, (f32)chunk->coord.y);
-                //chunkCoord.z *= -1.0f;
                 v3 offset = Hadamard(chunkCoord, V3(chunkSize));
                 RenderCommandPushChunkMesh c = {};
                 c.offset = offset;
                 c.meshIndex = chunk->loadedMesh.gpuHandle;
-                c.quadCount = chunk->loadedMesh.quadCount;;
+                c.quadCount = chunk->loadedMesh.quadCount;
                 RenderGroupPushCommand(gameState->renderGroup,
                                        RENDER_COMMAND_PUSH_CHUNK_MESH, (void*)&c);
             }
@@ -621,6 +619,7 @@ namespace soko
 
 #pragma pack(pop)
 
+    // TODO: Write to file directly, without temp buffer?
     internal bool
     SaveLevel(const Level* level, const wchar_t* filename, AB::MemoryArena* arena)
     {
@@ -781,6 +780,49 @@ namespace soko
             }
         }
     end:
+        return result;
+    }
+
+    internal bool
+    GenTestLevel(AB::MemoryArena* tempArena)
+    {
+        bool result = 0;
+        Level* level = CreateLevel(tempArena, 8 * 8);
+        for (i32 chunkX = LEVEL_MIN_DIM_CHUNKS; chunkX < LEVEL_MAX_DIM_CHUNKS; chunkX++)
+        {
+            for (i32 chunkY = LEVEL_MIN_DIM_CHUNKS; chunkY < LEVEL_MAX_DIM_CHUNKS; chunkY++)
+            {
+                Chunk* chunk = InitChunk(level, chunkX, chunkY, 0);
+                SOKO_ASSERT(chunk);
+
+                for (u32 x = 0; x < CHUNK_DIM; x++)
+                {
+                    for (u32 y = 0; y < CHUNK_DIM; y++)
+                    {
+                        Tile* tile = GetTileInChunk(chunk, x, y, 0);
+                        SOKO_ASSERT(tile);
+                        tile->value = TILE_VALUE_WALL;
+
+                        if ((x == 0) || (x == CHUNK_DIM - 1) ||
+                            (y == 0) || (y == CHUNK_DIM - 1))
+                        {
+                            Tile* tile1 = GetTileInChunk(chunk, x, y, 1);
+                            SOKO_ASSERT(tile1);
+                            tile1->value = TILE_VALUE_WALL;
+                        }
+                    }
+                }
+                ChunkMesh mesh;
+                bool meshResult = GenChunkMesh(chunk, &mesh, tempArena);
+                SOKO_ASSERT(meshResult);
+                chunk->mesh = mesh;
+                level->globalChunkMeshBlockCount += mesh.blockCount;
+            }
+        }
+        if(SaveLevel(level, L"testLevel.aab", tempArena))
+        {
+            result = 1;
+        }
         return result;
     }
 }

@@ -80,11 +80,11 @@ namespace soko
         // before execute other commands
         SOKO_ASSERT(!(!((type == RENDER_COMMAND_PUSH_LINE_VERTEX) ||
                         (type == RENDER_COMMAND_DRAW_LINE_END)) &&
-                      group->pendingLineBatch), 0);
+                      group->pendingLineBatchCommandHeader), 0);
 
         SOKO_ASSERT(!((type != RENDER_COMMAND_END_CHUNK_MESH_BATCH &&
                        type != RENDER_COMMAND_PUSH_CHUNK_MESH) &&
-                      group->pendingChunkMeshBatch));
+                      group->pendingChunkMeshBatchHeader));
 
         void* renderDataPtr = nullptr;
         CommandQueueEntry command = {};
@@ -128,9 +128,8 @@ namespace soko
             uptr offset = (uptr)renderDataPtr - (uptr)group->renderBuffer;
             command.rbOffset = AB::SafeCastUptrU32(offset);
             CommandQueueEntry* entry = _PushCommandQueueEntry(group, &command);
+            entry->instanceCount = 0;
 
-            group->pendingLineBatch = true;
-            group->lineBatchCount = 0;
             group->pendingLineBatchCommandHeader = entry;
 
         } break;
@@ -145,24 +144,20 @@ namespace soko
                                 sizeof(RenderCommandPushLineVertex),
                                 1,
                                 (void*)renderData);
-            group->lineBatchCount++;
+            group->pendingLineBatchCommandHeader->instanceCount++;
         } break;
 
         case RENDER_COMMAND_DRAW_LINE_END:
         {
-            group->pendingLineBatch = false;
-            group->pendingLineBatchCommandHeader->instanceCount =
-                group->lineBatchCount;
-            group->lineBatchCount = 0;
+            group->pendingLineBatchCommandHeader = null;
         } break;
 
         case RENDER_COMMAND_BEGIN_CHUNK_MESH_BATCH:
         {
             command.rbOffset = 0;
             CommandQueueEntry* entry = _PushCommandQueueEntry(group, &command);
+            entry->instanceCount = 0;
 
-            group->pendingChunkMeshBatch = true;
-            group->chunkMeshBatchCount = 0;
             group->pendingChunkMeshBatchHeader = entry;
         } break;
 
@@ -173,19 +168,17 @@ namespace soko
             renderDataPtr = _PushRenderData(group,
                                             sizeof(RenderCommandPushChunkMesh),
                                             1, (void*)renderData);
-            if (!group->pendingChunkMeshBatchHeader->rbOffset)
+            if (!group->pendingChunkMeshBatchHeader->instanceCount)
             {
                 uptr offset = (uptr)renderDataPtr - (uptr)group->renderBuffer;
                 group->pendingChunkMeshBatchHeader->rbOffset = AB::SafeCastUptrU32(offset);
             }
-            group->chunkMeshBatchCount++;
+            group->pendingChunkMeshBatchHeader->instanceCount++;
         } break;
 
         case RENDER_COMMAND_END_CHUNK_MESH_BATCH:
         {
-            group->pendingChunkMeshBatch = false;
-            group->pendingChunkMeshBatchHeader->instanceCount = group->chunkMeshBatchCount;
-            group->chunkMeshBatchCount = 0;
+            group->pendingChunkMeshBatchHeader = null;
         } break;
 
         INVALID_DEFAULT_CASE;

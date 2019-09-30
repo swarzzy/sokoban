@@ -17,6 +17,8 @@
 
 #define internal static
 
+#define null nullptr
+
 struct ImGuiContext;
 
 namespace AB

@@ -11,6 +11,7 @@
 #define SET_ARRAY(type, elem_count, dest, val) memset(dest, val, sizeof(type) * elem_count)
 #define ZERO_STRUCT(type, dest) memset(dest, 0, sizeof(type))
 #define ZERO_ARRAY(type, count, dest) memset(dest, 0, sizeof(type) * count)
+#define ZERO_FROM_MEMBER(type, member, dest) memset(((byte*)dest + offsetof(type, member)), 0, sizeof(type) - offsetof(type, member))
 
 #define PUSH_STRUCT(arena, type) (type*)PushSize(arena, sizeof(type), alignof(type))
 #define PUSH_ARRAY(arena, type, count) (type*)PushSize(arena, sizeof(type) * count, alignof(type))

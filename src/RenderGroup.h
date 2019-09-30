@@ -106,12 +106,8 @@ namespace soko
         u32 renderBufferSize;
         u32 renderBufferFree;
 
-        b32 pendingLineBatch;
-        u32 lineBatchCount;
         CommandQueueEntry* pendingLineBatchCommandHeader;
 
-        bool pendingChunkMeshBatch;
-        u32 chunkMeshBatchCount;
         CommandQueueEntry* pendingChunkMeshBatchHeader;
 
         CommandQueueEntry* commandQueue;
