@@ -21,7 +21,7 @@ namespace soko
         {
 
             u32 playerId =  AddEntity(level, ENTITY_TYPE_PLAYER, coord,
-                                      &gameState->cubeMesh, &gameState->tilePlayerMaterial, arena);
+                                      EntityMesh_Cube, EntityMaterial_Player, arena);
 
             if (playerId)
             {

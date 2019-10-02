@@ -255,12 +255,20 @@ namespace AB
     typedef NetSendResult(NetSendFn)(uptr socket, NetAddress address, const void* buffer, u32 bufferSize);
     typedef NetRecieveResult(NetRecieveFn)(uptr socket, void* buffer, u32 bufferSize);
 
+    // NOTE: On unix API this should be defined as int
+    typedef uptr FileHandle;
+    constant FileHandle INVALID_FILE_HANDLE = UPTR_MAX;
 
     // TODO: Pass some notion is unicode paths allowed to game
     typedef u32(DebugGetFileSizeFn)(const wchar_t* filename);
     typedef u32(DebugReadFileFn)(void* buffer, u32 bufferSize, const wchar_t* filename);
     typedef u32(DebugReadTextFileFn)(void* buffer, u32 bufferSize, const wchar_t* filename);
     typedef bool(DebugWriteFileFn)(const wchar_t* filename, void* data, u32 dataSize);
+
+    typedef FileHandle(DebugOpenFileFn)(const wchar_t* filename);
+    typedef bool(DebugCloseFileFn)(FileHandle handle);
+    typedef u32(DebugWriteToOpenedFileFn)(FileHandle handle, void* data, u32 size);
+
     typedef i32(FormatStringFn)(char* buffer, u32 bufferSize, const char* fmt, ...);
     typedef void(PrintStringFn)(const char* fmt, ...);
     typedef void(LogFn)(LogLevel level, const char* file, const char* func, u32 line, const char* fmt, ...);
@@ -291,6 +299,9 @@ namespace AB
         DebugReadFileFn* DebugReadFile;
         DebugReadTextFileFn* DebugReadTextFile;
         DebugWriteFileFn* DebugWriteFile;
+        DebugOpenFileFn* DebugOpenFile;
+        DebugCloseFileFn* DebugCloseFile;
+        DebugWriteToOpenedFileFn* DebugWriteToOpenedFile;
         FormatStringFn* FormatString;
         PrintStringFn* PrintString;
         LogFn* Log;

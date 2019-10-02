@@ -443,7 +443,7 @@ namespace soko::net
     }
 
     internal bool
-    ClientEstablishConnection(net::Client* client, ServerJoinResultMsg* msg, u32 messageSize, GameState* gameState)
+    ClientEstablishConnection(net::Client* client, ServerJoinResultMsg* msg, u32 messageSize, GameState* gameState, Level* level)
     {
         bool result = 0;
         byte* buffer = client->socketBuffer;
@@ -451,7 +451,7 @@ namespace soko::net
         if (msg->succeed)
         {
             v3i playerCoord = V3I(msg->newPlayer.x, msg->newPlayer.y, msg->newPlayer.z);
-            Player* player = AddPlayer(gameState, gameState->session.level, playerCoord, gameState->memoryArena);
+            Player* player = AddPlayer(gameState, level, playerCoord, gameState->memoryArena);
             if (player)
             {
                 gameState->controlledPlayer = player;
@@ -468,7 +468,7 @@ namespace soko::net
                     bufferAt += sizeof(NewPlayerData);
 
                     v3i coord = V3I(nextPlayer->x, nextPlayer->y, nextPlayer->z);
-                    Player* player = AddPlayer(gameState, gameState->session.level, coord, gameState->memoryArena);
+                    Player* player = AddPlayer(gameState, level, coord, gameState->memoryArena);
                     SOKO_ASSERT(player);
                     // TODO: Check for overflow
                     client->slotsOccupancy[nextPlayer->slot] = 1;

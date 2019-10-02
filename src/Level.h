@@ -5,6 +5,31 @@
 
 namespace soko
 {
+
+    // TODO: Temporary stuff while we haven't an asset system
+
+    enum EntityMesh
+    {
+        EntityMesh_Cube = 0,
+        EntityMesh_Plate,
+        EntityMesh_Portal,
+        EntityMesh_Spikes,
+        EntityMesh_Button,
+        _EntityMesh_Count,
+    };
+
+    enum EntityMaterial
+    {
+        EntityMaterial_Tile = 0,
+        EntityMaterial_Player,
+        EntityMaterial_Block,
+        EntityMaterial_RedPlate,
+        EntityMaterial_Portal,
+        EntityMaterial_Spikes,
+        EntityMaterial_Button,
+        _EntityMaterial_Count
+    };
+
     union v3u
     {
         struct
@@ -153,12 +178,14 @@ namespace soko
         EntityType type;
         u32 flags;
         v3i coord;
-        Mesh* mesh;
-        Material* material;
+        EntityMesh mesh;
+        EntityMaterial material;
+
         u32 bindedPortalID;
         Direction portalDirection;
-        void* updateProcData;
-        UpdateProcFn* updateProc;
+        // TODO: Entity custom behavior
+        //void* updateProcData;
+        //UpdateProcFn* updateProc;
 
         Entity* nextEntityInTile;
         Entity* prevEntityInTile;

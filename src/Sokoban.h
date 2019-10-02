@@ -18,6 +18,7 @@ namespace soko::net
 
 namespace soko
 {
+
     enum PlayerAction : byte
     {
         // NOTE: Movement action values should be same
@@ -101,18 +102,8 @@ namespace soko
         FPCamera debugCamera;
         GameCamera camera;
         b32 useDebugCamera;
-        Mesh cubeMesh;
-        Mesh plateMesh;
-        Mesh portalMesh;
-        Mesh spikesMesh;
-        Mesh buttonMesh;
-        Material tileMaterial;
-        Material tilePlayerMaterial;
-        Material tileBlockMaterial;
-        Material redPlateMaterial;
-        Material portalMaterial;
-        Material spikesMaterial;
-        Material buttonMaterial;
+        Material materials[_EntityMaterial_Count];
+        Mesh meshes[_EntityMesh_Count];
         u32 overlayCorner;
         bool playersOccupancy[MAX_PLAYERS];
         Player players[MAX_PLAYERS];

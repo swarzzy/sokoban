@@ -3,7 +3,8 @@
 
 namespace soko
 {
-    inline v3i DirToUnitOffset(Direction dir)
+    inline v3i
+    DirToUnitOffset(Direction dir)
     {
         v3i result = {};
         switch (dir)
@@ -19,7 +20,8 @@ namespace soko
         return result;
     }
 
-    Level* CreateLevel(AB::MemoryArena* arena, u32 chunksNum)
+    internal Level*
+    CreateLevel(AB::MemoryArena* arena, u32 chunksNum)
     {
         SOKO_ASSERT(chunksNum <= LEVEL_FULL_DIM_CHUNKS * LEVEL_FULL_DIM_CHUNKS * LEVEL_FULL_DIM_CHUNKS);
         Level* result = 0;
@@ -137,7 +139,7 @@ namespace soko
         return result;
     }
 
-    inline static Tile*
+    inline Tile*
     GetTileInChunkInternal(Chunk* chunk, u32 x, u32 y, u32 z)
     {
         // TODO: Actial check?
@@ -164,7 +166,7 @@ namespace soko
         return result;
     }
 
-    Tile*
+    internal Tile*
     GetTile(Level* level, i32 x, i32 y, i32 z, AB::MemoryArena* arena = 0)
     {
         Tile* result = 0;
@@ -199,7 +201,8 @@ namespace soko
 
     // NOTE: Checks if it is allowed to place entity on tile
     // NOT if tile is EMPTY!!!!
-    inline bool TileIsFree(const Tile* tile)
+    inline bool
+    TileIsFree(const Tile* tile)
     {
         bool result = true;
         result = tile->value == TILE_VALUE_EMPTY;
@@ -235,7 +238,7 @@ namespace soko
         return result;
     }
 
-    void
+    internal void
     DeleteEntity(Level* level, Entity* entity)
     {
         u32 entityHash = entity->id % LEVEL_ENTITY_TABLE_SIZE;
@@ -280,7 +283,7 @@ namespace soko
         }
     }
 
-    inline u32
+    internal u32
     AddEntity(Level* level, Entity entity, AB::MemoryArena* arena)
     {
         u32 result = 0;
@@ -320,7 +323,7 @@ namespace soko
 
     inline u32
     AddEntity(Level* level, EntityType type, v3i coord,
-              Mesh* mesh, Material* material, AB::MemoryArena* arena)
+              EntityMesh mesh, EntityMaterial material, AB::MemoryArena* arena)
     {
         u32 result = 0;
         Entity entity = {};
@@ -360,10 +363,11 @@ namespace soko
         return result;
     }
 
-    bool
+    internal bool
     ChangeEntityLocation(Level* level, Entity* entity, v3i desiredCoord, AB::MemoryArena* arena);
 
-    void UpdateEntitiesInTile(Level* level, Tile* tile, AB::MemoryArena* arena)
+    internal void
+    UpdateEntitiesInTile(Level* level, Tile* tile, AB::MemoryArena* arena)
     {
         for (Entity& entity : tile->entityList)
         {
@@ -433,6 +437,8 @@ namespace soko
             {
                 // TODO: Pass info about entity that causes an update
                 // instead of travercing all entities all the time
+                // TODO: Entity custom behavoir
+#if 0
                 for (Entity& e : tile->entityList)
                 {
                     if (e.type == ENTITY_TYPE_BLOCK || e.type == ENTITY_TYPE_PLAYER)
@@ -441,13 +447,14 @@ namespace soko
                         break;
                     }
                 }
+#endif
             }
             default: {} break;
             }
         }
     }
 
-    bool
+    internal bool
     ChangeEntityLocation(Level* level, Entity* entity, v3i desiredCoord, AB::MemoryArena* arena)
     {
         bool result = false;
@@ -503,7 +510,7 @@ namespace soko
         return result;
     }
 
-    bool
+    internal bool
     MoveEntity(Level* level, Entity* entity, Direction dir, AB::MemoryArena* arena, bool reverse = false, u32 depth = 2)
     {
         bool result = false;
@@ -551,7 +558,7 @@ namespace soko
         return result;
     }
 
-    void
+    internal void
     DrawLevel(Level* level, GameState* gameState)
     {
         RenderGroupPushCommand(gameState->renderGroup,
@@ -577,7 +584,7 @@ namespace soko
                                RENDER_COMMAND_END_CHUNK_MESH_BATCH, 0);
     }
 
-    void
+    internal void
     DrawEntities(Level* level, GameState* gameState)
     {
         // TODO: Entity data oriented storage
@@ -592,10 +599,10 @@ namespace soko
                 v3 pos = V3(xCoord, yCoord, -zCoord);
                 RenderCommandDrawMesh command = {};
                 command.transform = Translation(pos);
-                SOKO_ASSERT(entity->mesh);
-                SOKO_ASSERT(entity->material);
-                command.mesh = entity->mesh;
-                command.material = entity->material;
+                //SOKO_ASSERT(entity->mesh);
+                //SOKO_ASSERT(entity->material);
+                command.mesh = gameState->meshes + entity->mesh;
+                command.material = gameState->materials + entity->material;
                 RenderGroupPushCommand(gameState->renderGroup, RENDER_COMMAND_DRAW_MESH,
                                        (void*)&command);
 
@@ -604,6 +611,7 @@ namespace soko
         }
 
     }
+
 #pragma pack(push, 1)
 
     struct SerializedTile

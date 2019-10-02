@@ -967,7 +967,8 @@ namespace AB
         return fileSize;
     }
 
-    bool DebugWriteFile(const wchar_t* filename, void* data, u32 dataSize)
+    internal bool
+    DebugWriteFile(const wchar_t* filename, void* data, u32 dataSize)
     {
         HANDLE fileHandle = CreateFile(filename, GENERIC_WRITE, 0, 0,
                                        CREATE_ALWAYS, 0, 0);
@@ -984,6 +985,45 @@ namespace AB
         }
         CloseHandle(fileHandle);
         return false;
+    }
+
+    internal FileHandle
+    DebugOpenFile(const wchar_t* filename)
+    {
+        FileHandle result = INVALID_FILE_HANDLE;
+        HANDLE w32Handle = CreateFile(filename,
+                                       GENERIC_WRITE | GENERIC_READ,
+                                       FILE_SHARE_READ, 0,
+                                       CREATE_NEW, 0, 0);
+        if (w32Handle != INVALID_HANDLE_VALUE)
+        {
+            result = (FileHandle)w32Handle;
+        }
+        return result;
+    }
+
+    internal bool
+    DebugCloseFile(FileHandle handle)
+    {
+        bool result = false;
+        if (CloseHandle((HANDLE)handle))
+        {
+            result = true;
+        }
+        return result;
+    }
+
+    internal u32
+    DebugWriteToOpenedFile(FileHandle handle, void* data, u32 size)
+    {
+        u32 result = 0;
+        DWORD bytesWritten;
+        BOOL writeResult = WriteFile((HANDLE)handle, data, size, &bytesWritten, 0);
+        if (writeResult && (size == bytesWritten))
+        {
+            result = size;
+        }
+        return result;
     }
 
     // NOTE: SOCKET defined as uptr in Winsock.h
@@ -1173,6 +1213,9 @@ namespace AB
         app->state.functions.DebugReadFile = DebugReadFileToBuffer;
         app->state.functions.DebugReadTextFile = DebugReadTextFileToBuffer;
         app->state.functions.DebugWriteFile = DebugWriteFile;
+        app->state.functions.DebugOpenFile = DebugOpenFile;
+        app->state.functions.DebugCloseFile = DebugCloseFile;
+        app->state.functions.DebugWriteToOpenedFile = DebugWriteToOpenedFile;
         app->state.functions.FormatString = FormatString;
         app->state.functions.PrintString = PrintString;
         app->state.functions.Log = Log;

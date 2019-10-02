@@ -65,6 +65,9 @@ inline void* ReallocForSTBI(void* p, uptr oldSize, uptr newSize)
 #define DebugReadFile SOKO_PLATFORM_FUNCTION(DebugReadFile)
 #define DebugReadTextFile SOKO_PLATFORM_FUNCTION(DebugReadTextFile)
 #define DebugWriteFile SOKO_PLATFORM_FUNCTION(DebugWriteFile)
+#define DebugOpenFile SOKO_PLATFORM_FUNCTION(DebugOpenFile)
+#define DebugCloseFile SOKO_PLATFORM_FUNCTION(DebugCloseFile)
+#define DebugWriteToOpenedFile  SOKO_PLATFORM_FUNCTION(DebugWriteToOpenedFile)
 #define FormatString SOKO_PLATFORM_FUNCTION(FormatString)
 #define PrintString SOKO_PLATFORM_FUNCTION(PrintString)
 #define Log SOKO_PLATFORM_FUNCTION(Log)
@@ -236,7 +239,9 @@ LogAssert(AB::LogLevel level, const char* file, const char* func, u32 line,
 #include "imgui/imgui.h"
 //#include "imgui/imgui_internal.h"
 
+
 #include "Level.cpp"
+#include "Entity.cpp"
 #include "DebugOverlay.cpp"
 #include "Camera.cpp"
 #include "Player.cpp"
@@ -354,7 +359,7 @@ namespace soko
             SOKO_ASSERT(mesh.gpuVertexBufferHandle, "");
             SOKO_ASSERT(mesh.gpuIndexBufferHandle, "");
 
-            gameState->cubeMesh = mesh;
+            gameState->meshes[EntityMesh_Cube] = mesh;
         }
         {
             u32 fileSize = DebugGetFileSize(L"../res/plate.aab");
@@ -379,7 +384,7 @@ namespace soko
             SOKO_ASSERT(mesh.gpuVertexBufferHandle, "");
             SOKO_ASSERT(mesh.gpuIndexBufferHandle, "");
 
-            gameState->plateMesh = mesh;
+            gameState->meshes[EntityMesh_Plate] = mesh;
         }
         {
             u32 fileSize = DebugGetFileSize(L"../res/portal.aab");
@@ -404,7 +409,7 @@ namespace soko
             SOKO_ASSERT(mesh.gpuVertexBufferHandle, "");
             SOKO_ASSERT(mesh.gpuIndexBufferHandle, "");
 
-            gameState->portalMesh = mesh;
+            gameState->meshes[EntityMesh_Portal] = mesh;
         }
         {
             u32 fileSize = DebugGetFileSize(L"../res/spikes.aab");
@@ -429,7 +434,7 @@ namespace soko
             SOKO_ASSERT(mesh.gpuVertexBufferHandle, "");
             SOKO_ASSERT(mesh.gpuIndexBufferHandle, "");
 
-            gameState->spikesMesh = mesh;
+            gameState->meshes[EntityMesh_Spikes] = mesh;
         }
         {
             u32 fileSize = DebugGetFileSize(L"../res/button.aab");
@@ -454,7 +459,7 @@ namespace soko
             SOKO_ASSERT(mesh.gpuVertexBufferHandle, "");
             SOKO_ASSERT(mesh.gpuIndexBufferHandle, "");
 
-            gameState->buttonMesh = mesh;
+            gameState->meshes[EntityMesh_Button] = mesh;
         }
 
         stbi_set_flip_vertically_on_load(1);
@@ -475,7 +480,7 @@ namespace soko
             SOKO_ASSERT(material.diffMap.gpuHandle, "");
 
             EndTemporaryMemory(gameState->tempArena);
-            gameState->tileMaterial = material;
+            gameState->materials[EntityMaterial_Tile] = material;
         }
         {
             i32 width;
@@ -493,7 +498,7 @@ namespace soko
             SOKO_ASSERT(material.diffMap.gpuHandle, "");
 
             EndTemporaryMemory(gameState->tempArena);
-            gameState->tilePlayerMaterial = material;
+            gameState->materials[EntityMaterial_Player] = material;
         }
         {
             i32 width;
@@ -511,7 +516,7 @@ namespace soko
             SOKO_ASSERT(material.diffMap.gpuHandle, "");
 
             EndTemporaryMemory(gameState->tempArena);
-            gameState->tileBlockMaterial = material;
+            gameState->materials[EntityMaterial_Block] = material;
         }
         {
             i32 width;
@@ -529,7 +534,7 @@ namespace soko
             SOKO_ASSERT(material.diffMap.gpuHandle, "");
 
             EndTemporaryMemory(gameState->tempArena);
-            gameState->redPlateMaterial = material;
+            gameState->materials[EntityMaterial_RedPlate] = material;
         }
         {
             i32 widthDiff;
@@ -559,7 +564,7 @@ namespace soko
             SOKO_ASSERT(material.specMap.gpuHandle, "");
 
             EndTemporaryMemory(gameState->tempArena);
-            gameState->portalMaterial = material;
+            gameState->materials[EntityMaterial_Portal] = material;
         }
 
         {
@@ -580,7 +585,7 @@ namespace soko
             RendererLoadTexture(&material.diffMap);
             SOKO_ASSERT(material.diffMap.gpuHandle, "");
 
-            gameState->spikesMaterial = material;
+            gameState->materials[EntityMaterial_Spikes] = material;
         }
         {
             i32 width;
@@ -598,7 +603,7 @@ namespace soko
             SOKO_ASSERT(material.diffMap.gpuHandle, "");
 
             EndTemporaryMemory(gameState->tempArena);
-            gameState->buttonMaterial = material;
+            gameState->materials[EntityMaterial_Button] = material;
         }
 
 
@@ -626,6 +631,7 @@ namespace soko
     void
     GameUpdate(AB::MemoryArena* arena, AB::PlatformState* platform)
     {
+        //SerializeEntity(null, arena);
     }
 
 

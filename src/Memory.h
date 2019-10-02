@@ -11,6 +11,7 @@
 #define SET_ARRAY(type, elem_count, dest, val) memset(dest, val, sizeof(type) * elem_count)
 #define ZERO_STRUCT(type, dest) memset(dest, 0, sizeof(type))
 #define ZERO_ARRAY(type, count, dest) memset(dest, 0, sizeof(type) * count)
+#define ZERO_SIZE(size, dest) memset(dest, 0, size)
 #define ZERO_FROM_MEMBER(type, member, dest) memset(((byte*)dest + offsetof(type, member)), 0, sizeof(type) - offsetof(type, member))
 
 #define PUSH_STRUCT(arena, type) (type*)PushSize(arena, sizeof(type), alignof(type))
@@ -23,16 +24,18 @@ namespace AB
     // There are crashes when using 8 byte aligment and optimizations are enabled
     static const u64 DEFAULT_ALIGMENT = 16;//alignof(std::max_align_t);
 
-    struct MemoryArena
+    struct alignas(DEFAULT_ALIGMENT) MemoryArena
     {
         uptr free;
         uptr offset;
         uptr size;
         void* stackMark;
         void* begin;
+        b32 clearTmp;
+        b32 isTmpAllocated;
+        // NOTE(new): aignas solves that problem actually
         // TODO: Set paddind propperly on 32-bit machines
         // So that arena memory aligned at 16 bytes boundary
-        uptr _pad;
     };
 
     inline uptr CalculatePadding(uptr offset, uptr aligment)
@@ -52,9 +55,12 @@ namespace AB
 #endif
     }
 
-    inline void BeginTemporaryMemory(MemoryArena* arena)
+    inline void
+    BeginTemporaryMemory(MemoryArena* arena, b32 clearToZero = false)
     {
         arena->stackMark = (void*)((byte*)arena->begin + arena->offset);
+        arena->isTmpAllocated = true;
+        arena->clearTmp = clearToZero;
     }
 
     inline void EndTemporaryMemory(MemoryArena* arena)
@@ -66,6 +72,7 @@ namespace AB
         arena->free += arena->offset - markOffset;
         arena->offset = markOffset;
         arena->stackMark = nullptr;
+        arena->isTmpAllocated = false;
     }
 
     inline void* PushSize(MemoryArena* arena, uptr size, uptr aligment = 0)
@@ -98,6 +105,11 @@ namespace AB
             nextAdress = currentAddress + padding;
             // TODO: Padding!!!!!!
             //AB_CORE_ASSERT(nextAdress % useAligment == 0, "Wrong aligment");
+        }
+
+        if (arena->isTmpAllocated && arena->clearTmp)
+        {
+            ZERO_SIZE(size, (void*)nextAdress);
         }
 
         return (void*)nextAdress;
