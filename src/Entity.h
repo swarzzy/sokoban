@@ -18,7 +18,7 @@ namespace soko
     internal void SerializeEntititiesToBuffer(const Level* level, void* buffer, uptr bufferSize);
     inline uptr CalcSerializedEntitiesSize(const Level* level);
     inline Entity* GetEntity(Level* level, u32 id);
-    internal u32 AddEntity(Level* level, Entity entity, AB::MemoryArena* arena);
-    inline u32 AddEntity(Level* level, EntityType type, v3i coord, EntityMesh mesh, EntityMaterial material, AB::MemoryArena* arena);
-    internal u32 AddSerializedEntity(Level* level, AB::MemoryArena* arena, const SerializedEntity* sEntity);
+    internal u32 AddEntity(Level* level, Entity entity);
+    inline u32 AddEntity(Level* level, EntityType type, v3i coord, EntityMesh mesh, EntityMaterial material);
+    internal u32 AddSerializedEntity(Level* level, const SerializedEntity* sEntity);
 }

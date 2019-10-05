@@ -247,6 +247,7 @@ LogAssert(AB::LogLevel level, const char* file, const char* func, u32 line,
 #include "Network.cpp"
 #include "MeshGen.cpp"
 #include "GameMenu.cpp"
+#include "GameSession.cpp"
 
 
 extern "C" GAME_CODE_ENTRY void
@@ -641,10 +642,8 @@ namespace soko
         bool show = true;
 
         DrawOverlay(gameState);
-        BeginDebugOverlay();
         //ImGui::ShowDemoWindow(&show);
-        DebugOverlayPushStr("Hello!");
-        DEBUG_OVERLAY_TRACE(gameState->camera.conf.position);
+        //DEBUG_OVERLAY_TRACE(gameState->camera.conf.position);
         //DEBUG_OVERLAY_TRACE(gameState->level->platePressed);
         //DEBUG_OVERLAY_TRACE(gameState->level->entityCount);
         //DEBUG_OVERLAY_TRACE(gameState->level->deletedEntityCount);
@@ -720,7 +719,7 @@ namespace soko
                                     SOKO_ASSERT(occupied);
                                     client->slotsOccupancy[msg->slot] = false;
                                     net::ClientSlot* s = client->slots + msg->slot;
-                                    DeletePlayer(gameState, s->player);
+                                    DeletePlayer(&gameState->session, s->player);
                                 }
                             } break;
                             case ServerMsg_AddPlayer:
@@ -730,7 +729,7 @@ namespace soko
                                 client->slotsOccupancy[msg->newPlayer.slot] = 1;
                                 auto* s = client->slots + msg->newPlayer.slot;
                                 v3i coord = V3I(msg->newPlayer.x, msg->newPlayer.y, msg->newPlayer.z);
-                                Player* player = AddPlayer(gameState, gameState->session.level, coord, arena);
+                                Player* player = AddPlayer(&gameState->session, coord);
                                 SOKO_ASSERT(player);
                                 s->player = player;
                             } break;
@@ -776,7 +775,7 @@ namespace soko
                                 {
                                     MoveEntity(gameState->session.level,
                                                slot->player->e,
-                                               (Direction)action, arena,
+                                               (Direction)action,
                                                slot->player->reversed);
                                 }
                                 else
@@ -800,11 +799,11 @@ namespace soko
 
         else if (gameState->globalGameMode == GAME_MODE_SINGLE)
         {
-            if (!gameState->controlledPlayer)
+            if (!gameState->session.controlledPlayer)
             {
-                gameState->controlledPlayer = AddPlayer(gameState, gameState->session.level, V3I(10, 10, 1), arena);
+                gameState->session.controlledPlayer = AddPlayer(&gameState->session, V3I(10, 10, 1));
             }
-            Player* player = gameState->controlledPlayer;
+            Player* player = gameState->session.controlledPlayer;
             if (JustPressed(AB::KEY_SPACE))
             {
                 player->reversed = ! player->reversed;
@@ -812,22 +811,22 @@ namespace soko
 
             if (JustPressed(AB::KEY_UP))
             {
-                MoveEntity(gameState->session.level, player->e, DIRECTION_NORTH, arena, player->reversed);
+                MoveEntity(gameState->session.level, player->e, DIRECTION_NORTH, player->reversed);
             }
 
             if (JustPressed(AB::KEY_DOWN))
             {
-                MoveEntity(gameState->session.level, player->e, DIRECTION_SOUTH, arena, player->reversed);
+                MoveEntity(gameState->session.level, player->e, DIRECTION_SOUTH, player->reversed);
             }
 
             if (JustPressed(AB::KEY_RIGHT))
             {
-                MoveEntity(gameState->session.level, player->e, DIRECTION_EAST, arena, player->reversed);
+                MoveEntity(gameState->session.level, player->e, DIRECTION_EAST, player->reversed);
             }
 
             if (JustPressed(AB::KEY_LEFT))
             {
-                MoveEntity(gameState->session.level, player->e, DIRECTION_WEST, arena, player->reversed);
+                MoveEntity(gameState->session.level, player->e, DIRECTION_WEST, player->reversed);
             }
         }
         else
@@ -886,10 +885,24 @@ namespace soko
     GameRender(AB::MemoryArena* arena, AB::PlatformState* platform)
     {
         auto* gameState = _GlobalStaticStorage->gameState;
+        BeginDebugOverlay();
         switch (gameState->globalGameMode)
         {
         case GAME_MODE_MENU: { MenuUpdateAndRender(&gameState->mainMenu, gameState); } break;
-        default: { DoOtherStuff(gameState); }break;
+        default:
+        {
+            DoOtherStuff(gameState);
+            if (DebugOverlayBeginCustom())
+            {
+                if (ImGui::Button("Exit to main menu", {150.0f, 20.0f}))
+                {
+                    DestroyGameSession(&gameState->session);
+                    gameState->globalGameMode = GAME_MODE_MENU;
+
+                }
+                DebugOverlayEndCustom();
+            }
+        } break;
         }
     }
 }

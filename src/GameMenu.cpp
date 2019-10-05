@@ -61,6 +61,8 @@ namespace soko
     internal void
     MenuModeSelection(GameMenu* menu)
     {
+        // TODO: No need for full cleanup here
+        MenuCleanup(menu, MainMenu_ModeSelection, MenuCleanup_Common | MenuCleanup_NetSpecific);
         if(ImGui::Button("Single", ImVec2(100, 60))) { menu->state = MainMenu_SingleSelectLevel; menu->session.gameMode = GAME_MODE_SINGLE; };
         if(ImGui::Button("Create session", ImVec2(100, 60))) { menu->state = MainMenu_ConfigureServer; menu->session.gameMode = GAME_MODE_SERVER; };
         if(ImGui::Button("Connect", ImVec2(100, 60))) { menu->state = MainMenu_ConfigureClient; menu->session.gameMode = GAME_MODE_CLIENT; };
@@ -202,11 +204,11 @@ namespace soko
                 COPY_BYTES(SERVER_MAX_LEVEL_NAME_LEN, server->levelName, menu->levelPathBuffer);
                 //gameState->port = menu->serverConf.port;
                 // TODO: Player placement (level start positions)
-                gameState->controlledPlayer = AddPlayer(gameState, level, V3I(10, 10, 1), gameState->memoryArena);
-                if (gameState->controlledPlayer)
+                gameState->session.controlledPlayer = AddPlayer(&gameState->session, V3I(10, 10, 1));
+                if (gameState->session.controlledPlayer)
                 {
                     if (net::ServerAddPlayer(server,
-                                             gameState->controlledPlayer,
+                                             gameState->session.controlledPlayer,
                                              net::SERVER_LOCAL_PLAYER_SLOT, {}))
                     {
                         menu->state = MainMenu_EnterLevel;
@@ -432,6 +434,8 @@ namespace soko
     {
         gameState->globalGameMode = menu->session.gameMode;
         gameState->session = menu->session;
+        menu->session = {};
+        menu->state = MainMenu_ModeSelection;
 #if 0
         BeginTemporaryMemory(gameState->tempArena, true);
         EntityStr string = CreateEntityStr(gameState->tempArena);
@@ -471,7 +475,11 @@ namespace soko
         ImGui::Separator();
         switch (menu->state)
         {
-        case MainMenu_ModeSelection: { MenuModeSelection(menu); } break;
+        case MainMenu_ModeSelection:
+        {
+            MenuModeSelection(menu);
+            ImGui::Text("Main arena free space: %llu", gameState->memoryArena->free);
+        } break;
         case MainMenu_SingleSelectLevel: { MenuSingleSelectLevel(menu); } break;
         case MainMenu_SingleLoadLevel: { SingleLoadLevel(menu, gameState); } break;
         case MainMenu_ConfigureServer: { MenuServerSettings(menu); } break;

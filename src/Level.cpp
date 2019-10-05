@@ -33,6 +33,7 @@ namespace soko
             if (level->chunkTable)
             {
                 level->chunkTableSize = chunksNum;
+                level->sessionArena = arena;
                 for (u32 i = 0; i < chunksNum; i++)
                 {
                     Chunk* chunk = level->chunkTable + i;
@@ -168,7 +169,7 @@ namespace soko
     }
 
     internal Tile*
-    GetTile(Level* level, i32 x, i32 y, i32 z, AB::MemoryArena* arena = 0)
+    GetTile(Level* level, i32 x, i32 y, i32 z)
     {
         Tile* result = 0;
         // TODO: Real check instead of asserts
@@ -194,9 +195,9 @@ namespace soko
     }
 
     inline Tile*
-    GetTile(Level* level, v3i coord, AB::MemoryArena* arena = 0)
+    GetTile(Level* level, v3i coord)
     {
-        Tile* result = GetTile(level, coord.x, coord.y, coord.z, arena);
+        Tile* result = GetTile(level, coord.x, coord.y, coord.z);
         return result;
     }
 
@@ -220,7 +221,6 @@ namespace soko
         }
         return result;
     }
-
 
 
     internal void
@@ -413,14 +413,13 @@ namespace soko
     }
 
     inline bool
-    LoadEntities(AB::MemoryArena* levelArena, Level* loadedLevel,
-                 SerializedEntity* entities, u32 entityCount)
+    LoadEntities(Level* loadedLevel, SerializedEntity* entities, u32 entityCount)
     {
         bool result = true;
         for (u32 idx = 0; idx < entityCount; idx++)
         {
             SerializedEntity* sEntity = entities + idx;
-            u32 id = AddSerializedEntity(loadedLevel, levelArena, sEntity);
+            u32 id = AddSerializedEntity(loadedLevel, sEntity);
             if (id != sEntity->id)
             {
                 result = false;
@@ -453,12 +452,11 @@ namespace soko
                         Level* loadedLevel = CreateLevel(levelArena, header.chunkCount);
                         if (loadedLevel)
                         {
-                            loadedLevel->levelArena = levelArena;
                             auto chunks = (SerializedChunk*)((byte*)fileBuffer + header.firstChunkOffset);
                             if (LoadChunks(levelArena, loadedLevel, chunks, header.chunkCount))
                             {
                                 auto entities = (SerializedEntity*)((byte*)fileBuffer + header.firstEntityOffset);
-                                if (LoadEntities(levelArena, loadedLevel, entities, header.entityCount))
+                                if (LoadEntities(loadedLevel, entities, header.entityCount))
                                 {
                                     SOKO_ASSERT(loadedLevel->loadedChunksCount == header.chunkCount);
                                     SOKO_ASSERT(loadedLevel->entityCount == header.entityCount + 1);
@@ -518,7 +516,7 @@ namespace soko
         entity1.mesh = EntityMesh_Cube;
         entity1.material = EntityMaterial_Block;
 
-        AddEntity(level, entity1, tempArena);
+        AddEntity(level, entity1);
         //AddEntity(playerLevel)
 
         Entity entity2 = {};
@@ -528,7 +526,7 @@ namespace soko
         entity2.mesh = EntityMesh_Cube;
         entity2.material = EntityMaterial_Block;
 
-        AddEntity(level, entity2, tempArena);
+        AddEntity(level, entity2);
 
         Entity entity3 = {};
         entity3.type = ENTITY_TYPE_BLOCK;
@@ -537,7 +535,7 @@ namespace soko
         entity3.mesh = EntityMesh_Cube;
         entity3.material = EntityMaterial_Block;
 
-        AddEntity(level, entity3, tempArena);
+        AddEntity(level, entity3);
 
         Entity plate = {};
         plate.type = ENTITY_TYPE_PLATE;
@@ -546,7 +544,7 @@ namespace soko
         plate.mesh = EntityMesh_Plate;
         plate.material = EntityMaterial_RedPlate;
 
-        AddEntity(level, plate, tempArena);
+        AddEntity(level, plate);
 
         Entity portal1 = {};
         portal1.type = ENTITY_TYPE_PORTAL;
@@ -556,7 +554,7 @@ namespace soko
         portal1.material = EntityMaterial_Portal;
         portal1.portalDirection = DIRECTION_NORTH;
 
-        Entity* portal1Entity = GetEntity(level, AddEntity(level, portal1, tempArena));
+        Entity* portal1Entity = GetEntity(level, AddEntity(level, portal1));
 
         Entity portal2 = {};
         portal2.type = ENTITY_TYPE_PORTAL;
@@ -566,17 +564,15 @@ namespace soko
         portal2.material = EntityMaterial_Portal;
         portal2.portalDirection = DIRECTION_WEST;
 
-        Entity* portal2Entity = GetEntity(level, AddEntity(level, portal2, tempArena));
+        Entity* portal2Entity = GetEntity(level, AddEntity(level, portal2));
 
         portal1Entity->bindedPortalID = portal2Entity->id;
         portal2Entity->bindedPortalID = portal1Entity->id;
 
         AddEntity(level, ENTITY_TYPE_SPIKES, V3I(15, 15, 1),
-                  EntityMesh_Spikes, EntityMaterial_Spikes, tempArena);
+                  EntityMesh_Spikes, EntityMaterial_Spikes);
         Entity* button = GetEntity(level, AddEntity(level, ENTITY_TYPE_BUTTON, V3I(4, 4, 1),
-                                                    EntityMesh_Button, EntityMaterial_Button,
-
-                                                    tempArena));
+                                                    EntityMesh_Button, EntityMaterial_Button));
 #if 0
         // TODO: Entity custom behavior
         button->updateProc = [](Level* level, Entity* entity, void* data) {

@@ -282,7 +282,7 @@ namespace soko
 
     struct Level
     {
-        AB::MemoryArena* levelArena;
+        AB::MemoryArena* sessionArena;
         u32 globalChunkMeshBlockCount;
 
         // NOTE: Maximum size of the level is 1024-tile-side cube

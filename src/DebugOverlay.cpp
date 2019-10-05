@@ -3,7 +3,7 @@
 
 namespace soko
 {
-    void
+    internal void
     DrawOverlay(GameState* gameState)
     {
         const float DISTANCE = 10.0f;
@@ -38,7 +38,7 @@ namespace soko
         gameState->overlayCorner = corner;
     }
 
-    void
+    internal void
     BeginDebugOverlay()
     {
         const float xPos = 10.0f;
@@ -62,7 +62,26 @@ namespace soko
         ImGui::End();
     }
 
-    void
+    inline bool
+    DebugOverlayBeginCustom()
+    {
+        bool result = ImGui::Begin("Debug overlay", NULL,
+                                   ImGuiWindowFlags_NoMove |
+                                   //ImGuiWindowFlags_NoDecoration |
+                                   ImGuiWindowFlags_AlwaysAutoResize |
+                                   ImGuiWindowFlags_NoSavedSettings |
+                                   ImGuiWindowFlags_NoFocusOnAppearing |
+                                   ImGuiWindowFlags_NoNav);
+        return result;
+    }
+
+    inline void
+    DebugOverlayEndCustom()
+    {
+        ImGui::End();
+    }
+
+    internal void
     DebugOverlayPushStr(const char* string)
     {
         if (ImGui::Begin("Debug overlay", NULL,
@@ -79,7 +98,7 @@ namespace soko
         ImGui::End();
     }
 
-    void
+    internal void
     DebugOverlayPushVar(const char* title, v3u var)
     {
         if (ImGui::Begin("Debug overlay", NULL,
@@ -98,7 +117,7 @@ namespace soko
         ImGui::End();
     }
 
-    void
+    internal void
     DebugOverlayPushVar(const char* title, v3i var)
     {
         if (ImGui::Begin("Debug overlay", NULL,
@@ -118,7 +137,7 @@ namespace soko
     }
 
 
-    void
+    internal void
     DebugOverlayPushVar(const char* title, v3 var)
     {
         if (ImGui::Begin("Debug overlay", NULL,
@@ -137,7 +156,7 @@ namespace soko
         ImGui::End();
     }
 
-    void
+    internal void
     DebugOverlayPushVar(const char* title, u32 var)
     {
         if (ImGui::Begin("Debug overlay", NULL,
@@ -157,7 +176,7 @@ namespace soko
     }
 
 
-    void
+    internal void
     DebugOverlayPushSlider(const char* title, v3* var, f32 min, f32 max)
     {
         if (ImGui::Begin("Debug overlay", NULL,

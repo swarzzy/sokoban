@@ -2,15 +2,16 @@
 
 namespace soko
 {
-    Player*
-    AddPlayer(GameState* gameState, Level* level, v3i coord, AB::MemoryArena* arena)
+    internal Player*
+    AddPlayer(GameSession* session, v3i coord)
     {
+        Level* level = session->level;
         Player* p = nullptr;
 
         i32 freePlayerIndex = -1;
-        for (i32 i = 0; i < GameState::MAX_PLAYERS; i++)
+        for (i32 i = 0; i < SESSION_MAX_PLAYERS; i++)
         {
-            if (!gameState->playersOccupancy[i])
+            if (!session->playersOccupancy[i])
             {
                 freePlayerIndex = i;
                 break;
@@ -20,31 +21,31 @@ namespace soko
         if (freePlayerIndex != -1)
         {
 
-            u32 playerId =  AddEntity(level, ENTITY_TYPE_PLAYER, coord,
-                                      EntityMesh_Cube, EntityMaterial_Player, arena);
-
+            u32 playerId = AddEntity(level, ENTITY_TYPE_PLAYER, coord,
+                                     EntityMesh_Cube, EntityMaterial_Player);
             if (playerId)
             {
-                p = gameState->players + freePlayerIndex;
+                p = session->players + freePlayerIndex;
                 p->level = level;
                 p->e = GetEntity(p->level, playerId);
                 SOKO_ASSERT(p->e);
-                gameState->playersOccupancy[freePlayerIndex] = true;
+                session->playersOccupancy[freePlayerIndex] = true;
             }
 
         }
         return p;
     }
 
-    void DeletePlayer(GameState* gameState, Player* player)
+    internal void
+    DeletePlayer(GameSession* session, Player* player)
     {
         DeleteEntity(player->level, player->e);
-        for (i32 i = 0; i < GameState::MAX_PLAYERS; i++)
+        for (i32 i = 0; i < SESSION_MAX_PLAYERS; i++)
         {
-            if ((gameState->players + i) == player)
+            if ((session->players + i) == player)
             {
-                gameState->playersOccupancy[i] = false;
-                gameState->players[i] = {};
+                session->playersOccupancy[i] = false;
+                session->players[i] = {};
                 break;
             }
         }

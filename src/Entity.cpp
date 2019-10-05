@@ -45,15 +45,18 @@ namespace soko
             const Entity* e = level->entities[i];
             while (e)
             {
-                SOKO_ASSERT(bufferCapacity);
-                if (!bufferCapacity) goto end;
+                if (e->type != ENTITY_TYPE_PLAYER)
+                {
+                    SOKO_ASSERT(bufferCapacity);
+                    if (!bufferCapacity) goto end;
 
-                auto out = serializedEntities + entitiesWritten;
+                    auto out = serializedEntities + entitiesWritten;
 
-                SerializeBinEntity(e, out);
+                    SerializeBinEntity(e, out);
 
-                entitiesWritten++;
-                bufferCapacity--;
+                    entitiesWritten++;
+                    bufferCapacity--;
+                }
 
                 e = e->nextEntity;
             }
@@ -64,7 +67,7 @@ namespace soko
 
 
     inline Entity*
-    GetEntityMemory(Level* level, AB::MemoryArena* arena)
+    GetEntityMemory(Level* level)
     {
         Entity* result = nullptr;
         if (level->entityFreeList)
@@ -74,9 +77,9 @@ namespace soko
             level->deletedEntityCount--;
             ZERO_STRUCT(Entity, result);
         }
-        else if (arena)
+        else
         {
-            result = PUSH_STRUCT(arena, Entity);
+            result = PUSH_STRUCT(level->sessionArena, Entity);
         }
         return result;
     }
@@ -128,16 +131,17 @@ namespace soko
 
     // TODO: @Cleanup @Robustness Collapse repeated code in theese funtions
     internal u32
-    AddSerializedEntity(Level* level, AB::MemoryArena* arena, const SerializedEntity* sEntity)
+    AddSerializedEntity(Level* level, const SerializedEntity* sEntity)
     {
         u32 result = 0;
-        Tile* tile = GetTile(level, sEntity->coord, arena);
+        Tile* tile = GetTile(level, sEntity->coord);
         if (tile)
         {
             if (tile->value != TILE_VALUE_WALL && TileIsFree(tile))
             {
                 // TODO: Better hash
                 u32 entityHash = sEntity->id % LEVEL_ENTITY_TABLE_SIZE;
+
 #if defined(SOKO_DEBUG)
                 if (level->entities[entityHash])
                 {
@@ -149,7 +153,7 @@ namespace soko
                 }
 #endif
                 Entity* bucketEntity = level->entities[entityHash];
-                Entity* newEntity = GetEntityMemory(level, arena);
+                Entity* newEntity = GetEntityMemory(level);
 
                 if (newEntity)
                 {
@@ -171,15 +175,20 @@ namespace soko
                     result = newEntity->id;
                 }
             }
+            else
+            {
+                SOKO_WARN("Trying to load entity at occupied tile. Entity id: %u32. Tile coord: {%i32, %i32, %i32 }",
+                          sEntity->id, sEntity->coord.x, sEntity->coord.y, sEntity->coord.z);
+            }
         }
         return result;
     }
 
     internal u32
-    AddEntity(Level* level, Entity entity, AB::MemoryArena* arena)
+    AddEntity(Level* level, Entity entity)
     {
         u32 result = 0;
-        Tile* tile = GetTile(level, entity.coord, arena);
+        Tile* tile = GetTile(level, entity.coord);
         if (tile)
         {
             if (tile->value != TILE_VALUE_WALL && TileIsFree(tile))
@@ -188,7 +197,7 @@ namespace soko
                 u32 entityId = level->entitySerialNumber + 1;
                 u32 entityHash = entityId % LEVEL_ENTITY_TABLE_SIZE;
                 Entity* bucketEntity = level->entities[entityHash];
-                Entity* newEntity = GetEntityMemory(level, arena);
+                Entity* newEntity = GetEntityMemory(level);
                 if (newEntity)
                 {
                     newEntity->nextEntity = bucketEntity;
@@ -215,7 +224,7 @@ namespace soko
 
     inline u32
     AddEntity(Level* level, EntityType type, v3i coord,
-              EntityMesh mesh, EntityMaterial material, AB::MemoryArena* arena)
+              EntityMesh mesh, EntityMaterial material)
     {
         u32 result = 0;
         Entity entity = {};
@@ -233,7 +242,7 @@ namespace soko
         case ENTITY_TYPE_BUTTON: { entity.flags = 0; } break;
             INVALID_DEFAULT_CASE;
         }
-        result = AddEntity(level, entity, arena);
+        result = AddEntity(level, entity);
         return result;
     }
 
@@ -256,10 +265,10 @@ namespace soko
     }
 
     internal bool
-    ChangeEntityLocation(Level* level, Entity* entity, v3i desiredCoord, AB::MemoryArena* arena);
+    ChangeEntityLocation(Level* level, Entity* entity, v3i desiredCoord);
 
     internal void
-    UpdateEntitiesInTile(Level* level, Tile* tile, AB::MemoryArena* arena)
+    UpdateEntitiesInTile(Level* level, Tile* tile)
     {
         for (Entity& entity : tile->entityList)
         {
@@ -307,7 +316,7 @@ namespace soko
 #endif
                             SetFlag(e, ENTITY_FLAG_JUST_TELEPORTED);
                             v3i newCoord = GetEntity(level, entity.bindedPortalID)->coord + DirToUnitOffset(entity.portalDirection);
-                            bool teleported = ChangeEntityLocation(level, &e, newCoord, arena);
+                            bool teleported = ChangeEntityLocation(level, &e, newCoord);
 
                         }
                     }
@@ -347,13 +356,13 @@ namespace soko
     }
 
     internal bool
-    ChangeEntityLocation(Level* level, Entity* entity, v3i desiredCoord, AB::MemoryArena* arena)
+    ChangeEntityLocation(Level* level, Entity* entity, v3i desiredCoord)
     {
         bool result = false;
         Tile* oldTile = GetTile(level, entity->coord);
         SOKO_ASSERT(oldTile);
 
-        Tile* desiredTile = GetTile(level, desiredCoord, arena);
+        Tile* desiredTile = GetTile(level, desiredCoord);
         if (desiredTile)
         {
             bool tileIsFree = desiredTile->value != TILE_VALUE_WALL;
@@ -393,8 +402,8 @@ namespace soko
                 desiredTile->entityList.first = entity;
                 entity->coord = desiredCoord;
 
-                UpdateEntitiesInTile(level, oldTile, arena);
-                UpdateEntitiesInTile(level, desiredTile, arena);
+                UpdateEntitiesInTile(level, oldTile);
+                UpdateEntitiesInTile(level, desiredTile);
 
                 result = true;
             }
@@ -403,7 +412,7 @@ namespace soko
     }
 
     internal bool
-    MoveEntity(Level* level, Entity* entity, Direction dir, AB::MemoryArena* arena, bool reverse = false, u32 depth = 2)
+    MoveEntity(Level* level, Entity* entity, Direction dir, bool reverse = false, u32 depth = 2)
     {
         bool result = false;
         v3i desiredPos = entity->coord;
@@ -411,7 +420,7 @@ namespace soko
         v3i revDesiredPos = entity->coord;
         revDesiredPos -= DirToUnitOffset(dir);
 
-        Tile* desiredTile = GetTile(level, desiredPos, arena);
+        Tile* desiredTile = GetTile(level, desiredPos);
         Tile* oldTile = GetTile(level, entity->coord);
         Tile* pushTile = GetTile(level, reverse ? revDesiredPos : desiredPos);
 
@@ -420,7 +429,7 @@ namespace soko
         {
             if (reverse)
             {
-                result = ChangeEntityLocation(level, entity, desiredPos, arena);
+                result = ChangeEntityLocation(level, entity, desiredPos);
             }
 
             if (pushTile && pushTile->value != TILE_VALUE_WALL)
@@ -436,7 +445,7 @@ namespace soko
                             !IsSet(e, ENTITY_FLAG_PLAYER))
                         {
                             // NOTE: Resolve entity collision
-                            MoveEntity(level, &e, dir, arena, reverse, depth - 1);
+                            MoveEntity(level, &e, dir, reverse, depth - 1);
                         }
                     }
                 }
@@ -444,7 +453,7 @@ namespace soko
 
             if (!reverse)
             {
-                result = ChangeEntityLocation(level, entity, desiredPos, arena);
+                result = ChangeEntityLocation(level, entity, desiredPos);
             }
         }
         return result;
@@ -475,7 +484,6 @@ namespace soko
                 entity = entity->nextEntity;
             }
         }
-
     }
 
 

@@ -111,7 +111,7 @@ namespace soko::net
                     {
                         MoveEntity(level,
                                    slot->player->e,
-                                   (Direction)action, gameState->memoryArena,
+                                   (Direction)action,
                                    slot->player->reversed);
                     }
                     else
@@ -204,7 +204,7 @@ namespace soko::net
                         v3i coord = V3I(13 + playerCount, 13, 1);
                         playerCount++;
 
-                        player = AddPlayer(gameState, gameState->session.level, coord, gameState->memoryArena);
+                        player = AddPlayer(&gameState->session, coord);
 
                         if (player)
                         {
@@ -248,7 +248,7 @@ namespace soko::net
 
                     if (!sndStatus && slotInitialized)
                     {
-                        DeletePlayer(gameState, player);
+                        DeletePlayer(&gameState->session, player);
                         server->slotsOccupancy[freeSlot] = 0;
                     }
 
@@ -285,7 +285,7 @@ namespace soko::net
                         if (server->slotsOccupancy[slot])
                         {
                             server->slotsOccupancy[slot] = 0;
-                            DeletePlayer(gameState, server->slots[slot].player);
+                            DeletePlayer(&gameState->session, server->slots[slot].player);
 
                             outHeader->type = ServerMsg_DeletePlayer;
 
@@ -451,10 +451,10 @@ namespace soko::net
         if (msg->succeed)
         {
             v3i playerCoord = V3I(msg->newPlayer.x, msg->newPlayer.y, msg->newPlayer.z);
-            Player* player = AddPlayer(gameState, level, playerCoord, gameState->memoryArena);
+            Player* player = AddPlayer(&gameState->session, playerCoord);
             if (player)
             {
-                gameState->controlledPlayer = player;
+                gameState->session.controlledPlayer = player;
                 client->playerSlot = msg->newPlayer.slot;
 
                 // TODO: Check for overflow
@@ -468,7 +468,7 @@ namespace soko::net
                     bufferAt += sizeof(NewPlayerData);
 
                     v3i coord = V3I(nextPlayer->x, nextPlayer->y, nextPlayer->z);
-                    Player* player = AddPlayer(gameState, level, coord, gameState->memoryArena);
+                    Player* player = AddPlayer(&gameState->session, coord);
                     SOKO_ASSERT(player);
                     // TODO: Check for overflow
                     client->slotsOccupancy[nextPlayer->slot] = 1;
@@ -479,6 +479,7 @@ namespace soko::net
         }
         return result;
     }
+
 #if 0
     ClientConnectionResult
     ClientTryToConnect(GameState* gameState, AB::MemoryArena* tempArena, AB::NetAddress serverAddr = {})
