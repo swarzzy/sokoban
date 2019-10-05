@@ -528,6 +528,10 @@ namespace soko
             }
         }
         WriteEntityStringToFile(L"Entities.txt", &string);
+        u32 sz = DebugGetFileSize(L"Entities.txt");
+        void* mem = PUSH_SIZE(gameState->tempArena, sz + 1);
+        DebugReadTextFile(mem, sz + 1, L"Entities.txt");
+        DeserializeEntities((char*)mem);
         EndTemporaryMemory(gameState->tempArena);
     }
 

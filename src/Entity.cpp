@@ -1,5 +1,438 @@
 namespace soko
 {
+    inline Entity*
+    GetEntityMemory(Level* level, AB::MemoryArena* arena)
+    {
+        Entity* result = nullptr;
+        if (level->entityFreeList)
+        {
+            result = level->entityFreeList;
+            level->entityFreeList = level->entityFreeList->nextEntity;
+            level->deletedEntityCount--;
+            ZERO_STRUCT(Entity, result);
+        }
+        else if (arena)
+        {
+            result = PUSH_STRUCT(arena, Entity);
+        }
+        return result;
+    }
+
+    internal void
+    DeleteEntity(Level* level, Entity* entity)
+    {
+        u32 entityHash = entity->id % LEVEL_ENTITY_TABLE_SIZE;
+        Entity* prevEntity = nullptr;
+        Entity* bucketEntity = level->entities[entityHash];
+        while (bucketEntity)
+        {
+            if (bucketEntity->id == entity->id)
+            {
+                if (prevEntity)
+                {
+                    prevEntity->nextEntity = entity->nextEntity;
+                }
+                else
+                {
+                    level->entities[entityHash] = entity->nextEntity;
+                }
+                if (entity->prevEntityInTile)
+                {
+                    entity->prevEntityInTile->nextEntityInTile = entity->nextEntityInTile;
+                }
+                else
+                {
+                    Tile* tile = GetTile(level, entity->coord);
+                    SOKO_ASSERT(tile);
+                    SOKO_ASSERT(tile->entityList.first->id == entity->id);
+                    tile->entityList.first = entity->nextEntityInTile;
+                }
+                if (entity->nextEntityInTile)
+                {
+                    entity->nextEntityInTile->prevEntityInTile = entity->prevEntityInTile;
+                }
+
+                level->entityCount--;
+                entity->nextEntity = level->entityFreeList;
+                level->entityFreeList = entity;
+                level->deletedEntityCount++;
+                break;
+            }
+            prevEntity = bucketEntity;
+            bucketEntity = bucketEntity->nextEntity;
+        }
+    }
+
+    // TODO: @Cleanup @Robustness Collapse repeated code in theese funtions
+
+    internal u32
+    AddEntityWithID(Level* level, AB::MemoryArena* arena,
+                    u32 id,
+                    EntityType type,
+                    u32 flags,
+                    v3i coord,
+                    u32 boundPortalID,
+                    u32 portalDirection,
+                    u32 mesh,
+                    u32 material)
+    {
+        u32 result = 0;
+        Tile* tile = GetTile(level, entity.coord, arena);
+        if (tile)
+        {
+            if (tile->value != TILE_VALUE_WALL && TileIsFree(tile))
+            {
+                // TODO: Better hash
+                u32 entityHash = id % LEVEL_ENTITY_TABLE_SIZE;
+#if defined(SOKO_DEBUG)
+                if (level->entities[entityHash])
+                {
+                    Entity* e = level->entities + entityHash;
+                    while (e)
+                    {
+                        SOKO_ASSERT(e->id != id);
+                    }
+                }
+#endif
+                Entity* bucketEntity = level->entities[entityHash];
+                Entity* newEntity = GetEntityMemory(level, arena);
+
+                if (newEntity)
+                {
+                    newEntity.id = id;
+                    newEntity.type  type;
+                    newEntity.flags = flags;
+                    newEntity.coord = coord;
+                    newEntity.boundPortalID = boundPortalID;
+                    newEntity.portalDirection = portalDirection;
+                    newEntity.mesh = mesh;
+                    newEntity.material = material;
+
+                    newEntity->nextEntity = bucketEntity;
+                    level->entities[entityHash] = newEntity;
+                    level->entitySerialNumber++;
+                    level->entityCount++;
+
+                    *newEntity = entity;
+                    newEntity->id = entityId;
+                    newEntity->nextEntityInTile = tile->entityList.first;
+                    newEntity->prevEntityInTile = NULL;
+                    if (tile->entityList.first)
+                    {
+                        tile->entityList.first->prevEntityInTile = newEntity;
+                    }
+                    tile->entityList.first = newEntity;
+
+                    result = entityId;
+                }
+            }
+        }
+        return result;
+    }
+
+    internal u32
+    AddEntity(Level* level, Entity entity, AB::MemoryArena* arena)
+    {
+        u32 result = 0;
+        Tile* tile = GetTile(level, entity.coord, arena);
+        if (tile)
+        {
+            if (tile->value != TILE_VALUE_WALL && TileIsFree(tile))
+            {
+                // TODO: Better hash
+                u32 entityId = level->entitySerialNumber + 1;
+                u32 entityHash = entityId % LEVEL_ENTITY_TABLE_SIZE;
+                Entity* bucketEntity = level->entities[entityHash];
+                Entity* newEntity = GetEntityMemory(level, arena);
+                if (newEntity)
+                {
+                    newEntity->nextEntity = bucketEntity;
+                    level->entities[entityHash] = newEntity;
+                    level->entitySerialNumber++;
+                    level->entityCount++;
+
+                    *newEntity = entity;
+                    newEntity->id = entityId;
+                    newEntity->nextEntityInTile = tile->entityList.first;
+                    newEntity->prevEntityInTile = NULL;
+                    if (tile->entityList.first)
+                    {
+                        tile->entityList.first->prevEntityInTile = newEntity;
+                    }
+                    tile->entityList.first = newEntity;
+
+                    result = entityId;
+                }
+            }
+        }
+        return result;
+    }
+
+    inline u32
+    AddEntity(Level* level, EntityType type, v3i coord,
+              EntityMesh mesh, EntityMaterial material, AB::MemoryArena* arena)
+    {
+        u32 result = 0;
+        Entity entity = {};
+        entity.type = type;
+        entity.coord = coord;
+        entity.mesh = mesh;
+        entity.material = material;
+        switch (type)
+        {
+        case ENTITY_TYPE_BLOCK:  { entity.flags = ENTITY_FLAG_MOVABLE | ENTITY_FLAG_COLLIDES; } break;
+        case ENTITY_TYPE_PLAYER: { entity.flags = ENTITY_FLAG_MOVABLE | ENTITY_FLAG_COLLIDES | ENTITY_FLAG_PLAYER; } break;
+        case ENTITY_TYPE_PLATE:  { entity.flags = 0; } break;
+        case ENTITY_TYPE_PORTAL: { entity.flags = 0; } break;
+        case ENTITY_TYPE_SPIKES: { entity.flags = 0; } break;
+        case ENTITY_TYPE_BUTTON: { entity.flags = 0; } break;
+            INVALID_DEFAULT_CASE;
+        }
+        result = AddEntity(level, entity, arena);
+        return result;
+    }
+
+    inline Entity*
+    GetEntity(Level* level, u32 id)
+    {
+        Entity* result = nullptr;
+        u32 entityHash = id % LEVEL_ENTITY_TABLE_SIZE;
+        Entity* entity = level->entities[entityHash];
+        while (entity)
+        {
+            if (entity->id == id)
+            {
+                result = entity;
+                break;
+            }
+            entity = entity->nextEntity;
+        }
+        return result;
+    }
+
+    internal bool
+    ChangeEntityLocation(Level* level, Entity* entity, v3i desiredCoord, AB::MemoryArena* arena);
+
+    internal void
+    UpdateEntitiesInTile(Level* level, Tile* tile, AB::MemoryArena* arena)
+    {
+        for (Entity& entity : tile->entityList)
+        {
+            switch (entity.type)
+            {
+            case ENTITY_TYPE_PLATE:
+            {
+                level->platePressed = false;
+                for (Entity& e : tile->entityList)
+                {
+                    if (&e != &entity)
+                    {
+                        if (e.type == ENTITY_TYPE_BLOCK)
+                        {
+                            level->platePressed = true;
+                        }
+                    }
+                }
+            } break;
+            case ENTITY_TYPE_PORTAL:
+            {
+                for (Entity& e : tile->entityList)
+                {
+                    if (&e != &entity)
+                    {
+                        if (IsSet(e, ENTITY_FLAG_MOVABLE))
+                        {
+                            // NOTE: No need in flag if teleporting
+                            // not no the same tile where portal located
+#if 0
+                            if (IsSet(e, ENTITY_FLAG_JUST_TELEPORTED))
+                            {
+                                UnsetFlag(e, ENTITY_FLAG_JUST_TELEPORTED);
+                            }
+                            else
+                            {
+                                SetFlag(e, ENTITY_FLAG_JUST_TELEPORTED);
+                                v3i newCoord = GetEntity(level, entity.bindedPortalID)->coord + DirToUnitOffset(entity.portalDirection);
+                                bool teleported = ChangeEntityLocation(level, &e, newCoord, arena);
+                                if (!teleported)
+                                {
+                                    UnsetFlag(e, ENTITY_FLAG_JUST_TELEPORTED);
+                                }
+                            }
+#endif
+                            SetFlag(e, ENTITY_FLAG_JUST_TELEPORTED);
+                            v3i newCoord = GetEntity(level, entity.bindedPortalID)->coord + DirToUnitOffset(entity.portalDirection);
+                            bool teleported = ChangeEntityLocation(level, &e, newCoord, arena);
+
+                        }
+                    }
+                }
+            } break;
+            case ENTITY_TYPE_SPIKES: {
+                for (Entity& e : tile->entityList)
+                {
+                    if (&e != &entity)
+                    {
+                        if (e.type != ENTITY_TYPE_PLAYER)
+                        {
+                            DeleteEntity(level, &e);
+                        }
+                    }
+                }
+            } break;
+            case ENTITY_TYPE_BUTTON:
+            {
+                // TODO: Pass info about entity that causes an update
+                // instead of travercing all entities all the time
+                // TODO: Entity custom behavoir
+#if 0
+                for (Entity& e : tile->entityList)
+                {
+                    if (e.type == ENTITY_TYPE_BLOCK || e.type == ENTITY_TYPE_PLAYER)
+                    {
+                        entity.updateProc(level, &entity, entity.updateProcData);
+                        break;
+                    }
+                }
+#endif
+            }
+            default: {} break;
+            }
+        }
+    }
+
+    internal bool
+    ChangeEntityLocation(Level* level, Entity* entity, v3i desiredCoord, AB::MemoryArena* arena)
+    {
+        bool result = false;
+        Tile* oldTile = GetTile(level, entity->coord);
+        SOKO_ASSERT(oldTile);
+
+        Tile* desiredTile = GetTile(level, desiredCoord, arena);
+        if (desiredTile)
+        {
+            bool tileIsFree = desiredTile->value != TILE_VALUE_WALL;
+            // TODO: For all entities in tile (iterator)
+            if (tileIsFree)
+            {
+                for (Entity& entityInTile : desiredTile->entityList)
+                {
+                    if (IsSet(entityInTile, ENTITY_FLAG_COLLIDES))
+                    {
+                        tileIsFree = false;
+                        break;
+                    }
+                }
+            }
+            if (tileIsFree)
+            {
+                if (entity->prevEntityInTile)
+                {
+                    entity->prevEntityInTile->nextEntityInTile = entity->nextEntityInTile;
+                }
+                else
+                {
+                    oldTile->entityList.first = entity->nextEntityInTile;
+                    if (oldTile->entityList.first)
+                    {
+                        oldTile->entityList.first->prevEntityInTile = NULL;
+                    }
+                }
+
+                entity->nextEntityInTile = desiredTile->entityList.first;
+                entity->prevEntityInTile = NULL;
+                if (desiredTile->entityList.first)
+                {
+                    desiredTile->entityList.first->prevEntityInTile = entity;
+                }
+                desiredTile->entityList.first = entity;
+                entity->coord = desiredCoord;
+
+                UpdateEntitiesInTile(level, oldTile, arena);
+                UpdateEntitiesInTile(level, desiredTile, arena);
+
+                result = true;
+            }
+        }
+        return result;
+    }
+
+    internal bool
+    MoveEntity(Level* level, Entity* entity, Direction dir, AB::MemoryArena* arena, bool reverse = false, u32 depth = 2)
+    {
+        bool result = false;
+        v3i desiredPos = entity->coord;
+        desiredPos += DirToUnitOffset(dir);
+        v3i revDesiredPos = entity->coord;
+        revDesiredPos -= DirToUnitOffset(dir);
+
+        Tile* desiredTile = GetTile(level, desiredPos, arena);
+        Tile* oldTile = GetTile(level, entity->coord);
+        Tile* pushTile = GetTile(level, reverse ? revDesiredPos : desiredPos);
+
+        SOKO_ASSERT(oldTile);
+        if (desiredTile)
+        {
+            if (reverse)
+            {
+                result = ChangeEntityLocation(level, entity, desiredPos, arena);
+            }
+
+            if (pushTile && pushTile->value != TILE_VALUE_WALL)
+            {
+                Entity* entityInTile = pushTile->entityList.first;
+                bool recursive = (bool)depth;
+                if (recursive)
+                {
+                    for (Entity& e : pushTile->entityList)
+                    {
+                        if (IsSet(e, ENTITY_FLAG_MOVABLE) &&
+                            IsSet(e, ENTITY_FLAG_COLLIDES) &&
+                            !IsSet(e, ENTITY_FLAG_PLAYER))
+                        {
+                            // NOTE: Resolve entity collision
+                            MoveEntity(level, &e, dir, arena, reverse, depth - 1);
+                        }
+                    }
+                }
+            }
+
+            if (!reverse)
+            {
+                result = ChangeEntityLocation(level, entity, desiredPos, arena);
+            }
+        }
+        return result;
+    }
+
+    internal void
+    DrawEntities(Level* level, GameState* gameState)
+    {
+        // TODO: Entity data oriented storage
+        for (u32 i = 0; i < LEVEL_ENTITY_TABLE_SIZE; i++)
+        {
+            Entity* entity = level->entities[i];
+            while (entity)
+            {
+                f32 xCoord = entity->coord.x * LEVEL_TILE_SIZE;
+                f32 yCoord = entity->coord.z * LEVEL_TILE_SIZE;
+                f32 zCoord = entity->coord.y * LEVEL_TILE_SIZE;
+                v3 pos = V3(xCoord, yCoord, -zCoord);
+                RenderCommandDrawMesh command = {};
+                command.transform = Translation(pos);
+                //SOKO_ASSERT(entity->mesh);
+                //SOKO_ASSERT(entity->material);
+                command.mesh = gameState->meshes + entity->mesh;
+                command.material = gameState->materials + entity->material;
+                RenderGroupPushCommand(gameState->renderGroup, RENDER_COMMAND_DRAW_MESH,
+                                       (void*)&command);
+
+                entity = entity->nextEntity;
+            }
+        }
+
+    }
+
     // TODO: Templated bucket array?
     // Because it also used for chunk meshing
     // and in other places
@@ -217,5 +650,323 @@ namespace soko
             }
         }
         return result;
+    }
+
+    inline bool
+    IsSpace(char c)
+    {
+        bool result;
+        result = (c == ' '  ||
+                  c == '\n' ||
+                  c == '\r' ||
+                  c == '\t' ||
+                  c == '\v' ||
+                  c == '\f');
+        return result;
+    }
+
+    inline const char*
+    EatSpace(const char* at)
+    {
+        const char* result = 0;
+        while (*at)
+        {
+            if (IsSpace(*at))
+            {
+                at++;
+            }
+            else
+            {
+                result = at;
+                break;
+            }
+        }
+        return result;
+    }
+
+    struct EntityTokenizer
+    {
+        const char* string;
+        const char* at;
+    };
+
+    enum EntityTokenType
+    {
+        EntityToken_Unkown = 0,
+        EntityToken_Comment,
+        EntityToken_BeginStruct,
+        EntityToken_Field
+    };
+
+    struct EntityToken
+    {
+        EntityTokenType type;
+        union
+        {
+            // TODO: Use offsets onstead of pointers
+            struct
+            {
+                const char* structTypeBeg;
+                const char* structTypeEnd;
+            } beginStruct;
+            struct
+            {
+                EntityFieldType type;
+                const char* nameBeg;
+                const char* nameEnd;
+                const char* valueBeg;
+                const char* valueEnd;
+            } field;
+        };
+    };
+
+    inline const char*
+    EatUntillSpace(const char* at)
+    {
+        const char* result = 0;
+        while(*at)
+        {
+            if (IsSpace(*at))
+            {
+                result = at;
+                break;
+            }
+            at++;
+        }
+        return result;
+    }
+
+    inline const char*
+    EatLine(const char* at)
+    {
+        const char* result = 0;
+        while (*at)
+        {
+            if (*at == '\n' ||
+                *at == '\r')
+            {
+                result = EatSpace(at);
+                break;
+            }
+            at++;
+        }
+        return result;
+    }
+
+    inline bool
+    StringsAreEqual(const char* a, const char* b)
+    {
+        bool result = true;
+        while (*a)
+        {
+            if (*b != *a)
+            {
+                result = false;
+                break;
+            }
+            a++;
+            b++;
+        }
+        return result;
+    }
+
+    inline const char*
+    FindNextOccurence(const char* str, char c)
+    {
+        const char* result = 0;
+        while(*str)
+        {
+            if (*str == c)
+            {
+                result = str;
+                break;
+            }
+            str++;
+        }
+        return result;
+    }
+
+    internal bool
+    TokenizeFieldValue(EntityTokenizer* tokenizer, EntityToken* token)
+    {
+        bool result = false;
+        tokenizer->at = EatSpace(tokenizer->at);
+        if (tokenizer->at && *tokenizer->at == '=')
+        {
+            tokenizer->at = EatSpace(tokenizer->at + 1);
+            if (tokenizer->at)
+            {
+                switch (token->field.type)
+                {
+                case EntityFieldType_u32:
+                {
+                    const char* valBeg = tokenizer->at;
+                    tokenizer->at = EatUntillSpace(tokenizer->at);
+                    if (tokenizer->at)
+                    {
+                        const char* valEnd = tokenizer->at;
+                        token->field.valueBeg = valBeg;
+                        token->field.valueEnd = valEnd;
+                        result = true;
+                    }
+                } break;
+                case EntityFieldType_v3i:
+                {
+                    if (*tokenizer->at == '{')
+                    {
+                        const char* valBeg = tokenizer->at;
+                        tokenizer->at = FindNextOccurence(tokenizer->at, '}');
+                        if (tokenizer->at)
+                        {
+                            tokenizer->at++;
+                            const char* valEnd = tokenizer->at;
+                            token->field.valueBeg = valBeg;
+                            token->field.valueEnd = valEnd;
+                            result = true;
+                        }
+                    }
+                } break;
+                INVALID_DEFAULT_CASE;
+                }
+            }
+        }
+        return result;
+    }
+
+    internal bool
+    TokenizeField(EntityTokenizer* tokenizer, EntityToken* token)
+    {
+        bool result = false;
+        tokenizer->at = EatSpace(tokenizer->at);
+        if (tokenizer->at)
+        {
+            const char* nameBeg = tokenizer->at;
+            tokenizer->at = EatUntillSpace(tokenizer->at);
+            const char* nameEnd = tokenizer->at;
+            if (nameEnd)
+            {
+                tokenizer->at = EatSpace(tokenizer->at);
+                if (*tokenizer->at == ':')
+                {
+                    tokenizer->at = EatSpace(tokenizer->at + 1);
+                    if (tokenizer->at)
+                    {
+                        const char* typeBeg = tokenizer->at;
+                        const char* typeEnd = EatUntillSpace(tokenizer->at);
+                        tokenizer->at = typeEnd;
+                        if (typeEnd)
+                        {
+                            char typeBuffer[32];
+                            u32 typeLength = (u32)(typeEnd - typeBeg);
+                            SOKO_ASSERT(typeLength < 32);
+                            COPY_BYTES(typeLength, typeBuffer, typeBeg);
+                            typeBuffer[typeLength] = 0;
+                            bool match = false;
+                            if (StringsAreEqual(typeBuffer, "u32"))
+                            {
+                                token->field.type = EntityFieldType_u32;
+                                match = true;
+                            }
+                            else if (StringsAreEqual(typeBuffer, "v3i"))
+                            {
+                                token->field.type = EntityFieldType_v3i;
+                                match = true;
+                            }
+                            if (match)
+                            {
+                                token->field.nameBeg = nameBeg;
+                                token->field.nameEnd = nameEnd;
+                                if (TokenizeFieldValue(tokenizer, token))
+                                {
+                                    result = true;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        return result;
+    }
+
+
+    inline bool
+    GetNextToken(EntityTokenizer* tokenizer, EntityToken* token)
+    {
+        bool result = true;
+        tokenizer->at = EatSpace(tokenizer->at);
+        if (tokenizer->at)
+        {
+            *token = {};
+            if (*tokenizer->at == '/')
+            {
+                if (*(tokenizer->at + 1) == '/')
+                {
+                    token->type = EntityToken_Comment;
+                    tokenizer->at = EatLine(tokenizer->at);
+                }
+            }
+            else if (*tokenizer->at == '!')
+            {
+                tokenizer->at = EatSpace(tokenizer->at + 1);
+                if (tokenizer->at)
+                {
+                    const char* end = EatUntillSpace(tokenizer->at);
+                    if (end)
+                    {
+                        token->type = EntityToken_BeginStruct;
+                        token->beginStruct.structTypeBeg = tokenizer->at;
+                        token->beginStruct.structTypeEnd = end;
+                        tokenizer->at = EatSpace(end);
+                    }
+                }
+            }
+            else if (*tokenizer->at == ';')
+            {
+                tokenizer->at++;
+                if(TokenizeField(tokenizer, token))
+                {
+                    token->type = EntityToken_Field;
+                }
+            }
+        }
+        else
+        {
+            result = false;
+        }
+        return result;
+    }
+
+    internal void
+    DeserializeEntities(const char* string)
+    {
+        EntityTokenizer tokenizer = {};
+        tokenizer.string = string;
+        tokenizer.at = string;
+
+        const char* at = string;
+        EntityToken token = {};
+
+        u32 id;
+        EntityType type;
+        u32 flags;
+        v3i coord;
+        u32 boundPortalID;
+        u32 portalDirection;
+        u32 mesh;
+        u32 material;
+
+        while(GetNextToken(&tokenizer, &token))
+        {
+            switch (token.type)
+            {
+            case EntityToken_Comment: {} break;
+            case EntityToken_BeginStruct: {} break;
+            case EntityToken_Field: {}
+            default: {} break;
+            }
+
+        }
+        return;
     }
 }
