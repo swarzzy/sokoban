@@ -4,6 +4,7 @@
 
 namespace soko
 {
+    constant u32 ENTITY_MEMORY_SIZE_FOR_LEVEL = MEGABYTES(1);
     enum MainMenuState
     {
         MainMenu_ModeSelection,

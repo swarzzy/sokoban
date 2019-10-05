@@ -1,5 +1,6 @@
 #include "Level.h"
 #include "Memory.h"
+#include "Entity.h"
 
 namespace soko
 {
@@ -268,7 +269,13 @@ namespace soko
     SaveLevel(const Level* level, const wchar_t* filename, AB::MemoryArena* arena)
     {
         bool result = false;
-        uptr bufferSize = sizeof(AB::AABLevelHeader) + sizeof(SerializedChunk) * level->loadedChunksCount;
+
+        uptr headerSize = sizeof(AB::AABLevelHeader);
+        uptr chunksSize = sizeof(SerializedChunk) * level->loadedChunksCount;
+        uptr entitiesSize = CalcSerializedEntitiesSize(level);
+
+        uptr bufferSize = headerSize + chunksSize + entitiesSize;
+
         byte* buffer = (byte*)PUSH_SIZE(arena, bufferSize);
         if (buffer)
         {
@@ -281,6 +288,8 @@ namespace soko
             header->chunkCount = level->loadedChunksCount;
             header->chunkMeshBlockCount = level->globalChunkMeshBlockCount;
             header->firstChunkOffset = sizeof(AB::AABLevelHeader);
+            header->entityCount = level->entityCount - 1; // Null entity is not considered
+            header->firstEntityOffset = headerSize + chunksSize;
 
             auto chunks = (SerializedChunk*)(buffer + header->firstChunkOffset);
 
@@ -301,6 +310,11 @@ namespace soko
                     }
                 }
             }
+
+            SOKO_ASSERT(chunksWritten == level->loadedChunksCount);
+
+            void* entities = buffer + headerSize + chunksSize;
+            SerializeEntititiesToBuffer(level, entities, entitiesSize);
 
             SOKO_ASSERT(bufferSize <= 0xffffffff);
             result = DebugWriteFile(filename, buffer, (u32)bufferSize);
@@ -337,7 +351,7 @@ namespace soko
     }
 
     inline uptr
-    CalcLevelArenaSize(const LevelMetaInfo* info)
+    CalcLevelArenaSize(const LevelMetaInfo* info, uptr sizeForEntities)
     {
         uptr result = 0;
         u64 levelSize = sizeof(Level) + sizeof(Chunk) * info->chunkCount;
@@ -345,7 +359,74 @@ namespace soko
         SOKO_ASSERT(levelSize <= AB::UPTR_MAX);
         // NOTE: Adding some random value just in case
         uptr safetyPad = 128 + alignof(ChunkMeshVertexBlock) * info->chunkMeshBlockCount;
-        result = (uptr)levelSize + chunkMeshDataSize + safetyPad;
+        result = (uptr)levelSize + chunkMeshDataSize + safetyPad + sizeForEntities;
+        return result;
+    }
+
+    inline bool
+    LoadChunks(AB::MemoryArena* levelArena, Level* loadedLevel,
+               SerializedChunk* chunks, u32 chunkCount)
+    {
+        bool result = false;
+        for (u32 chunkIdx = 0; chunkIdx < chunkCount; chunkIdx++)
+        {
+            SerializedChunk* sChunk = chunks + chunkIdx;
+            Chunk* newChunk = InitChunk(loadedLevel, sChunk->coord);
+            if (newChunk)
+            {
+                for (u32 z = 0; z < CHUNK_DIM; z++)
+                {
+                    for (u32 y = 0; y < CHUNK_DIM; y++)
+                    {
+                        for (u32 x = 0; x < CHUNK_DIM; x++)
+                        {
+                            u32 tileIdx =
+                                z * CHUNK_DIM * CHUNK_DIM +
+                                y * CHUNK_DIM +
+                                x;
+
+                            newChunk->tiles[tileIdx].coord = V3I(x, y, z);
+                            newChunk->tiles[tileIdx].value = sChunk->tiles[tileIdx].value;
+                        }
+                    }
+                }
+                // TODO: Store meshes on the cpu and load on the gpu only when necessary
+                ChunkMesh mesh;
+                if (GenChunkMesh(newChunk, &mesh, levelArena))
+                {
+                    // TODO: Check if loading failed
+                    LoadedChunkMesh loadedMesh = RendererLoadChunkMesh(&mesh);
+                    newChunk->loadedMesh = loadedMesh;
+                    newChunk->mesh = mesh;
+                    loadedLevel->globalChunkMeshBlockCount += mesh.blockCount;
+                    result = true;
+                }
+                else
+                {
+                    // TODO: Decide what to do when chunk mesh loading failed
+                    result = false;
+                    break;
+                }
+            }
+        }
+        return result;
+    }
+
+    inline bool
+    LoadEntities(AB::MemoryArena* levelArena, Level* loadedLevel,
+                 SerializedEntity* entities, u32 entityCount)
+    {
+        bool result = true;
+        for (u32 idx = 0; idx < entityCount; idx++)
+        {
+            SerializedEntity* sEntity = entities + idx;
+            u32 id = AddSerializedEntity(loadedLevel, levelArena, sEntity);
+            if (id != sEntity->id)
+            {
+                result = false;
+                break;
+            }
+        }
         return result;
     }
 
@@ -374,62 +455,28 @@ namespace soko
                         {
                             loadedLevel->levelArena = levelArena;
                             auto chunks = (SerializedChunk*)((byte*)fileBuffer + header.firstChunkOffset);
-                            for (u32 chunkIdx = 0; chunkIdx < header.chunkCount; chunkIdx++)
+                            if (LoadChunks(levelArena, loadedLevel, chunks, header.chunkCount))
                             {
-                                SerializedChunk* sChunk = chunks + chunkIdx;
-                                Chunk* newChunk = InitChunk(loadedLevel, sChunk->coord);
-                                if (newChunk)
+                                auto entities = (SerializedEntity*)((byte*)fileBuffer + header.firstEntityOffset);
+                                if (LoadEntities(levelArena, loadedLevel, entities, header.entityCount))
                                 {
-                                    for (u32 z = 0; z < CHUNK_DIM; z++)
-                                    {
-                                        for (u32 y = 0; y < CHUNK_DIM; y++)
-                                        {
-                                            for (u32 x = 0; x < CHUNK_DIM; x++)
-                                            {
-                                                u32 tileIdx =
-                                                    z * CHUNK_DIM * CHUNK_DIM +
-                                                    y * CHUNK_DIM +
-                                                    x;
-
-                                                newChunk->tiles[tileIdx].coord = V3I(x, y, z);
-                                                newChunk->tiles[tileIdx].value = sChunk->tiles[tileIdx].value;
-                                            }
-                                        }
-                                    }
-                                    // TODO: Store meshes on the cpu and load on the gpu only when necessary
-                                    ChunkMesh mesh;
-                                    if (GenChunkMesh(newChunk, &mesh, levelArena))
-                                    {
-                                        // TODO: Check if loading failed
-                                        LoadedChunkMesh loadedMesh = RendererLoadChunkMesh(&mesh);
-                                        newChunk->loadedMesh = loadedMesh;
-                                        newChunk->mesh = mesh;
-                                        loadedLevel->globalChunkMeshBlockCount += mesh.blockCount;
-                                    }
-                                    else
-                                    {
-                                        goto end;
-                                    }
-                                }
-                                else
-                                {
-                                    goto end;
+                                    SOKO_ASSERT(loadedLevel->loadedChunksCount == header.chunkCount);
+                                    SOKO_ASSERT(loadedLevel->entityCount == header.entityCount + 1);
+                                    result = loadedLevel;
                                 }
                             }
-                            SOKO_ASSERT(loadedLevel->loadedChunksCount == header.chunkCount);
-                            result = loadedLevel;
                         }
                     }
                 }
             }
         }
-    end:
         return result;
     }
 
     internal bool
     GenTestLevel(AB::MemoryArena* tempArena)
     {
+        BeginTemporaryMemory(tempArena, true);
         bool result = 0;
         Level* level = CreateLevel(tempArena, 8 * 8);
         for (i32 chunkX = LEVEL_MIN_DIM_CHUNKS; chunkX < LEVEL_MAX_DIM_CHUNKS; chunkX++)
@@ -463,10 +510,89 @@ namespace soko
                 level->globalChunkMeshBlockCount += mesh.blockCount;
             }
         }
+
+        Entity entity1 = {};
+        entity1.type = ENTITY_TYPE_BLOCK;
+        entity1.flags = ENTITY_FLAG_COLLIDES | ENTITY_FLAG_MOVABLE;
+        entity1.coord = V3I(5, 7, 1);
+        entity1.mesh = EntityMesh_Cube;
+        entity1.material = EntityMaterial_Block;
+
+        AddEntity(level, entity1, tempArena);
+        //AddEntity(playerLevel)
+
+        Entity entity2 = {};
+        entity2.type = ENTITY_TYPE_BLOCK;
+        entity2.flags = ENTITY_FLAG_COLLIDES | ENTITY_FLAG_MOVABLE;
+        entity2.coord = V3I(5, 8, 1);
+        entity2.mesh = EntityMesh_Cube;
+        entity2.material = EntityMaterial_Block;
+
+        AddEntity(level, entity2, tempArena);
+
+        Entity entity3 = {};
+        entity3.type = ENTITY_TYPE_BLOCK;
+        entity3.flags = ENTITY_FLAG_COLLIDES | ENTITY_FLAG_MOVABLE;
+        entity3.coord = V3I(5, 9, 1);
+        entity3.mesh = EntityMesh_Cube;
+        entity3.material = EntityMaterial_Block;
+
+        AddEntity(level, entity3, tempArena);
+
+        Entity plate = {};
+        plate.type = ENTITY_TYPE_PLATE;
+        plate.flags = 0;
+        plate.coord = V3I(10, 9, 1);
+        plate.mesh = EntityMesh_Plate;
+        plate.material = EntityMaterial_RedPlate;
+
+        AddEntity(level, plate, tempArena);
+
+        Entity portal1 = {};
+        portal1.type = ENTITY_TYPE_PORTAL;
+        portal1.flags = 0;
+        portal1.coord = V3I(12, 12, 1);
+        portal1.mesh = EntityMesh_Portal;
+        portal1.material = EntityMaterial_Portal;
+        portal1.portalDirection = DIRECTION_NORTH;
+
+        Entity* portal1Entity = GetEntity(level, AddEntity(level, portal1, tempArena));
+
+        Entity portal2 = {};
+        portal2.type = ENTITY_TYPE_PORTAL;
+        portal2.flags = 0;
+        portal2.coord = V3I(17, 17, 1);
+        portal2.mesh = EntityMesh_Portal;
+        portal2.material = EntityMaterial_Portal;
+        portal2.portalDirection = DIRECTION_WEST;
+
+        Entity* portal2Entity = GetEntity(level, AddEntity(level, portal2, tempArena));
+
+        portal1Entity->bindedPortalID = portal2Entity->id;
+        portal2Entity->bindedPortalID = portal1Entity->id;
+
+        AddEntity(level, ENTITY_TYPE_SPIKES, V3I(15, 15, 1),
+                  EntityMesh_Spikes, EntityMaterial_Spikes, tempArena);
+        Entity* button = GetEntity(level, AddEntity(level, ENTITY_TYPE_BUTTON, V3I(4, 4, 1),
+                                                    EntityMesh_Button, EntityMaterial_Button,
+
+                                                    tempArena));
+#if 0
+        // TODO: Entity custom behavior
+        button->updateProc = [](Level* level, Entity* entity, void* data) {
+            GameState* gameState = (GameState*)data;
+            AddEntity(level, ENTITY_TYPE_BLOCK, V3I(4, 5, 1),
+                      EntityMesh_Cube, EntityMaterial_Block,
+                      gameState->memoryArena);
+        };
+        button->updateProcData = (void*)gameState;
+#endif
+
         if(SaveLevel(level, L"testLevel.aab", tempArena))
         {
             result = 1;
         }
+        EndTemporaryMemory(tempArena);
         return result;
     }
 }

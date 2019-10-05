@@ -6,86 +6,6 @@ namespace soko
         BeginTemporaryMemory(gameState->tempArena);
         Level* level = LoadLevel(filename, levelArena, gameState->tempArena);
         EndTemporaryMemory(gameState->tempArena);
-        if (level)
-        {
-            Entity entity1 = {};
-            entity1.type = ENTITY_TYPE_BLOCK;
-            entity1.flags = ENTITY_FLAG_COLLIDES | ENTITY_FLAG_MOVABLE;
-            entity1.coord = V3I(5, 7, 1);
-            entity1.mesh = EntityMesh_Cube;
-            entity1.material = EntityMaterial_Block;
-
-            AddEntity(level, entity1, gameState->memoryArena);
-            //AddEntity(playerLevel)
-
-            Entity entity2 = {};
-            entity2.type = ENTITY_TYPE_BLOCK;
-            entity2.flags = ENTITY_FLAG_COLLIDES | ENTITY_FLAG_MOVABLE;
-            entity2.coord = V3I(5, 8, 1);
-            entity2.mesh = EntityMesh_Cube;
-            entity2.material = EntityMaterial_Block;
-
-            AddEntity(level, entity2, gameState->memoryArena);
-
-            Entity entity3 = {};
-            entity3.type = ENTITY_TYPE_BLOCK;
-            entity3.flags = ENTITY_FLAG_COLLIDES | ENTITY_FLAG_MOVABLE;
-            entity3.coord = V3I(5, 9, 1);
-            entity3.mesh = EntityMesh_Cube;
-            entity3.material = EntityMaterial_Block;
-
-            AddEntity(level, entity3, gameState->memoryArena);
-
-            Entity plate = {};
-            plate.type = ENTITY_TYPE_PLATE;
-            plate.flags = 0;
-            plate.coord = V3I(10, 9, 1);
-            plate.mesh = EntityMesh_Plate;
-            plate.material = EntityMaterial_RedPlate;
-
-            AddEntity(level, plate, gameState->memoryArena);
-
-            Entity portal1 = {};
-            portal1.type = ENTITY_TYPE_PORTAL;
-            portal1.flags = 0;
-            portal1.coord = V3I(12, 12, 1);
-            portal1.mesh = EntityMesh_Portal;
-            portal1.material = EntityMaterial_Portal;
-            portal1.portalDirection = DIRECTION_NORTH;
-
-            Entity* portal1Entity = GetEntity(level, AddEntity(level, portal1, gameState->memoryArena));
-
-            Entity portal2 = {};
-            portal2.type = ENTITY_TYPE_PORTAL;
-            portal2.flags = 0;
-            portal2.coord = V3I(17, 17, 1);
-            portal2.mesh = EntityMesh_Portal;
-            portal2.material = EntityMaterial_Portal;
-            portal2.portalDirection = DIRECTION_WEST;
-
-            Entity* portal2Entity = GetEntity(level, AddEntity(level, portal2, gameState->memoryArena));
-
-            portal1Entity->bindedPortalID = portal2Entity->id;
-            portal2Entity->bindedPortalID = portal1Entity->id;
-
-            AddEntity(level, ENTITY_TYPE_SPIKES, V3I(15, 15, 1),
-                      EntityMesh_Spikes, EntityMaterial_Spikes, gameState->memoryArena);
-            Entity* button = GetEntity(level, AddEntity(level, ENTITY_TYPE_BUTTON, V3I(4, 4, 1),
-                                                        EntityMesh_Button, EntityMaterial_Button,
-
-                                                        gameState->memoryArena));
-            // TODO: Entity custom behavior
-#if 0
-            button->updateProc = [](Level* level, Entity* entity, void* data) {
-                GameState* gameState = (GameState*)data;
-                AddEntity(level, ENTITY_TYPE_BLOCK, V3I(4, 5, 1),
-                          EntityMesh_Cube, EntityMaterial_Block,
-                          gameState->memoryArena);
-            };
-            button->updateProcData = (void*)gameState;
-#endif
-        }
-
         return level;
     }
 
@@ -185,7 +105,7 @@ namespace soko
     SingleLoadLevel(GameMenu* menu, GameState* gameState)
     {
         MainMenuState nextState = MainMenu_SingleSelectLevel;
-        uptr arenaSize = CalcLevelArenaSize(&menu->levelMetaInfo);
+        uptr arenaSize = CalcLevelArenaSize(&menu->levelMetaInfo, ENTITY_MEMORY_SIZE_FOR_LEVEL);
         MemoryArena* levelArena = PLATFORM_QUERY_NEW_ARENA(arenaSize);
         SOKO_ASSERT(levelArena);
         // TODO: Remove level from GameState
@@ -266,7 +186,7 @@ namespace soko
     MenuCreateServer(GameState* gameState, GameMenu* menu)
     {
         MainMenuState nextState = MainMenu_ConfigureServer;
-        uptr arenaSize = CalcLevelArenaSize(&menu->levelMetaInfo);
+        uptr arenaSize = CalcLevelArenaSize(&menu->levelMetaInfo, ENTITY_MEMORY_SIZE_FOR_LEVEL);
         arenaSize += sizeof(net::Server);
         MemoryArena* levelArena = PLATFORM_QUERY_NEW_ARENA(arenaSize);
         SOKO_ASSERT(levelArena);
@@ -450,7 +370,7 @@ namespace soko
     internal void
     ClientLoadLevel(GameMenu* menu, GameState* gameState)
     {
-        uptr arenaSize = CalcLevelArenaSize(&menu->levelMetaInfo);
+        uptr arenaSize = CalcLevelArenaSize(&menu->levelMetaInfo, ENTITY_MEMORY_SIZE_FOR_LEVEL);
         arenaSize += sizeof(net::Client);
         arenaSize += 8; // Safety pad
         MemoryArena* levelArena = PLATFORM_QUERY_NEW_ARENA(arenaSize);
@@ -512,7 +432,7 @@ namespace soko
     {
         gameState->globalGameMode = menu->session.gameMode;
         gameState->session = menu->session;
-
+#if 0
         BeginTemporaryMemory(gameState->tempArena, true);
         EntityStr string = CreateEntityStr(gameState->tempArena);
         for (u32 i = 0; i < LEVEL_ENTITY_TABLE_SIZE; i++)
@@ -533,6 +453,7 @@ namespace soko
         DebugReadTextFile(mem, sz + 1, L"Entities.txt");
         DeserializeEntities((char*)mem);
         EndTemporaryMemory(gameState->tempArena);
+        #endif
     }
 
     internal void

@@ -239,7 +239,6 @@ LogAssert(AB::LogLevel level, const char* file, const char* func, u32 line,
 #include "imgui/imgui.h"
 //#include "imgui/imgui_internal.h"
 
-
 #include "Level.cpp"
 #include "Entity.cpp"
 #include "DebugOverlay.cpp"

@@ -1,5 +1,68 @@
 namespace soko
 {
+    inline void
+    SerializeBinEntity(const Entity* e, SerializedEntity* se)
+    {
+        se->id = e->id;
+        se->type = e->type;
+        se->flags = e->flags;
+        se->coord = e->coord;
+        se->boundPortalID = e->bindedPortalID;
+        se->portalDirection = e->portalDirection;
+        se->mesh = e->mesh;
+        se->material = e->material;
+    }
+
+    inline void
+    DeserializeBinEntity(const SerializedEntity* se, Entity* e)
+    {
+        e->id = se->id;
+        e->type = (EntityType)se->type;
+        e->flags = se->flags;
+        e->coord = se->coord;
+        e->bindedPortalID = se->boundPortalID;
+        e->portalDirection = (Direction)se->portalDirection;
+        e->mesh = (EntityMesh)se->mesh;
+        e->material = (EntityMaterial)se->material;
+    }
+
+    inline uptr
+    CalcSerializedEntitiesSize(const Level* level)
+    {
+        u64 result = level->entityCount * sizeof(SerializedEntity);
+        return result;
+    }
+
+    internal void
+    SerializeEntititiesToBuffer(const Level* level, void* buffer, uptr bufferSize)
+    {
+        uptr bufferCapacity = bufferSize / sizeof(SerializedEntity);
+        u32 entitiesWritten = 0;
+        auto serializedEntities = (SerializedEntity*)buffer;
+
+        for (u32 i = 0; i < LEVEL_ENTITY_TABLE_SIZE; i++)
+        {
+            const Entity* e = level->entities[i];
+            while (e)
+            {
+                SOKO_ASSERT(bufferCapacity);
+                if (!bufferCapacity) goto end;
+
+                auto out = serializedEntities + entitiesWritten;
+
+                SerializeBinEntity(e, out);
+
+                entitiesWritten++;
+                bufferCapacity--;
+
+                e = e->nextEntity;
+            }
+        }
+    end:
+        return;
+    }
+
+
     inline Entity*
     GetEntityMemory(Level* level, AB::MemoryArena* arena)
     {
@@ -64,33 +127,24 @@ namespace soko
     }
 
     // TODO: @Cleanup @Robustness Collapse repeated code in theese funtions
-
     internal u32
-    AddEntityWithID(Level* level, AB::MemoryArena* arena,
-                    u32 id,
-                    EntityType type,
-                    u32 flags,
-                    v3i coord,
-                    u32 boundPortalID,
-                    u32 portalDirection,
-                    u32 mesh,
-                    u32 material)
+    AddSerializedEntity(Level* level, AB::MemoryArena* arena, const SerializedEntity* sEntity)
     {
         u32 result = 0;
-        Tile* tile = GetTile(level, entity.coord, arena);
+        Tile* tile = GetTile(level, sEntity->coord, arena);
         if (tile)
         {
             if (tile->value != TILE_VALUE_WALL && TileIsFree(tile))
             {
                 // TODO: Better hash
-                u32 entityHash = id % LEVEL_ENTITY_TABLE_SIZE;
+                u32 entityHash = sEntity->id % LEVEL_ENTITY_TABLE_SIZE;
 #if defined(SOKO_DEBUG)
                 if (level->entities[entityHash])
                 {
-                    Entity* e = level->entities + entityHash;
+                    Entity* e = level->entities[entityHash];
                     while (e)
                     {
-                        SOKO_ASSERT(e->id != id);
+                        SOKO_ASSERT(e->id != sEntity->id);
                     }
                 }
 #endif
@@ -99,22 +153,13 @@ namespace soko
 
                 if (newEntity)
                 {
-                    newEntity.id = id;
-                    newEntity.type  type;
-                    newEntity.flags = flags;
-                    newEntity.coord = coord;
-                    newEntity.boundPortalID = boundPortalID;
-                    newEntity.portalDirection = portalDirection;
-                    newEntity.mesh = mesh;
-                    newEntity.material = material;
+                    DeserializeBinEntity(sEntity, newEntity);
 
                     newEntity->nextEntity = bucketEntity;
                     level->entities[entityHash] = newEntity;
                     level->entitySerialNumber++;
                     level->entityCount++;
 
-                    *newEntity = entity;
-                    newEntity->id = entityId;
                     newEntity->nextEntityInTile = tile->entityList.first;
                     newEntity->prevEntityInTile = NULL;
                     if (tile->entityList.first)
@@ -123,7 +168,7 @@ namespace soko
                     }
                     tile->entityList.first = newEntity;
 
-                    result = entityId;
+                    result = newEntity->id;
                 }
             }
         }
@@ -433,6 +478,8 @@ namespace soko
 
     }
 
+
+#if defined (ENTITY_TEXT_SERIALIZATION)
     // TODO: Templated bucket array?
     // Because it also used for chunk meshing
     // and in other places
@@ -567,7 +614,7 @@ namespace soko
         {
             typeStr = " : v3i = ";
         } break;
-            INVALID_DEFAULT_CASE;
+        INVALID_DEFAULT_CASE;
         }
         AppendEntityStr(str, typeStr, (u32)strlen(typeStr), arena);
 
@@ -969,4 +1016,5 @@ namespace soko
         }
         return;
     }
+#endif
 }
