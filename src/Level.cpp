@@ -493,9 +493,18 @@ namespace soko
                         tile->value = TILE_VALUE_WALL;
 
                         if ((x == 0) || (x == CHUNK_DIM - 1) ||
-                            (y == 0) || (y == CHUNK_DIM - 1))
+                            (y == 0) || (y == CHUNK_DIM - 1) ||
+                            (x == 20 && y == 20) ||
+                            (x == 20 && y == 21) ||
+                            (x == 21 && y == 21))
                         {
-                            Tile* tile1 = GetTileInChunk(chunk, x, y, 1);
+                            i32 z = 1;
+                            if ((x == 20 && y == 21) ||
+                                (x == 21 && y == 21))
+                            {
+                                z = 2;
+                            }
+                            Tile* tile1 = GetTileInChunk(chunk, x, y, z);
                             SOKO_ASSERT(tile1);
                             tile1->value = TILE_VALUE_WALL;
                         }

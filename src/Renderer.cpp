@@ -97,23 +97,47 @@ void main()
 #version 330 core
 layout (location = 0) in vec3 a_Position;
 layout (location = 1) in vec3 a_Normal;
-layout (location = 2) in float a_TileId;
+layout (location = 2) in int a_TileId;
+layout (location = 3) in int a_AO;
 
 out vec3 v_Position;
 out vec3 v_MeshSpacePos;
 //out vec4 v_LightSpacePosition;
-flat out float v_TileId;
+flat out int v_TileId;
 out vec3 v_Normal;
+out vec4 v_AO;
+out vec2 v_UV;
 
 uniform mat4 u_ModelMatrix;
 uniform mat3 u_NormalMatrix;
 uniform mat4 u_ViewProjMatrix;
 //uniform mat4 u_LightSpaceMatrix;
+uniform vec4 u_AODistrib;
 
 #define TERRAIN_TEX_ARRAY_NUM_LAYERS 32
+#define INDICES_PER_CHUNK_QUAD 6
+#define VERTICES_PER_QUAD 4
+
+vec2 UV[] = { vec2(0.0f, 0.0f),
+              vec2(1.0f, 0.0f),
+              vec2(1.0f, 1.0f),
+              vec2(0.0f, 1.0f) };
 
 void main()
 {
+    // TODO: Pass ints as vertex attrib
+    // This problem will be solved when we switch to using
+    // packed vertex attributes
+
+    v_AO.x = u_AODistrib[(a_AO & 0x03)];
+    v_AO.y = u_AODistrib[(a_AO & 0x0c) >> 2];
+    v_AO.z = u_AODistrib[(a_AO & 0x30) >> 4];
+    v_AO.w = u_AODistrib[(a_AO & 0xc0) >> 6];
+
+    int vertIndexInQuad = gl_VertexID % 4;
+
+    v_UV = UV[min(vertIndexInQuad, VERTICES_PER_QUAD - 1)];
+
     v_TileId = a_TileId;
     v_MeshSpacePos = a_Position;
     v_Position = (u_ModelMatrix * vec4(a_Position, 1.0f)).xyz;
@@ -127,8 +151,10 @@ void main()
 in vec3 v_Position;
 in vec3 v_MeshSpacePos;
 //in vec4 v_LightSpacePosition;
-flat in float v_TileId;
+flat in int v_TileId;
 in vec3 v_Normal;
+in vec4 v_AO;
+in vec2 v_UV;
 
 out vec4 color;
 
@@ -158,21 +184,28 @@ vec3 CalcDirectionalLight(DirLight light, vec3 normal,
     return ambient + diffuse;
 }
 
+#define TERRAIN_TEX_ARRAY_NUM_LAYERS 32
+
 void main()
 {
     vec3 normal = normalize(v_Normal);
     vec3 viewDir = normalize(u_ViewPos - v_Position);
 
+    int tileID = clamp(v_TileId, 0, TERRAIN_TEX_ARRAY_NUM_LAYERS);
+
     vec3 diffSample;
     float alpha;
-    vec2 tileUV = vec2(dot(normal.zxy, v_MeshSpacePos), dot(normal.yzx, v_MeshSpacePos)) - vec2(0.5f);
-    diffSample = texture(u_TerrainAtlas, vec3(tileUV.x, tileUV.y, v_TileId)).rgb;
-    //diffSample = vec3(tileUV.x, tileUV.y, 0.0f);
+    diffSample = texture(u_TerrainAtlas, vec3(v_UV.x, v_UV.y, v_TileId)).rgb;
     alpha = 1.0f;
 
     vec3 directional = CalcDirectionalLight(u_DirLight, normal, viewDir, diffSample);
+    //directional = diffSample;
 
-    color = vec4(directional, alpha);
+    float ao0 = mix(v_AO.x, v_AO.y, fract(v_UV.x));
+    float ao1 = mix(v_AO.w, v_AO.z, fract(v_UV.x));
+    float ao = mix(ao0, ao1, fract(v_UV.y));
+
+    color = vec4(directional * ao, alpha);
 })";
 
     static GLuint
@@ -329,6 +362,7 @@ void main()
             result.dirLightSpecLoc = glGetUniformLocation(handle, "u_DirLight.specular");
             result.viewPosLocation = glGetUniformLocation(handle, "u_ViewPos");
             result.terrainAtlasLoc = glGetUniformLocation(handle, "u_TerrainAtlas");
+            result.aoDistribLoc = glGetUniformLocation(handle, "u_AODistrib");
 
             result.atlasSampler = 0;
             result.atlasSlot = GL_TEXTURE0;
@@ -459,7 +493,8 @@ RendererLoadMesh(Mesh* mesh)
     }
 }
 
-LoadedChunkMesh RendererLoadChunkMesh(ChunkMesh* mesh)
+internal LoadedChunkMesh
+RendererLoadChunkMesh(ChunkMesh* mesh)
 {
     LoadedChunkMesh result = {};
     GLuint handle;
@@ -469,21 +504,12 @@ LoadedChunkMesh RendererLoadChunkMesh(ChunkMesh* mesh)
     if (handle)
     {
         glBindBuffer(GL_ARRAY_BUFFER, handle);
-        uptr bufferSize = mesh->quadCount * 4 * (sizeof(v3) + sizeof(v3) + sizeof(byte));
+        uptr bufferSize = mesh->quadCount * 4 * sizeof(ChunkMeshVertex);
         glBufferData(GL_ARRAY_BUFFER, bufferSize, 0, GL_STATIC_DRAW);
 
-#pragma pack(push, 1)
-        struct Vertex
-        {
-            v3 pos;
-            v3 normal;
-            byte tileId;
-        };
-#pragma pack(pop)
-
         // TODO: Use glBufferSubData
-        Vertex* buffer;
-        buffer = (Vertex*)glMapBuffer(GL_ARRAY_BUFFER, GL_READ_WRITE);
+        ChunkMeshVertex* buffer;
+        buffer = (ChunkMeshVertex*)glMapBuffer(GL_ARRAY_BUFFER, GL_READ_WRITE);
         SOKO_ASSERT(buffer);
         u32 bufferCount = 0;
         u32 blockCount = 0;
@@ -498,6 +524,7 @@ LoadedChunkMesh RendererLoadChunkMesh(ChunkMesh* mesh)
                     buffer[bufferCount].pos = block->positions[i];
                     buffer[bufferCount].normal = block->normals[i];
                     buffer[bufferCount].tileId = block->tileIds[i];
+                    buffer[bufferCount].AO = block->AO[i];
                     bufferCount++;
                 }
                 block = block->prevBlock;
@@ -678,6 +705,7 @@ void RendererLoadTexture(Texture* texture)
 
                 case RENDER_COMMAND_BEGIN_CHUNK_MESH_BATCH:
                 {
+                    //glFrontFace(GL_CCW);
                     auto* chunkProg = &renderer->chunkProgram;
                     glUseProgram(chunkProg->handle);
                     glActiveTexture(chunkProg->atlasSlot);
@@ -685,6 +713,11 @@ void RendererLoadTexture(Texture* texture)
 
                     if (firstChunkMeshShaderInvocation)
                     {
+                        local_persist v4 aoDistrib = {0.75f, 0.825f, 0.9f, 1.0f};
+                        DEBUG_OVERLAY_SLIDER(aoDistrib, 0.0f, 1.0f);
+
+                        glUniform4fv(chunkProg->aoDistribLoc, 1, aoDistrib.data);
+
                         firstChunkMeshShaderInvocation = false;
                         glUniformMatrix4fv(chunkProg->viewProjLocation,
                                            1, GL_FALSE, viewProj.data);
@@ -714,13 +747,15 @@ void RendererLoadTexture(Texture* texture)
 
                         glBindBuffer(GL_ARRAY_BUFFER, data->meshIndex);
 
-                        GLsizei stride = sizeof(v3) + sizeof(v3) + sizeof(byte);
+                        GLsizei stride = sizeof(ChunkMeshVertex);
                         glEnableVertexAttribArray(0);
                         glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, stride, (void*)0);
                         glEnableVertexAttribArray(1);
                         glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, stride, (void*)(sizeof(v3)));
                         glEnableVertexAttribArray(2);
-                        glVertexAttribPointer(2, 1, GL_UNSIGNED_BYTE, GL_FALSE, stride, (void*)(sizeof(v3) * 2));
+                        glVertexAttribIPointer(2, 1, GL_UNSIGNED_BYTE, stride, (void*)(sizeof(v3) * 2));
+                        glEnableVertexAttribArray(3);
+                        glVertexAttribIPointer(3, 1, GL_UNSIGNED_BYTE, stride, (void*)(sizeof(v3) * 2 + 1));
 
                         glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, renderer->chunkIndexBuffer);
 

@@ -16,6 +16,7 @@
 #define constant static constexpr
 
 #define internal static
+#define local_persist static
 
 #define null nullptr
 

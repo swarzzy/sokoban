@@ -162,6 +162,8 @@ inline void* ReallocForSTBI(void* p, uptr oldSize, uptr newSize)
 #define glMapNamedBuffer GL_FUNCTION(glMapNamedBuffer)
 #define glUnmapNamedBuffer GL_FUNCTION(glUnmapNamedBuffer)
 #define glUniformMatrix3fv GL_FUNCTION(glUniformMatrix3fv)
+#define glUniform4fv GL_FUNCTION(glUniform4fv)
+#define glVertexAttribIPointer GL_FUNCTION(glVertexAttribIPointer)
 
 // NOTE: Functions used by ImGUI
 #define glGetIntegerv GL_FUNCTION(glGetIntegerv)

@@ -54,6 +54,7 @@ namespace soko
         GLint dirLightDiffLoc;
         GLint dirLightSpecLoc;
         GLint terrainAtlasLoc;
+        GLint aoDistribLoc;
     };
 
     enum TerrainTexture
@@ -91,7 +92,7 @@ namespace soko
 
     Renderer* AllocAndInitRenderer(AB::MemoryArena* arena, AB::MemoryArena* tempArena);
     void RendererLoadMesh(Mesh* mesh);
-    LoadedChunkMesh RendererLoadChunkMesh(ChunkMesh* mesh);
+    internal LoadedChunkMesh RendererLoadChunkMesh(ChunkMesh* mesh);
     void RendererLoadTexture(Texture* texture);
     void RendererBeginFrame(Renderer* renderer, v2 viewportDim);
     void FlushRenderGroup(Renderer* renderer, RenderGroup* group);

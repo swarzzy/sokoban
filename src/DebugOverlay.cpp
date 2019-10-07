@@ -157,6 +157,26 @@ namespace soko
     }
 
     internal void
+    DebugOverlayPushVar(const char* title, v4 var)
+    {
+        if (ImGui::Begin("Debug overlay", NULL,
+                         ImGuiWindowFlags_NoMove |
+                         //ImGuiWindowFlags_NoDecoration |
+                         ImGuiWindowFlags_AlwaysAutoResize |
+                         ImGuiWindowFlags_NoSavedSettings |
+                         ImGuiWindowFlags_NoFocusOnAppearing |
+                         ImGuiWindowFlags_NoNav))
+        {
+            ImGui::Separator();
+            char buffer[128];
+            FormatString(buffer, 128, "%s: x: %.3f32; y: %.3f32; z: %.3f32; w: %.3f32", title, var.x, var.y, var.z, var.w);
+            ImGui::Text("%s", buffer);
+        }
+        ImGui::End();
+    }
+
+
+    internal void
     DebugOverlayPushVar(const char* title, u32 var)
     {
         if (ImGui::Begin("Debug overlay", NULL,
@@ -192,5 +212,23 @@ namespace soko
         }
         ImGui::End();
     }
+
+    internal void
+    DebugOverlayPushSlider(const char* title, v4* var, f32 min, f32 max)
+    {
+        if (ImGui::Begin("Debug overlay", NULL,
+                         ImGuiWindowFlags_NoMove |
+                         //ImGuiWindowFlags_NoDecoration |
+                         ImGuiWindowFlags_AlwaysAutoResize |
+                         ImGuiWindowFlags_NoSavedSettings |
+                         ImGuiWindowFlags_NoFocusOnAppearing |
+                         ImGuiWindowFlags_NoNav))
+        {
+            ImGui::Separator();
+            ImGui::SliderFloat4(title, var->data, min, max);
+        }
+        ImGui::End();
+    }
+
 
 }

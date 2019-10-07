@@ -6,6 +6,16 @@ namespace soko
 
     constant u32 CHUNK_MESH_VERTEX_BLOCK_CAPACITY = 4096;
 
+#pragma pack(push, 1)
+    struct ChunkMeshVertex
+    {
+        v3 pos;
+        v3 normal;
+        byte tileId;
+        byte AO;
+    };
+#pragma pack(pop)
+
     struct ChunkMeshVertexBlock
     {
         ChunkMeshVertexBlock* nextBlock;
@@ -14,6 +24,7 @@ namespace soko
         v3 positions[CHUNK_MESH_VERTEX_BLOCK_CAPACITY];
         v3 normals[CHUNK_MESH_VERTEX_BLOCK_CAPACITY];
         byte tileIds[CHUNK_MESH_VERTEX_BLOCK_CAPACITY];
+        byte AO[CHUNK_MESH_VERTEX_BLOCK_CAPACITY];
     };
 
 
