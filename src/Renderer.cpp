@@ -49,7 +49,7 @@ out vec2 vout_UV;
 void main()
 {
     gl_Position = u_ViewProjMatrix * u_ModelMatrix * vec4(attr_Pos, 1.0f);
-    vout_FragPos = gl_Position.xyz;
+    vout_FragPos = (u_ModelMatrix * vec4(attr_Pos, 1.0f)).xyz; //gl_Position.xyz;
     vout_UV = attr_UV;
     vout_Normal = u_NormalMatrix * attr_Normal;
 })";
@@ -83,9 +83,10 @@ void main()
     vec4 diffSamle = texture(u_DiffMap, vout_UV);
     vec4 specSample = texture(u_SpecMap, vout_UV);
     specSample.a = 1.0f;
-    float kDiff = max(dot(normal, -u_DirLight.dir), 0.0f);
+    vec3 lightDir = normalize(-u_DirLight.dir);
+    float kDiff = max(dot(normal, lightDir), 0.0f);
     vec3 viewDir = normalize(u_ViewPos - vout_FragPos);
-    vec3 rFromLight = reflect(u_DirLight.dir, normal);
+    vec3 rFromLight = reflect(-lightDir, normal);
     float kSpec = pow(max(dot(viewDir, rFromLight), 0.0f), 32.0f);
     vec4 ambient = diffSamle * vec4(u_DirLight.ambient, 1.0f);
     vec4 diffuse = diffSamle * kDiff * vec4(u_DirLight.diffuse, 1.0f);

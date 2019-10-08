@@ -1,6 +1,7 @@
 #pragma once
 namespace soko
 {
+
 #pragma pack(push, 1)
     struct SerializedEntity
     {

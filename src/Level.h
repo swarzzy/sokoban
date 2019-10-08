@@ -124,11 +124,23 @@ namespace soko
         return V3I(l.x + r.x, l.y + r.y, l.z + r.z);
     }
 
+    inline v3i operator-(v3i l, v3i r)
+    {
+        return V3I(l.x - r.x, l.y - r.y, l.z - r.z);
+    }
+
     inline v3i operator-(v3i v)
     {
         v3i result = V3I(-v.x, -v.y, -v.z);
         return result;
     }
+
+
+    inline v3i operator*(v3i l, i32 s)
+    {
+        return V3I(l.x * s, l.y * s, l.z * s);
+    }
+
 
     // NOTE: Should fit in one byte
     enum Direction : u32

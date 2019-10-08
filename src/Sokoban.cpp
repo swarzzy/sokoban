@@ -3,6 +3,8 @@
 #undef HYPERMATH_IMPL
 #include "Constants.h"
 
+#include "RenderGroup.h"
+#include "Camera.h"
 #include "GameSession.h"
 #include "Sokoban.h"
 #include "Memory.h"
@@ -312,31 +314,6 @@ namespace soko
         gameState->renderer = AllocAndInitRenderer(arena, tempArena);
         gameState->renderGroup = AllocateRenderGroup(arena, KILOBYTES(1024), 16384);
 
-        CameraConfig camera = {};
-        camera.position = V3(0.0f);
-        camera.front = V3(0.0f, 0.0f, -1.0f);
-        camera.fovDeg = 45.0f;
-        camera.aspectRatio = 16.0f / 9.0f;
-        camera.nearPlane = 0.1f;
-        camera.farPlane = 100.0f;
-
-        gameState->debugCamera.conf = camera;
-        gameState->debugCamera.moveSpeed = 3.0f;
-        gameState->debugCamera.rotateSpeed = 60.0f;
-        gameState->debugCamera.moveSmooth = 0.8f;
-        gameState->debugCamera.rotateSmooth = 0.45f;
-
-        gameState->camera.conf = camera;
-        gameState->camera.longSmooth = 0.3f;
-        gameState->camera.latSmooth = 0.3f;
-        gameState->camera.distSmooth = 0.3f;
-        gameState->camera.rotSpeed = 1000.0f;
-        gameState->camera.zoomSpeed = 5.0f;
-        gameState->camera.moveSpeed = 500.0f;
-        gameState->camera.moveFriction = 8.0f;
-
-        RenderGroupSetCamera(gameState->renderGroup, &camera);
-
         gameState->renderer->clearColor = V4(0.8f, 0.8f, 0.8f, 1.0f);
         {
             u32 fileSize = DebugGetFileSize(L"../res/cube.aab");
@@ -645,6 +622,9 @@ namespace soko
 
         DrawOverlay(gameState);
         //ImGui::ShowDemoWindow(&show);
+        DEBUG_OVERLAY_TRACE(gameState->session.debugCamera.conf.position);
+        DEBUG_OVERLAY_TRACE(gameState->session.debugCamera.conf.front);
+
         //DEBUG_OVERLAY_TRACE(gameState->camera.conf.position);
         //DEBUG_OVERLAY_TRACE(gameState->level->platePressed);
         //DEBUG_OVERLAY_TRACE(gameState->level->entityCount);
@@ -801,14 +781,10 @@ namespace soko
 
         else if (gameState->globalGameMode == GAME_MODE_SINGLE)
         {
-            if (!gameState->session.controlledPlayer)
-            {
-                gameState->session.controlledPlayer = AddPlayer(&gameState->session, V3I(10, 10, 1));
-            }
             Player* player = gameState->session.controlledPlayer;
             if (JustPressed(AB::KEY_SPACE))
             {
-                player->reversed = ! player->reversed;
+                player->reversed = !player->reversed;
             }
 
             if (JustPressed(AB::KEY_UP))
@@ -838,26 +814,26 @@ namespace soko
 
         if (JustPressed(AB::KEY_F1))
         {
-            gameState->useDebugCamera = !gameState->useDebugCamera;
+            gameState->session.useDebugCamera = !gameState->session.useDebugCamera;
         }
 
-        CameraConfig* camConf = NULL;
-        if (gameState->useDebugCamera)
+        CameraConfig* camConf = 0;
+        if (gameState->session.useDebugCamera)
         {
-            UpdateCamera(&gameState->debugCamera);
-            camConf = &gameState->debugCamera.conf;
+            UpdateCamera(&gameState->session.debugCamera);
+            camConf = &gameState->session.debugCamera.conf;
         }
         else
         {
-            UpdateCamera(&gameState->camera);
-            camConf = &gameState->camera.conf;
+            UpdateCamera(&gameState->session.camera);
+            camConf = &gameState->session.camera.conf;
         }
 
         RenderGroupSetCamera(gameState->renderGroup, camConf);
 
         RendererBeginFrame(gameState->renderer, V2(PlatformGlobals.windowWidth, PlatformGlobals.windowHeight));
         DirectionalLight light = {};
-        light.dir = Normalize(V3(0.2f, -0.9f, -0.3f));
+        light.dir = Normalize(V3(-0.3f, -1.0f, -1.0f));
         light.ambient = V3(0.3f);
         light.diffuse = V3(0.8f);
         light.specular = V3(1.0f);

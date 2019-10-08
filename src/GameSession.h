@@ -81,5 +81,9 @@ namespace soko
         Player* controlledPlayer;
         bool playersOccupancy[SESSION_MAX_PLAYERS];
         Player players[SESSION_MAX_PLAYERS];
+
+        FPCamera debugCamera;
+        GameCamera camera;
+        b32 useDebugCamera;
     };
 }

@@ -114,8 +114,10 @@ namespace soko
         Level* level = InitializeLevel(menu->wLevelPathBuffer, levelArena, gameState);
         if (level)
         {
+            // TODO: Player spawn position
             menu->session.sessionArena = levelArena;
             menu->session.level = level;
+            menu->session.controlledPlayer = AddPlayer(&menu->session, V3I(10, 10, 1));
             nextState = MainMenu_EnterLevel;
         }
         else
@@ -436,28 +438,15 @@ namespace soko
         gameState->session = menu->session;
         menu->session = {};
         menu->state = MainMenu_ModeSelection;
-#if 0
-        BeginTemporaryMemory(gameState->tempArena, true);
-        EntityStr string = CreateEntityStr(gameState->tempArena);
-        for (u32 i = 0; i < LEVEL_ENTITY_TABLE_SIZE; i++)
-        {
-            Entity* e = gameState->session.level->entities[i];
-            if (e)
-            {
-                do
-                {
-                    SerializeEntity(&string, e, gameState->tempArena);
-                    e = e->nextEntity;
-                } while (e);
-            }
-        }
-        WriteEntityStringToFile(L"Entities.txt", &string);
-        u32 sz = DebugGetFileSize(L"Entities.txt");
-        void* mem = PUSH_SIZE(gameState->tempArena, sz + 1);
-        DebugReadTextFile(mem, sz + 1, L"Entities.txt");
-        DeserializeEntities((char*)mem);
-        EndTemporaryMemory(gameState->tempArena);
-        #endif
+        // TODO: Allocate session in session
+        // arena and store just a pointer in gameState
+        // to avoid copying session to gameState
+        gameState->session.controlledPlayer = gameState->session.players;
+
+        InitCameras(&gameState->session.camera, &gameState->session.debugCamera,
+                    gameState->session.controlledPlayer);
+        RenderGroupSetCamera(gameState->renderGroup, &gameState->session.camera.conf);
+
     }
 
     internal void

@@ -52,7 +52,9 @@ namespace soko
         if (memoryIsAvailable)
         {
             // NOTE: Converting to right-handed system
-            position.z *= -1.0f;
+            position.z = -position.z;
+            normal.z = -normal.z;
+
             mesh->head->positions[mesh->head->at] = position;
             mesh->head->normals[mesh->head->at] = normal;
             mesh->head->tileIds[mesh->head->at] = tileId;
@@ -73,28 +75,11 @@ namespace soko
         v3 normal = Cross(vtx3 - vtx0, vtx1 - vtx0);
         bool result = false;
         byte ao = (byte)ao0 | (byte)(ao1 << 2) | (byte)(ao2 << 4) | (byte)(ao3 << 6);
-# if 1
+
         result = PushChunkMeshVertex(mesh, arena, vtx0, normal, ao, val) &&
             PushChunkMeshVertex(mesh, arena, vtx1, normal, ao, val) &&
             PushChunkMeshVertex(mesh, arena, vtx2, normal, ao, val) &&
             PushChunkMeshVertex(mesh, arena, vtx3, normal, ao, val);
-#else
-        if (ao0 + ao2 > ao1 + ao3)
-        {
-            result = PushChunkMeshVertex(mesh, arena, vtx0, normal, ao, val) &&
-                PushChunkMeshVertex(mesh, arena, vtx1, normal, ao, val) &&
-                PushChunkMeshVertex(mesh, arena, vtx2, normal, ao, val) &&
-                PushChunkMeshVertex(mesh, arena, vtx3, normal, ao, val);
-
-        }
-        else
-        {
-            result = PushChunkMeshVertex(mesh, arena, vtx1, normal, ao, val) &&
-                PushChunkMeshVertex(mesh, arena, vtx2, normal, ao, val) &&
-                PushChunkMeshVertex(mesh, arena, vtx3, normal, ao, val) &&
-                PushChunkMeshVertex(mesh, arena, vtx0, normal, ao, val);
-        }
-#endif
             mesh->quadCount++;
             return result;
     }
@@ -110,12 +95,6 @@ namespace soko
             result = 3 - (u32)side0 - (u32)side1 - (u32)corner;
         }
         return result;
-    }
-
-    inline u32
-    CalcAOForCubeVertex(u32 vertex, Direction dir)
-    {
-
     }
 
     inline bool
@@ -148,6 +127,8 @@ namespace soko
         Tile* bupTile = GetTileInChunk(chunk, p.x, p.y + 1, p.z + 1);
         Tile* c6Tile = GetTileInChunk(chunk, p.x + 1, p.y + 1, p.z + 1);
 
+        // NOTE: This stage works in left-handed coord system
+        // and will be converted to right-handed in push vertex call
         v3 offset = V3((p.x * LEVEL_TILE_SIZE),
                        p.z * LEVEL_TILE_SIZE,
                        (p.y * LEVEL_TILE_SIZE));

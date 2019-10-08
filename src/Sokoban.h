@@ -48,9 +48,6 @@ namespace soko
         AB::MemoryArena* tempArena;
         Renderer* renderer;
         RenderGroup* renderGroup;
-        FPCamera debugCamera;
-        GameCamera camera;
-        b32 useDebugCamera;
         Material materials[_EntityMaterial_Count];
         Mesh meshes[_EntityMesh_Count];
         u32 overlayCorner;

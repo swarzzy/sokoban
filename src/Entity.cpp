@@ -468,10 +468,8 @@ namespace soko
             Entity* entity = level->entities[i];
             while (entity)
             {
-                f32 xCoord = entity->coord.x * LEVEL_TILE_SIZE;
-                f32 yCoord = entity->coord.z * LEVEL_TILE_SIZE;
-                f32 zCoord = entity->coord.y * LEVEL_TILE_SIZE;
-                v3 pos = V3(xCoord, yCoord, -zCoord);
+                v3 camOffset = GetRelPos(gameState->session.camera.worldPos, entity->coord);
+                v3 pos = camOffset;
                 RenderCommandDrawMesh command = {};
                 command.transform = Translation(pos);
                 //SOKO_ASSERT(entity->mesh);

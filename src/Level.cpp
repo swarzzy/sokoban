@@ -21,6 +21,26 @@ namespace soko
         return result;
     }
 
+    inline v3
+    SwapYZ(v3 v)
+    {
+        v3 result;
+        result.x = v.x;
+        result.y = v.z;
+        result.z = -v.y;
+        return result;
+    }
+
+    inline v3
+    GetRelPos(v3i origin, v3i target)
+    {
+        v3 result = {};
+        v3i diff = target - origin;
+        result = V3(diff.x * LEVEL_TILE_SIZE, diff.y * LEVEL_TILE_SIZE, diff.z * LEVEL_TILE_SIZE);
+        result = SwapYZ(result);
+        return result;
+    }
+
     internal Level*
     CreateLevel(AB::MemoryArena* arena, u32 chunksNum)
     {
@@ -234,9 +254,8 @@ namespace soko
             Chunk* chunk = level->chunkTable + chunkIndex;
             if (chunk)// && chunk->coord.x == 0 && chunk->coord.y == 0)
             {
-                f32 chunkSize = LEVEL_TILE_SIZE * CHUNK_DIM;
-                v3 chunkCoord = V3((f32)chunk->coord.x, (f32)chunk->coord.z, (f32)chunk->coord.y);
-                v3 offset = Hadamard(chunkCoord, V3(chunkSize));
+                v3 camOffset = GetRelPos(gameState->session.camera.worldPos, chunk->coord * CHUNK_DIM);
+                v3 offset = camOffset;
                 RenderCommandPushChunkMesh c = {};
                 c.offset = offset;
                 c.meshIndex = chunk->loadedMesh.gpuHandle;
@@ -477,9 +496,9 @@ namespace soko
         BeginTemporaryMemory(tempArena, true);
         bool result = 0;
         Level* level = CreateLevel(tempArena, 8 * 8);
-        for (i32 chunkX = LEVEL_MIN_DIM_CHUNKS; chunkX < LEVEL_MAX_DIM_CHUNKS; chunkX++)
+        for (i32 chunkX = LEVEL_MIN_DIM_CHUNKS; chunkX <= LEVEL_MAX_DIM_CHUNKS; chunkX++)
         {
-            for (i32 chunkY = LEVEL_MIN_DIM_CHUNKS; chunkY < LEVEL_MAX_DIM_CHUNKS; chunkY++)
+            for (i32 chunkY = LEVEL_MIN_DIM_CHUNKS; chunkY <= LEVEL_MAX_DIM_CHUNKS; chunkY++)
             {
                 Chunk* chunk = InitChunk(level, chunkX, chunkY, 0);
                 SOKO_ASSERT(chunk);
@@ -492,21 +511,25 @@ namespace soko
                         SOKO_ASSERT(tile);
                         tile->value = TILE_VALUE_WALL;
 
-                        if ((x == 0) || (x == CHUNK_DIM - 1) ||
-                            (y == 0) || (y == CHUNK_DIM - 1) ||
-                            (x == 20 && y == 20) ||
-                            (x == 20 && y == 21) ||
-                            (x == 21 && y == 21))
+                        //if (chunkX == 0 && chunkY == 0)
                         {
-                            i32 z = 1;
-                            if ((x == 20 && y == 21) ||
+
+                            if ((x == 0) || (x == CHUNK_DIM - 1) ||
+                                (y == 0) || (y == CHUNK_DIM - 1) ||
+                                (x == 20 && y == 20) ||
+                                (x == 20 && y == 21) ||
                                 (x == 21 && y == 21))
                             {
-                                z = 2;
+                                i32 z = 1;
+                                if ((x == 20 && y == 21) ||
+                                    (x == 21 && y == 21))
+                                {
+                                    z = 2;
+                                }
+                                Tile* tile1 = GetTileInChunk(chunk, x, y, z);
+                                SOKO_ASSERT(tile1);
+                                tile1->value = TILE_VALUE_WALL;
                             }
-                            Tile* tile1 = GetTileInChunk(chunk, x, y, z);
-                            SOKO_ASSERT(tile1);
-                            tile1->value = TILE_VALUE_WALL;
                         }
                     }
                 }
