@@ -21,13 +21,14 @@ namespace soko
 
         camera->targetPlayer = targetPlayer;
         camera->conf = conf;
-        camera->longSmooth = 0.3f;
-        camera->latSmooth = 0.3f;
-        camera->distSmooth = 0.3f;
+        camera->longSmooth = 30.0f;
+        camera->latSmooth = 30.0f;
+        camera->distSmooth = 30.0f;
+        camera->followSpeed = 1.0f;
         camera->rotSpeed = 1000.0f;
-        camera->zoomSpeed = 5.0f;
-        camera->moveSpeed = 500.0f;
-        camera->moveFriction = 8.0f;
+        camera->zoomSpeed = 200.0f;
+        //camera->moveSpeed = 500.0f;
+        //camera->moveFriction = 80.0f;
     }
 
     internal void
@@ -103,49 +104,6 @@ namespace soko
     internal void
     UpdateCamera(GameCamera* camera)
     {
-        v3 camFrameOffset = {};
-
-        v3 _frontDir = V3(camera->conf.front.x, 0.0f, camera->conf.front.z);
-        v3 _rightDir = Cross(V3(0.0f, 1.0f, 0.0f), _frontDir);
-        // TODO: Is that normalization is neccessary?
-        _rightDir = Normalize(_rightDir);
-
-        v2 frontDir = V2(_frontDir.x, _frontDir.z);
-        v2 rightDir = V2(_rightDir.x, _rightDir.z);
-
-        v2 acceleration = {};
-        if (GlobalInput.keys[AB::KEY_W].pressedNow)
-        {
-            acceleration += frontDir;
-        }
-        if (GlobalInput.keys[AB::KEY_S].pressedNow)
-        {
-            acceleration -= frontDir;
-        }
-        if (GlobalInput.keys[AB::KEY_A].pressedNow)
-        {
-            acceleration += rightDir;
-        }
-        if (GlobalInput.keys[AB::KEY_D].pressedNow)
-        {
-            acceleration -= rightDir;
-        }
-
-        acceleration = Normalize(acceleration);
-        acceleration *= camera->moveSpeed; // 500.0f
-
-        f32 friction = camera->moveFriction; // 8.0f
-        acceleration = acceleration - camera->velocity * friction;
-
-        v2 movementDelta;
-        movementDelta = 0.5f * acceleration *
-            Square(GlobalAbsDeltaTime) +
-            camera->velocity *
-            GlobalAbsDeltaTime;
-
-        camera->targetPos += V3(movementDelta.x, 0.0f, movementDelta.y);
-        camera->velocity += acceleration * GlobalAbsDeltaTime;
-
         if (GlobalInput.mouseButtons[AB::MBUTTON_RIGHT].pressedNow)
         {
             v2 mousePos;
@@ -166,7 +124,7 @@ namespace soko
         }
 
         i32 frameScrollOffset = GlobalInput.scrollFrameOffset;
-        camera->targetDistance -= frameScrollOffset * camera->zoomSpeed; // 5.0f
+        camera->targetDistance -= frameScrollOffset * camera->zoomSpeed * GlobalAbsDeltaTime; // 5.0f
 
         if (camera->targetDistance < 5.0f)
         {
@@ -178,13 +136,13 @@ namespace soko
         }
 
         camera->latitude = Lerp(camera->latitude, camera->targetOrbit.y,
-                                camera->latSmooth);
+                                GlobalAbsDeltaTime * camera->latSmooth);
 
         camera->longitude = Lerp(camera->longitude, camera->targetOrbit.x,
-                                 camera->longSmooth);
+                                 GlobalAbsDeltaTime * camera->longSmooth);
 
         camera->distance = Lerp(camera->distance, camera->targetDistance,
-                                camera->distSmooth);
+                                GlobalAbsDeltaTime * camera->distSmooth);
 
         f32 latitude = ToRadians(camera->latitude);
         f32 longitude = ToRadians(camera->longitude);
@@ -194,7 +152,29 @@ namespace soko
         f32 z = camera->distance * Sin(polarAngle) * Cos(longitude);
         f32 y = camera->distance * Cos(polarAngle);
 
-        camera->worldPos = camera->targetPlayer->e->coord;
+        camera->targetWorldPos = camera->targetPlayer->e->coord;
+        v3 dist = GetRelPos(camera->targetWorldPos, camera->worldPos);
+#if 1
+        v3 relPos = Lerp(dist, V3(0.0f), GlobalAbsDeltaTime * camera->followSpeed);
+        camera->worldPos = GetWorldPos(camera->targetWorldPos, relPos);
+#else
+        v3 acceleration = -dist;
+        acceleration *= camera->moveSpeed / 2.5f; // 500.0f
+
+        camera->moveFriction = 30.0f;
+        f32 friction = camera->moveFriction; // 8.0f
+        acceleration = acceleration - camera->velocity * friction;
+
+        v3 movementDelta;
+        movementDelta = 0.5f * acceleration *
+            Square(GlobalAbsDeltaTime) +
+            camera->velocity *
+            GlobalAbsDeltaTime;
+
+        camera->worldPos = GetWorldPos(camera->worldPos, movementDelta);
+        camera->velocity += acceleration * GlobalAbsDeltaTime;
+#endif
+
         //camera->worldOffset = -camera->targetPos;
         camera->conf.position = V3(x, y, z);
         camera->conf.front = -Normalize(V3(x, y, z));

@@ -8,7 +8,8 @@ namespace soko
         u32 id;
         u32 type;
         u32 flags;
-        v3i coord;
+        v3i tile;
+        v3 offset;
         u32 boundPortalID;
         u32 portalDirection;
         u32 mesh;

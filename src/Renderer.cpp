@@ -119,10 +119,10 @@ uniform vec4 u_AODistrib;
 #define INDICES_PER_CHUNK_QUAD 6
 #define VERTICES_PER_QUAD 4
 
-vec2 UV[] = { vec2(0.0f, 0.0f),
-              vec2(1.0f, 0.0f),
-              vec2(1.0f, 1.0f),
-              vec2(0.0f, 1.0f) };
+vec2 UV[] = vec2[](vec2(0.0f, 0.0f),
+                   vec2(1.0f, 0.0f),
+                   vec2(1.0f, 1.0f),
+                   vec2(0.0f, 1.0f));
 
 void main()
 {

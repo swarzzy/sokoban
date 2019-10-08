@@ -184,12 +184,21 @@ namespace soko
     struct Entity;
     typedef void(UpdateProcFn)(Level* level, Entity* entity, void* data);
 
+    struct WorldPos
+    {
+        v3i tile;
+        v3 offset;
+    };
+
+    inline WorldPos MakeWorldPos(v3i tile) { return {tile, {}}; }
+    inline WorldPos MakeWorldPos(i32 x, i32 y, i32 z) { return {{x, y, z}, {}}; }
+
     struct Entity
     {
         u32 id;
         EntityType type;
         u32 flags;
-        v3i coord;
+        WorldPos coord;
         EntityMesh mesh;
         EntityMaterial material;
 

@@ -6,7 +6,8 @@ namespace soko
         se->id = e->id;
         se->type = e->type;
         se->flags = e->flags;
-        se->coord = e->coord;
+        se->tile = e->coord.tile;
+        se->offset = e->coord.offset;
         se->boundPortalID = e->bindedPortalID;
         se->portalDirection = e->portalDirection;
         se->mesh = e->mesh;
@@ -19,7 +20,8 @@ namespace soko
         e->id = se->id;
         e->type = (EntityType)se->type;
         e->flags = se->flags;
-        e->coord = se->coord;
+        e->coord.tile = se->tile;
+        e->coord.offset = se->offset;
         e->bindedPortalID = se->boundPortalID;
         e->portalDirection = (Direction)se->portalDirection;
         e->mesh = (EntityMesh)se->mesh;
@@ -108,7 +110,7 @@ namespace soko
                 }
                 else
                 {
-                    Tile* tile = GetTile(level, entity->coord);
+                    Tile* tile = GetTile(level, entity->coord.tile);
                     SOKO_ASSERT(tile);
                     SOKO_ASSERT(tile->entityList.first->id == entity->id);
                     tile->entityList.first = entity->nextEntityInTile;
@@ -134,7 +136,7 @@ namespace soko
     AddSerializedEntity(Level* level, const SerializedEntity* sEntity)
     {
         u32 result = 0;
-        Tile* tile = GetTile(level, sEntity->coord);
+        Tile* tile = GetTile(level, sEntity->tile);
         if (tile)
         {
             if (tile->value != TILE_VALUE_WALL && TileIsFree(tile))
@@ -178,7 +180,7 @@ namespace soko
             else
             {
                 SOKO_WARN("Trying to load entity at occupied tile. Entity id: %u32. Tile coord: {%i32, %i32, %i32 }",
-                          sEntity->id, sEntity->coord.x, sEntity->coord.y, sEntity->coord.z);
+                          sEntity->id, sEntity->tile.x, sEntity->tile.y, sEntity->tile.z);
             }
         }
         return result;
@@ -188,7 +190,7 @@ namespace soko
     AddEntity(Level* level, Entity entity)
     {
         u32 result = 0;
-        Tile* tile = GetTile(level, entity.coord);
+        Tile* tile = GetTile(level, entity.coord.tile);
         if (tile)
         {
             if (tile->value != TILE_VALUE_WALL && TileIsFree(tile))
@@ -229,7 +231,7 @@ namespace soko
         u32 result = 0;
         Entity entity = {};
         entity.type = type;
-        entity.coord = coord;
+        entity.coord.tile = coord;
         entity.mesh = mesh;
         entity.material = material;
         switch (type)
@@ -315,7 +317,7 @@ namespace soko
                             }
 #endif
                             SetFlag(e, ENTITY_FLAG_JUST_TELEPORTED);
-                            v3i newCoord = GetEntity(level, entity.bindedPortalID)->coord + DirToUnitOffset(entity.portalDirection);
+                            v3i newCoord = GetEntity(level, entity.bindedPortalID)->coord.tile + DirToUnitOffset(entity.portalDirection);
                             bool teleported = ChangeEntityLocation(level, &e, newCoord);
 
                         }
@@ -359,7 +361,7 @@ namespace soko
     ChangeEntityLocation(Level* level, Entity* entity, v3i desiredCoord)
     {
         bool result = false;
-        Tile* oldTile = GetTile(level, entity->coord);
+        Tile* oldTile = GetTile(level, entity->coord.tile);
         SOKO_ASSERT(oldTile);
 
         Tile* desiredTile = GetTile(level, desiredCoord);
@@ -400,7 +402,7 @@ namespace soko
                     desiredTile->entityList.first->prevEntityInTile = entity;
                 }
                 desiredTile->entityList.first = entity;
-                entity->coord = desiredCoord;
+                entity->coord.tile = desiredCoord;
 
                 UpdateEntitiesInTile(level, oldTile);
                 UpdateEntitiesInTile(level, desiredTile);
@@ -415,13 +417,13 @@ namespace soko
     MoveEntity(Level* level, Entity* entity, Direction dir, bool reverse = false, u32 depth = 2)
     {
         bool result = false;
-        v3i desiredPos = entity->coord;
+        v3i desiredPos = entity->coord.tile;
         desiredPos += DirToUnitOffset(dir);
-        v3i revDesiredPos = entity->coord;
+        v3i revDesiredPos = entity->coord.tile;
         revDesiredPos -= DirToUnitOffset(dir);
 
         Tile* desiredTile = GetTile(level, desiredPos);
-        Tile* oldTile = GetTile(level, entity->coord);
+        Tile* oldTile = GetTile(level, entity->coord.tile);
         Tile* pushTile = GetTile(level, reverse ? revDesiredPos : desiredPos);
 
         SOKO_ASSERT(oldTile);
@@ -468,7 +470,7 @@ namespace soko
             Entity* entity = level->entities[i];
             while (entity)
             {
-                v3 camOffset = GetRelPos(gameState->session.camera.worldPos, entity->coord);
+                v3 camOffset = WorldToRH(GetRelPos(gameState->session.camera.worldPos, entity->coord));
                 v3 pos = camOffset;
                 RenderCommandDrawMesh command = {};
                 command.transform = Translation(pos);

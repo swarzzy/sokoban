@@ -22,7 +22,7 @@ namespace soko
     }
 
     inline v3
-    SwapYZ(v3 v)
+    WorldToRH(v3 v)
     {
         v3 result;
         result.x = v.x;
@@ -32,13 +32,42 @@ namespace soko
     }
 
     inline v3
-    GetRelPos(v3i origin, v3i target)
+    GetRelPos(WorldPos origin, WorldPos target)
     {
         v3 result = {};
-        v3i diff = target - origin;
-        result = V3(diff.x * LEVEL_TILE_SIZE, diff.y * LEVEL_TILE_SIZE, diff.z * LEVEL_TILE_SIZE);
-        result = SwapYZ(result);
+        v3i tileDiff = target.tile - origin.tile;
+        v3 offsetDiff = target.offset - origin.offset;
+        result = V3(tileDiff.x * LEVEL_TILE_SIZE, tileDiff.y * LEVEL_TILE_SIZE, tileDiff.z * LEVEL_TILE_SIZE);
+        result += offsetDiff;
         return result;
+    }
+
+    inline void
+    NormalizeWorldPos(WorldPos* p)
+    {
+        // TODO: Checking!!!
+        f32 tileRadius = LEVEL_TILE_SIZE / 2.0f;
+        i32 tileOffX = Floor((p->offset.x + tileRadius) / LEVEL_TILE_SIZE);
+        i32 tileOffY = Floor((p->offset.y + tileRadius) / LEVEL_TILE_SIZE);
+        i32 tileOffZ = Floor((p->offset.z + tileRadius) / LEVEL_TILE_SIZE);
+
+        p->offset.x -= tileOffX * LEVEL_TILE_SIZE;
+        p->offset.y -= tileOffY * LEVEL_TILE_SIZE;
+        p->offset.z -= tileOffZ * LEVEL_TILE_SIZE;
+
+        p->tile += V3I(tileOffX, tileOffY, tileOffZ);
+
+        SOKO_ASSERT(p->tile.x <= LEVEL_MAX_DIM && p->tile.x >= LEVEL_MIN_DIM);
+        SOKO_ASSERT(p->tile.y <= LEVEL_MAX_DIM && p->tile.y >= LEVEL_MIN_DIM);
+        SOKO_ASSERT(p->tile.z <= LEVEL_MAX_DIM && p->tile.z >= LEVEL_MIN_DIM);
+    }
+
+    inline WorldPos
+    GetWorldPos(WorldPos origin, v3 offset)
+    {
+        origin.offset += offset;
+        NormalizeWorldPos(&origin);
+        return origin;
     }
 
     internal Level*
@@ -254,7 +283,8 @@ namespace soko
             Chunk* chunk = level->chunkTable + chunkIndex;
             if (chunk)// && chunk->coord.x == 0 && chunk->coord.y == 0)
             {
-                v3 camOffset = GetRelPos(gameState->session.camera.worldPos, chunk->coord * CHUNK_DIM);
+                WorldPos chunkPos = MakeWorldPos(chunk->coord * CHUNK_DIM);
+                v3 camOffset = WorldToRH(GetRelPos(gameState->session.camera.worldPos, chunkPos));
                 v3 offset = camOffset;
                 RenderCommandPushChunkMesh c = {};
                 c.offset = offset;
@@ -544,7 +574,7 @@ namespace soko
         Entity entity1 = {};
         entity1.type = ENTITY_TYPE_BLOCK;
         entity1.flags = ENTITY_FLAG_COLLIDES | ENTITY_FLAG_MOVABLE;
-        entity1.coord = V3I(5, 7, 1);
+        entity1.coord = MakeWorldPos(5, 7, 1);
         entity1.mesh = EntityMesh_Cube;
         entity1.material = EntityMaterial_Block;
 
@@ -554,7 +584,7 @@ namespace soko
         Entity entity2 = {};
         entity2.type = ENTITY_TYPE_BLOCK;
         entity2.flags = ENTITY_FLAG_COLLIDES | ENTITY_FLAG_MOVABLE;
-        entity2.coord = V3I(5, 8, 1);
+        entity2.coord = MakeWorldPos(5, 8, 1);
         entity2.mesh = EntityMesh_Cube;
         entity2.material = EntityMaterial_Block;
 
@@ -563,7 +593,7 @@ namespace soko
         Entity entity3 = {};
         entity3.type = ENTITY_TYPE_BLOCK;
         entity3.flags = ENTITY_FLAG_COLLIDES | ENTITY_FLAG_MOVABLE;
-        entity3.coord = V3I(5, 9, 1);
+        entity3.coord = MakeWorldPos(5, 9, 1);
         entity3.mesh = EntityMesh_Cube;
         entity3.material = EntityMaterial_Block;
 
@@ -572,7 +602,7 @@ namespace soko
         Entity plate = {};
         plate.type = ENTITY_TYPE_PLATE;
         plate.flags = 0;
-        plate.coord = V3I(10, 9, 1);
+        plate.coord = MakeWorldPos(10, 9, 1);
         plate.mesh = EntityMesh_Plate;
         plate.material = EntityMaterial_RedPlate;
 
@@ -581,7 +611,7 @@ namespace soko
         Entity portal1 = {};
         portal1.type = ENTITY_TYPE_PORTAL;
         portal1.flags = 0;
-        portal1.coord = V3I(12, 12, 1);
+        portal1.coord = MakeWorldPos(12, 12, 1);
         portal1.mesh = EntityMesh_Portal;
         portal1.material = EntityMaterial_Portal;
         portal1.portalDirection = DIRECTION_NORTH;
@@ -591,7 +621,7 @@ namespace soko
         Entity portal2 = {};
         portal2.type = ENTITY_TYPE_PORTAL;
         portal2.flags = 0;
-        portal2.coord = V3I(17, 17, 1);
+        portal2.coord = MakeWorldPos(17, 17, 1);
         portal2.mesh = EntityMesh_Portal;
         portal2.material = EntityMaterial_Portal;
         portal2.portalDirection = DIRECTION_WEST;
