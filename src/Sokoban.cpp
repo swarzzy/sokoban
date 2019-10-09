@@ -610,7 +610,24 @@ namespace soko
     void
     GameUpdate(AB::MemoryArena* arena, AB::PlatformState* platform)
     {
-        //SerializeEntity(null, arena);
+        auto* gameState = _GlobalStaticStorage->gameState;
+        Level* level = gameState->session.level;
+
+        if (gameState->globalGameMode != GAME_MODE_MENU)
+        {
+            for (u32 i = 0; i < LEVEL_ENTITY_TABLE_SIZE; i++)
+            {
+                Entity* e = level->entities[i];
+                if (e)
+                {
+                    while (e)
+                    {
+                        UpdateEntity(level, e);
+                        e = e->nextEntity;
+                    }
+                }
+            }
+        }
     }
 
 

@@ -17,4 +17,5 @@ namespace soko
     constant i32 LEVEL_MIN_DIM_CHUNKS = -LEVEL_MAX_DIM_CHUNKS + 1;
     constant u32 LEVEL_ENTITY_TABLE_SIZE = 1024;
     constant f32 LEVEL_TILE_SIZE = 1.0f;
+    constant f32 LEVEL_TILE_RADIUS = LEVEL_TILE_SIZE / 2.0f;
 }

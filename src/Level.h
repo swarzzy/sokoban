@@ -85,6 +85,18 @@ namespace soko
         };
     };
 
+    inline bool operator==(const v3i& a, const v3i& b)
+    {
+        bool result = (a.x == b.x && a.y == b.y && a.z == b.z);
+        return result;
+    }
+
+    inline bool operator!=(const v3i& a, const v3i& b)
+    {
+        bool result = !(a == b);
+        return result;
+    }
+
     inline v3i V3I(i32 x, i32 y, i32 z)
     {
         v3i result;
@@ -207,6 +219,13 @@ namespace soko
         // TODO: Entity custom behavior
         //void* updateProcData;
         //UpdateProcFn* updateProc;
+
+        b32 doesMovement;
+        Direction movementDirection;
+        b32 didTileTransition;
+        v3 fullPath;
+        v3 pathTraveled;
+        f32 movementSpeed = 1.0f;
 
         Entity* nextEntityInTile;
         Entity* prevEntityInTile;

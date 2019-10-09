@@ -21,7 +21,6 @@ namespace soko
     {
         Entity* e;
         Level* level;
-        u32 inputFlags;
         bool reversed;
     };
 

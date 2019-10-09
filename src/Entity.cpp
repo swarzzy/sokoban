@@ -269,6 +269,63 @@ namespace soko
     internal bool
     ChangeEntityLocation(Level* level, Entity* entity, v3i desiredCoord);
 
+    // TODO: More data oriented architecture
+    internal void
+    UpdateEntity(Level* level, Entity* e)
+    {
+        // TODO: Do this on sim region`s entity coords
+        // TODO: We resetting entity offset now.
+        // So if it has some value which was set before, it will be erased.
+        // TODO: Claim both tiles at transition startup:
+        // in which the entity is placed currently
+        // and the tile in which entity will be moved. Free
+        // old tile at the end of transition.
+        // Introduce consistent notion of transition
+
+        if (e->doesMovement)
+        {
+            e->pathTraveled += Normalize(e->fullPath) * e->movementSpeed * GlobalGameDeltaTime * LEVEL_TILE_SIZE;
+
+            if (LengthSq(e->pathTraveled) > LengthSq(e->fullPath))
+            {
+                e->pathTraveled = e->fullPath;
+                e->doesMovement = false;
+            }
+
+            WorldPos newPos = e->coord;
+            if (!e->didTileTransition)
+            {
+                newPos.offset = e->pathTraveled;
+            }
+            else
+            {
+                WorldPos dummy = newPos;
+                dummy.offset = e->pathTraveled;
+                NormalizeWorldPos(&dummy);
+                newPos.offset = dummy.offset;
+            }
+
+            bool transitionFailed = false;
+            NormalizeWorldPos(&newPos);
+            if (newPos.tile != e->coord.tile)
+            {
+                if (!ChangeEntityLocation(level, e, newPos.tile))
+                {
+                    transitionFailed = true;
+                }
+                e->didTileTransition = true;
+            }
+
+            e->coord.offset = newPos.offset;
+
+            if (transitionFailed)
+            {
+                e->doesMovement = false;
+            }
+        }
+    }
+
+    // TODO: Update ticks
     internal void
     UpdateEntitiesInTile(Level* level, Tile* tile)
     {
@@ -413,10 +470,20 @@ namespace soko
         return result;
     }
 
-    internal bool
-    MoveEntity(Level* level, Entity* entity, Direction dir, bool reverse = false, u32 depth = 2)
+    internal void
+    MoveEntity(Level* level, Entity* entity, Direction dir, f32 speed, bool reverse = false, u32 depth = 2)
     {
-        bool result = false;
+        if (!entity->doesMovement)
+        {
+            entity->doesMovement = true;
+            entity->didTileTransition = false;
+            entity->movementDirection = dir;
+            WorldPos targetPos = entity->coord;
+            targetPos.tile += DirToUnitOffset(dir);
+            entity->fullPath = GetRelPos(entity->coord, targetPos);
+            entity->pathTraveled = {};
+        }
+
         v3i desiredPos = entity->coord.tile;
         desiredPos += DirToUnitOffset(dir);
         v3i revDesiredPos = entity->coord.tile;
@@ -429,11 +496,6 @@ namespace soko
         SOKO_ASSERT(oldTile);
         if (desiredTile)
         {
-            if (reverse)
-            {
-                result = ChangeEntityLocation(level, entity, desiredPos);
-            }
-
             if (pushTile && pushTile->value != TILE_VALUE_WALL)
             {
                 Entity* entityInTile = pushTile->entityList.first;
@@ -447,18 +509,12 @@ namespace soko
                             !IsSet(e, ENTITY_FLAG_PLAYER))
                         {
                             // NOTE: Resolve entity collision
-                            MoveEntity(level, &e, dir, reverse, depth - 1);
+                            MoveEntity(level, &e, dir, speed, reverse, depth - 1);
                         }
                     }
                 }
             }
-
-            if (!reverse)
-            {
-                result = ChangeEntityLocation(level, entity, desiredPos);
-            }
         }
-        return result;
     }
 
     internal void
