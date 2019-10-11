@@ -37,6 +37,7 @@ namespace soko
             u32 x, y, z;
         };
     };
+    typedef v3u uv3;
 
     inline v3u V3U(u32 x, u32 y, u32 z)
     {
@@ -83,7 +84,11 @@ namespace soko
         {
             i32 x, y, z;
         };
+        explicit operator v3() { return V3((f32)x, (f32)y, (f32)z); }
     };
+    // TODO: Switch to iv3
+    typedef v3i iv3;
+
 
     inline bool operator==(const v3i& a, const v3i& b)
     {
@@ -136,9 +141,19 @@ namespace soko
         return V3I(l.x + r.x, l.y + r.y, l.z + r.z);
     }
 
+    inline v3i operator+(v3i l, i32 r)
+    {
+        return V3I(l.x + r, l.y + r, l.z + r);
+    }
+
     inline v3i operator-(v3i l, v3i r)
     {
         return V3I(l.x - r.x, l.y - r.y, l.z - r.z);
+    }
+
+    inline v3i operator-(v3i l, i32 r)
+    {
+        return V3I(l.x - r, l.y - r, l.z - r);
     }
 
     inline v3i operator-(v3i v)
@@ -205,9 +220,11 @@ namespace soko
     inline WorldPos MakeWorldPos(v3i tile) { return {tile, {}}; }
     inline WorldPos MakeWorldPos(i32 x, i32 y, i32 z) { return {{x, y, z}, {}}; }
 
+    struct SimEntity;
     struct Entity
     {
         u32 id;
+        SimEntity* sim;
         EntityType type;
         u32 flags;
         WorldPos coord;
@@ -225,7 +242,9 @@ namespace soko
         b32 didTileTransition;
         v3 fullPath;
         v3 pathTraveled;
-        f32 movementSpeed = 1.0f;
+        f32 currentSpeed;
+
+        f32 movementSpeed;
 
         Entity* nextEntityInTile;
         Entity* prevEntityInTile;
@@ -311,6 +330,7 @@ namespace soko
         TileEntityList entityList;
     };
 
+
     struct Chunk
     {
         bool loaded;
@@ -318,6 +338,8 @@ namespace soko
         Tile tiles[CHUNK_TILE_COUNT];
         LoadedChunkMesh loadedMesh;
         ChunkMesh mesh;
+        // TODO: Acelleration structure for traversing entities
+        // in chunk sequentially
     };
 
     struct Level

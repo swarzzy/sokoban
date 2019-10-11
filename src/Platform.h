@@ -20,6 +20,8 @@
 
 #define null nullptr
 
+#define SOKO_STATIC_ASSERT static_assert
+
 struct ImGuiContext;
 
 namespace AB

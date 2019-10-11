@@ -12,6 +12,7 @@ namespace soko
         se->portalDirection = e->portalDirection;
         se->mesh = e->mesh;
         se->material = e->material;
+        se->movementSpeed = e->movementSpeed;
     }
 
     inline void
@@ -26,6 +27,7 @@ namespace soko
         e->portalDirection = (Direction)se->portalDirection;
         e->mesh = (EntityMesh)se->mesh;
         e->material = (EntityMaterial)se->material;
+        e->movementSpeed = se->movementSpeed;
     }
 
     inline uptr
@@ -225,7 +227,7 @@ namespace soko
     }
 
     inline u32
-    AddEntity(Level* level, EntityType type, v3i coord,
+    AddEntity(Level* level, EntityType type, v3i coord, f32 movementSpeed,
               EntityMesh mesh, EntityMaterial material)
     {
         u32 result = 0;
@@ -234,6 +236,7 @@ namespace soko
         entity.coord.tile = coord;
         entity.mesh = mesh;
         entity.material = material;
+        entity.movementSpeed = movementSpeed;
         switch (type)
         {
         case ENTITY_TYPE_BLOCK:  { entity.flags = ENTITY_FLAG_MOVABLE | ENTITY_FLAG_COLLIDES; } break;
@@ -267,7 +270,7 @@ namespace soko
     }
 
     internal bool
-    ChangeEntityLocation(Level* level, Entity* entity, v3i desiredCoord);
+    ChangeEntityLocation(Level* level, Entity* entity, const WorldPos* desiredCoord);
 
     // TODO: More data oriented architecture
     internal void
@@ -309,7 +312,7 @@ namespace soko
             NormalizeWorldPos(&newPos);
             if (newPos.tile != e->coord.tile)
             {
-                if (!ChangeEntityLocation(level, e, newPos.tile))
+                if (!ChangeEntityLocation(level, e, &newPos))
                 {
                     transitionFailed = true;
                 }
@@ -374,8 +377,9 @@ namespace soko
                             }
 #endif
                             SetFlag(e, ENTITY_FLAG_JUST_TELEPORTED);
-                            v3i newCoord = GetEntity(level, entity.bindedPortalID)->coord.tile + DirToUnitOffset(entity.portalDirection);
-                            bool teleported = ChangeEntityLocation(level, &e, newCoord);
+                            WorldPos newCoord = GetEntity(level, entity.bindedPortalID)->coord;
+                            newCoord.tile += DirToUnitOffset(entity.portalDirection);
+                            bool teleported = ChangeEntityLocation(level, &e, &newCoord);
 
                         }
                     }
@@ -415,17 +419,17 @@ namespace soko
     }
 
     internal bool
-    ChangeEntityLocation(Level* level, Entity* entity, v3i desiredCoord)
+    ChangeEntityLocation(Level* level, Entity* entity, const WorldPos* desiredCoord)
     {
         bool result = false;
         Tile* oldTile = GetTile(level, entity->coord.tile);
         SOKO_ASSERT(oldTile);
+        SOKO_ASSERT(oldTile->entityList.first);
 
-        Tile* desiredTile = GetTile(level, desiredCoord);
+        Tile* desiredTile = GetTile(level, desiredCoord->tile);
         if (desiredTile)
         {
             bool tileIsFree = desiredTile->value != TILE_VALUE_WALL;
-            // TODO: For all entities in tile (iterator)
             if (tileIsFree)
             {
                 for (Entity& entityInTile : desiredTile->entityList)
@@ -459,7 +463,7 @@ namespace soko
                     desiredTile->entityList.first->prevEntityInTile = entity;
                 }
                 desiredTile->entityList.first = entity;
-                entity->coord.tile = desiredCoord;
+                entity->coord = *desiredCoord;
 
                 UpdateEntitiesInTile(level, oldTile);
                 UpdateEntitiesInTile(level, desiredTile);

@@ -217,6 +217,38 @@ namespace soko
         return result;
     }
 
+    inline iv3
+    GetChunkCoord(i32 x, i32 y, i32 z)
+    {
+        iv3 result;
+        result.x = x >> CHUNK_BIT_SHIFT;
+        result.y = y >> CHUNK_BIT_SHIFT;
+        result.z = z >> CHUNK_BIT_SHIFT;
+        return result;
+    }
+
+    inline iv3
+    GetChunkCoord(iv3 tile)
+    {
+        return GetChunkCoord(tile.x, tile.y, tile.z);
+    }
+
+    inline uv3
+    GetTileInChunk(i32 x, i32 y, i32 z)
+    {
+        uv3 result;
+        result.x = x & CHUNK_BIT_MASK;
+        result.y = y & CHUNK_BIT_MASK;
+        result.z = z & CHUNK_BIT_MASK;
+        return result;
+    }
+
+    inline uv3
+    GetTileInChunk(iv3 tile)
+    {
+        return GetTileInChunk(tile.x, tile.y, tile.z);
+    }
+
     internal Tile*
     GetTile(Level* level, i32 x, i32 y, i32 z)
     {
@@ -226,19 +258,14 @@ namespace soko
         SOKO_ASSERT(y >= LEVEL_MIN_DIM && y <= LEVEL_MAX_DIM);
         SOKO_ASSERT(z >= LEVEL_MIN_DIM && z <= LEVEL_MAX_DIM);
 
-        u32 chunkX = x >> CHUNK_BIT_SHIFT;
-        u32 chunkY = y >> CHUNK_BIT_SHIFT;
-        u32 chunkZ = z >> CHUNK_BIT_SHIFT;
+        iv3 c = GetChunkCoord(x, y, z);
+        uv3 t = GetTileInChunk(x, y, z);
 
-        u32 tileX = x & CHUNK_BIT_MASK;
-        u32 tileY = y & CHUNK_BIT_MASK;
-        u32 tileZ = z & CHUNK_BIT_MASK;
-
-        Chunk* chunk = GetChunk(level, chunkX, chunkY, chunkZ);
+        Chunk* chunk = GetChunk(level, c.x, c.y, c.z);
 
         if (chunk)
         {
-            result = GetTileInChunkInternal(chunk, tileX, tileY, tileZ);
+            result = GetTileInChunkInternal(chunk, t.x, t.y, t.z);
         }
         return result;
     }
@@ -575,6 +602,7 @@ namespace soko
         entity1.type = ENTITY_TYPE_BLOCK;
         entity1.flags = ENTITY_FLAG_COLLIDES | ENTITY_FLAG_MOVABLE;
         entity1.coord = MakeWorldPos(5, 7, 1);
+        entity1.movementSpeed = 5.0f;
         entity1.mesh = EntityMesh_Cube;
         entity1.material = EntityMaterial_Block;
 
@@ -586,6 +614,7 @@ namespace soko
         entity2.flags = ENTITY_FLAG_COLLIDES | ENTITY_FLAG_MOVABLE;
         entity2.coord = MakeWorldPos(5, 8, 1);
         entity2.mesh = EntityMesh_Cube;
+        entity2.movementSpeed = 5.0f;
         entity2.material = EntityMaterial_Block;
 
         AddEntity(level, entity2);
@@ -596,6 +625,7 @@ namespace soko
         entity3.coord = MakeWorldPos(5, 9, 1);
         entity3.mesh = EntityMesh_Cube;
         entity3.material = EntityMaterial_Block;
+        entity3.movementSpeed = 5.0f;
 
         AddEntity(level, entity3);
 
@@ -605,6 +635,7 @@ namespace soko
         plate.coord = MakeWorldPos(10, 9, 1);
         plate.mesh = EntityMesh_Plate;
         plate.material = EntityMaterial_RedPlate;
+
 
         AddEntity(level, plate);
 
@@ -631,9 +662,9 @@ namespace soko
         portal1Entity->bindedPortalID = portal2Entity->id;
         portal2Entity->bindedPortalID = portal1Entity->id;
 
-        AddEntity(level, ENTITY_TYPE_SPIKES, V3I(15, 15, 1),
+        AddEntity(level, ENTITY_TYPE_SPIKES, V3I(15, 15, 1), 0.0f,
                   EntityMesh_Spikes, EntityMaterial_Spikes);
-        Entity* button = GetEntity(level, AddEntity(level, ENTITY_TYPE_BUTTON, V3I(4, 4, 1),
+        Entity* button = GetEntity(level, AddEntity(level, ENTITY_TYPE_BUTTON, V3I(4, 4, 1), 0.0f,
                                                     EntityMesh_Button, EntityMaterial_Button));
 #if 0
         // TODO: Entity custom behavior

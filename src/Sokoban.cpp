@@ -252,6 +252,7 @@ LogAssert(AB::LogLevel level, const char* file, const char* func, u32 line,
 #include "MeshGen.cpp"
 #include "GameMenu.cpp"
 #include "GameSession.cpp"
+#include "SimRegion.cpp"
 
 
 extern "C" GAME_CODE_ENTRY void
@@ -615,18 +616,6 @@ namespace soko
 
         if (gameState->globalGameMode != GAME_MODE_MENU)
         {
-            for (u32 i = 0; i < LEVEL_ENTITY_TABLE_SIZE; i++)
-            {
-                Entity* e = level->entities[i];
-                if (e)
-                {
-                    while (e)
-                    {
-                        UpdateEntity(level, e);
-                        e = e->nextEntity;
-                    }
-                }
-            }
         }
     }
 
@@ -798,6 +787,11 @@ namespace soko
 
         else if (gameState->globalGameMode == GAME_MODE_SINGLE)
         {
+            BeginTemporaryMemory(gameState->tempArena, true);
+            SimRegion* simRegion = BeginSim(gameState->tempArena,
+                                            gameState->session.level,
+                                            gameState->session.camera.worldPos,
+                                            1);
             Player* player = gameState->session.controlledPlayer;
             if (JustPressed(AB::KEY_SPACE))
             {
@@ -806,23 +800,40 @@ namespace soko
 
             if (JustPressed(AB::KEY_UP))
             {
-                MoveEntity(gameState->session.level, player->e, DIRECTION_NORTH, player->reversed);
+                MoveEntity(gameState->session.level, simRegion, player->e->sim, DIRECTION_NORTH, player->e->movementSpeed, player->reversed);
             }
 
             if (JustPressed(AB::KEY_DOWN))
             {
-                MoveEntity(gameState->session.level, player->e, DIRECTION_SOUTH, player->reversed);
+                MoveEntity(gameState->session.level, simRegion, player->e->sim, DIRECTION_SOUTH, player->e->movementSpeed, player->reversed);
             }
 
             if (JustPressed(AB::KEY_RIGHT))
             {
-                MoveEntity(gameState->session.level, player->e, DIRECTION_EAST, player->reversed);
+                MoveEntity(gameState->session.level, simRegion, player->e->sim, DIRECTION_EAST, player->e->movementSpeed, player->reversed);
             }
 
             if (JustPressed(AB::KEY_LEFT))
             {
-                MoveEntity(gameState->session.level, player->e, DIRECTION_WEST, player->reversed);
+                MoveEntity(gameState->session.level, simRegion, player->e->sim, DIRECTION_WEST, player->e->movementSpeed, player->reversed);
             }
+# if 0
+            for (u32 i = 0; i < LEVEL_ENTITY_TABLE_SIZE; i++)
+            {
+                Entity* e = gameState->session.level->entities[i];
+                if (e)
+                {
+                    while (e)
+                    {
+                        UpdateEntity(gameState->session.level, e);
+                        e = e->nextEntity;
+                    }
+                }
+            }
+#endif
+            EndSim(gameState->session.level, simRegion);
+            EndTemporaryMemory(gameState->tempArena);
+
         }
         else
         {
