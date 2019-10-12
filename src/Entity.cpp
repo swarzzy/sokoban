@@ -310,10 +310,10 @@ namespace soko
     internal void
     UpdateEntitiesInTile(Level* level, iv3 tile)
     {
-        ChunkEntityMapEntry* at = 0;
+        EntityMapIterator it = {};
         while (true)
         {
-            Entity* entity = YieldEntityIdFromTile(level, tile, &at);
+            Entity* entity = YieldEntityIdFromTile(level, tile, &it);
             if (!entity) break;
 
             switch (entity->type)
@@ -321,10 +321,10 @@ namespace soko
             case EntityType_Plate:
             {
                 level->platePressed = false;
-                ChunkEntityMapEntry* at = 0;
+                EntityMapIterator it = {};
                 while (true)
                 {
-                    Entity* e = YieldEntityIdFromTile(level, tile, &at);
+                    Entity* e = YieldEntityIdFromTile(level, tile, &it);
                     if (!e) break;
 
                     if (e != entity)
@@ -338,10 +338,10 @@ namespace soko
             } break;
             case EntityType_Portal:
             {
-                ChunkEntityMapEntry* at = 0;
+                EntityMapIterator it = {};
                 while (true)
                 {
-                    Entity* e = YieldEntityIdFromTile(level, tile, &at);
+                    Entity* e = YieldEntityIdFromTile(level, tile, &it);
                     if (!e) break;
 
                     if (e != entity)
@@ -376,10 +376,10 @@ namespace soko
                 }
             } break;
             case EntityType_Spikes: {
-                ChunkEntityMapEntry* at = 0;
+                EntityMapIterator it = {};
                 while (true)
                 {
-                    Entity* e = YieldEntityIdFromTile(level, tile, &at);
+                    Entity* e = YieldEntityIdFromTile(level, tile, &it);
                     if (!e) break;
 
                     if (e != entity)
@@ -428,10 +428,10 @@ namespace soko
             bool tileIsFree = desiredTile->value != TileValue_Wall;
             if (tileIsFree)
             {
-                ChunkEntityMapEntry* at = 0;
+                EntityMapIterator it = {};
                 while (true)
                 {
-                    Entity* entityInTile = YieldEntityIdFromTile(level, desiredCoord->tile, &at);
+                    Entity* entityInTile = YieldEntityIdFromTile(level, desiredCoord->tile, &it);
                     if (!entityInTile) break;
 
                     if (IsSet(*entityInTile, EntityFlag_Collides))

@@ -333,25 +333,33 @@ namespace soko
     };
 
 
-    constant u32 CHUNK_MAX_ENTITIES = CHUNK_DIM * CHUNK_DIM * CHUNK_DIM;
+    constant u32 CHUNK_ENTITY_MAP_SIZE = CHUNK_DIM * CHUNK_DIM * CHUNK_DIM;
 
-    // TODO: Set keys to invalid val at startup
-    // TODO: Maybe store pointers instead of ids
-    struct ChunkEntityMapEntry
+    constant u32 CHUNK_ENTITY_MAP_BLOCK_SIZE = 16;
+    struct ChunkEntityMapBlock
     {
-        u32 nextIndex;
-        u32 key;
-        Entity* ptr;
+        ChunkEntityMapBlock* next;
+        u32 at;
+        Entity* entities[CHUNK_ENTITY_MAP_BLOCK_SIZE];
+    };
+
+    constant u32 CHUNK_ENTITY_MAP_RESIDENT_BLOCK_SIZE = 2;
+    struct ChunkEntityMapResidentBlock
+    {
+        ChunkEntityMapBlock* next;
+        u32 at;
+        Entity* entities[CHUNK_ENTITY_MAP_RESIDENT_BLOCK_SIZE];
     };
 
     struct Chunk
     {
+        Level* level;
         bool loaded;
         v3i coord;
         Tile tiles[CHUNK_TILE_COUNT];
         LoadedChunkMesh loadedMesh;
         ChunkMesh mesh;
-        ChunkEntityMapEntry entityMap[CHUNK_MAX_ENTITIES];
+        ChunkEntityMapResidentBlock entityMap[CHUNK_ENTITY_MAP_SIZE];
         // TODO: Acelleration structure for traversing entities
         // in chunk sequentially
     };
@@ -377,6 +385,10 @@ namespace soko
         Entity* entityFreeList;
         Entity* entities[LEVEL_ENTITY_TABLE_SIZE];
         b32 platePressed;
+
+        u32 chunkEntityMapBlockCount;
+        u32 freeChunkEntityMapBlockCount;
+        ChunkEntityMapBlock* freeChunkEntityMapBlocks;
     };
 
     struct LevelMetaInfo

@@ -180,39 +180,89 @@ namespace soko
     }
 
     inline u32
-    ChunkEntityMapHash(uv3 tileInChunk)
+    GetChunkEntityMapIndex(uv3 tileInChunk)
     {
         SOKO_ASSERT(tileInChunk.x < CHUNK_DIM &&
                     tileInChunk.y < CHUNK_DIM &&
                     tileInChunk.z < CHUNK_DIM);
-        u32 hash = tileInChunk.z * CHUNK_DIM * CHUNK_DIM + tileInChunk.y * CHUNK_DIM + tileInChunk.x;
-        return hash;
+        u32 index = tileInChunk.z * CHUNK_DIM * CHUNK_DIM + tileInChunk.y * CHUNK_DIM + tileInChunk.x;
+        return index;
     }
 
+    struct EntityMapIterator
+    {
+        u16 at;
+        u8 isHead;
+        union
+        {
+            ChunkEntityMapBlock* block;
+            ChunkEntityMapResidentBlock* head;
+            void* _rawPtr;
+        };
+    };
+
     inline Entity*
-    YieldEntityIdFromTile(Chunk* chunk, uv3 tileInChunk, ChunkEntityMapEntry** at)
+    YieldEntityIdFromTile(Chunk* chunk, uv3 tileInChunk, EntityMapIterator* it)
     {
         Entity* result = 0;
-        if (!(*at))
+
+        if (!it->_rawPtr)
         {
-            u32 hash = ChunkEntityMapHash(tileInChunk);
-            auto firstEntry = chunk->entityMap + hash;
-            if (firstEntry->ptr)
+            u32 index = GetChunkEntityMapIndex(tileInChunk);
+            auto head = chunk->entityMap + index;
+            if (head->at)
             {
-                result = firstEntry->ptr;
-                *at = firstEntry;
+                result = head->entities[0];
+                it->isHead = 1;
+                it->head = head;
+                it->at = 1;
             }
         }
-        else if ((*at)->nextIndex != 0)
+        else
         {
-            *at = chunk->entityMap + (*at)->nextIndex;
-            result = (*at)->ptr;
+            if (it->isHead)
+            {
+                auto head = it->head;
+                if (it->at < head->at)
+                {
+                    result = head->entities[it->at];
+                    it->at++;
+                }
+                else
+                {
+                    it->isHead = 0;
+                    it->block = head->next;
+                    if (it->block)
+                    {
+                        it->at = 1;
+                        result = it->block->entities[0];
+                    }
+                }
+            }
+            else
+            {
+                if (it->at < it->block->at)
+                {
+                    result = it->block->entities[it->at];
+                    it->at++;
+                }
+                else
+                {
+                    it->block = it->block->next;
+                    if (it->block)
+                    {
+                        it->at = 1;
+                        result = it->block->entities[0];
+                    }
+                }
+            }
         }
+
         return result;
     }
 
     inline Entity*
-    YieldEntityIdFromTile(Level* level, iv3 tile, ChunkEntityMapEntry** at)
+    YieldEntityIdFromTile(Level* level, iv3 tile, EntityMapIterator* at)
     {
         iv3 c = GetChunkCoord(tile);
         uv3 t = GetTileCoordInChunk(tile);
@@ -220,73 +270,88 @@ namespace soko
         return YieldEntityIdFromTile(chunk, t, at);
     }
 
-    internal bool
-    RegisterEntityInTile(Chunk* chunk, Entity* entity, uv3 tileInChunk)
+    inline ChunkEntityMapBlock*
+    AllocEntityMapBlock(Level* level, AB::MemoryArena* arena)
     {
-        SOKO_STATIC_ASSERT(IsPowerOfTwo(CHUNK_MAX_ENTITIES));
-        SOKO_STATIC_ASSERT(CHUNK_DIM <= 256, "Using u8 cooridnates in entity map buckets");
-
-        bool successfull = false;
-
-        ChunkEntityMapEntry* resultEntry = 0;
-        u32 resultIndex = 0;
-
-        u32 hashMask = CHUNK_MAX_ENTITIES - 1;
-        u32 hash = ChunkEntityMapHash(tileInChunk);
-
-        auto* firstEntry = chunk->entityMap + hash;
-        if (!firstEntry->ptr)
+        ChunkEntityMapBlock* block = 0;
+        if (level->freeChunkEntityMapBlocks)
         {
-
+            auto next = level->freeChunkEntityMapBlocks->next;
+            block = level->freeChunkEntityMapBlocks;
+            level->freeChunkEntityMapBlocks = next;
+            level->freeChunkEntityMapBlockCount++;
         }
         else
         {
-            if (firstEntry->key != hash)
+            block = PUSH_STRUCT(arena, ChunkEntityMapBlock);
+        }
+
+        if (block)
+        {
+            level->chunkEntityMapBlockCount++;
+            block->at = 0;
+            block->next = 0;
+        }
+
+        return block;
+    }
+
+    internal bool
+    RegisterEntityInTile(Chunk* chunk, Entity* entity, uv3 tileInChunk)
+    {
+        SOKO_STATIC_ASSERT(IsPowerOfTwo(CHUNK_ENTITY_MAP_SIZE));
+        AB::MemoryArena* arena = chunk->level->sessionArena;
+
+        bool result = false;
+
+        u32 index = GetChunkEntityMapIndex(tileInChunk);
+
+        auto head = chunk->entityMap + index;
+        SOKO_ASSERT(head->at <= CHUNK_ENTITY_MAP_RESIDENT_BLOCK_SIZE);
+        if (head->at < CHUNK_ENTITY_MAP_RESIDENT_BLOCK_SIZE)
+        {
+            head->entities[head->at] = entity;
+            head->at++;
+            result = true;
+        }
+        else
+        {
+            if (!head->next)
             {
-                for (u32 offset = 1; offset < CHUNK_MAX_ENTITIES; offset++)
+                auto newBlock = AllocEntityMapBlock(chunk->level, arena);
+                if (newBlock)
                 {
-                    u32 index = (hash + offset) & hashMask;
-                    auto* entry = chunk->entityMap + index;
-                    if (!entry->ptr)
+                    head->next = newBlock;
+                    newBlock->entities[newBlock->at] = entity;
+                    newBlock->at++;
+                    result = true;
+                }
+            }
+            else
+            {
+                auto block = head->next;
+                SOKO_ASSERT(block->at <= CHUNK_ENTITY_MAP_BLOCK_SIZE);
+                if (block->at < CHUNK_ENTITY_MAP_BLOCK_SIZE)
+                {
+                    block->entities[block->at] = entity;
+                    block->at++;
+                    result = true;
+                }
+                else
+                {
+                    auto newBlock = AllocEntityMapBlock(chunk->level, arena);
+                    if (newBlock)
                     {
-                        entry->nextIndex = 0;
-                        entry->ptr = entity;
-                        resultEntry = entry;
-                        resultIndex = index;
-                        break;
+                        head->next = newBlock;
+                        newBlock->entities[newBlock->at] = entity;
+                        newBlock->at++;
+                        newBlock->next = block;
+                        result = true;
                     }
                 }
-
             }
         }
-
-        for (u32 offset = 0; offset < CHUNK_MAX_ENTITIES; offset++)
-        {
-            u32 index = (hash + offset) & hashMask;
-            auto* entry = chunk->entityMap + index;
-            if (!entry->ptr)
-            {
-                entry->nextIndex = 0;
-                entry->ptr = entity;
-                resultEntry = entry;
-                resultIndex = index;
-                break;
-            }
-        }
-
-        if (resultEntry)
-        {
-            auto* firstEntry = chunk->entityMap + hash;
-            if (firstEntry != resultEntry)
-            {
-                u32 nextEntryIndex = firstEntry->nextIndex;
-                firstEntry->nextIndex = resultIndex;
-                resultEntry->nextIndex = nextEntryIndex;
-            }
-            successfull = true;
-        }
-
-        return successfull;
+        return result;
     }
 
 
@@ -315,57 +380,87 @@ namespace soko
     }
 
     internal bool
-    UnregisterEntityInTile(Chunk* chunk, uv3 tileInChunk, u32 id)
+    UnregisterEntityInTile(Chunk* chunk, uv3 tileInChunk, Entity* e)
     {
-        bool result = false;
-        ChunkEntityMapEntry* prev = 0;
-        ChunkEntityMapEntry* at = 0;
-        while (true)
+        u32 index = GetChunkEntityMapIndex(tileInChunk);
+
+        bool found = false;
+        auto head = chunk->entityMap + index;
+        for (u32 index = 0; index < head->at; index++)
         {
-            Entity* ptr = YieldEntityIdFromTile(chunk, tileInChunk, &at);
-            if (ptr->id == id)
+            if (head->entities[index] == e)
             {
-                if (at->nextIndex)
+                found = true;
+                Entity* newPtr = 0;
+                if (head->next && head->next->at)
                 {
-                    if (!prev)
-                    {
-                        ChunkEntityMapEntry* next = chunk->entityMap + at->nextIndex;
-                        COPY_STRUCT(ChunkEntityMapEntry, at, next);
-                        ZERO_STRUCT(ChunkEntityMapEntry, next);
-                    }
-                    else
-                    {
-                        prev->nextIndex = at->nextIndex;
-                        ZERO_STRUCT(ChunkEntityMapEntry, at);
-                    }
+                    newPtr = head->next->entities[head->next->at - 1];
+                    head->next->at--;
+                }
+                if (newPtr)
+                {
+                    head->entities[index] = newPtr;
                 }
                 else
                 {
-                    ZERO_STRUCT(ChunkEntityMapEntry, at);
+                    head->entities[index] = head->entities[head->at - 1];
+                    head->at--;
                 }
-
-                result = true;
                 break;
             }
-            prev = at;
         }
-        return result;
+
+        if (!found)
+        {
+            auto block = head->next;
+            while (block)
+            {
+                for (u32 index = 0; index < block->at; index++)
+                {
+                    if (block->entities[index] == e)
+                    {
+                        found = true;
+                        Entity* newPtr = 0;
+                        newPtr = head->next->entities[head->next->at - 1];
+                        head->next->at--;
+                        block->entities[index] = newPtr;
+                        goto loopEnd;
+                    }
+                }
+                block = block->next;
+            }
+        loopEnd:;
+        }
+
+        if (found)
+        {
+            auto block = head->next;
+            if (block && !block->at)
+            {
+                head->next = block->next;
+                block->next = chunk->level->freeChunkEntityMapBlocks;
+                chunk->level->freeChunkEntityMapBlocks = block;
+                chunk->level->freeChunkEntityMapBlockCount++;
+                chunk->level->chunkEntityMapBlockCount--;
+            }
+        }
+        return found;
     }
 
     internal bool
-    UnregisterEntityInTile(Level* level, iv3 tile, u32 id)
+    UnregisterEntityInTile(Level* level, iv3 tile, Entity* e)
     {
         iv3 c = GetChunkCoord(tile);
         uv3 t = GetTileCoordInChunk(tile);
         Chunk* chunk = GetChunk(level, c);
-        return UnregisterEntityInTile(chunk, t, id);
+        return UnregisterEntityInTile(chunk, t, e);
     }
 
     internal void
     UnregisterEntityInTile(Chunk* chunk, Entity* entity)
     {
         uv3 t = GetTileCoordInChunk(entity->coord.tile);
-        bool result = UnregisterEntityInTile(chunk, t, entity->id);
+        bool result = UnregisterEntityInTile(chunk, t, entity);
         SOKO_ASSERT(result);
     }
 
@@ -381,7 +476,6 @@ namespace soko
     InitChunk(Level* level, i32 x, i32 y, i32 z)
     {
         Chunk* result = 0;
-
 
         SOKO_ASSERT(x >= LEVEL_MIN_DIM_CHUNKS && x <= LEVEL_MAX_DIM_CHUNKS);
         SOKO_ASSERT(y >= LEVEL_MIN_DIM_CHUNKS && y <= LEVEL_MAX_DIM_CHUNKS);
@@ -400,10 +494,11 @@ namespace soko
             Chunk* chunk = level->chunkTable + index;
             if (!chunk->loaded)
             {
+                chunk->level = level;
                 chunk->loaded = true;
                 chunk->coord = V3I(x, y, z);
                 result = chunk;
-                ZERO_ARRAY(ChunkEntityMapEntry, CHUNK_MAX_ENTITIES, chunk->entityMap);
+                ZERO_ARRAY(ChunkEntityMapResidentBlock, CHUNK_ENTITY_MAP_SIZE, chunk->entityMap);
                 break;
             }
         }
@@ -516,15 +611,15 @@ namespace soko
 
         if (flags & TileOccupancy_Terrain)
         {
-            result = !(tile->value == TileValue_Empty);
+            occupiedByTerrain = !(tile->value == TileValue_Empty);
         }
 
         if (flags & TileOccupancy_Entities)
         {
-            ChunkEntityMapEntry* at = 0;
+            EntityMapIterator it = {};
             while (true)
             {
-                Entity* e = YieldEntityIdFromTile(chunk, tileInChunk, &at);
+                Entity* e = YieldEntityIdFromTile(chunk, tileInChunk, &it);
                 if (!e) break;
                 if (IsSet(*e, EntityFlag_Collides))
                 {
@@ -585,7 +680,7 @@ namespace soko
         }
         RenderGroupPushCommand(gameState->renderGroup,
                                RENDER_COMMAND_END_CHUNK_MESH_BATCH, 0);
-
+#if 0
         for (u32 chunkIndex = 0; chunkIndex < level->chunkTableSize; chunkIndex++)
         {
             Chunk* chunk = level->chunkTable + chunkIndex;
@@ -617,6 +712,7 @@ namespace soko
 
             }
         }
+#endif
 
     }
 

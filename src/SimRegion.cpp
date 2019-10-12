@@ -108,13 +108,23 @@ namespace soko
                         Chunk* chunk = GetChunk(level, x, y, z);
                         if (chunk)
                         {
-                            for (i32 index = 0; index < CHUNK_MAX_ENTITIES; index++)
+                            // TODO: @Cleanup
+                            for (u32 tileZ = 0; tileZ < CHUNK_DIM; tileZ++)
                             {
-                                Entity* entityInTile = (chunk->entityMap + index)->ptr;
-                                if (entityInTile)
+                                for (u32 tileY = 0; tileY < CHUNK_DIM; tileY++)
                                 {
-                                    SimEntity* e = AddEntityToRegion(region, entityInTile);
-                                    SOKO_ASSERT(e);
+                                    for (u32 tileX = 0; tileX < CHUNK_DIM; tileX++)
+                                    {
+                                        EntityMapIterator it = {};
+                                        while (true)
+                                        {
+                                            Entity* entity = YieldEntityIdFromTile(chunk, {tileX, tileY, tileZ}, &it);
+                                            if (!entity) break;
+
+                                            SimEntity* e = AddEntityToRegion(region, entity);
+                                            SOKO_ASSERT(e);
+                                        }
+                                    }
                                 }
                             }
                         }
@@ -130,7 +140,8 @@ namespace soko
     {
         // TODO: Calculate tile coord from sim coord
         auto tile = GetTile(region->level, entity->stored->beginTile);
-        UnregisterEntityInTile(region->level, entity->stored->beginTile, entity->id);
+        UnregisterEntityInTile(region->level, entity->stored->beginTile, entity->stored);
+        UpdateEntitiesInTile(region->level, entity->stored->coord.tile);
     }
 
 
@@ -228,10 +239,10 @@ namespace soko
                     bool recursive = (bool)depth;
                     if (recursive)
                     {
-                        ChunkEntityMapEntry* at = 0;
+                        EntityMapIterator it = {};
                         while (true)
                         {
-                            Entity* e = YieldEntityIdFromTile(level, pushTilePos, &at);
+                            Entity* e = YieldEntityIdFromTile(level, pushTilePos, &it);
                             if (!e) break;
 
                             if (e != stored &&
