@@ -109,10 +109,12 @@ namespace soko::net
                     PlayerAction action = (PlayerAction)slot->inputBuffer.base[inputIndex];
                     if (ActionIsMovement(action))
                     {
+#if 0 // TODO: Use sim regions
                         MoveEntity(level,
                                    slot->player->e,
                                    (Direction)action,
                                    slot->player->reversed);
+#endif
                     }
                     else
                     {

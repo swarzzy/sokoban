@@ -49,7 +49,7 @@ namespace soko
             const Entity* e = level->entities[i];
             while (e)
             {
-                if (e->type != ENTITY_TYPE_PLAYER)
+                if (e->type != EntityType_Player)
                 {
                     SOKO_ASSERT(bufferCapacity);
                     if (!bufferCapacity) goto end;
@@ -106,21 +106,8 @@ namespace soko
                 {
                     level->entities[entityHash] = entity->nextEntity;
                 }
-                if (entity->prevEntityInTile)
-                {
-                    entity->prevEntityInTile->nextEntityInTile = entity->nextEntityInTile;
-                }
-                else
-                {
-                    Tile* tile = GetTile(level, entity->coord.tile);
-                    SOKO_ASSERT(tile);
-                    SOKO_ASSERT(tile->entityList.first->id == entity->id);
-                    tile->entityList.first = entity->nextEntityInTile;
-                }
-                if (entity->nextEntityInTile)
-                {
-                    entity->nextEntityInTile->prevEntityInTile = entity->prevEntityInTile;
-                }
+
+                UnregisterEntityInTile(level, entity);
 
                 level->entityCount--;
                 entity->nextEntity = level->entityFreeList;
@@ -141,7 +128,7 @@ namespace soko
         Tile* tile = GetTile(level, sEntity->tile);
         if (tile)
         {
-            if (tile->value != TILE_VALUE_WALL && TileIsFree(tile))
+            if (tile->value != TileValue_Wall && TileIsFree(level, sEntity->tile))
             {
                 // TODO: Better hash
                 u32 entityHash = sEntity->id % LEVEL_ENTITY_TABLE_SIZE;
@@ -168,13 +155,8 @@ namespace soko
                     level->entitySerialNumber++;
                     level->entityCount++;
 
-                    newEntity->nextEntityInTile = tile->entityList.first;
-                    newEntity->prevEntityInTile = NULL;
-                    if (tile->entityList.first)
-                    {
-                        tile->entityList.first->prevEntityInTile = newEntity;
-                    }
-                    tile->entityList.first = newEntity;
+                    bool registered = RegisterEntityInTile(level, newEntity);
+                    SOKO_ASSERT(registered);
 
                     result = newEntity->id;
                 }
@@ -195,7 +177,7 @@ namespace soko
         Tile* tile = GetTile(level, entity.coord.tile);
         if (tile)
         {
-            if (tile->value != TILE_VALUE_WALL && TileIsFree(tile))
+            if (tile->value != TileValue_Wall && TileIsFree(level, entity.coord.tile))
             {
                 // TODO: Better hash
                 u32 entityId = level->entitySerialNumber + 1;
@@ -211,13 +193,9 @@ namespace soko
 
                     *newEntity = entity;
                     newEntity->id = entityId;
-                    newEntity->nextEntityInTile = tile->entityList.first;
-                    newEntity->prevEntityInTile = NULL;
-                    if (tile->entityList.first)
-                    {
-                        tile->entityList.first->prevEntityInTile = newEntity;
-                    }
-                    tile->entityList.first = newEntity;
+
+                    bool registered = RegisterEntityInTile(level, newEntity);
+                    SOKO_ASSERT(registered);
 
                     result = entityId;
                 }
@@ -239,12 +217,12 @@ namespace soko
         entity.movementSpeed = movementSpeed;
         switch (type)
         {
-        case ENTITY_TYPE_BLOCK:  { entity.flags = ENTITY_FLAG_MOVABLE | ENTITY_FLAG_COLLIDES; } break;
-        case ENTITY_TYPE_PLAYER: { entity.flags = ENTITY_FLAG_MOVABLE | ENTITY_FLAG_COLLIDES | ENTITY_FLAG_PLAYER; } break;
-        case ENTITY_TYPE_PLATE:  { entity.flags = 0; } break;
-        case ENTITY_TYPE_PORTAL: { entity.flags = 0; } break;
-        case ENTITY_TYPE_SPIKES: { entity.flags = 0; } break;
-        case ENTITY_TYPE_BUTTON: { entity.flags = 0; } break;
+        case EntityType_Block:  { entity.flags = EntityFlag_Movable | EntityFlag_Collides; } break;
+        case EntityType_Player: { entity.flags = EntityFlag_Movable | EntityFlag_Collides | EntityFlag_Player; } break;
+        case EntityType_Plate:  { entity.flags = 0; } break;
+        case EntityType_Portal: { entity.flags = 0; } break;
+        case EntityType_Spikes: { entity.flags = 0; } break;
+        case EntityType_Button: { entity.flags = 0; } break;
             INVALID_DEFAULT_CASE;
         }
         result = AddEntity(level, entity);
@@ -330,74 +308,90 @@ namespace soko
 
     // TODO: Update ticks
     internal void
-    UpdateEntitiesInTile(Level* level, Tile* tile)
+    UpdateEntitiesInTile(Level* level, iv3 tile)
     {
-        for (Entity& entity : tile->entityList)
+        ChunkEntityMapEntry* at = 0;
+        while (true)
         {
-            switch (entity.type)
+            Entity* entity = YieldEntityIdFromTile(level, tile, &at);
+            if (!entity) break;
+
+            switch (entity->type)
             {
-            case ENTITY_TYPE_PLATE:
+            case EntityType_Plate:
             {
                 level->platePressed = false;
-                for (Entity& e : tile->entityList)
+                ChunkEntityMapEntry* at = 0;
+                while (true)
                 {
-                    if (&e != &entity)
+                    Entity* e = YieldEntityIdFromTile(level, tile, &at);
+                    if (!e) break;
+
+                    if (e != entity)
                     {
-                        if (e.type == ENTITY_TYPE_BLOCK)
+                        if (e->type == EntityType_Block)
                         {
                             level->platePressed = true;
                         }
                     }
                 }
             } break;
-            case ENTITY_TYPE_PORTAL:
+            case EntityType_Portal:
             {
-                for (Entity& e : tile->entityList)
+                ChunkEntityMapEntry* at = 0;
+                while (true)
                 {
-                    if (&e != &entity)
+                    Entity* e = YieldEntityIdFromTile(level, tile, &at);
+                    if (!e) break;
+
+                    if (e != entity)
                     {
-                        if (IsSet(e, ENTITY_FLAG_MOVABLE))
+                        if (IsSet(*e, EntityFlag_Movable))
                         {
                             // NOTE: No need in flag if teleporting
                             // not no the same tile where portal located
 #if 0
-                            if (IsSet(e, ENTITY_FLAG_JUST_TELEPORTED))
+                            if (IsSet(*e, EntityFlag_JustTeleported))
                             {
-                                UnsetFlag(e, ENTITY_FLAG_JUST_TELEPORTED);
+                                UnsetFlag(*e, EntityFlag_JustTeleported);
                             }
                             else
                             {
-                                SetFlag(e, ENTITY_FLAG_JUST_TELEPORTED);
-                                v3i newCoord = GetEntity(level, entity.bindedPortalID)->coord + DirToUnitOffset(entity.portalDirection);
-                                bool teleported = ChangeEntityLocation(level, &e, newCoord, arena);
+                                SetFlag(*e, EntityFlag_JustTeleported);
+                                v3i newCoord = GetEntity(level, entity->bindedPortalID)->coord + DirToUnitOffset(entity->portalDirection);
+                                bool teleported = ChangeEntityLocation(level, e, newCoord, arena);
                                 if (!teleported)
                                 {
-                                    UnsetFlag(e, ENTITY_FLAG_JUST_TELEPORTED);
+                                    UnsetFlag(*e, EntityFlag_JustTeleported);
                                 }
                             }
 #endif
-                            SetFlag(e, ENTITY_FLAG_JUST_TELEPORTED);
-                            WorldPos newCoord = GetEntity(level, entity.bindedPortalID)->coord;
-                            newCoord.tile += DirToUnitOffset(entity.portalDirection);
-                            bool teleported = ChangeEntityLocation(level, &e, &newCoord);
+                            SetFlag(*e, EntityFlag_JustTeleported);
+                            WorldPos newCoord = GetEntity(level, entity->bindedPortalID)->coord;
+                            newCoord.tile += DirToUnitOffset(entity->portalDirection);
+                            bool teleported = ChangeEntityLocation(level, e, &newCoord);
 
                         }
                     }
                 }
             } break;
-            case ENTITY_TYPE_SPIKES: {
-                for (Entity& e : tile->entityList)
+            case EntityType_Spikes: {
+                ChunkEntityMapEntry* at = 0;
+                while (true)
                 {
-                    if (&e != &entity)
+                    Entity* e = YieldEntityIdFromTile(level, tile, &at);
+                    if (!e) break;
+
+                    if (e != entity)
                     {
-                        if (e.type != ENTITY_TYPE_PLAYER)
+                        if (e->type != EntityType_Player)
                         {
-                            DeleteEntity(level, &e);
+                            DeleteEntity(level, e);
                         }
                     }
                 }
             } break;
-            case ENTITY_TYPE_BUTTON:
+            case EntityType_Button:
             {
                 // TODO: Pass info about entity that causes an update
                 // instead of travercing all entities all the time
@@ -407,7 +401,7 @@ namespace soko
                 {
                     if (e.type == ENTITY_TYPE_BLOCK || e.type == ENTITY_TYPE_PLAYER)
                     {
-                        entity.updateProc(level, &entity, entity.updateProcData);
+                        entity->updateProc(level, &entity, entity->updateProcData);
                         break;
                     }
                 }
@@ -418,23 +412,29 @@ namespace soko
         }
     }
 
+
     internal bool
     ChangeEntityLocation(Level* level, Entity* entity, const WorldPos* desiredCoord)
     {
         bool result = false;
+        iv3 oldCoord = entity->coord.tile;
         Tile* oldTile = GetTile(level, entity->coord.tile);
         SOKO_ASSERT(oldTile);
-        SOKO_ASSERT(oldTile->entityList.first);
+        //SOKO_ASSERT(oldTile->entityList.first);
 
         Tile* desiredTile = GetTile(level, desiredCoord->tile);
         if (desiredTile)
         {
-            bool tileIsFree = desiredTile->value != TILE_VALUE_WALL;
+            bool tileIsFree = desiredTile->value != TileValue_Wall;
             if (tileIsFree)
             {
-                for (Entity& entityInTile : desiredTile->entityList)
+                ChunkEntityMapEntry* at = 0;
+                while (true)
                 {
-                    if (IsSet(entityInTile, ENTITY_FLAG_COLLIDES))
+                    Entity* entityInTile = YieldEntityIdFromTile(level, desiredCoord->tile, &at);
+                    if (!entityInTile) break;
+
+                    if (IsSet(*entityInTile, EntityFlag_Collides))
                     {
                         tileIsFree = false;
                         break;
@@ -443,37 +443,20 @@ namespace soko
             }
             if (tileIsFree)
             {
-                if (entity->prevEntityInTile)
-                {
-                    entity->prevEntityInTile->nextEntityInTile = entity->nextEntityInTile;
-                }
-                else
-                {
-                    oldTile->entityList.first = entity->nextEntityInTile;
-                    if (oldTile->entityList.first)
-                    {
-                        oldTile->entityList.first->prevEntityInTile = NULL;
-                    }
-                }
-
-                entity->nextEntityInTile = desiredTile->entityList.first;
-                entity->prevEntityInTile = NULL;
-                if (desiredTile->entityList.first)
-                {
-                    desiredTile->entityList.first->prevEntityInTile = entity;
-                }
-                desiredTile->entityList.first = entity;
+                UnregisterEntityInTile(level, entity);
                 entity->coord = *desiredCoord;
+                bool registered = RegisterEntityInTile(level, entity);
+                SOKO_ASSERT(registered);
 
-                UpdateEntitiesInTile(level, oldTile);
-                UpdateEntitiesInTile(level, desiredTile);
+                UpdateEntitiesInTile(level, oldCoord);
+                UpdateEntitiesInTile(level, desiredCoord->tile);
 
                 result = true;
             }
         }
         return result;
     }
-
+#if 0
     internal void
     MoveEntity(Level* level, Entity* entity, Direction dir, f32 speed, bool reverse = false, u32 depth = 2)
     {
@@ -500,7 +483,7 @@ namespace soko
         SOKO_ASSERT(oldTile);
         if (desiredTile)
         {
-            if (pushTile && pushTile->value != TILE_VALUE_WALL)
+            if (pushTile && pushTile->value != TileValue_Wall)
             {
                 Entity* entityInTile = pushTile->entityList.first;
                 bool recursive = (bool)depth;
@@ -508,9 +491,9 @@ namespace soko
                 {
                     for (Entity& e : pushTile->entityList)
                     {
-                        if (IsSet(e, ENTITY_FLAG_MOVABLE) &&
-                            IsSet(e, ENTITY_FLAG_COLLIDES) &&
-                            !IsSet(e, ENTITY_FLAG_PLAYER))
+                        if (IsSet(e, EntityFlag_Movable) &&
+                            IsSet(e, EntityFlag_Collides) &&
+                            !IsSet(e, EntityFlag_Player))
                         {
                             // NOTE: Resolve entity collision
                             MoveEntity(level, &e, dir, speed, reverse, depth - 1);
@@ -520,7 +503,7 @@ namespace soko
             }
         }
     }
-
+#endif
     internal void
     DrawEntities(Level* level, GameState* gameState)
     {

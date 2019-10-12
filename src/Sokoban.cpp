@@ -761,10 +761,12 @@ namespace soko
                                 PlayerAction action = (PlayerAction)slot->inputBuffer.base[inputIndex];
                                 if (ActionIsMovement(action))
                                 {
+# if 0 // TODO: Use sim regions
                                     MoveEntity(gameState->session.level,
                                                slot->player->e,
                                                (Direction)action,
                                                slot->player->reversed);
+#endif
                                 }
                                 else
                                 {
@@ -800,22 +802,22 @@ namespace soko
 
             if (JustPressed(AB::KEY_UP))
             {
-                MoveEntity(gameState->session.level, simRegion, player->e->sim, DIRECTION_NORTH, player->e->movementSpeed, player->reversed);
+                MoveEntity(gameState->session.level, simRegion, player->e->sim, Direction_North, player->e->movementSpeed, player->reversed);
             }
 
             if (JustPressed(AB::KEY_DOWN))
             {
-                MoveEntity(gameState->session.level, simRegion, player->e->sim, DIRECTION_SOUTH, player->e->movementSpeed, player->reversed);
+                MoveEntity(gameState->session.level, simRegion, player->e->sim, Direction_South, player->e->movementSpeed, player->reversed);
             }
 
             if (JustPressed(AB::KEY_RIGHT))
             {
-                MoveEntity(gameState->session.level, simRegion, player->e->sim, DIRECTION_EAST, player->e->movementSpeed, player->reversed);
+                MoveEntity(gameState->session.level, simRegion, player->e->sim, Direction_East, player->e->movementSpeed, player->reversed);
             }
 
             if (JustPressed(AB::KEY_LEFT))
             {
-                MoveEntity(gameState->session.level, simRegion, player->e->sim, DIRECTION_WEST, player->e->movementSpeed, player->reversed);
+                MoveEntity(gameState->session.level, simRegion, player->e->sim, Direction_West, player->e->movementSpeed, player->reversed);
             }
 # if 0
             for (u32 i = 0; i < LEVEL_ENTITY_TABLE_SIZE; i++)

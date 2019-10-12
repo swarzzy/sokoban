@@ -152,7 +152,7 @@ namespace soko
 
         switch (dir)
         {
-        case DIRECTION_NORTH:
+        case Direction_North:
         {
 
             u32 ao5 = CalcVertexAO(TileNotEmpty(bdnTile), TileNotEmpty(brTile), TileNotEmpty(c5Tile));
@@ -162,7 +162,7 @@ namespace soko
 
             result = PushChunkMeshQuad(outMesh, arena, vtx5, vtx4, vtx7, vtx6, ao5, ao4, ao7, ao6, val);
         } break;
-        case DIRECTION_SOUTH:
+        case Direction_South:
         {
             u32 ao0 = CalcVertexAO(TileNotEmpty(fdnTile), TileNotEmpty(flTile), TileNotEmpty(c0Tile));
             u32 ao1 = CalcVertexAO(TileNotEmpty(fdnTile), TileNotEmpty(frTile), TileNotEmpty(c1Tile));
@@ -171,7 +171,7 @@ namespace soko
 
             result = PushChunkMeshQuad(outMesh, arena, vtx0, vtx1, vtx2, vtx3, ao0, ao1, ao2, ao3, val);
         } break;
-        case DIRECTION_WEST:
+        case Direction_West:
         {
             u32 ao4 = CalcVertexAO(TileNotEmpty(ldnTile), TileNotEmpty(blTile), TileNotEmpty(c4Tile));
             u32 ao7 = CalcVertexAO(TileNotEmpty(lupTile), TileNotEmpty(blTile), TileNotEmpty(c7Tile));
@@ -180,7 +180,7 @@ namespace soko
 
             result = PushChunkMeshQuad(outMesh, arena, vtx4, vtx0, vtx3, vtx7, ao4, ao0, ao3, ao7, val);
         } break;
-        case DIRECTION_EAST:
+        case Direction_East:
         {
             u32 ao1 = CalcVertexAO(TileNotEmpty(frTile), TileNotEmpty(rdnTile), TileNotEmpty(c1Tile));
             u32 ao2 = CalcVertexAO(TileNotEmpty(frTile), TileNotEmpty(rupTile), TileNotEmpty(c2Tile));
@@ -190,7 +190,7 @@ namespace soko
             result = PushChunkMeshQuad(outMesh, arena, vtx1, vtx5, vtx6, vtx2, ao1, ao5, ao6, ao2, val);
 
         } break;
-        case DIRECTION_UP:
+        case Direction_Up:
         {
             u32 ao3 = CalcVertexAO(TileNotEmpty(fupTile), TileNotEmpty(lupTile), TileNotEmpty(c3Tile));
             u32 ao7 = CalcVertexAO(TileNotEmpty(bupTile), TileNotEmpty(lupTile), TileNotEmpty(c7Tile));
@@ -200,7 +200,7 @@ namespace soko
             result = PushChunkMeshQuad(outMesh, arena, vtx3, vtx2, vtx6, vtx7, ao3, ao2, ao6, ao7, val);
 
         } break;
-        case DIRECTION_DOWN:
+        case Direction_Down:
         {
             u32 ao4 = CalcVertexAO(TileNotEmpty(bdnTile), TileNotEmpty(ldnTile), TileNotEmpty(c4Tile));
             u32 ao0 = CalcVertexAO(TileNotEmpty(fdnTile), TileNotEmpty(ldnTile), TileNotEmpty(c0Tile));
@@ -238,27 +238,27 @@ namespace soko
 
                         if (!TileNotEmpty(upTile))
                         {
-                            result = result && BuildFace(chunk, outMesh, arena, V3I(tileX, tileY, tileZ), DIRECTION_UP);
+                            result = result && BuildFace(chunk, outMesh, arena, V3I(tileX, tileY, tileZ), Direction_Up);
                         }
                         if (!TileNotEmpty(dnTile))
                         {
-                            result = result && BuildFace(chunk, outMesh, arena, V3I(tileX, tileY, tileZ), DIRECTION_DOWN);
+                            result = result && BuildFace(chunk, outMesh, arena, V3I(tileX, tileY, tileZ), Direction_Down);
                         }
                         if (!TileNotEmpty(rTile))
                         {
-                            result = result && BuildFace(chunk, outMesh, arena, V3I(tileX, tileY, tileZ), DIRECTION_EAST);
+                            result = result && BuildFace(chunk, outMesh, arena, V3I(tileX, tileY, tileZ), Direction_East);
                         }
                         if (!TileNotEmpty(lTile))
                         {
-                            result = result && BuildFace(chunk, outMesh, arena, V3I(tileX, tileY, tileZ), DIRECTION_WEST);
+                            result = result && BuildFace(chunk, outMesh, arena, V3I(tileX, tileY, tileZ), Direction_West);
                         }
                         if (!TileNotEmpty(fTile))
                         {
-                            result = result && BuildFace(chunk, outMesh, arena, V3I(tileX, tileY, tileZ), DIRECTION_SOUTH);
+                            result = result && BuildFace(chunk, outMesh, arena, V3I(tileX, tileY, tileZ), Direction_South);
                         }
                         if (!TileNotEmpty(bTile))
                         {
-                            result = result && BuildFace(chunk, outMesh, arena, V3I(tileX, tileY, tileZ), DIRECTION_NORTH);
+                            result = result && BuildFace(chunk, outMesh, arena, V3I(tileX, tileY, tileZ), Direction_North);
                         }
                     }
 

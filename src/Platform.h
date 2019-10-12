@@ -53,7 +53,8 @@ namespace AB
     const i32 INT32_MAX = (i32)(0x7fffffff);
     const f32 FLOAT_MAX = FLT_MAX;
 */
-    constexpr uptr UPTR_MAX = UINTPTR_MAX;
+    constant uptr UPTR_MAX = UINTPTR_MAX;
+    constant u32 U32_MAX = 0xffffffff;
 
     const u32 MOUSE_BUTTONS_COUNT = 5;
 

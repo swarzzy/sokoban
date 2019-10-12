@@ -5,12 +5,16 @@ namespace soko
         u32 id;
         v3 pos;
         Entity* stored;
+#if defined (SOKO_DEBUG)
+        v3i mappedTile;
+#endif
     };
 
     constant u32 SIM_REGION_MAX_ENTITIES = 256;
 
     struct SimRegion
     {
+        Level* level;
         WorldPos origin;
         u32 radius;
         // TODO: Pick size based on entitiesInChunk counter
@@ -43,19 +47,26 @@ namespace soko
     inline SimEntity*
     AddEntityToRegion(SimRegion* region, Entity* e)
     {
-        SOKO_ASSERT(!e->sim, "Multiple sim regions for entities not allowed for now!");
+        // NOTE: Since entity itself is a bucket of tile table
+        // Double mapped entitiles also double map all entities
+        SOKO_ASSERT(!(e->sim && !e->doesMovement), "Multiple entity entries allowed only for transitioning entities!");
         SimEntity* result = 0;
         SimEntity* entry = GetRegionEntityHashMapEntry(region, e->id);
         if (entry)
         {
-            SOKO_ASSERT(entry->id == 0, "Cloned entities are not allowed!");
-            entry->id = e->id;
-            entry->stored = e;
-            entry->pos = GetRelPos(region->origin, e->coord);
-            region->entityCount++;
+            if (!(e->sim && e->doesMovement))
+            {
+                SOKO_ASSERT(entry->id == 0, "Cloned entities are not allowed!");
+                entry->id = e->id;
+                entry->stored = e;
+                entry->pos = GetRelPos(region->origin, e->coord);
+#if defined(SOKO_DEBUG)
+                entry->mappedTile = e->coord.tile;
+#endif
+                region->entityCount++;
 
-            e->sim = entry;
-
+                e->sim = entry;
+            }
             result = entry;
         }
         return result;
@@ -79,6 +90,7 @@ namespace soko
         SimRegion* region = PUSH_STRUCT(frameArena, SimRegion);
         if (region)
         {
+            region->level = level;
             i32 actualRadius = radius - 1;
             SOKO_ASSERT(actualRadius >= 0);
             v3i minBound = GetChunkCoord(origin.tile) - actualRadius;
@@ -96,12 +108,12 @@ namespace soko
                         Chunk* chunk = GetChunk(level, x, y, z);
                         if (chunk)
                         {
-                            for (u32 tileIndex = 0; tileIndex < CHUNK_TILE_COUNT; tileIndex++)
+                            for (i32 index = 0; index < CHUNK_MAX_ENTITIES; index++)
                             {
-                                Tile* tile = chunk->tiles + tileIndex;
-                                for (Entity& entityInTile : tile->entityList)
+                                Entity* entityInTile = (chunk->entityMap + index)->ptr;
+                                if (entityInTile)
                                 {
-                                    SimEntity* e = AddEntityToRegion(region, &entityInTile);
+                                    SimEntity* e = AddEntityToRegion(region, entityInTile);
                                     SOKO_ASSERT(e);
                                 }
                             }
@@ -112,6 +124,15 @@ namespace soko
         }
         return region;
     }
+
+    inline void
+    EndTileTransition(SimRegion* region, SimEntity* entity)
+    {
+        // TODO: Calculate tile coord from sim coord
+        auto tile = GetTile(region->level, entity->stored->beginTile);
+        UnregisterEntityInTile(region->level, entity->stored->beginTile, entity->id);
+    }
+
 
     // TODO: More data oriented architecture
     internal void
@@ -137,6 +158,7 @@ namespace soko
                 v3 pathRemainder = stored->fullPath - e->stored->pathTraveled;
                 e->pos += pathRemainder;
                 stored->doesMovement = false;
+                EndTileTransition(region, e);
             }
         }
     }
@@ -152,7 +174,7 @@ namespace soko
                 UpdateEntity(region, e);
                 iv3 oldTile = e->stored->coord.tile;
                 WorldPos newPos = GetWorldPos(region->origin, e->pos);
-                if (oldTile != newPos.tile)
+                if ((oldTile != newPos.tile) && !e->stored->doesMovement)
                 {
                     if (!ChangeEntityLocation(level, e->stored, &newPos))
                     {
@@ -176,41 +198,52 @@ namespace soko
         Entity* stored = entity->stored;
         if (!stored->doesMovement)
         {
-            stored->doesMovement = true;
-            stored->currentSpeed = speed;
-            stored->movementDirection = dir;
-            stored->fullPath = (v3)DirToUnitOffset(dir) * LEVEL_TILE_SIZE;
-            stored->pathTraveled = {};
-
             v3i desiredPos = stored->coord.tile;
             desiredPos += DirToUnitOffset(dir);
             v3i revDesiredPos = stored->coord.tile;
             revDesiredPos -= DirToUnitOffset(dir);
 
             Tile* desiredTile = GetTile(level, desiredPos);
-            Tile* oldTile = GetTile(level, stored->coord.tile);
-            Tile* pushTile = GetTile(level, reverse ? revDesiredPos : desiredPos);
-
-            SOKO_ASSERT(oldTile);
-            if (desiredTile)
+            if (desiredTile && TileIsFree(level, desiredPos, TileOccupancy_Terrain))
             {
-                if (pushTile && pushTile->value != TILE_VALUE_WALL)
+                // TODO: IMPORTANT: Stop using stored tile position here
+                // and calculate it from sim position
+                stored->doesMovement = true;
+                stored->currentSpeed = speed;
+                stored->movementDirection = dir;
+                stored->fullPath = (v3)DirToUnitOffset(dir) * LEVEL_TILE_SIZE;
+                stored->pathTraveled = {};
+                stored->beginTile = stored->coord.tile;
+
+                Tile* oldTile = GetTile(level, stored->coord.tile);
+                SOKO_ASSERT(oldTile);
+
+                RegisterEntityInTile(level, entity->stored, desiredPos);
+
+                auto pushTilePos = reverse ? revDesiredPos : desiredPos;
+                Tile* pushTile = GetTile(level, pushTilePos);
+
+                if (pushTile && pushTile->value != TileValue_Wall)
                 {
-                    Entity* entityInTile = pushTile->entityList.first;
                     bool recursive = (bool)depth;
                     if (recursive)
                     {
-                        for (Entity& e : pushTile->entityList)
+                        ChunkEntityMapEntry* at = 0;
+                        while (true)
                         {
-                            if (IsSet(e, ENTITY_FLAG_MOVABLE) &&
-                                IsSet(e, ENTITY_FLAG_COLLIDES) &&
-                                !IsSet(e, ENTITY_FLAG_PLAYER))
+                            Entity* e = YieldEntityIdFromTile(level, pushTilePos, &at);
+                            if (!e) break;
+
+                            if (e != stored &&
+                                IsSet(*e, EntityFlag_Movable) &&
+                                IsSet(*e, EntityFlag_Collides) &&
+                                !IsSet(*e, EntityFlag_Player))
                             {
                                 // NOTE: Resolve entity collision
-                                SimEntity* sim = e.sim;
-                                if (!e.sim)
+                                SimEntity* sim = e->sim;
+                                if (!e->sim)
                                 {
-                                    AddEntityToRegion(region, &e);
+                                    AddEntityToRegion(region, e);
                                 }
                                 MoveEntity(level, region, sim, dir, speed, reverse, depth - 1);
                             }

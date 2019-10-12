@@ -68,7 +68,7 @@ namespace soko
         SOKO_ASSERT(renderGroup->commandQueueAt < renderGroup->commandQueueCapacity);
         CommandQueueEntry* renderBucketDest =
             renderGroup->commandQueue + renderGroup->commandQueueAt;
-        COPY_SCALAR(CommandQueueEntry, renderBucketDest, cmd);
+        COPY_STRUCT(CommandQueueEntry, renderBucketDest, cmd);
         renderGroup->commandQueueAt++;
         return renderBucketDest;
     }

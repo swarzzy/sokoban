@@ -44,12 +44,12 @@ namespace soko
         PlayerAction_ToggleInteractionMode,
     };
 
-    static_assert((byte)PlayerAction_MoveNorth == (byte)DIRECTION_NORTH);
-    static_assert((byte)PlayerAction_MoveSouth == (byte)DIRECTION_SOUTH);
-    static_assert((byte)PlayerAction_MoveWest == (byte)DIRECTION_WEST);
-    static_assert((byte)PlayerAction_MoveEast == (byte)DIRECTION_EAST);
-    static_assert((byte)PlayerAction_MoveUp == (byte)DIRECTION_UP);
-    static_assert((byte)PlayerAction_MoveDown == (byte)DIRECTION_DOWN);
+    static_assert((byte)PlayerAction_MoveNorth == (byte)Direction_North);
+    static_assert((byte)PlayerAction_MoveSouth == (byte)Direction_South);
+    static_assert((byte)PlayerAction_MoveWest == (byte)Direction_West);
+    static_assert((byte)PlayerAction_MoveEast == (byte)Direction_East);
+    static_assert((byte)PlayerAction_MoveUp == (byte)Direction_Up);
+    static_assert((byte)PlayerAction_MoveDown == (byte)Direction_Down);
 
 
     inline bool ActionIsMovement(PlayerAction action)

@@ -162,7 +162,6 @@ namespace soko
         return result;
     }
 
-
     inline v3i operator*(v3i l, i32 s)
     {
         return V3I(l.x * s, l.y * s, l.z * s);
@@ -174,37 +173,37 @@ namespace soko
     {
         // NOTE: Movement action values should be same
         // as in PlayerAction enum
-        DIRECTION_INVALID = 0,
-        DIRECTION_NORTH,
-        DIRECTION_SOUTH,
-        DIRECTION_WEST,
-        DIRECTION_EAST,
-        DIRECTION_UP,
-        DIRECTION_DOWN
+        Direction_Invalid = 0,
+        Direction_North,
+        Direction_South,
+        Direction_West,
+        Direction_East,
+        Direction_Up,
+        Direction_Down
     };
 
     enum TileValue
     {
-        TILE_VALUE_EMPTY = 0,
-        TILE_VALUE_WALL,
+        TileValue_Empty = 0,
+        TileValue_Wall,
     };
 
     enum EntityType
     {
-        ENTITY_TYPE_BLOCK,
-        ENTITY_TYPE_PLAYER,
-        ENTITY_TYPE_PLATE,
-        ENTITY_TYPE_PORTAL,
-        ENTITY_TYPE_SPIKES,
-        ENTITY_TYPE_BUTTON
+        EntityType_Block,
+        EntityType_Player,
+        EntityType_Plate,
+        EntityType_Portal,
+        EntityType_Spikes,
+        EntityType_Button
     };
 
     enum EntityFlags : u32
     {
-        ENTITY_FLAG_COLLIDES = (1 << 1),
-        ENTITY_FLAG_MOVABLE = (1 << 2),
-        ENTITY_FLAG_JUST_TELEPORTED = (1 << 3),
-        ENTITY_FLAG_PLAYER = (1 << 4)
+        EntityFlag_Collides = (1 << 1),
+        EntityFlag_Movable = (1 << 2),
+        EntityFlag_JustTeleported = (1 << 3),
+        EntityFlag_Player = (1 << 4)
     };
 
     struct Level;
@@ -243,6 +242,7 @@ namespace soko
         v3 fullPath;
         v3 pathTraveled;
         f32 currentSpeed;
+        iv3 beginTile;
 
         f32 movementSpeed;
 
@@ -325,11 +325,24 @@ namespace soko
     struct Tile
     {
         // TODO: think about using i16 for less memory footprint
+#if defined(SOKO_DEBUG)
         v3i coord;
+#endif
         TileValue value;
-        TileEntityList entityList;
+        //TileEntityList entityList;
     };
 
+
+    constant u32 CHUNK_MAX_ENTITIES = CHUNK_DIM * CHUNK_DIM * CHUNK_DIM;
+
+    // TODO: Set keys to invalid val at startup
+    // TODO: Maybe store pointers instead of ids
+    struct ChunkEntityMapEntry
+    {
+        u32 nextIndex;
+        u32 key;
+        Entity* ptr;
+    };
 
     struct Chunk
     {
@@ -338,6 +351,7 @@ namespace soko
         Tile tiles[CHUNK_TILE_COUNT];
         LoadedChunkMesh loadedMesh;
         ChunkMesh mesh;
+        ChunkEntityMapEntry entityMap[CHUNK_MAX_ENTITIES];
         // TODO: Acelleration structure for traversing entities
         // in chunk sequentially
     };

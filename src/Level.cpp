@@ -10,12 +10,12 @@ namespace soko
         v3i result = {};
         switch (dir)
         {
-        case DIRECTION_NORTH: { result = V3I(0, 1, 0); } break;
-        case DIRECTION_SOUTH: { result = V3I(0, -1, 0); } break;
-        case DIRECTION_WEST:  { result = V3I(-1, 0, 0); } break;
-        case DIRECTION_EAST:  { result = V3I(1, 0, 0); } break;
-        case DIRECTION_UP:    { result = V3I(0, 0, 1); } break;
-        case DIRECTION_DOWN:  { result = V3I(0, 0, -1); } break;
+        case Direction_North: { result = V3I(0, 1, 0); } break;
+        case Direction_South: { result = V3I(0, -1, 0); } break;
+        case Direction_West:  { result = V3I(-1, 0, 0); } break;
+        case Direction_East:  { result = V3I(1, 0, 0); } break;
+        case Direction_Up:    { result = V3I(0, 0, 1); } break;
+        case Direction_Down:  { result = V3I(0, 0, -1); } break;
             INVALID_DEFAULT_CASE;
         }
         return result;
@@ -70,6 +70,49 @@ namespace soko
         return origin;
     }
 
+    inline iv3
+    GetChunkCoord(i32 x, i32 y, i32 z)
+    {
+        iv3 result;
+        result.x = x >> CHUNK_BIT_SHIFT;
+        result.y = y >> CHUNK_BIT_SHIFT;
+        result.z = z >> CHUNK_BIT_SHIFT;
+        return result;
+    }
+
+    inline iv3
+    GetChunkCoord(iv3 tile)
+    {
+        return GetChunkCoord(tile.x, tile.y, tile.z);
+    }
+
+    inline uv3
+    GetTileCoordInChunk(i32 x, i32 y, i32 z)
+    {
+        uv3 result;
+        result.x = x & CHUNK_BIT_MASK;
+        result.y = y & CHUNK_BIT_MASK;
+        result.z = z & CHUNK_BIT_MASK;
+        return result;
+    }
+
+    inline uv3
+    GetTileCoordInChunk(iv3 tile)
+    {
+        return GetTileCoordInChunk(tile.x, tile.y, tile.z);
+    }
+
+    inline iv3
+    WorldTileFromChunkTile(iv3 chunk, uv3 chunkTile)
+    {
+        // TODO: Fast implementation
+        iv3 result = chunk * CHUNK_DIM;
+        result.x += (i32)chunkTile.x;
+        result.y += (i32)chunkTile.y;
+        result.z += (i32)chunkTile.z;
+        return result;
+    }
+
     internal Level*
     CreateLevel(AB::MemoryArena* arena, u32 chunksNum)
     {
@@ -95,6 +138,7 @@ namespace soko
         }
         return result;
     }
+
 
     inline Chunk*
     GetChunk(Level* level, i32 x, i32 y, i32 z)
@@ -135,10 +179,209 @@ namespace soko
         return result;
     }
 
+    inline u32
+    ChunkEntityMapHash(uv3 tileInChunk)
+    {
+        SOKO_ASSERT(tileInChunk.x < CHUNK_DIM &&
+                    tileInChunk.y < CHUNK_DIM &&
+                    tileInChunk.z < CHUNK_DIM);
+        u32 hash = tileInChunk.z * CHUNK_DIM * CHUNK_DIM + tileInChunk.y * CHUNK_DIM + tileInChunk.x;
+        return hash;
+    }
+
+    inline Entity*
+    YieldEntityIdFromTile(Chunk* chunk, uv3 tileInChunk, ChunkEntityMapEntry** at)
+    {
+        Entity* result = 0;
+        if (!(*at))
+        {
+            u32 hash = ChunkEntityMapHash(tileInChunk);
+            auto firstEntry = chunk->entityMap + hash;
+            if (firstEntry->ptr)
+            {
+                result = firstEntry->ptr;
+                *at = firstEntry;
+            }
+        }
+        else if ((*at)->nextIndex != 0)
+        {
+            *at = chunk->entityMap + (*at)->nextIndex;
+            result = (*at)->ptr;
+        }
+        return result;
+    }
+
+    inline Entity*
+    YieldEntityIdFromTile(Level* level, iv3 tile, ChunkEntityMapEntry** at)
+    {
+        iv3 c = GetChunkCoord(tile);
+        uv3 t = GetTileCoordInChunk(tile);
+        Chunk* chunk = GetChunk(level, c);
+        return YieldEntityIdFromTile(chunk, t, at);
+    }
+
+    internal bool
+    RegisterEntityInTile(Chunk* chunk, Entity* entity, uv3 tileInChunk)
+    {
+        SOKO_STATIC_ASSERT(IsPowerOfTwo(CHUNK_MAX_ENTITIES));
+        SOKO_STATIC_ASSERT(CHUNK_DIM <= 256, "Using u8 cooridnates in entity map buckets");
+
+        bool successfull = false;
+
+        ChunkEntityMapEntry* resultEntry = 0;
+        u32 resultIndex = 0;
+
+        u32 hashMask = CHUNK_MAX_ENTITIES - 1;
+        u32 hash = ChunkEntityMapHash(tileInChunk);
+
+        auto* firstEntry = chunk->entityMap + hash;
+        if (!firstEntry->ptr)
+        {
+
+        }
+        else
+        {
+            if (firstEntry->key != hash)
+            {
+                for (u32 offset = 1; offset < CHUNK_MAX_ENTITIES; offset++)
+                {
+                    u32 index = (hash + offset) & hashMask;
+                    auto* entry = chunk->entityMap + index;
+                    if (!entry->ptr)
+                    {
+                        entry->nextIndex = 0;
+                        entry->ptr = entity;
+                        resultEntry = entry;
+                        resultIndex = index;
+                        break;
+                    }
+                }
+
+            }
+        }
+
+        for (u32 offset = 0; offset < CHUNK_MAX_ENTITIES; offset++)
+        {
+            u32 index = (hash + offset) & hashMask;
+            auto* entry = chunk->entityMap + index;
+            if (!entry->ptr)
+            {
+                entry->nextIndex = 0;
+                entry->ptr = entity;
+                resultEntry = entry;
+                resultIndex = index;
+                break;
+            }
+        }
+
+        if (resultEntry)
+        {
+            auto* firstEntry = chunk->entityMap + hash;
+            if (firstEntry != resultEntry)
+            {
+                u32 nextEntryIndex = firstEntry->nextIndex;
+                firstEntry->nextIndex = resultIndex;
+                resultEntry->nextIndex = nextEntryIndex;
+            }
+            successfull = true;
+        }
+
+        return successfull;
+    }
+
+
+    inline bool
+    RegisterEntityInTile(Chunk* chunk, Entity* entity)
+    {
+        uv3 t = GetTileCoordInChunk(entity->coord.tile);
+        return RegisterEntityInTile(chunk, entity, t);
+    }
+
+    inline bool
+    RegisterEntityInTile(Level* level, Entity* entity, iv3 tile)
+    {
+        iv3 c = GetChunkCoord(tile);
+        uv3 t = GetTileCoordInChunk(tile);
+        Chunk* chunk = GetChunk(level, c);
+        return RegisterEntityInTile(chunk, entity, t);
+    }
+
+    inline bool
+    RegisterEntityInTile(Level* level, Entity* e)
+    {
+        iv3 c = GetChunkCoord(e->coord.tile);
+        Chunk* chunk = GetChunk(level, c);
+        return RegisterEntityInTile(chunk, e);
+    }
+
+    internal bool
+    UnregisterEntityInTile(Chunk* chunk, uv3 tileInChunk, u32 id)
+    {
+        bool result = false;
+        ChunkEntityMapEntry* prev = 0;
+        ChunkEntityMapEntry* at = 0;
+        while (true)
+        {
+            Entity* ptr = YieldEntityIdFromTile(chunk, tileInChunk, &at);
+            if (ptr->id == id)
+            {
+                if (at->nextIndex)
+                {
+                    if (!prev)
+                    {
+                        ChunkEntityMapEntry* next = chunk->entityMap + at->nextIndex;
+                        COPY_STRUCT(ChunkEntityMapEntry, at, next);
+                        ZERO_STRUCT(ChunkEntityMapEntry, next);
+                    }
+                    else
+                    {
+                        prev->nextIndex = at->nextIndex;
+                        ZERO_STRUCT(ChunkEntityMapEntry, at);
+                    }
+                }
+                else
+                {
+                    ZERO_STRUCT(ChunkEntityMapEntry, at);
+                }
+
+                result = true;
+                break;
+            }
+            prev = at;
+        }
+        return result;
+    }
+
+    internal bool
+    UnregisterEntityInTile(Level* level, iv3 tile, u32 id)
+    {
+        iv3 c = GetChunkCoord(tile);
+        uv3 t = GetTileCoordInChunk(tile);
+        Chunk* chunk = GetChunk(level, c);
+        return UnregisterEntityInTile(chunk, t, id);
+    }
+
+    internal void
+    UnregisterEntityInTile(Chunk* chunk, Entity* entity)
+    {
+        uv3 t = GetTileCoordInChunk(entity->coord.tile);
+        bool result = UnregisterEntityInTile(chunk, t, entity->id);
+        SOKO_ASSERT(result);
+    }
+
+    inline void
+    UnregisterEntityInTile(Level* level, Entity* e)
+    {
+        iv3 c = GetChunkCoord(e->coord.tile);
+        Chunk* chunk = GetChunk(level, c);
+        UnregisterEntityInTile(chunk, e);
+    }
+
     inline Chunk*
     InitChunk(Level* level, i32 x, i32 y, i32 z)
     {
         Chunk* result = 0;
+
 
         SOKO_ASSERT(x >= LEVEL_MIN_DIM_CHUNKS && x <= LEVEL_MAX_DIM_CHUNKS);
         SOKO_ASSERT(y >= LEVEL_MIN_DIM_CHUNKS && y <= LEVEL_MAX_DIM_CHUNKS);
@@ -160,6 +403,7 @@ namespace soko
                 chunk->loaded = true;
                 chunk->coord = V3I(x, y, z);
                 result = chunk;
+                ZERO_ARRAY(ChunkEntityMapEntry, CHUNK_MAX_ENTITIES, chunk->entityMap);
                 break;
             }
         }
@@ -175,7 +419,9 @@ namespace soko
                     {
                         u32 tileIndex = tileZ * CHUNK_DIM * CHUNK_DIM + tileY * CHUNK_DIM + tileX;
                         Tile* tile = result->tiles + tileIndex;
+#if defined(SOKO_DEBUG)
                         tile->coord = V3I(x * CHUNK_DIM + tileX, y * CHUNK_DIM + tileY, z * CHUNK_DIM + tileZ);
+#endif
                     }
                 }
             }
@@ -217,36 +463,10 @@ namespace soko
         return result;
     }
 
-    inline iv3
-    GetChunkCoord(i32 x, i32 y, i32 z)
+    inline Tile*
+    GetTileInChunk(Chunk* chunk, uv3 tileInChunk)
     {
-        iv3 result;
-        result.x = x >> CHUNK_BIT_SHIFT;
-        result.y = y >> CHUNK_BIT_SHIFT;
-        result.z = z >> CHUNK_BIT_SHIFT;
-        return result;
-    }
-
-    inline iv3
-    GetChunkCoord(iv3 tile)
-    {
-        return GetChunkCoord(tile.x, tile.y, tile.z);
-    }
-
-    inline uv3
-    GetTileInChunk(i32 x, i32 y, i32 z)
-    {
-        uv3 result;
-        result.x = x & CHUNK_BIT_MASK;
-        result.y = y & CHUNK_BIT_MASK;
-        result.z = z & CHUNK_BIT_MASK;
-        return result;
-    }
-
-    inline uv3
-    GetTileInChunk(iv3 tile)
-    {
-        return GetTileInChunk(tile.x, tile.y, tile.z);
+        return GetTileInChunk(chunk, tileInChunk.x, tileInChunk.y, tileInChunk.z);
     }
 
     internal Tile*
@@ -259,7 +479,7 @@ namespace soko
         SOKO_ASSERT(z >= LEVEL_MIN_DIM && z <= LEVEL_MAX_DIM);
 
         iv3 c = GetChunkCoord(x, y, z);
-        uv3 t = GetTileInChunk(x, y, z);
+        uv3 t = GetTileCoordInChunk(x, y, z);
 
         Chunk* chunk = GetChunk(level, c.x, c.y, c.z);
 
@@ -279,24 +499,66 @@ namespace soko
 
     // NOTE: Checks if it is allowed to place entity on tile
     // NOT if tile is EMPTY!!!!
+    enum TileOccupancyCheckFlag : u32
+    {
+        TileOccupancy_Terrain = (1 << 0),
+        TileOccupancy_Entities = (1 << 1)
+    };
+
     inline bool
-    TileIsFree(const Tile* tile)
+    TileIsFree(Chunk* chunk, uv3 tileInChunk, u32 flags = TileOccupancy_Terrain | TileOccupancy_Entities)
     {
         bool result = true;
-        result = tile->value == TILE_VALUE_EMPTY;
-        if (result)
+        Tile* tile = GetTileInChunk(chunk, tileInChunk);
+
+        bool occupiedByTerrain = false;
+        bool occupiedByEntities = false;
+
+        if (flags & TileOccupancy_Terrain)
         {
-            for (const Entity& entity : tile->entityList)
+            result = !(tile->value == TileValue_Empty);
+        }
+
+        if (flags & TileOccupancy_Entities)
+        {
+            ChunkEntityMapEntry* at = 0;
+            while (true)
             {
-                if (IsSet(entity, ENTITY_FLAG_COLLIDES))
+                Entity* e = YieldEntityIdFromTile(chunk, tileInChunk, &at);
+                if (!e) break;
+                if (IsSet(*e, EntityFlag_Collides))
                 {
-                    result = false;
+                    occupiedByEntities = true;
                     break;
                 }
             }
         }
+
+        if (flags == TileOccupancy_Terrain)
+        {
+            result = !occupiedByTerrain;
+        }
+        else if (flags == TileOccupancy_Entities)
+        {
+            result = !occupiedByEntities;
+        }
+        else if (flags == (TileOccupancy_Entities | TileOccupancy_Terrain))
+        {
+            result = !occupiedByTerrain && !occupiedByEntities;
+        }
+
         return result;
     }
+
+    inline bool
+    TileIsFree(Level* level, iv3 tile, u32 flags = TileOccupancy_Terrain | TileOccupancy_Entities)
+    {
+        iv3 c = GetChunkCoord(tile);
+        uv3 t = GetTileCoordInChunk(tile);
+        Chunk* chunk = GetChunk(level, c);
+        return TileIsFree(chunk, t, flags);
+    }
+
 
 
     internal void
@@ -323,6 +585,39 @@ namespace soko
         }
         RenderGroupPushCommand(gameState->renderGroup,
                                RENDER_COMMAND_END_CHUNK_MESH_BATCH, 0);
+
+        for (u32 chunkIndex = 0; chunkIndex < level->chunkTableSize; chunkIndex++)
+        {
+            Chunk* chunk = level->chunkTable + chunkIndex;
+            if (chunk)
+            {
+                for (u32 z = 0; z < CHUNK_DIM; z++)
+                {
+                    for (u32 y = 0; y < CHUNK_DIM; y++)
+                    {
+                        for (u32 x = 0; x < CHUNK_DIM; x++)
+                        {
+                            u32 index = ChunkEntityMapHash({x, y, z});
+                            auto entry = chunk->entityMap + index;
+                            if (entry->ptr)
+                            {
+                                v3 camOffset = WorldToRH(GetRelPos(gameState->session.camera.worldPos, {WorldTileFromChunkTile(chunk->coord, {x, y, z}), V3(0.0f)}));
+                                v3 pos = camOffset;
+                                RenderCommandDrawMesh command = {};
+                                command.transform = Translation(pos);
+                                command.mesh = gameState->meshes + EntityMesh_Spikes;
+                                command.material = gameState->materials + EntityMaterial_Spikes;
+                                RenderGroupPushCommand(gameState->renderGroup, RENDER_COMMAND_DRAW_MESH,
+                                                       (void*)&command);
+
+                            }
+                        }
+                    }
+                }
+
+            }
+        }
+
     }
 
 #pragma pack(push, 1)
@@ -460,8 +755,9 @@ namespace soko
                                 z * CHUNK_DIM * CHUNK_DIM +
                                 y * CHUNK_DIM +
                                 x;
-
+#if defined(SOKO_DEBUG)
                             newChunk->tiles[tileIdx].coord = V3I(x, y, z);
+#endif
                             newChunk->tiles[tileIdx].value = sChunk->tiles[tileIdx].value;
                         }
                     }
@@ -566,7 +862,7 @@ namespace soko
                     {
                         Tile* tile = GetTileInChunk(chunk, x, y, 0);
                         SOKO_ASSERT(tile);
-                        tile->value = TILE_VALUE_WALL;
+                        tile->value = TileValue_Wall;
 
                         //if (chunkX == 0 && chunkY == 0)
                         {
@@ -585,7 +881,7 @@ namespace soko
                                 }
                                 Tile* tile1 = GetTileInChunk(chunk, x, y, z);
                                 SOKO_ASSERT(tile1);
-                                tile1->value = TILE_VALUE_WALL;
+                                tile1->value = TileValue_Wall;
                             }
                         }
                     }
@@ -599,8 +895,8 @@ namespace soko
         }
 
         Entity entity1 = {};
-        entity1.type = ENTITY_TYPE_BLOCK;
-        entity1.flags = ENTITY_FLAG_COLLIDES | ENTITY_FLAG_MOVABLE;
+        entity1.type = EntityType_Block;
+        entity1.flags = EntityFlag_Collides | EntityFlag_Movable;
         entity1.coord = MakeWorldPos(5, 7, 1);
         entity1.movementSpeed = 5.0f;
         entity1.mesh = EntityMesh_Cube;
@@ -610,8 +906,8 @@ namespace soko
         //AddEntity(playerLevel)
 
         Entity entity2 = {};
-        entity2.type = ENTITY_TYPE_BLOCK;
-        entity2.flags = ENTITY_FLAG_COLLIDES | ENTITY_FLAG_MOVABLE;
+        entity2.type = EntityType_Block;
+        entity2.flags = EntityFlag_Collides | EntityFlag_Movable;
         entity2.coord = MakeWorldPos(5, 8, 1);
         entity2.mesh = EntityMesh_Cube;
         entity2.movementSpeed = 5.0f;
@@ -620,8 +916,8 @@ namespace soko
         AddEntity(level, entity2);
 
         Entity entity3 = {};
-        entity3.type = ENTITY_TYPE_BLOCK;
-        entity3.flags = ENTITY_FLAG_COLLIDES | ENTITY_FLAG_MOVABLE;
+        entity3.type = EntityType_Block;
+        entity3.flags = EntityFlag_Collides | EntityFlag_Movable;
         entity3.coord = MakeWorldPos(5, 9, 1);
         entity3.mesh = EntityMesh_Cube;
         entity3.material = EntityMaterial_Block;
@@ -630,7 +926,7 @@ namespace soko
         AddEntity(level, entity3);
 
         Entity plate = {};
-        plate.type = ENTITY_TYPE_PLATE;
+        plate.type = EntityType_Plate;
         plate.flags = 0;
         plate.coord = MakeWorldPos(10, 9, 1);
         plate.mesh = EntityMesh_Plate;
@@ -640,31 +936,31 @@ namespace soko
         AddEntity(level, plate);
 
         Entity portal1 = {};
-        portal1.type = ENTITY_TYPE_PORTAL;
+        portal1.type = EntityType_Portal;
         portal1.flags = 0;
         portal1.coord = MakeWorldPos(12, 12, 1);
         portal1.mesh = EntityMesh_Portal;
         portal1.material = EntityMaterial_Portal;
-        portal1.portalDirection = DIRECTION_NORTH;
+        portal1.portalDirection = Direction_North;
 
         Entity* portal1Entity = GetEntity(level, AddEntity(level, portal1));
 
         Entity portal2 = {};
-        portal2.type = ENTITY_TYPE_PORTAL;
+        portal2.type = EntityType_Portal;
         portal2.flags = 0;
         portal2.coord = MakeWorldPos(17, 17, 1);
         portal2.mesh = EntityMesh_Portal;
         portal2.material = EntityMaterial_Portal;
-        portal2.portalDirection = DIRECTION_WEST;
+        portal2.portalDirection = Direction_West;
 
         Entity* portal2Entity = GetEntity(level, AddEntity(level, portal2));
 
         portal1Entity->bindedPortalID = portal2Entity->id;
         portal2Entity->bindedPortalID = portal1Entity->id;
 
-        AddEntity(level, ENTITY_TYPE_SPIKES, V3I(15, 15, 1), 0.0f,
+        AddEntity(level, EntityType_Spikes, V3I(15, 15, 1), 0.0f,
                   EntityMesh_Spikes, EntityMaterial_Spikes);
-        Entity* button = GetEntity(level, AddEntity(level, ENTITY_TYPE_BUTTON, V3I(4, 4, 1), 0.0f,
+        Entity* button = GetEntity(level, AddEntity(level, EntityType_Button, V3I(4, 4, 1), 0.0f,
                                                     EntityMesh_Button, EntityMaterial_Button));
 #if 0
         // TODO: Entity custom behavior

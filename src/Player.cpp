@@ -21,7 +21,7 @@ namespace soko
         if (freePlayerIndex != -1)
         {
 
-            u32 playerId = AddEntity(level, ENTITY_TYPE_PLAYER, coord, 8.0f,
+            u32 playerId = AddEntity(level, EntityType_Player, coord, 8.0f,
                                      EntityMesh_Cube, EntityMaterial_Player);
             if (playerId)
             {

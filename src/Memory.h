@@ -6,7 +6,7 @@
 #define MEGABYTES(mb) ((mb) * 1024llu * 1024llu)
 
 #define COPY_ARRAY(type, elem_count, dest, src) memcpy(dest, src, sizeof(type) * elem_count)
-#define COPY_SCALAR(type, dest, src) memcpy(dest, src, sizeof(type))
+#define COPY_STRUCT(type, dest, src) memcpy(dest, src, sizeof(type))
 #define COPY_BYTES(numBytes, dest, src) memcpy(dest, src, numBytes)
 #define SET_ARRAY(type, elem_count, dest, val) memset(dest, val, sizeof(type) * elem_count)
 #define ZERO_STRUCT(type, dest) memset(dest, 0, sizeof(type))
@@ -128,7 +128,7 @@ namespace AB
             header.stackMark = nullptr;
             header.size = size;
             header.begin = (void*)((byte*)chunk + sizeof(MemoryArena));
-            COPY_SCALAR(MemoryArena, chunk, &header);
+            COPY_STRUCT(MemoryArena, chunk, &header);
             result = (MemoryArena*)chunk;
         }
         return result;

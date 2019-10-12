@@ -1155,7 +1155,7 @@ namespace AB
         header.begin = (void*)((byte*)mem + headerSize);
         header.stackMark = nullptr;
         header.size = size;
-        COPY_SCALAR(MemoryArena, mem, &header);
+        COPY_STRUCT(MemoryArena, mem, &header);
         return (MemoryArena*)mem;
     }
 
