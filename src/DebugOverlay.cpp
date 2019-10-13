@@ -99,7 +99,7 @@ namespace soko
     }
 
     internal void
-    DebugOverlayPushVar(const char* title, v3u var)
+    DebugOverlayPushVar(const char* title, uv3 var)
     {
         if (ImGui::Begin("Debug overlay", NULL,
                          ImGuiWindowFlags_NoMove |
@@ -118,7 +118,7 @@ namespace soko
     }
 
     internal void
-    DebugOverlayPushVar(const char* title, v3i var)
+    DebugOverlayPushVar(const char* title, iv3 var)
     {
         if (ImGui::Begin("Debug overlay", NULL,
                          ImGuiWindowFlags_NoMove |

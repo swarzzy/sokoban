@@ -4,18 +4,18 @@
 
 namespace soko
 {
-    inline v3i
+    inline iv3
     DirToUnitOffset(Direction dir)
     {
-        v3i result = {};
+        iv3 result = {};
         switch (dir)
         {
-        case Direction_North: { result = V3I(0, 1, 0); } break;
-        case Direction_South: { result = V3I(0, -1, 0); } break;
-        case Direction_West:  { result = V3I(-1, 0, 0); } break;
-        case Direction_East:  { result = V3I(1, 0, 0); } break;
-        case Direction_Up:    { result = V3I(0, 0, 1); } break;
-        case Direction_Down:  { result = V3I(0, 0, -1); } break;
+        case Direction_North: { result = IV3(0, 1, 0); } break;
+        case Direction_South: { result = IV3(0, -1, 0); } break;
+        case Direction_West:  { result = IV3(-1, 0, 0); } break;
+        case Direction_East:  { result = IV3(1, 0, 0); } break;
+        case Direction_Up:    { result = IV3(0, 0, 1); } break;
+        case Direction_Down:  { result = IV3(0, 0, -1); } break;
             INVALID_DEFAULT_CASE;
         }
         return result;
@@ -35,7 +35,7 @@ namespace soko
     GetRelPos(WorldPos origin, WorldPos target)
     {
         v3 result = {};
-        v3i tileDiff = target.tile - origin.tile;
+        iv3 tileDiff = target.tile - origin.tile;
         v3 offsetDiff = target.offset - origin.offset;
         result = V3(tileDiff.x * LEVEL_TILE_SIZE, tileDiff.y * LEVEL_TILE_SIZE, tileDiff.z * LEVEL_TILE_SIZE);
         result += offsetDiff;
@@ -55,7 +55,7 @@ namespace soko
         p->offset.y -= tileOffY * LEVEL_TILE_SIZE;
         p->offset.z -= tileOffZ * LEVEL_TILE_SIZE;
 
-        p->tile += V3I(tileOffX, tileOffY, tileOffZ);
+        p->tile += IV3(tileOffX, tileOffY, tileOffZ);
 
         SOKO_ASSERT(p->tile.x <= LEVEL_MAX_DIM && p->tile.x >= LEVEL_MIN_DIM);
         SOKO_ASSERT(p->tile.y <= LEVEL_MAX_DIM && p->tile.y >= LEVEL_MIN_DIM);
@@ -129,7 +129,7 @@ namespace soko
                 for (u32 i = 0; i < chunksNum; i++)
                 {
                     Chunk* chunk = level->chunkTable + i;
-                    chunk->coord = V3I(LEVEL_INVALID_COORD);
+                    chunk->coord = IV3(LEVEL_INVALID_COORD);
                     // NOTE: Reserving null entity
                     level->entityCount = 1;
                 }
@@ -173,7 +173,7 @@ namespace soko
     }
 
     inline Chunk*
-    GetChunk(Level* level, v3i coord)
+    GetChunk(Level* level, iv3 coord)
     {
         Chunk* result = GetChunk(level, coord.x, coord.y, coord.z);
         return result;
@@ -496,7 +496,7 @@ namespace soko
             {
                 chunk->level = level;
                 chunk->loaded = true;
-                chunk->coord = V3I(x, y, z);
+                chunk->coord = IV3(x, y, z);
                 result = chunk;
                 ZERO_ARRAY(ChunkEntityMapResidentBlock, CHUNK_ENTITY_MAP_SIZE, chunk->entityMap);
                 break;
@@ -515,7 +515,7 @@ namespace soko
                         u32 tileIndex = tileZ * CHUNK_DIM * CHUNK_DIM + tileY * CHUNK_DIM + tileX;
                         Tile* tile = result->tiles + tileIndex;
 #if defined(SOKO_DEBUG)
-                        tile->coord = V3I(x * CHUNK_DIM + tileX, y * CHUNK_DIM + tileY, z * CHUNK_DIM + tileZ);
+                        tile->coord = IV3(x * CHUNK_DIM + tileX, y * CHUNK_DIM + tileY, z * CHUNK_DIM + tileZ);
 #endif
                     }
                 }
@@ -525,7 +525,7 @@ namespace soko
     }
 
     inline Chunk*
-    InitChunk(Level* level, v3i coord)
+    InitChunk(Level* level, iv3 coord)
     {
         Chunk* result = InitChunk(level, coord.x, coord.y, coord.z);
         return result;
@@ -586,7 +586,7 @@ namespace soko
     }
 
     inline Tile*
-    GetTile(Level* level, v3i coord)
+    GetTile(Level* level, iv3 coord)
     {
         Tile* result = GetTile(level, coord.x, coord.y, coord.z);
         return result;
@@ -621,7 +621,7 @@ namespace soko
             {
                 Entity* e = YieldEntityIdFromTile(chunk, tileInChunk, &it);
                 if (!e) break;
-                if (IsSet(*e, EntityFlag_Collides))
+                if (IsSet(e, EntityFlag_Collides))
                 {
                     occupiedByEntities = true;
                     break;
@@ -725,7 +725,7 @@ namespace soko
 
     struct SerializedChunk
     {
-        v3i coord;
+        iv3 coord;
         SerializedTile tiles[CHUNK_DIM * CHUNK_DIM * CHUNK_DIM];
     };
 
@@ -852,7 +852,7 @@ namespace soko
                                 y * CHUNK_DIM +
                                 x;
 #if defined(SOKO_DEBUG)
-                            newChunk->tiles[tileIdx].coord = V3I(x, y, z);
+                            newChunk->tiles[tileIdx].coord = IV3(x, y, z);
 #endif
                             newChunk->tiles[tileIdx].value = sChunk->tiles[tileIdx].value;
                         }
@@ -1054,15 +1054,15 @@ namespace soko
         portal1Entity->bindedPortalID = portal2Entity->id;
         portal2Entity->bindedPortalID = portal1Entity->id;
 
-        AddEntity(level, EntityType_Spikes, V3I(15, 15, 1), 0.0f,
+        AddEntity(level, EntityType_Spikes, IV3(15, 15, 1), 0.0f,
                   EntityMesh_Spikes, EntityMaterial_Spikes);
-        Entity* button = GetEntity(level, AddEntity(level, EntityType_Button, V3I(4, 4, 1), 0.0f,
+        Entity* button = GetEntity(level, AddEntity(level, EntityType_Button, IV3(4, 4, 1), 0.0f,
                                                     EntityMesh_Button, EntityMaterial_Button));
 #if 0
         // TODO: Entity custom behavior
         button->updateProc = [](Level* level, Entity* entity, void* data) {
             GameState* gameState = (GameState*)data;
-            AddEntity(level, ENTITY_TYPE_BLOCK, V3I(4, 5, 1),
+            AddEntity(level, ENTITY_TYPE_BLOCK, IV3(4, 5, 1),
                       EntityMesh_Cube, EntityMaterial_Block,
                       gameState->memoryArena);
         };

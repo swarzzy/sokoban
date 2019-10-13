@@ -117,7 +117,7 @@ namespace soko
             // TODO: Player spawn position
             menu->session.sessionArena = levelArena;
             menu->session.level = level;
-            menu->session.controlledPlayer = AddPlayer(&menu->session, V3I(10, 10, 1));
+            menu->session.controlledPlayer = AddPlayer(&menu->session, IV3(10, 10, 1));
             nextState = MainMenu_EnterLevel;
         }
         else
@@ -206,7 +206,7 @@ namespace soko
                 COPY_BYTES(SERVER_MAX_LEVEL_NAME_LEN, server->levelName, menu->levelPathBuffer);
                 //gameState->port = menu->serverConf.port;
                 // TODO: Player placement (level start positions)
-                gameState->session.controlledPlayer = AddPlayer(&gameState->session, V3I(10, 10, 1));
+                gameState->session.controlledPlayer = AddPlayer(&gameState->session, IV3(10, 10, 1));
                 if (gameState->session.controlledPlayer)
                 {
                     if (net::ServerAddPlayer(server,

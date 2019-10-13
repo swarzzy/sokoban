@@ -716,7 +716,7 @@ namespace soko
                                 SOKO_ASSERT(!client->slotsOccupancy[msg->newPlayer.slot]);
                                 client->slotsOccupancy[msg->newPlayer.slot] = 1;
                                 auto* s = client->slots + msg->newPlayer.slot;
-                                v3i coord = V3I(msg->newPlayer.x, msg->newPlayer.y, msg->newPlayer.z);
+                                iv3 coord = IV3(msg->newPlayer.x, msg->newPlayer.y, msg->newPlayer.z);
                                 Player* player = AddPlayer(&gameState->session, coord);
                                 SOKO_ASSERT(player);
                                 s->player = player;
@@ -795,6 +795,7 @@ namespace soko
                                             gameState->session.camera.worldPos,
                                             1);
             Player* player = gameState->session.controlledPlayer;
+            //player->e->sim->pos += V3(GlobalInput.mouseFrameOffsetX, GlobalInput.mouseFrameOffsetY, 0.0f) * 7.0f;
             if (JustPressed(AB::KEY_SPACE))
             {
                 player->reversed = !player->reversed;

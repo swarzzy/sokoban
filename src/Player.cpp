@@ -3,7 +3,7 @@
 namespace soko
 {
     internal Player*
-    AddPlayer(GameSession* session, v3i coord)
+    AddPlayer(GameSession* session, iv3 coord)
     {
         Level* level = session->level;
         Player* p = nullptr;

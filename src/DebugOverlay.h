@@ -8,8 +8,8 @@ namespace soko
     inline bool DebugOverlayBeginCustom();
     inline void DebugOverlayEndCustom();
     internal void DebugOverlayPushStr(const char* string);
-    internal void DebugOverlayPushVar(const char* title, v3u var);
-    internal void DebugOverlayPushVar(const char* title, v3i var);
+    internal void DebugOverlayPushVar(const char* title, uv3 var);
+    internal void DebugOverlayPushVar(const char* title, iv3 var);
     internal void DebugOverlayPushVar(const char* title, v3 var);
     internal void DebugOverlayPushVar(const char* title, v4 var);
     internal void DebugOverlayPushVar(const char* title, u32 var);

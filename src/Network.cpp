@@ -203,7 +203,7 @@ namespace soko::net
                     {
                         // TODO: Aaargh!! Using static
                         static i32 playerCount = 0;
-                        v3i coord = V3I(13 + playerCount, 13, 1);
+                        iv3 coord = IV3(13 + playerCount, 13, 1);
                         playerCount++;
 
                         player = AddPlayer(&gameState->session, coord);
@@ -453,7 +453,7 @@ namespace soko::net
         u32 bufferAt = 0;
         if (msg->succeed)
         {
-            v3i playerCoord = V3I(msg->newPlayer.x, msg->newPlayer.y, msg->newPlayer.z);
+            iv3 playerCoord = IV3(msg->newPlayer.x, msg->newPlayer.y, msg->newPlayer.z);
             Player* player = AddPlayer(&gameState->session, playerCoord);
             if (player)
             {
@@ -470,7 +470,7 @@ namespace soko::net
                     auto nextPlayer = (NewPlayerData*)(buffer + bufferAt);
                     bufferAt += sizeof(NewPlayerData);
 
-                    v3i coord = V3I(nextPlayer->x, nextPlayer->y, nextPlayer->z);
+                    iv3 coord = IV3(nextPlayer->x, nextPlayer->y, nextPlayer->z);
                     Player* player = AddPlayer(&gameState->session, coord);
                     SOKO_ASSERT(player);
                     // TODO: Check for overflow
@@ -542,7 +542,7 @@ namespace soko::net
                     u32 bufferAt = sizeof(ServerJoinResultMsg) + 1;
                     if (msg->succeed)
                     {
-                        v3i playerCoord = V3I(msg->newPlayer.x, msg->newPlayer.y, msg->newPlayer.z);
+                        iv3 playerCoord = IV3(msg->newPlayer.x, msg->newPlayer.y, msg->newPlayer.z);
                         Player* player = AddPlayer(gameState, playerCoord, gameState->memoryArena);
                         if (player)
                         {
@@ -569,7 +569,7 @@ namespace soko::net
                                     auto nextPlayer = (NewPlayerData*)(buffer + bufferAt);
                                     bufferAt += sizeof(NewPlayerData);
 
-                                    v3i coord = V3I(nextPlayer->x, nextPlayer->y, nextPlayer->z);
+                                    iv3 coord = IV3(nextPlayer->x, nextPlayer->y, nextPlayer->z);
                                     Player* player = AddPlayer(gameState, coord, gameState->memoryArena);
                                     SOKO_ASSERT(player);
                                     // TODO: Check for overflow

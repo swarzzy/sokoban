@@ -98,7 +98,7 @@ namespace soko
     }
 
     inline bool
-    BuildFace(Chunk* chunk, ChunkMesh* outMesh, AB::MemoryArena* arena, v3i p, Direction dir)
+    BuildFace(Chunk* chunk, ChunkMesh* outMesh, AB::MemoryArena* arena, iv3 p, Direction dir)
     {
         bool result = false;
 
@@ -238,27 +238,27 @@ namespace soko
 
                         if (!TileNotEmpty(upTile))
                         {
-                            result = result && BuildFace(chunk, outMesh, arena, V3I(tileX, tileY, tileZ), Direction_Up);
+                            result = result && BuildFace(chunk, outMesh, arena, IV3(tileX, tileY, tileZ), Direction_Up);
                         }
                         if (!TileNotEmpty(dnTile))
                         {
-                            result = result && BuildFace(chunk, outMesh, arena, V3I(tileX, tileY, tileZ), Direction_Down);
+                            result = result && BuildFace(chunk, outMesh, arena, IV3(tileX, tileY, tileZ), Direction_Down);
                         }
                         if (!TileNotEmpty(rTile))
                         {
-                            result = result && BuildFace(chunk, outMesh, arena, V3I(tileX, tileY, tileZ), Direction_East);
+                            result = result && BuildFace(chunk, outMesh, arena, IV3(tileX, tileY, tileZ), Direction_East);
                         }
                         if (!TileNotEmpty(lTile))
                         {
-                            result = result && BuildFace(chunk, outMesh, arena, V3I(tileX, tileY, tileZ), Direction_West);
+                            result = result && BuildFace(chunk, outMesh, arena, IV3(tileX, tileY, tileZ), Direction_West);
                         }
                         if (!TileNotEmpty(fTile))
                         {
-                            result = result && BuildFace(chunk, outMesh, arena, V3I(tileX, tileY, tileZ), Direction_South);
+                            result = result && BuildFace(chunk, outMesh, arena, IV3(tileX, tileY, tileZ), Direction_South);
                         }
                         if (!TileNotEmpty(bTile))
                         {
-                            result = result && BuildFace(chunk, outMesh, arena, V3I(tileX, tileY, tileZ), Direction_North);
+                            result = result && BuildFace(chunk, outMesh, arena, IV3(tileX, tileY, tileZ), Direction_North);
                         }
                     }
 

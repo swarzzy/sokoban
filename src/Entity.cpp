@@ -205,7 +205,7 @@ namespace soko
     }
 
     inline u32
-    AddEntity(Level* level, EntityType type, v3i coord, f32 movementSpeed,
+    AddEntity(Level* level, EntityType type, iv3 coord, f32 movementSpeed,
               EntityMesh mesh, EntityMaterial material)
     {
         u32 result = 0;
@@ -250,62 +250,6 @@ namespace soko
     internal bool
     ChangeEntityLocation(Level* level, Entity* entity, const WorldPos* desiredCoord);
 
-    // TODO: More data oriented architecture
-    internal void
-    UpdateEntity(Level* level, Entity* e)
-    {
-        // TODO: Do this on sim region`s entity coords
-        // TODO: We resetting entity offset now.
-        // So if it has some value which was set before, it will be erased.
-        // TODO: Claim both tiles at transition startup:
-        // in which the entity is placed currently
-        // and the tile in which entity will be moved. Free
-        // old tile at the end of transition.
-        // Introduce consistent notion of transition
-
-        if (e->doesMovement)
-        {
-            e->pathTraveled += Normalize(e->fullPath) * e->movementSpeed * GlobalGameDeltaTime * LEVEL_TILE_SIZE;
-
-            if (LengthSq(e->pathTraveled) > LengthSq(e->fullPath))
-            {
-                e->pathTraveled = e->fullPath;
-                e->doesMovement = false;
-            }
-
-            WorldPos newPos = e->coord;
-            if (!e->didTileTransition)
-            {
-                newPos.offset = e->pathTraveled;
-            }
-            else
-            {
-                WorldPos dummy = newPos;
-                dummy.offset = e->pathTraveled;
-                NormalizeWorldPos(&dummy);
-                newPos.offset = dummy.offset;
-            }
-
-            bool transitionFailed = false;
-            NormalizeWorldPos(&newPos);
-            if (newPos.tile != e->coord.tile)
-            {
-                if (!ChangeEntityLocation(level, e, &newPos))
-                {
-                    transitionFailed = true;
-                }
-                e->didTileTransition = true;
-            }
-
-            e->coord.offset = newPos.offset;
-
-            if (transitionFailed)
-            {
-                e->doesMovement = false;
-            }
-        }
-    }
-
     // TODO: Update ticks
     internal void
     UpdateEntitiesInTile(Level* level, iv3 tile)
@@ -346,7 +290,7 @@ namespace soko
 
                     if (e != entity)
                     {
-                        if (IsSet(*e, EntityFlag_Movable))
+                        if (IsSet(e, EntityFlag_Movable))
                         {
                             // NOTE: No need in flag if teleporting
                             // not no the same tile where portal located
@@ -358,7 +302,7 @@ namespace soko
                             else
                             {
                                 SetFlag(*e, EntityFlag_JustTeleported);
-                                v3i newCoord = GetEntity(level, entity->bindedPortalID)->coord + DirToUnitOffset(entity->portalDirection);
+                                iv3 newCoord = GetEntity(level, entity->bindedPortalID)->coord + DirToUnitOffset(entity->portalDirection);
                                 bool teleported = ChangeEntityLocation(level, e, newCoord, arena);
                                 if (!teleported)
                                 {
@@ -366,7 +310,7 @@ namespace soko
                                 }
                             }
 #endif
-                            SetFlag(*e, EntityFlag_JustTeleported);
+                            SetFlag(e, EntityFlag_JustTeleported);
                             WorldPos newCoord = GetEntity(level, entity->bindedPortalID)->coord;
                             newCoord.tile += DirToUnitOffset(entity->portalDirection);
                             bool teleported = ChangeEntityLocation(level, e, &newCoord);
@@ -434,7 +378,7 @@ namespace soko
                     Entity* entityInTile = YieldEntityIdFromTile(level, desiredCoord->tile, &it);
                     if (!entityInTile) break;
 
-                    if (IsSet(*entityInTile, EntityFlag_Collides))
+                    if (IsSet(entityInTile, EntityFlag_Collides))
                     {
                         tileIsFree = false;
                         break;
@@ -456,54 +400,7 @@ namespace soko
         }
         return result;
     }
-#if 0
-    internal void
-    MoveEntity(Level* level, Entity* entity, Direction dir, f32 speed, bool reverse = false, u32 depth = 2)
-    {
-        if (!entity->doesMovement)
-        {
-            entity->doesMovement = true;
-            entity->didTileTransition = false;
-            entity->movementDirection = dir;
-            WorldPos targetPos = entity->coord;
-            targetPos.tile += DirToUnitOffset(dir);
-            entity->fullPath = GetRelPos(entity->coord, targetPos);
-            entity->pathTraveled = {};
-        }
 
-        v3i desiredPos = entity->coord.tile;
-        desiredPos += DirToUnitOffset(dir);
-        v3i revDesiredPos = entity->coord.tile;
-        revDesiredPos -= DirToUnitOffset(dir);
-
-        Tile* desiredTile = GetTile(level, desiredPos);
-        Tile* oldTile = GetTile(level, entity->coord.tile);
-        Tile* pushTile = GetTile(level, reverse ? revDesiredPos : desiredPos);
-
-        SOKO_ASSERT(oldTile);
-        if (desiredTile)
-        {
-            if (pushTile && pushTile->value != TileValue_Wall)
-            {
-                Entity* entityInTile = pushTile->entityList.first;
-                bool recursive = (bool)depth;
-                if (recursive)
-                {
-                    for (Entity& e : pushTile->entityList)
-                    {
-                        if (IsSet(e, EntityFlag_Movable) &&
-                            IsSet(e, EntityFlag_Collides) &&
-                            !IsSet(e, EntityFlag_Player))
-                        {
-                            // NOTE: Resolve entity collision
-                            MoveEntity(level, &e, dir, speed, reverse, depth - 1);
-                        }
-                    }
-                }
-            }
-        }
-    }
-#endif
     internal void
     DrawEntities(Level* level, GameState* gameState)
     {
@@ -513,7 +410,12 @@ namespace soko
             Entity* entity = level->entities[i];
             while (entity)
             {
-                v3 camOffset = WorldToRH(GetRelPos(gameState->session.camera.worldPos, entity->coord));
+                WorldPos drawCoord = entity->coord;
+                if (!entity->inTransition)
+                {
+                    drawCoord.offset = {};
+                }
+                v3 camOffset = WorldToRH(GetRelPos(gameState->session.camera.worldPos, drawCoord));
                 v3 pos = camOffset;
                 RenderCommandDrawMesh command = {};
                 command.transform = Translation(pos);
@@ -643,7 +545,7 @@ namespace soko
     enum EntityFieldType
     {
         EntityFieldType_u32,
-        EntityFieldType_v3i
+        EntityFieldType_iv3
     };
 
     inline void
@@ -661,9 +563,9 @@ namespace soko
         {
             typeStr = " : u32 = ";
         } break;
-        case EntityFieldType_v3i:
+        case EntityFieldType_iv3:
         {
-            typeStr = " : v3i = ";
+            typeStr = " : iv3 = ";
         } break;
         INVALID_DEFAULT_CASE;
         }
@@ -671,9 +573,9 @@ namespace soko
 
         switch (type)
         {
-        case EntityFieldType_v3i:
+        case EntityFieldType_iv3:
         {
-            v3i* value = (v3i*)val;
+            iv3* value = (iv3*)val;
             AppendEntityStr(str, "{ ", sizeof("{ ") - 1, arena);
             const u32 valueStrSize = 32;
             char valueStr[valueStrSize];
@@ -711,7 +613,7 @@ namespace soko
                    (void*)&((u32)e->type), tempArena);
         WriteField(string, "flags", sizeof("flags") - 1, EntityFieldType_u32,
                    (void*)&e->flags, tempArena);
-        WriteField(string, "coord", sizeof("coord") - 1, EntityFieldType_v3i,
+        WriteField(string, "coord", sizeof("coord") - 1, EntityFieldType_iv3,
                    (void*)&e->coord, tempArena);
         WriteField(string, "boundPortalID", sizeof("boundPortalID") - 1, EntityFieldType_u32,
                    (void*)&e->bindedPortalID, tempArena);
@@ -908,7 +810,7 @@ namespace soko
                         result = true;
                     }
                 } break;
-                case EntityFieldType_v3i:
+                case EntityFieldType_iv3:
                 {
                     if (*tokenizer->at == '{')
                     {
@@ -965,9 +867,9 @@ namespace soko
                                 token->field.type = EntityFieldType_u32;
                                 match = true;
                             }
-                            else if (StringsAreEqual(typeBuffer, "v3i"))
+                            else if (StringsAreEqual(typeBuffer, "iv3"))
                             {
-                                token->field.type = EntityFieldType_v3i;
+                                token->field.type = EntityFieldType_iv3;
                                 match = true;
                             }
                             if (match)
@@ -1048,7 +950,7 @@ namespace soko
         u32 id;
         EntityType type;
         u32 flags;
-        v3i coord;
+        iv3 coord;
         u32 boundPortalID;
         u32 portalDirection;
         u32 mesh;

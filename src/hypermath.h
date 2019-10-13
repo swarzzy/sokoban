@@ -1,4 +1,7 @@
 #pragma once
+// SECTION: uv3
+// SECTION: Vector2
+// SECTION: iv3
 
 //#include <xmmintrin.h>
 #include <math.h>
@@ -142,6 +145,10 @@ namespace hpm
 
         return result;
     }
+
+    //
+    // SECTION: Vector2
+    //
 
     union Vector2
     {
@@ -1181,6 +1188,148 @@ namespace hpm
             result = Normalize(result);
         }
         return result;
+    }
+
+        //
+    // SECTION: uv3
+    //
+
+    union uv3
+    {
+        struct
+        {
+            u32 x, y, z;
+        };
+    };
+
+    inline uv3 V3U(u32 x, u32 y, u32 z)
+    {
+        uv3 result;
+        result.x = x;
+        result.y = y;
+        result.z = z;
+        return result;
+    }
+
+    inline uv3 V3U(u32 a)
+    {
+        uv3 result;
+        result.x = a;
+        result.y = a;
+        result.z = a;
+        return result;
+    }
+
+    inline uv3& operator+=(uv3& l, uv3 r)
+    {
+        l.x += r.x;
+        l.y += r.y;
+        l.z += r.z;
+        return l;
+    }
+
+    inline uv3& operator-=(uv3& l, uv3 r)
+    {
+        l.x -= r.x;
+        l.y -= r.y;
+        l.z -= r.z;
+        return l;
+    }
+
+    inline uv3 operator+(uv3 l, uv3 r)
+    {
+        return V3U(l.x + r.x, l.y + r.y, l.z + r.z);
+    }
+
+    //
+    // SECTION: iv3
+    //
+
+    union iv3
+    {
+        struct
+        {
+            i32 x, y, z;
+        };
+        using v3 = Vector3;
+        explicit operator v3() { return V3((f32)x, (f32)y, (f32)z); }
+    };
+
+    inline bool operator==(const iv3& a, const iv3& b)
+    {
+        bool result = (a.x == b.x && a.y == b.y && a.z == b.z);
+        return result;
+    }
+
+    inline bool operator!=(const iv3& a, const iv3& b)
+    {
+        bool result = !(a == b);
+        return result;
+    }
+
+    inline iv3 IV3(i32 x, i32 y, i32 z)
+    {
+        iv3 result;
+        result.x = x;
+        result.y = y;
+        result.z = z;
+        return result;
+    }
+
+    inline iv3 IV3(i32 a)
+    {
+        iv3 result;
+        result.x = a;
+        result.y = a;
+        result.z = a;
+        return result;
+    }
+
+    inline iv3& operator+=(iv3& l, iv3 r)
+    {
+        l.x += r.x;
+        l.y += r.y;
+        l.z += r.z;
+        return l;
+    }
+
+    inline iv3& operator-=(iv3& l, iv3 r)
+    {
+        l.x -= r.x;
+        l.y -= r.y;
+        l.z -= r.z;
+        return l;
+    }
+
+    inline iv3 operator+(iv3 l, iv3 r)
+    {
+        return IV3(l.x + r.x, l.y + r.y, l.z + r.z);
+    }
+
+    inline iv3 operator+(iv3 l, i32 r)
+    {
+        return IV3(l.x + r, l.y + r, l.z + r);
+    }
+
+    inline iv3 operator-(iv3 l, iv3 r)
+    {
+        return IV3(l.x - r.x, l.y - r.y, l.z - r.z);
+    }
+
+    inline iv3 operator-(iv3 l, i32 r)
+    {
+        return IV3(l.x - r, l.y - r, l.z - r);
+    }
+
+    inline iv3 operator-(iv3 v)
+    {
+        iv3 result = IV3(-v.x, -v.y, -v.z);
+        return result;
+    }
+
+    inline iv3 operator*(iv3 l, i32 s)
+    {
+        return IV3(l.x * s, l.y * s, l.z * s);
     }
 
     bool Inverse(Matrix3* m);
