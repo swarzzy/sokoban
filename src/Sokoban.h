@@ -38,6 +38,7 @@ namespace soko
         Texture specMap;
     };
 
+    struct Renderer;
     struct GameState
     {
         GameMode globalGameMode;
@@ -50,6 +51,7 @@ namespace soko
         RenderGroup* renderGroup;
         Material materials[_EntityMaterial_Count];
         Mesh meshes[_EntityMesh_Count];
+        CubeTexture skybox;
         u32 overlayCorner;
     };
 }

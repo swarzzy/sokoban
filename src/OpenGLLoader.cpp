@@ -484,9 +484,9 @@ namespace AB
         u32 globalVAO;
         funcTable->_glGenVertexArrays(1, &globalVAO);
         funcTable->_glBindVertexArray(globalVAO);
-        funcTable->_glEnable(GL_BLEND);
-        funcTable->_glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-        funcTable->_glBlendEquation(GL_FUNC_ADD);
+        //funcTable->_glEnable(GL_BLEND);
+        //funcTable->_glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+        //funcTable->_glBlendEquation(GL_FUNC_ADD);
         funcTable->_glEnable(GL_DEPTH_TEST);
         funcTable->_glDepthFunc(GL_LESS);
         funcTable->_glEnable(GL_CULL_FACE);

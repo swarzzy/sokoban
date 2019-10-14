@@ -2,12 +2,13 @@
 #include "hypermath.h"
 #undef HYPERMATH_IMPL
 #include "Constants.h"
+#include "Memory.h"
+#include "Platform.h"
 
 #include "RenderGroup.h"
 #include "Camera.h"
 #include "GameSession.h"
 #include "Sokoban.h"
-#include "Memory.h"
 
 #include "FileFormats.h"
 #include "DebugOverlay.h"
@@ -243,6 +244,7 @@ LogAssert(AB::LogLevel level, const char* file, const char* func, u32 line,
 #include "imgui/imgui.h"
 //#include "imgui/imgui_internal.h"
 
+#include "Renderer.cpp"
 #include "Level.cpp"
 #include "Entity.cpp"
 #include "DebugOverlay.cpp"
@@ -586,7 +588,67 @@ namespace soko
             gameState->materials[EntityMaterial_Button] = material;
         }
 
+        {
+            BeginTemporaryMemory(gameState->tempArena);
 
+            i32 backWidth, backHeight, backBpp;
+            unsigned char* backData = stbi_load("../res/skybox/sky_back.png", &backWidth, &backHeight, &backBpp, 3);
+
+            i32 downWidth, downHeight, downBpp;
+            unsigned char* downData = stbi_load("../res/skybox/sky_down.png", &downWidth, &downHeight, &downBpp, 3);
+
+            i32 frontWidth, frontHeight, frontBpp;
+            unsigned char* frontData = stbi_load("../res/skybox/sky_front.png", &frontWidth, &frontHeight, &frontBpp, 3);
+
+            i32 leftWidth, leftHeight, leftBpp;
+            unsigned char* leftData = stbi_load("../res/skybox/sky_left.png", &leftWidth, &leftHeight, &leftBpp, 3);
+
+            i32 rightWidth, rightHeight, rightBpp;
+            unsigned char* rightData = stbi_load("../res/skybox/sky_right.png", &rightWidth, &rightHeight, &rightBpp, 3);
+
+            i32 upWidth, upHeight, upBpp;
+            unsigned char* upData = stbi_load("../res/skybox/sky_up.png", &upWidth, &upHeight, &upBpp, 3);
+
+            CubeTexture texture = {};
+            texture.back.format = GL_RGB8;
+            texture.back.width = backWidth;
+            texture.back.height = backHeight;
+            texture.back.data = backData;
+
+            texture.down.format = GL_RGB8;
+            texture.down.width = downWidth;
+            texture.down.height = downHeight;
+            texture.down.data = downData;
+
+            texture.front.format = GL_RGB8;
+            texture.front.width = frontWidth;
+            texture.front.height = frontHeight;
+            texture.front.data = frontData;
+
+            texture.left.format = GL_RGB8;
+            texture.left.width = leftWidth;
+            texture.left.height = leftHeight;
+            texture.left.data = leftData;
+
+            texture.right.format = GL_RGB8;
+            texture.right.width = rightWidth;
+            texture.right.height = rightHeight;
+            texture.right.data = rightData;
+
+            texture.up.format = GL_RGB8;
+            texture.up.width = upWidth;
+            texture.up.height = upHeight;
+            texture.up.data = upData;
+
+            RendererLoadCubeTexture(&texture);
+            SOKO_ASSERT(texture.gpuHandle);
+
+            EndTemporaryMemory(gameState->tempArena);
+            gameState->skybox = texture;
+        }
+
+        gameState->renderGroup->drawSkybox = true;
+        gameState->renderGroup->skyboxHandle = gameState->skybox.gpuHandle;
 
         //auto* level = gameState->level;
         //gameState->port = 9999;
@@ -917,7 +979,7 @@ namespace soko
 }
 
 #include "RenderGroup.cpp"
-#include "Renderer.cpp"
+//#include "Renderer.cpp"
 
 // NOTE: IMGUI
 #include "imgui/imconfig.h"

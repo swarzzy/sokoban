@@ -78,7 +78,8 @@ namespace soko
 
     constant u32 CHUNK_ENTITY_MAP_SIZE = CHUNK_DIM * CHUNK_DIM * CHUNK_DIM;
 
-    constant u32 CHUNK_ENTITY_MAP_BLOCK_SIZE = 8;
+    // NOTE: 14 perfetly fits in cache line (128 bit)
+    constant u32 CHUNK_ENTITY_MAP_BLOCK_SIZE = 14;
     struct ChunkEntityMapBlock
     {
         ChunkEntityMapBlock* next;

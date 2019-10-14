@@ -113,6 +113,9 @@ namespace soko
         CommandQueueEntry* commandQueue;
         u32 commandQueueCapacity;
         u32 commandQueueAt;
+
+        b32 drawSkybox;
+        u32 skyboxHandle;
     };
 
     RenderGroup* AllocateRenderGroup(AB::MemoryArena* mem,
