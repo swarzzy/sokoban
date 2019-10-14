@@ -113,6 +113,10 @@ namespace soko
             region->origin = origin;
             region->radius = radius;
 
+            //
+            // TODO: IMPORTANT: Optimize this!!!
+            //
+
             for (i32 z = minBound.z; z <= maxBound.z; z++)
             {
                 for (i32 y = minBound.y; y <= maxBound.y; y++)
@@ -222,6 +226,10 @@ namespace soko
     //
     // TODO: Clean this stuff up in the future
     //
+    // NOTE: Entity transitions on region edges does not work correctly for now
+    // It might be not necessary to fix that since we always do regions with
+    // safe margin so player cannot go out of region
+    //
 
     internal bool
     MoveEntity(Level* level, SimRegion* region, SimEntity* entity, Direction dir, f32 speed, bool reverse, u32 depth);
@@ -265,12 +273,11 @@ namespace soko
                             !IsSet(e, EntityFlag_Player))
                         {
                             // NOTE: Resolve entity collision
-                            SimEntity* sim = e->sim;
                             if (!e->sim)
                             {
                                 AddEntityToRegion(region, e);
                             }
-                            result = MoveEntity(level, region, sim, dir, speed, false, depth - 1);
+                            result = MoveEntity(level, region, e->sim, dir, speed, false, depth - 1);
                         }
                     }
                 }
@@ -311,12 +318,11 @@ namespace soko
                             !IsSet(e, EntityFlag_Player))
                         {
                             // NOTE: Resolve entity collision
-                            SimEntity* sim = e->sim;
                             if (!e->sim)
                             {
                                 AddEntityToRegion(region, e);
                             }
-                            result = MoveEntity(level, region, sim, dir, speed, true, depth - 1);
+                            result = MoveEntity(level, region, e->sim, dir, speed, true, depth - 1);
                         }
                     }
                 }
@@ -379,5 +385,68 @@ namespace soko
             }
         }
         return pushTileFree;
+    }
+
+    internal void
+    DrawRegion(const SimRegion* region, GameState* gameState, WorldPos camOrigin)
+    {
+        i32 actualRadius = region->radius - 1;
+        iv3 minBound = GetChunkCoord(region->origin.tile) - actualRadius;
+        iv3 maxBound = GetChunkCoord(region->origin.tile) + actualRadius;
+
+        RenderGroupPushCommand(gameState->renderGroup,
+                               RENDER_COMMAND_BEGIN_CHUNK_MESH_BATCH, 0);
+
+        for (i32 z = minBound.z; z <= maxBound.z; z++)
+        {
+            for (i32 y = minBound.y; y <= maxBound.y; y++)
+            {
+                for (i32 x = minBound.x; x <= maxBound.x; x++)
+                {
+                    Chunk* chunk = GetChunk(region->level, x, y, z);
+                    if (chunk)
+                    {
+                        WorldPos chunkPos = MakeWorldPos(chunk->coord * CHUNK_DIM);
+                        v3 camOffset = WorldToRH(GetRelPos(camOrigin, chunkPos));
+                        v3 offset = camOffset;
+                        RenderCommandPushChunkMesh c = {};
+                        c.offset = offset;
+                        c.meshIndex = chunk->loadedMesh.gpuHandle;
+                        c.quadCount = chunk->loadedMesh.quadCount;
+                        RenderGroupPushCommand(gameState->renderGroup,
+                                               RENDER_COMMAND_PUSH_CHUNK_MESH, (void*)&c);
+                    }
+
+                }
+            }
+        }
+
+        RenderGroupPushCommand(gameState->renderGroup,
+                               RENDER_COMMAND_END_CHUNK_MESH_BATCH, 0);
+
+        for (u32 index = 0; index < SIM_REGION_MAX_ENTITIES; index++)
+        {
+            const SimEntity* e = region->entities + index;
+            if (e->id)
+            {
+                WorldPos wp = e->stored->coord;
+                if (!e->stored->inTransition)
+                {
+                    wp.offset = {};
+                }
+
+                v3 pos = WorldToRH(GetRelPos(camOrigin, wp));
+
+                RenderCommandDrawMesh command = {};
+                command.transform = Translation(pos);
+                //SOKO_ASSERT(entity->mesh);
+                //SOKO_ASSERT(entity->material);
+                command.mesh = gameState->meshes + e->stored->mesh;
+                command.material = gameState->materials + e->stored->material;
+                RenderGroupPushCommand(gameState->renderGroup, RENDER_COMMAND_DRAW_MESH,
+                                       (void*)&command);
+            }
+        }
+
     }
 }

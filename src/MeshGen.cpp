@@ -233,30 +233,37 @@ namespace soko
                         Tile* dnTile = GetTileInChunk(chunk, tileX, tileY, tileZ - 1);
                         Tile* lTile = GetTileInChunk(chunk, tileX - 1, tileY, tileZ);
                         Tile* rTile = GetTileInChunk(chunk, tileX + 1, tileY, tileZ);
-                        Tile* fTile = GetTileInChunk(chunk, tileX, tileY + 1, tileZ);
-                        Tile* bTile = GetTileInChunk(chunk, tileX, tileY - 1, tileZ);
+                        Tile* fTile = GetTileInChunk(chunk, tileX, tileY - 1, tileZ);
+                        Tile* bTile = GetTileInChunk(chunk, tileX, tileY + 1, tileZ);
 
-                        if (!TileNotEmpty(upTile))
+                        bool dnEmpty = (tileZ == 0) ? true : !TileNotEmpty(dnTile);
+                        bool lEmpty  = (tileX == 0) ? true : !TileNotEmpty(lTile);
+                        bool fEmpty  = (tileY == 0) ? true : !TileNotEmpty(fTile);
+                        bool upEmpty = (tileZ == (CHUNK_DIM - 1)) ? true : !TileNotEmpty(upTile);
+                        bool rEmpty  = (tileX == (CHUNK_DIM - 1)) ? true : !TileNotEmpty(rTile);
+                        bool bEmpty  = (tileY == (CHUNK_DIM - 1)) ? true : !TileNotEmpty(bTile);
+
+                        if (upEmpty)
                         {
                             result = result && BuildFace(chunk, outMesh, arena, IV3(tileX, tileY, tileZ), Direction_Up);
                         }
-                        if (!TileNotEmpty(dnTile))
+                        if (dnEmpty)
                         {
                             result = result && BuildFace(chunk, outMesh, arena, IV3(tileX, tileY, tileZ), Direction_Down);
                         }
-                        if (!TileNotEmpty(rTile))
+                        if (rEmpty)
                         {
                             result = result && BuildFace(chunk, outMesh, arena, IV3(tileX, tileY, tileZ), Direction_East);
                         }
-                        if (!TileNotEmpty(lTile))
+                        if (lEmpty)
                         {
                             result = result && BuildFace(chunk, outMesh, arena, IV3(tileX, tileY, tileZ), Direction_West);
                         }
-                        if (!TileNotEmpty(fTile))
+                        if (fEmpty)
                         {
                             result = result && BuildFace(chunk, outMesh, arena, IV3(tileX, tileY, tileZ), Direction_South);
                         }
-                        if (!TileNotEmpty(bTile))
+                        if (bEmpty)
                         {
                             result = result && BuildFace(chunk, outMesh, arena, IV3(tileX, tileY, tileZ), Direction_North);
                         }

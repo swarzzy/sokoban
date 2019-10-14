@@ -655,67 +655,6 @@ namespace soko
     }
 
 
-
-    internal void
-    DrawLevel(Level* level, GameState* gameState)
-    {
-        RenderGroupPushCommand(gameState->renderGroup,
-                               RENDER_COMMAND_BEGIN_CHUNK_MESH_BATCH, 0);
-        // TODO: Sparseness
-        for (u32 chunkIndex = 0; chunkIndex < level->chunkTableSize; chunkIndex++)
-        {
-            Chunk* chunk = level->chunkTable + chunkIndex;
-            if (chunk)// && chunk->coord.x == 0 && chunk->coord.y == 0)
-            {
-                WorldPos chunkPos = MakeWorldPos(chunk->coord * CHUNK_DIM);
-                v3 camOffset = WorldToRH(GetRelPos(gameState->session.camera.worldPos, chunkPos));
-                v3 offset = camOffset;
-                RenderCommandPushChunkMesh c = {};
-                c.offset = offset;
-                c.meshIndex = chunk->loadedMesh.gpuHandle;
-                c.quadCount = chunk->loadedMesh.quadCount;
-                RenderGroupPushCommand(gameState->renderGroup,
-                                       RENDER_COMMAND_PUSH_CHUNK_MESH, (void*)&c);
-            }
-        }
-        RenderGroupPushCommand(gameState->renderGroup,
-                               RENDER_COMMAND_END_CHUNK_MESH_BATCH, 0);
-#if 0
-        for (u32 chunkIndex = 0; chunkIndex < level->chunkTableSize; chunkIndex++)
-        {
-            Chunk* chunk = level->chunkTable + chunkIndex;
-            if (chunk)
-            {
-                for (u32 z = 0; z < CHUNK_DIM; z++)
-                {
-                    for (u32 y = 0; y < CHUNK_DIM; y++)
-                    {
-                        for (u32 x = 0; x < CHUNK_DIM; x++)
-                        {
-                            u32 index = ChunkEntityMapHash({x, y, z});
-                            auto entry = chunk->entityMap + index;
-                            if (entry->ptr)
-                            {
-                                v3 camOffset = WorldToRH(GetRelPos(gameState->session.camera.worldPos, {WorldTileFromChunkTile(chunk->coord, {x, y, z}), V3(0.0f)}));
-                                v3 pos = camOffset;
-                                RenderCommandDrawMesh command = {};
-                                command.transform = Translation(pos);
-                                command.mesh = gameState->meshes + EntityMesh_Spikes;
-                                command.material = gameState->materials + EntityMaterial_Spikes;
-                                RenderGroupPushCommand(gameState->renderGroup, RENDER_COMMAND_DRAW_MESH,
-                                                       (void*)&command);
-
-                            }
-                        }
-                    }
-                }
-
-            }
-        }
-#endif
-
-    }
-
 #pragma pack(push, 1)
 
     struct SerializedTile
@@ -977,7 +916,14 @@ namespace soko
                                 }
                                 Tile* tile1 = GetTileInChunk(chunk, x, y, z);
                                 SOKO_ASSERT(tile1);
-                                tile1->value = TileValue_Wall;
+                                if (y == 15 || x == 15)
+                                {
+                                    tile1->value = TileValue_Empty;
+                                }
+                                else
+                                {
+                                    tile1->value = TileValue_Wall;
+                                }
                             }
                         }
                     }

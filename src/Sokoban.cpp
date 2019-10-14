@@ -851,12 +851,12 @@ namespace soko
 
         else if (gameState->globalGameMode == GAME_MODE_SINGLE)
         {
+            Player* player = gameState->session.controlledPlayer;
             BeginTemporaryMemory(gameState->tempArena, true);
             SimRegion* simRegion = BeginSim(gameState->tempArena,
                                             gameState->session.level,
-                                            gameState->session.camera.worldPos,
-                                            1);
-            Player* player = gameState->session.controlledPlayer;
+                                            player->e->coord,
+                                            2);
             //player->e->sim->pos += V3(GlobalInput.mouseFrameOffsetX, GlobalInput.mouseFrameOffsetY, 0.0f) * 7.0f;
             if (JustPressed(AB::KEY_SPACE))
             {
@@ -882,20 +882,40 @@ namespace soko
             {
                 MoveEntity(gameState->session.level, simRegion, player->e->sim, Direction_West, player->e->movementSpeed, player->reversed);
             }
-# if 0
-            for (u32 i = 0; i < LEVEL_ENTITY_TABLE_SIZE; i++)
+
+            if (JustPressed(AB::KEY_F1))
             {
-                Entity* e = gameState->session.level->entities[i];
-                if (e)
-                {
-                    while (e)
-                    {
-                        UpdateEntity(gameState->session.level, e);
-                        e = e->nextEntity;
-                    }
-                }
+                gameState->session.useDebugCamera = !gameState->session.useDebugCamera;
             }
-#endif
+
+            CameraConfig* camConf = 0;
+            if (gameState->session.useDebugCamera)
+            {
+                UpdateCamera(&gameState->session.debugCamera);
+                camConf = &gameState->session.debugCamera.conf;
+            }
+            else
+            {
+                UpdateCamera(&gameState->session.camera, &player->e->coord);
+                camConf = &gameState->session.camera.conf;
+            }
+
+            RenderGroupSetCamera(gameState->renderGroup, camConf);
+
+            RendererBeginFrame(gameState->renderer, V2(PlatformGlobals.windowWidth, PlatformGlobals.windowHeight));
+            DirectionalLight light = {};
+            light.dir = Normalize(V3(-0.3f, -1.0f, -1.0f));
+            light.ambient = V3(0.3f);
+            light.diffuse = V3(0.8f);
+            light.specular = V3(1.0f);
+            RenderCommandSetDirLight lightCommand = {};
+            lightCommand.light = light;
+            RenderGroupPushCommand(gameState->renderGroup, RENDER_COMMAND_SET_DIR_LIGHT,
+                                   (void*)&lightCommand);
+
+            DrawRegion(simRegion, gameState, gameState->session.camera.worldPos);
+            FlushRenderGroup(gameState->renderer, gameState->renderGroup);
+
             EndSim(gameState->session.level, simRegion);
             EndTemporaryMemory(gameState->tempArena);
 
@@ -905,51 +925,6 @@ namespace soko
             INVALID_CODE_PATH;
         }
 
-        if (JustPressed(AB::KEY_F1))
-        {
-            gameState->session.useDebugCamera = !gameState->session.useDebugCamera;
-        }
-
-        CameraConfig* camConf = 0;
-        if (gameState->session.useDebugCamera)
-        {
-            UpdateCamera(&gameState->session.debugCamera);
-            camConf = &gameState->session.debugCamera.conf;
-        }
-        else
-        {
-            UpdateCamera(&gameState->session.camera);
-            camConf = &gameState->session.camera.conf;
-        }
-
-        RenderGroupSetCamera(gameState->renderGroup, camConf);
-
-        RendererBeginFrame(gameState->renderer, V2(PlatformGlobals.windowWidth, PlatformGlobals.windowHeight));
-        DirectionalLight light = {};
-        light.dir = Normalize(V3(-0.3f, -1.0f, -1.0f));
-        light.ambient = V3(0.3f);
-        light.diffuse = V3(0.8f);
-        light.specular = V3(1.0f);
-        RenderCommandSetDirLight lightCommand = {};
-        lightCommand.light = light;
-        RenderGroupPushCommand(gameState->renderGroup, RENDER_COMMAND_SET_DIR_LIGHT,
-                               (void*)&lightCommand);
-#if 0
-        RenderGroupPushCommand(gameState->renderGroup,
-                               RENDER_COMMAND_BEGIN_CHUNK_MESH_BATCH, 0);
-        RenderCommandPushChunkMesh c = {};
-        c.offset = V3(0.0f);
-        c.meshIndex = gameState->testChunkMesh;
-        c.quadCount = gameState->testMeshQuadCount;
-        RenderGroupPushCommand(gameState->renderGroup,
-                               RENDER_COMMAND_PUSH_CHUNK_MESH, (void*)&c);
-        RenderGroupPushCommand(gameState->renderGroup,
-                               RENDER_COMMAND_END_CHUNK_MESH_BATCH, 0);
-#endif
-
-        DrawLevel(gameState->session.level, gameState);
-        DrawEntities(gameState->session.level, gameState);
-        FlushRenderGroup(gameState->renderer, gameState->renderGroup);
     }
 
     void

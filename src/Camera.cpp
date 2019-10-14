@@ -19,7 +19,6 @@ namespace soko
         debugCamera->moveSmooth = 0.8f;
         debugCamera->rotateSmooth = 0.45f;
 
-        camera->targetPlayer = targetPlayer;
         camera->conf = conf;
         camera->longSmooth = 30.0f;
         camera->latSmooth = 30.0f;
@@ -102,7 +101,7 @@ namespace soko
     }
 
     internal void
-    UpdateCamera(GameCamera* camera)
+    UpdateCamera(GameCamera* camera, const WorldPos* target)
     {
         if (GlobalInput.mouseButtons[AB::MBUTTON_RIGHT].pressedNow)
         {
@@ -152,7 +151,7 @@ namespace soko
         f32 z = camera->distance * Sin(polarAngle) * Cos(longitude);
         f32 y = camera->distance * Cos(polarAngle);
 
-        camera->targetWorldPos = camera->targetPlayer->e->coord;
+        camera->targetWorldPos = *target;
         v3 dist = GetRelPos(camera->targetWorldPos, camera->worldPos);
 #if 1
         v3 relPos = Lerp(dist, V3(0.0f), GlobalAbsDeltaTime * camera->followSpeed);

@@ -401,37 +401,6 @@ namespace soko
         return result;
     }
 
-    internal void
-    DrawEntities(Level* level, GameState* gameState)
-    {
-        // TODO: Entity data oriented storage
-        for (u32 i = 0; i < LEVEL_ENTITY_TABLE_SIZE; i++)
-        {
-            Entity* entity = level->entities[i];
-            while (entity)
-            {
-                WorldPos drawCoord = entity->coord;
-                if (!entity->inTransition)
-                {
-                    drawCoord.offset = {};
-                }
-                v3 camOffset = WorldToRH(GetRelPos(gameState->session.camera.worldPos, drawCoord));
-                v3 pos = camOffset;
-                RenderCommandDrawMesh command = {};
-                command.transform = Translation(pos);
-                //SOKO_ASSERT(entity->mesh);
-                //SOKO_ASSERT(entity->material);
-                command.mesh = gameState->meshes + entity->mesh;
-                command.material = gameState->materials + entity->material;
-                RenderGroupPushCommand(gameState->renderGroup, RENDER_COMMAND_DRAW_MESH,
-                                       (void*)&command);
-
-                entity = entity->nextEntity;
-            }
-        }
-    }
-
-
 #if defined (ENTITY_TEXT_SERIALIZATION)
     // TODO: Templated bucket array?
     // Because it also used for chunk meshing

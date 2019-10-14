@@ -21,7 +21,6 @@ namespace soko
     struct Player;
     struct GameCamera
     {
-        Player* targetPlayer;
         CameraConfig conf;
         f32 longitude;
         f32 latitude;
@@ -42,6 +41,6 @@ namespace soko
         f32 followSpeed;
     };
 
-    internal void UpdateCamera(GameCamera* camera);
+    internal void UpdateCamera(GameCamera* camera, const WorldPos* target);
     internal void UpdateCamera(FPCamera* camera);
 }
