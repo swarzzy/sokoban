@@ -145,28 +145,32 @@ namespace soko
     {
         Chunk* result = 0;
 
-        SOKO_ASSERT(x >= LEVEL_MIN_DIM_CHUNKS && x <= LEVEL_MAX_DIM_CHUNKS);
-        SOKO_ASSERT(y >= LEVEL_MIN_DIM_CHUNKS && y <= LEVEL_MAX_DIM_CHUNKS);
-        SOKO_ASSERT(z >= LEVEL_MIN_DIM_CHUNKS && z <= LEVEL_MAX_DIM_CHUNKS);
-
-        // TODO: Better hash
-        u32 hash = (Abs(x) * 7 + Abs(y) * Abs(13) + Abs(z) * 23) % level->chunkTableSize;
-
-        for (u32 offset = 0; offset < level->chunkTableSize; offset++)
+        if ((x >= LEVEL_MIN_DIM_CHUNKS) &&
+            (x <= LEVEL_MAX_DIM_CHUNKS) &&
+            (y >= LEVEL_MIN_DIM_CHUNKS) &&
+            (y <= LEVEL_MAX_DIM_CHUNKS) &&
+            (z >= LEVEL_MIN_DIM_CHUNKS) &&
+            (z <= LEVEL_MAX_DIM_CHUNKS))
         {
-            u32 index = hash + offset;
-            if (index > (level->chunkTableSize - 1))
+            // TODO: Better hash
+            u32 hash = (Abs(x) * 7 + Abs(y) * Abs(13) + Abs(z) * 23) % level->chunkTableSize;
+
+            for (u32 offset = 0; offset < level->chunkTableSize; offset++)
             {
-                index -= level->chunkTableSize;
-            }
-            Chunk* chunk = level->chunkTable + index;
-            if (chunk->loaded &&
-                chunk->coord.x == x &&
-                chunk->coord.y == y &&
-                chunk->coord.z == z)
-            {
-                result = chunk;
-                break;
+                u32 index = hash + offset;
+                if (index > (level->chunkTableSize - 1))
+                {
+                    index -= level->chunkTableSize;
+                }
+                Chunk* chunk = level->chunkTable + index;
+                if (chunk->loaded &&
+                    chunk->coord.x == x &&
+                    chunk->coord.y == y &&
+                    chunk->coord.z == z)
+                {
+                    result = chunk;
+                    break;
+                }
             }
         }
         return result;

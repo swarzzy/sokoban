@@ -126,23 +126,39 @@ namespace soko
                         Chunk* chunk = GetChunk(level, x, y, z);
                         if (chunk)
                         {
-                            // TODO: @Cleanup
-                            for (u32 tileZ = 0; tileZ < CHUNK_DIM; tileZ++)
-                            {
-                                for (u32 tileY = 0; tileY < CHUNK_DIM; tileY++)
-                                {
-                                    for (u32 tileX = 0; tileX < CHUNK_DIM; tileX++)
-                                    {
-                                        EntityMapIterator it = {};
-                                        while (true)
-                                        {
-                                            Entity* entity = YieldEntityIdFromTile(chunk, {tileX, tileY, tileZ}, &it);
-                                            if (!entity) break;
+                            // TODO: @Speed: Optimize entity gathering from
+                            // Maybe store entities in some additional
+                            // cache-friendly structure
+                            // _or_
+                            // Change chunk entity map so it will be
+                            // more cache-friendly to traverse
 
-                                            SimEntity* e = AddEntityToRegion(region, entity);
-                                            SOKO_ASSERT(e);
-                                        }
+                            for (u32 headBlockindex = 0;
+                                 headBlockindex < CHUNK_ENTITY_MAP_SIZE;
+                                 headBlockindex++)
+                            {
+                                auto head = chunk->entityMap + headBlockindex;
+                                for (u32 headEntityIndex = 0;
+                                     headEntityIndex < head->at;
+                                     headEntityIndex++)
+                                {
+                                    Entity* entity = head->entities[headEntityIndex];
+                                    SimEntity* e = AddEntityToRegion(region, entity);
+                                    SOKO_ASSERT(e);
+                                }
+
+                                auto block = head->next;
+                                while (block)
+                                {
+                                    for (u32 entityIndex = 0;
+                                         entityIndex < block->at;
+                                         entityIndex++)
+                                    {
+                                        Entity* entity = block->entities[entityIndex];
+                                        SimEntity* e = AddEntityToRegion(region, entity);
+                                        SOKO_ASSERT(e);
                                     }
+                                    block = block->next;
                                 }
                             }
                         }

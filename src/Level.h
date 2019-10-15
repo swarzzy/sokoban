@@ -30,9 +30,6 @@ namespace soko
         _EntityMaterial_Count
     };
 
-
-
-
     // NOTE: Should fit in one byte
     enum Direction : u32
     {
