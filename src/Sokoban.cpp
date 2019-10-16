@@ -252,9 +252,12 @@ LogAssert(AB::LogLevel level, const char* file, const char* func, u32 line,
 #include "Player.cpp"
 #include "Network.cpp"
 #include "MeshGen.cpp"
+#include "SimRegion.cpp"
+
+#include "Editor.cpp"
+
 #include "GameMenu.cpp"
 #include "GameSession.cpp"
-#include "SimRegion.cpp"
 
 
 extern "C" GAME_CODE_ENTRY void
@@ -919,6 +922,10 @@ namespace soko
             EndSim(gameState->session.level, simRegion);
             EndTemporaryMemory(gameState->tempArena);
 
+        }
+        else if (gameState->globalGameMode == GAME_MODE_EDITOR)
+        {
+            EditorUpdateAndRender(gameState);
         }
         else
         {

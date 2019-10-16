@@ -32,6 +32,9 @@ namespace soko
     }
 
     inline v3
+    RHToWorld(v3 v) { return WorldToRH(v); }
+
+    inline v3
     GetRelPos(WorldPos origin, WorldPos target)
     {
         v3 result = {};
@@ -69,6 +72,13 @@ namespace soko
         NormalizeWorldPos(&origin);
         return origin;
     }
+
+    inline WorldPos
+    OffsetWorldPos(WorldPos p, v3 offset)
+    {
+        return GetWorldPos(p, offset);
+    }
+
 
     inline iv3
     GetChunkCoord(i32 x, i32 y, i32 z)

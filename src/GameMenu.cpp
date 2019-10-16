@@ -63,10 +63,82 @@ namespace soko
     {
         // TODO: No need for full cleanup here
         MenuCleanup(menu, MainMenu_ModeSelection, MenuCleanup_Common | MenuCleanup_NetSpecific);
+        if(ImGui::Button("Editor", ImVec2(100, 60))) { menu->state = MainMenu_EditorConf; menu->session.gameMode = GAME_MODE_EDITOR; };
         if(ImGui::Button("Single", ImVec2(100, 60))) { menu->state = MainMenu_SingleSelectLevel; menu->session.gameMode = GAME_MODE_SINGLE; };
         if(ImGui::Button("Create session", ImVec2(100, 60))) { menu->state = MainMenu_ConfigureServer; menu->session.gameMode = GAME_MODE_SERVER; };
         if(ImGui::Button("Connect", ImVec2(100, 60))) { menu->state = MainMenu_ConfigureClient; menu->session.gameMode = GAME_MODE_CLIENT; };
         if(ImGui::Button("Gen test level", ImVec2(100, 60))) { menu->state = MainMenu_GenTestLevel; };
+    }
+
+    internal void
+    MenuEditorConf(GameMenu* menu)
+    {
+        ImGui::Text("Editor");
+        ImGui::Separator();
+        ImGui::Text("Name:");
+        ImGui::PushID("level path input");
+        if (ImGui::InputText("", menu->levelPathBuffer, LEVEL_PATH_BUFFER_SIZE))
+        {
+            mbstowcs(menu->wLevelPathBuffer, menu->levelPathBuffer, LEVEL_PATH_BUFFER_SIZE);
+        }
+        ImGui::PopID();
+        ImGui::SameLine();
+        if (ImGui::Button("Load", ImVec2(60, 20)))
+        {
+            if (GetLevelMetaInfo(menu->wLevelPathBuffer, &menu->levelMetaInfo))
+            {
+                menu->state = MainMenu_EditorLoadLevel;
+            }
+        }
+        ImGui::SameLine();
+        if (ImGui::Button("Create", ImVec2(60, 20)))
+        {
+            // TODO: Validate level name
+            menu->state = MainMenu_EditorCreateLevel;
+        }
+    }
+
+    internal void
+    MenuEditorLoadLevel(GameMenu* menu, GameState* gameState)
+    {
+        MainMenuState nextState = MainMenu_SingleSelectLevel;
+        uptr arenaSize = CalcLevelArenaSize(&menu->levelMetaInfo, ENTITY_MEMORY_SIZE_FOR_LEVEL);
+        MemoryArena* levelArena = PLATFORM_QUERY_NEW_ARENA(arenaSize);
+        SOKO_ASSERT(levelArena);
+        // TODO: Remove level from GameState
+        Level* level = InitializeLevel(menu->wLevelPathBuffer, levelArena, gameState);
+        if (level)
+        {
+            // TODO: Player spawn position
+            menu->session.sessionArena = levelArena;
+            menu->session.level = level;
+            //menu->session.controlledPlayer = AddPlayer(&menu->session, IV3(10, 10, 1));
+            nextState = MainMenu_EnterEditor;
+        }
+        else
+        {
+            PLATFORM_FREE_ARENA(levelArena);
+        }
+        menu->state = nextState;
+    }
+
+    internal void
+    MenuEnterEditor(GameMenu* menu, GameState* gameState)
+    {
+        // TODO: @Cleanup: Pull out this general stuff to separate menu stage
+        gameState->globalGameMode = menu->session.gameMode;
+        gameState->session = menu->session;
+        menu->session = {};
+        menu->state = MainMenu_ModeSelection;
+        // TODO: Allocate session in session
+        // arena and store just a pointer in gameState
+        // to avoid copying session to gameState
+        gameState->session.controlledPlayer = 0;
+
+        gameState->session.editorCamera = PUSH_STRUCT(gameState->session.sessionArena, EditorCamera);
+        SOKO_ASSERT(gameState->session.editorCamera);
+        EditorCameraInit(gameState->session.editorCamera);
+        RenderGroupSetCamera(gameState->renderGroup, &gameState->session.editorCamera->conf);
     }
 
     internal void
@@ -446,7 +518,6 @@ namespace soko
         InitCameras(&gameState->session.camera, &gameState->session.debugCamera,
                     gameState->session.controlledPlayer);
         RenderGroupSetCamera(gameState->renderGroup, &gameState->session.camera.conf);
-
     }
 
     internal void
@@ -479,6 +550,10 @@ namespace soko
         case MainMenu_ClientLoadLevel: { ClientLoadLevel(menu, gameState); } break;
         case MainMenu_GenTestLevel: { GenTestLevel(gameState->tempArena); menu->state = MainMenu_ModeSelection; } break;
         case MainMenu_EnterLevel: { MenuEnterLevel(menu, gameState); } break;
+        case MainMenu_EnterEditor: { MenuEnterEditor(menu, gameState); } break;
+        case MainMenu_EditorConf: { MenuEditorConf(menu); } break;
+        case MainMenu_EditorLoadLevel: { MenuEditorLoadLevel(menu, gameState); } break;
+        case MainMenu_EditorCreateLevel: { } break;
         INVALID_DEFAULT_CASE;
         }
 

@@ -63,9 +63,11 @@ namespace soko
         GAME_MODE_MENU = 0,
         GAME_MODE_SINGLE,
         GAME_MODE_CLIENT,
-        GAME_MODE_SERVER
+        GAME_MODE_SERVER,
+        GAME_MODE_EDITOR
     };
 
+    struct EditorCamera;
     struct GameSession
     {
         GameMode gameMode;
@@ -81,8 +83,10 @@ namespace soko
         bool playersOccupancy[SESSION_MAX_PLAYERS];
         Player players[SESSION_MAX_PLAYERS];
 
+        // TODO: Store pointers
         FPCamera debugCamera;
         GameCamera camera;
+        EditorCamera* editorCamera;
         b32 useDebugCamera;
     };
 }

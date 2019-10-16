@@ -4,6 +4,7 @@
 namespace soko
 {
     constant u32 ENTITY_MEMORY_SIZE_FOR_LEVEL = MEGABYTES(1);
+
     enum MainMenuState
     {
         MainMenu_ModeSelection,
@@ -17,6 +18,10 @@ namespace soko
         MainMenu_ClientLoadLevel,
         MainMenu_ClientConnectToServer,
         MainMenu_GenTestLevel,
+        MainMenu_EditorConf,
+        MainMenu_EditorLoadLevel,
+        MainMenu_EditorCreateLevel,
+        MainMenu_EnterEditor,
         MainMenu_Error
     };
 
