@@ -203,6 +203,7 @@ LogAssert(AB::LogLevel level, const char* file, const char* func, u32 line,
             LogAssertV(level, file, func, line, assertStr, nullptr, nullptr);
         }
 
+        // TODO: Bounds checking of using enum classes
         inline bool
         JustPressed(AB::KeyCode code)
         {
@@ -223,6 +224,28 @@ LogAssert(AB::LogLevel level, const char* file, const char* func, u32 line,
             bool result = GlobalInput.keys[(u32)code].pressedNow;
             return result;
         }
+
+       inline bool
+       JustPressed(AB::MouseButton button)
+       {
+           bool result = GlobalInput.mouseButtons[(u32)button].pressedNow && !GlobalInput.mouseButtons[(u32)button].wasPressed;
+           return result;
+       }
+
+       inline bool
+       JustReleased(AB::MouseButton button)
+       {
+           bool result = !GlobalInput.mouseButtons[(u32)button].pressedNow && GlobalInput.mouseButtons[(u32)button].wasPressed;
+           return result;
+       }
+
+       inline bool
+       IsDown(AB::MouseButton button)
+       {
+           bool result = GlobalInput.mouseButtons[(u32)button].pressedNow;
+           return result;
+       }
+
     }
 
 // TODO:: Asserts without message
@@ -906,6 +929,12 @@ namespace soko
             RenderGroupSetCamera(gameState->renderGroup, camConf);
 
             RendererBeginFrame(gameState->renderer, V2(PlatformGlobals.windowWidth, PlatformGlobals.windowHeight));
+
+            v3 beg = gameState->session.camera.conf.position;
+            //v3 ray = gameState->session.camera.mouseRayRH;// + V3(0.1f, .0f, 0.0f);
+
+            //DrawStraightLine(gameState->renderGroup, beg, beg + ray * 10.0f, V3(1.0, 0.0f, 0.0f), 10.0f);
+
             DirectionalLight light = {};
             light.dir = Normalize(V3(-0.3f, -1.0f, -1.0f));
             light.ambient = V3(0.3f);

@@ -136,7 +136,10 @@ namespace soko
         gameState->session.controlledPlayer = 0;
 
         gameState->session.editorCamera = PUSH_STRUCT(gameState->session.sessionArena, EditorCamera);
+        gameState->session.editor = PUSH_STRUCT(gameState->session.sessionArena, Editor);
         SOKO_ASSERT(gameState->session.editorCamera);
+        SOKO_ASSERT(gameState->session.editor);
+        EditorInit(gameState->session.editor);
         EditorCameraInit(gameState->session.editorCamera);
         RenderGroupSetCamera(gameState->renderGroup, &gameState->session.editorCamera->conf);
     }

@@ -68,6 +68,7 @@ namespace soko
     };
 
     struct EditorCamera;
+    struct Editor;
     struct GameSession
     {
         GameMode gameMode;
@@ -78,6 +79,7 @@ namespace soko
         };
         AB::MemoryArena* sessionArena;
         Level* level;
+        Editor* editor;
 
         Player* controlledPlayer;
         bool playersOccupancy[SESSION_MAX_PLAYERS];

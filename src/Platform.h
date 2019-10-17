@@ -55,6 +55,7 @@ namespace AB
 */
     constant uptr UPTR_MAX = UINTPTR_MAX;
     constant u32 U32_MAX = 0xffffffff;
+    constant f32 F32_MAX = FLT_MAX;
 
     const u32 MOUSE_BUTTONS_COUNT = 5;
 

@@ -17,6 +17,10 @@ namespace soko
 
     struct SimRegion
     {
+        // TODO: Store a little array of pointers to chunk in sim region
+        // And traverse chunks from that array, not by using loops and
+        // GetChunk()
+
         Level* level;
         WorldPos origin;
         u32 radius;
@@ -465,4 +469,245 @@ namespace soko
         }
 
     }
+
+    struct IntersectionResult
+    {
+        b32 intersects;
+        f32 tMin;
+        v3 normal;
+    };
+
+    // TODO: Move this to hypermath.h
+    IntersectionResult
+    RayAABBIntersectionSlow(v3 from, v3 ray, const BBoxAligned* aabb)
+    {
+        IntersectionResult result = {};
+        //result.intersects = false;
+
+        f32 tMin = 0.0f;
+        bool hit = false;
+        v3 normal = V3(0.0f);
+
+        if (AbsF32(ray.x) > FLOAT_EPS)
+        {
+            f32 t = (aabb->min.x - from.x) / ray.x;
+            if (t >= 0.0f)
+            {
+                f32 yMin = from.y + ray.y * t;
+                f32 zMin = from.z + ray.z * t;
+                if (yMin >= aabb->min.y && yMin <= aabb->max.y &&
+                    zMin >= aabb->min.z && zMin <= aabb->max.z)
+                {
+                    if (!hit || t < tMin)
+                    {
+                        tMin = t;
+                        normal = V3(-1.0f, 0.0f, 0.0f);
+                    }
+                    hit = true;
+                }
+            }
+        }
+
+        if (AbsF32(ray.x) > FLOAT_EPS)
+        {
+            f32 t = (aabb->max.x - from.x) / ray.x;
+            if (t >= 0.0f)
+            {
+                f32 yMax = from.y + ray.y * t;
+                f32 zMax = from.z + ray.z * t;
+                if (yMax >= aabb->min.y && yMax <= aabb->max.y &&
+                    zMax >= aabb->min.z && zMax <= aabb->max.z)
+                {
+                    if (!hit || t < tMin)
+                    {
+                        tMin = t;
+                        normal = V3(1.0f, 0.0f, 0.0f);
+                    }
+
+                    hit = true;
+                }
+            }
+        }
+
+        if (AbsF32(ray.y) > FLOAT_EPS)
+        {
+            f32 t = (aabb->min.y - from.y) / ray.y;
+            if (t >= 0.0f)
+            {
+                f32 xMin = from.x + ray.x * t;
+                f32 zMin = from.z + ray.z * t;
+                if (xMin >= aabb->min.x && xMin <= aabb->max.x &&
+                    zMin >= aabb->min.z && zMin <= aabb->max.z)
+                {
+                    if (!hit || t < tMin)
+                    {
+                        tMin = t;
+                        normal = V3(0.0f, -1.0f, 0.0f);
+                    }
+
+                    hit = true;
+                }
+            }
+        }
+
+        if (AbsF32(ray.y) > FLOAT_EPS)
+        {
+            f32 t = (aabb->max.y - from.y) / ray.y;
+            if (t >= 0.0f)
+            {
+                f32 xMax = from.x + ray.x * t;
+                f32 zMax = from.z + ray.z * t;
+                if (xMax >= aabb->min.x && xMax <= aabb->max.x &&
+                    zMax >= aabb->min.z && zMax <= aabb->max.z)
+                {
+                    if (!hit || t < tMin)
+                    {
+                        tMin = t;
+                        normal = V3(0.0f, 1.0f, 0.0f);
+                    }
+
+                    hit = true;
+                }
+            }
+        }
+
+        if (AbsF32(ray.z) > FLOAT_EPS)
+        {
+            f32 t = (aabb->min.z - from.z) / ray.z;
+            if (t >= 0.0f)
+            {
+                f32 xMin = from.x + ray.x * t;
+                f32 yMin = from.y + ray.y * t;
+                if (xMin >= aabb->min.x && xMin <= aabb->max.x &&
+                    yMin >= aabb->min.y && yMin <= aabb->max.y)
+                {
+                    if (!hit || t < tMin)
+                    {
+                        tMin = t;
+                        normal = V3(0.0f, 0.0f, -1.0f);
+                    }
+
+                    hit = true;
+                }
+            }
+        }
+
+        if (AbsF32(ray.z) > FLOAT_EPS)
+        {
+            f32 t = (aabb->max.z - from.z) / ray.z;
+            if (t >= 0.0f)
+            {
+                f32 xMax = from.x + ray.x * t;
+                f32 yMax = from.y + ray.y * t;
+                if (xMax >= aabb->min.x && xMax <= aabb->max.x &&
+                    yMax >= aabb->min.y && yMax <= aabb->max.y)
+                {
+                    if (!hit || t < tMin)
+                    {
+                        tMin = t;
+                        normal = V3(0.0f, 0.0f, 1.0f);
+                    }
+
+                    hit = true;
+                }
+            }
+        }
+
+        result.intersects = hit;
+        result.tMin = tMin;
+        result.normal = normal;
+
+        return result;
+    }
+
+    inline BBoxAligned
+    GetChunkAABB(v3 offset)
+    {
+        BBoxAligned result;
+        v3 dim = V3(CHUNK_DIM * LEVEL_TILE_SIZE);
+        result.min = offset;
+        result.max = offset + dim;
+        return result;
+    }
+
+    struct RaycastResult
+    {
+        b32 hit;
+        iv3 tile;
+        f32 tMin;
+    };
+
+    // NOTE: from is the origin of ray's basis
+    // So if camera ray passed, then it should be
+    // region relative camera position
+    internal RaycastResult
+    Raycast(SimRegion* region, v3 from, v3 ray)
+    {
+        RaycastResult result = {};
+
+        i32 actualRadius = region->radius - 1;
+        iv3 minBound = GetChunkCoord(region->origin.tile) - actualRadius;
+        iv3 maxBound = GetChunkCoord(region->origin.tile) + actualRadius;
+
+        result.tMin = F32_MAX;
+
+        // TODO: Store a little array of pointers to chunk in sim region
+        // And traverse chunks from that array, not by using loops and
+        // GetChunk()
+        for (i32 chunkZ = minBound.z; chunkZ <= maxBound.z; chunkZ++)
+        {
+            for (i32 chunkY = minBound.y; chunkY <= maxBound.y; chunkY++)
+            {
+                for (i32 chunkX = minBound.x; chunkX <= maxBound.x; chunkX++)
+                {
+                    v3 chunkSimPos = GetRelPos(region->origin, IV3(chunkX, chunkY, chunkZ) * CHUNK_DIM);
+                    BBoxAligned chunkBBox = GetChunkAABB(chunkSimPos);
+                    auto chunkIntersects = RayAABBIntersectionSlow(from, ray, &chunkBBox);
+
+                    if (chunkIntersects.intersects)
+                    {
+                        // TODO: Chunk query may be faster than ray-aabb intersection
+                        // So maybe query chunk before intersection test
+                        // and then if chunk exists do the test
+                        Chunk* chunk = GetChunk(region->level, chunkX, chunkY, chunkZ);
+                        if (chunk)
+                        {
+                            for (u32 z = 0; z < CHUNK_DIM; z++)
+                            {
+                                for (u32 y = 0; y < CHUNK_DIM; y++)
+                                {
+                                    for (u32 x = 0; x < CHUNK_DIM; x++)
+                                    {
+                                        // TODO: Grids
+                                        // NOTE: Internal is faster
+                                        Tile* tile = GetTileInChunkInternal(chunk, x, y, z);
+                                        SOKO_ASSERT(tile);
+                                        // TODO: TileIsFree?
+                                        if (tile->value)
+                                        {
+                                            iv3 worldPos = WorldTileFromChunkTile({chunkX, chunkY, chunkZ}, {x, y, z});
+                                            v3 simPos = GetRelPos(region->origin, worldPos);
+                                            BBoxAligned aabb;
+                                            aabb.min = simPos - LEVEL_TILE_RADIUS;
+                                            aabb.max = simPos + LEVEL_TILE_RADIUS;
+                                            auto intersection = RayAABBIntersectionSlow(from, ray, &aabb);
+                                            if (intersection.intersects &&
+                                                intersection.tMin < result.tMin)
+                                            {
+                                                result.hit = true;
+                                                result.tMin = intersection.tMin;
+                                                result.tile = worldPos;
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        return result;
+    }
+
 }

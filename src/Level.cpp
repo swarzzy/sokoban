@@ -32,7 +32,14 @@ namespace soko
     }
 
     inline v3
-    RHToWorld(v3 v) { return WorldToRH(v); }
+    RHToWorld(v3 v)
+    {
+        v3 result;
+        result.x = v.x;
+        result.y = -v.z;
+        result.z = v.y;
+        return result;
+    }
 
     inline v3
     GetRelPos(WorldPos origin, WorldPos target)
@@ -44,6 +51,18 @@ namespace soko
         result += offsetDiff;
         return result;
     }
+
+    inline v3
+    GetRelPos(WorldPos origin, iv3 tile)
+    {
+        v3 result = {};
+        iv3 tileDiff = tile - origin.tile;
+        v3 offsetDiff = -origin.offset;
+        result = V3(tileDiff.x * LEVEL_TILE_SIZE, tileDiff.y * LEVEL_TILE_SIZE, tileDiff.z * LEVEL_TILE_SIZE);
+        result += offsetDiff;
+        return result;
+    }
+
 
     inline void
     NormalizeWorldPos(WorldPos* p)

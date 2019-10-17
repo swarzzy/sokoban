@@ -1,7 +1,8 @@
 #pragma once
-// SECTION: uv3
-// SECTION: Vector2
-// SECTION: iv3
+// @SECTION: AABB
+// @SECTION: Vector2
+// @SECTION: uv3
+// @SECTION: iv3
 
 //#include <xmmintrin.h>
 #include <math.h>
@@ -53,6 +54,11 @@ namespace hpm
     inline u32 Abs(i32 value)
     {
         return value >= 0 ? (u32)value : (u32)(-value);
+    }
+
+    inline f32 AbsF32(f32 value)
+    {
+        return fabsf(value);
     }
 
     inline u32 SignBit(f32 val)
@@ -147,7 +153,7 @@ namespace hpm
     }
 
     //
-    // SECTION: Vector2
+    // @SECTION: Vector2
     //
 
     union Vector2
@@ -218,6 +224,15 @@ namespace hpm
         //f128 _packed;
     };
 
+    //
+    // @SECTION: AABB
+    //
+
+    struct BBoxAligned
+    {
+        Vector3 min;
+        Vector3 max;
+    };
 
     union Matrix4
     {
@@ -1190,8 +1205,8 @@ namespace hpm
         return result;
     }
 
-        //
-    // SECTION: uv3
+    //
+    // @SECTION: uv3
     //
 
     union uv3
@@ -1242,7 +1257,7 @@ namespace hpm
     }
 
     //
-    // SECTION: iv3
+    // @SECTION: iv3
     //
 
     union iv3
@@ -1741,7 +1756,6 @@ namespace hpm
 
         return result;
     }
-
 #endif
 
 }

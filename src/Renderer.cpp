@@ -563,6 +563,7 @@ namespace soko
     FlushRenderGroup(Renderer* renderer, RenderGroup* group)
     {
         CameraConfig* camera = &group->cameraConfig;
+
         m4x4 lookAt = LookAtDirRH(camera->position, camera->front, V3(0.0f, 1.0f, 0.0f));
         m4x4 projection = PerspectiveOpenGLRH(camera->fovDeg, camera->aspectRatio,
                                               camera->nearPlane, camera->farPlane);
