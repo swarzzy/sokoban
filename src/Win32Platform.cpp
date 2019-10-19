@@ -835,7 +835,7 @@ namespace AB
         GetModuleFileName(NULL, buffer, bufferSizeBytes / sizeof(TCHAR));
     }
 
-    i64 GetTimestamp()
+    i64 GetTimeStamp()
     {
         i64 time = 0;
 
@@ -1194,7 +1194,7 @@ namespace AB
     {
         AB_CORE_INFO("Aberration engine");
 
-        app->runningTime = AB::GetTimestamp() + 1;
+        app->runningTime = AB::GetTimeStamp() + 1;
 
         _tcscpy(app->windowTitle, TEXT("Sokoban"));
         app->state.windowWidth = 1280;
@@ -1230,6 +1230,8 @@ namespace AB
 
         app->state.functions.QueryNewArena = AllocateArena;
         app->state.functions.FreeArena = FreeArena;
+
+        app->state.functions.GetTimeStamp = GetTimeStamp;
 
         app->state.functions.AllocForImGui = AllocForImGui;
         app->state.functions.FreeForImGui = FreeForImGui;
@@ -1280,6 +1282,7 @@ namespace AB
             soko::ImGui::ImplSokoWin32_NewFrame(app);
             ImGui::NewFrame();
 
+
             if (tickTimer <= 0)
             {
                 tickTimer = 1.0f;
@@ -1329,7 +1332,7 @@ namespace AB
 
             app->state.input.textBufferCount = 0;
 
-            i64 currentTime = GetTimestamp();
+            i64 currentTime = GetTimeStamp();
             // TODO: Is that accurate enough
             app->state.absDeltaTime = (f32)(currentTime - app->runningTime) / (f32)app->performanceFrequency.QuadPart;
             app->runningTime = currentTime;

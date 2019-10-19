@@ -20,7 +20,7 @@ namespace AB
 {
     struct GameCode;
 
-//#define AB_ENABLE_CONSOLE_WINDOW
+#define AB_ENABLE_CONSOLE_WINDOW
 
     const WORD WINSOCK_VER = 0x202;
 

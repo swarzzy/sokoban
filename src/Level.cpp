@@ -4,6 +4,37 @@
 
 namespace soko
 {
+    // TODO: Enum reflection
+    // TODO: Check is these two actually evaluated at compile time
+    constexpr const char*
+    TileValueToString(TileValue value)
+    {
+        const char* result = 0;
+        switch (value)
+        {
+        case TileValue_TileNotExist: { result = "TileValue_TileNotExist"; } break;
+        case TileValue_Empty: { result = "TileValue_Empty"; } break;
+        case TileValue_Wall: { result = "TileValue_Wall"; } break;
+        case TileValue_Stone: { result = "TileValue_Stone"; } break;
+        case TileValue_Grass: { result = "TileValue_Grass"; } break;
+            INVALID_DEFAULT_CASE;
+        }
+        return result;
+    }
+
+    // NOTE: Also returns string for TileValue_TileNotExist
+    constexpr const char**
+    GetTileValueStrings()
+    {
+        local_persist const char* strings[_TileValue_Count] = {};
+
+        for (u32 i = 0; i < _TileValue_Count; i++)
+        {
+            strings[i] = TileValueToString((TileValue)i);
+        }
+        return strings;
+    }
+
     inline iv3
     DirToUnitOffset(Direction dir)
     {
@@ -67,11 +98,9 @@ namespace soko
     inline void
     NormalizeWorldPos(WorldPos* p)
     {
-        // TODO: Checking!!!
-        f32 tileRadius = LEVEL_TILE_SIZE / 2.0f;
-        i32 tileOffX = Floor((p->offset.x + tileRadius) / LEVEL_TILE_SIZE);
-        i32 tileOffY = Floor((p->offset.y + tileRadius) / LEVEL_TILE_SIZE);
-        i32 tileOffZ = Floor((p->offset.z + tileRadius) / LEVEL_TILE_SIZE);
+        i32 tileOffX = Floor((p->offset.x + LEVEL_TILE_RADIUS) / LEVEL_TILE_SIZE);
+        i32 tileOffY = Floor((p->offset.y + LEVEL_TILE_RADIUS) / LEVEL_TILE_SIZE);
+        i32 tileOffZ = Floor((p->offset.z + LEVEL_TILE_RADIUS) / LEVEL_TILE_SIZE);
 
         p->offset.x -= tileOffX * LEVEL_TILE_SIZE;
         p->offset.y -= tileOffY * LEVEL_TILE_SIZE;
@@ -79,9 +108,9 @@ namespace soko
 
         p->tile += IV3(tileOffX, tileOffY, tileOffZ);
 
-        SOKO_ASSERT(p->tile.x <= LEVEL_MAX_DIM && p->tile.x >= LEVEL_MIN_DIM);
-        SOKO_ASSERT(p->tile.y <= LEVEL_MAX_DIM && p->tile.y >= LEVEL_MIN_DIM);
-        SOKO_ASSERT(p->tile.z <= LEVEL_MAX_DIM && p->tile.z >= LEVEL_MIN_DIM);
+        p->tile.x = Clamp(p->tile.x, LEVEL_MIN_DIM, LEVEL_MAX_DIM);
+        p->tile.y = Clamp(p->tile.y, LEVEL_MIN_DIM, LEVEL_MAX_DIM);
+        p->tile.z = Clamp(p->tile.z, LEVEL_MIN_DIM, LEVEL_MAX_DIM);
     }
 
     inline WorldPos
@@ -97,7 +126,6 @@ namespace soko
     {
         return GetWorldPos(p, offset);
     }
-
 
     inline iv3
     GetChunkCoord(i32 x, i32 y, i32 z)
@@ -531,6 +559,7 @@ namespace soko
                 chunk->loaded = true;
                 chunk->coord = IV3(x, y, z);
                 result = chunk;
+                SET_ARRAY(Tile, CHUNK_TILE_COUNT, chunk->tiles, (i32)TileValue_Empty);
                 ZERO_ARRAY(ChunkEntityMapResidentBlock, CHUNK_ENTITY_MAP_SIZE, chunk->entityMap);
                 break;
             }
@@ -547,9 +576,6 @@ namespace soko
                     {
                         u32 tileIndex = tileZ * CHUNK_DIM * CHUNK_DIM + tileY * CHUNK_DIM + tileX;
                         Tile* tile = result->tiles + tileIndex;
-#if defined(SOKO_DEBUG)
-                        tile->coord = IV3(x * CHUNK_DIM + tileX, y * CHUNK_DIM + tileY, z * CHUNK_DIM + tileZ);
-#endif
                     }
                 }
             }
@@ -565,7 +591,7 @@ namespace soko
     }
 
     inline Tile*
-    GetTileInChunkInternal(Chunk* chunk, u32 x, u32 y, u32 z)
+    GetTilePointerInChunkInternal(Chunk* chunk, u32 x, u32 y, u32 z)
     {
         // TODO: Actial check?
         SOKO_ASSERT(x < CHUNK_DIM);
@@ -578,27 +604,27 @@ namespace soko
         return tile;
     }
 
-    inline Tile*
+    inline Tile
     GetTileInChunk(Chunk* chunk, u32 x, u32 y, u32 z)
     {
-        Tile* result = 0;
+        Tile result = { TileValue_TileNotExist };
         if (x < CHUNK_DIM &&
             y < CHUNK_DIM &&
             z < CHUNK_DIM)
         {
-            result = GetTileInChunkInternal(chunk, x, y, z);
+            result = *GetTilePointerInChunkInternal(chunk, x, y, z);
         }
         return result;
     }
 
-    inline Tile*
+    inline Tile
     GetTileInChunk(Chunk* chunk, uv3 tileInChunk)
     {
         return GetTileInChunk(chunk, tileInChunk.x, tileInChunk.y, tileInChunk.z);
     }
 
-    internal Tile*
-    GetTile(Level* level, i32 x, i32 y, i32 z)
+    inline Tile*
+    GetTilePointerInternal(Level* level, i32 x, i32 y, i32 z)
     {
         Tile* result = 0;
         // TODO: Real check instead of asserts
@@ -613,20 +639,117 @@ namespace soko
 
         if (chunk)
         {
-            result = GetTileInChunkInternal(chunk, t.x, t.y, t.z);
+            result = GetTilePointerInChunkInternal(chunk, t.x, t.y, t.z);
         }
         return result;
     }
 
-    inline Tile*
+    inline Tile
+    GetTile(Level* level, i32 x, i32 y, i32 z)
+    {
+        Tile result = { TileValue_TileNotExist };
+        result = *GetTilePointerInternal(level, x, y, z);
+        return result;
+    }
+
+    inline Tile
     GetTile(Level* level, iv3 coord)
     {
-        Tile* result = GetTile(level, coord.x, coord.y, coord.z);
+        Tile result = GetTile(level, coord.x, coord.y, coord.z);
         return result;
+    }
+
+    inline void
+    SetTileInChunkInternal(Chunk* chunk, u32 x, u32 y, u32 z, TileValue value)
+    {
+        SOKO_ASSERT(x < CHUNK_DIM);
+        SOKO_ASSERT(y < CHUNK_DIM);
+        SOKO_ASSERT(z < CHUNK_DIM);
+
+        Tile* tile = chunk->tiles + (z * CHUNK_DIM * CHUNK_DIM + y * CHUNK_DIM + x);
+        if (tile->value != value)
+        {
+            tile->value = value;
+            chunk->dirty = true;
+        }
+    }
+
+    inline void
+    SetTileInChunk(Chunk* chunk, u32 x, u32 y, u32 z, TileValue value)
+    {
+        if (x < CHUNK_DIM &&
+            y < CHUNK_DIM &&
+            z < CHUNK_DIM)
+        {
+            SetTileInChunkInternal(chunk, x, y, z, value);
+        }
+    }
+
+    inline void
+    SetTileInChunk(Chunk* chunk, uv3 tile, TileValue value)
+    {
+        SetTileInChunkInternal(chunk, tile.x, tile.y, tile.z, value);
+    }
+
+    inline void
+    SetTile(Level* level, i32 x, i32 y, i32 z, TileValue value)
+    {
+        // TODO: Real check instead of asserts
+        SOKO_ASSERT(x >= LEVEL_MIN_DIM && x <= LEVEL_MAX_DIM);
+        SOKO_ASSERT(y >= LEVEL_MIN_DIM && y <= LEVEL_MAX_DIM);
+        SOKO_ASSERT(z >= LEVEL_MIN_DIM && z <= LEVEL_MAX_DIM);
+
+        iv3 c = GetChunkCoord(x, y, z);
+        uv3 t = GetTileCoordInChunk(x, y, z);
+
+        Chunk* chunk = GetChunk(level, c.x, c.y, c.z);
+
+        if (chunk)
+        {
+            SetTileInChunkInternal(chunk, t.x, t.y, t.z, value);
+        }
+    }
+
+    inline void
+    SetTile(Level* level, iv3 tile, TileValue value)
+    {
+        SetTile(level, tile.x, tile.y, tile.z, value);
     }
 
     // NOTE: Checks if it is allowed to place entity on tile
     // NOT if tile is EMPTY!!!!
+    inline bool
+    IsTileExists(Tile tile)
+    {
+        bool result = (tile.value != TileValue_TileNotExist);
+        return result;
+    }
+
+    inline bool
+    IsTileOccupiedByTerrain(Tile tile)
+    {
+        bool result = tile.value != TileValue_Empty;
+        return result;
+    }
+
+    inline bool
+    IsTileOccupiedByTerrain(Chunk* chunk, uv3 tileInChunk)
+    {
+        Tile tile = GetTileInChunk(chunk, tileInChunk);
+        bool result = IsTileOccupiedByTerrain(tile);
+        return result;
+    }
+
+    inline bool
+    IsTileOccupiedByTerrain(Level* level, iv3 tile)
+    {
+        iv3 c = GetChunkCoord(tile);
+        uv3 t = GetTileCoordInChunk(tile);
+        Chunk* chunk = GetChunk(level, c);
+        bool result = IsTileOccupiedByTerrain(chunk, t);
+        return result;
+    }
+
     enum TileOccupancyCheckFlag : u32
     {
         TileOccupancy_Terrain = (1 << 0),
@@ -634,18 +757,13 @@ namespace soko
     };
 
     inline bool
-    TileIsFree(Chunk* chunk, uv3 tileInChunk, u32 flags = TileOccupancy_Terrain | TileOccupancy_Entities)
+    IsTileFree(Chunk* chunk, uv3 tileInChunk, u32 flags = TileOccupancy_Terrain | TileOccupancy_Entities)
     {
         bool result = true;
-        Tile* tile = GetTileInChunk(chunk, tileInChunk);
+        Tile tile = GetTileInChunk(chunk, tileInChunk);
 
-        bool occupiedByTerrain = false;
+        bool occupiedByTerrain = IsTileOccupiedByTerrain(tile);
         bool occupiedByEntities = false;
-
-        if (flags & TileOccupancy_Terrain)
-        {
-            occupiedByTerrain = !(tile->value == TileValue_Empty);
-        }
 
         if (flags & TileOccupancy_Entities)
         {
@@ -679,12 +797,12 @@ namespace soko
     }
 
     inline bool
-    TileIsFree(Level* level, iv3 tile, u32 flags = TileOccupancy_Terrain | TileOccupancy_Entities)
+    IsTileFree(Level* level, iv3 tile, u32 flags = TileOccupancy_Terrain | TileOccupancy_Entities)
     {
         iv3 c = GetChunkCoord(tile);
         uv3 t = GetTileCoordInChunk(tile);
         Chunk* chunk = GetChunk(level, c);
-        return TileIsFree(chunk, t, flags);
+        return IsTileFree(chunk, t, flags);
     }
 
 
@@ -823,22 +941,19 @@ namespace soko
                                 z * CHUNK_DIM * CHUNK_DIM +
                                 y * CHUNK_DIM +
                                 x;
-#if defined(SOKO_DEBUG)
-                            newChunk->tiles[tileIdx].coord = IV3(x, y, z);
-#endif
                             newChunk->tiles[tileIdx].value = sChunk->tiles[tileIdx].value;
                         }
                     }
                 }
                 // TODO: Store meshes on the cpu and load on the gpu only when necessary
-                ChunkMesh mesh;
+                ChunkMesh mesh = {};
                 if (GenChunkMesh(newChunk, &mesh, levelArena))
                 {
                     // TODO: Check if loading failed
                     LoadedChunkMesh loadedMesh = RendererLoadChunkMesh(&mesh);
                     newChunk->loadedMesh = loadedMesh;
                     newChunk->mesh = mesh;
-                    loadedLevel->globalChunkMeshBlockCount += mesh.blockCount;
+                    //loadedLevel->globalChunkMeshBlockCount += mesh.blockCount;
                     result = true;
                 }
                 else
@@ -928,7 +1043,7 @@ namespace soko
                 {
                     for (u32 y = 0; y < CHUNK_DIM; y++)
                     {
-                        Tile* tile = GetTileInChunk(chunk, x, y, 0);
+                        Tile* tile = GetTilePointerInChunkInternal(chunk, x, y, 0);
                         SOKO_ASSERT(tile);
                         tile->value = TileValue_Wall;
 
@@ -947,7 +1062,7 @@ namespace soko
                                 {
                                     z = 2;
                                 }
-                                Tile* tile1 = GetTileInChunk(chunk, x, y, z);
+                                Tile* tile1 = GetTilePointerInChunkInternal(chunk, x, y, z);
                                 SOKO_ASSERT(tile1);
                                 if (y == 15 || x == 15)
                                 {
@@ -961,7 +1076,7 @@ namespace soko
                         }
                     }
                 }
-                ChunkMesh mesh;
+                ChunkMesh mesh = {};
                 bool meshResult = GenChunkMesh(chunk, &mesh, tempArena);
                 SOKO_ASSERT(meshResult);
                 chunk->mesh = mesh;

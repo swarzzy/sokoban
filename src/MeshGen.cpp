@@ -3,9 +3,31 @@
 namespace soko
 {
     inline bool
-    TileNotEmpty(const Tile* tile)
+    TileCanOcclude(Tile tile)
     {
-        bool result = tile && (bool)tile->value;
+        bool result = tile.value == TileValue_Wall;
+        return result;
+    }
+
+    inline ChunkMeshVertexBlock*
+    GetChunkMeshVertexBlock(ChunkMesh* mesh, AB::MemoryArena* arena)
+    {
+        ChunkMeshVertexBlock* result = 0;
+        if (mesh->free)
+        {
+            result = mesh->free;
+            mesh->free = result->nextBlock;
+        }
+        else
+        {
+            result = PUSH_STRUCT(arena, ChunkMeshVertexBlock);
+        }
+        if (result)
+        {
+            result->nextBlock = 0;
+            result->prevBlock = 0;
+            result->at = 0;
+        }
         return result;
     }
 
@@ -17,7 +39,7 @@ namespace soko
         bool memoryIsAvailable = 1;
         if (!mesh->head)
         {
-            mesh->head = PUSH_STRUCT(arena, ChunkMeshVertexBlock);
+            mesh->head = GetChunkMeshVertexBlock(mesh, arena);
             if (mesh->head)
             {
                 ZERO_STRUCT(ChunkMeshVertexBlock, mesh->head);
@@ -32,7 +54,7 @@ namespace soko
         }
         else if (mesh->head->at >= CHUNK_MESH_VERTEX_BLOCK_CAPACITY)
         {
-            ChunkMeshVertexBlock* newBlock = PUSH_STRUCT(arena, ChunkMeshVertexBlock);
+            ChunkMeshVertexBlock* newBlock = GetChunkMeshVertexBlock(mesh, arena);
             if (newBlock)
             {
                 ZERO_STRUCT(ChunkMeshVertexBlock, newBlock);
@@ -102,30 +124,30 @@ namespace soko
     {
         bool result = false;
 
-        Tile* testTile = GetTileInChunk(chunk, p.x, p.y, p.z);
+        Tile testTile = GetTileInChunk(chunk, p.x, p.y, p.z);
 
-        Tile* c0Tile = GetTileInChunk(chunk, p.x - 1, p.y - 1, p.z - 1);
-        Tile* fdnTile = GetTileInChunk(chunk, p.x, p.y - 1, p.z - 1);
-        Tile* c1Tile = GetTileInChunk(chunk, p.x + 1, p.y - 1, p.z - 1);
-        Tile* flTile = GetTileInChunk(chunk, p.x - 1, p.y - 1, p.z);
-        Tile* frTile = GetTileInChunk(chunk, p.x + 1, p.y - 1, p.z);
-        Tile* c3Tile = GetTileInChunk(chunk, p.x - 1, p.y - 1, p.z + 1);
-        Tile* fupTile = GetTileInChunk(chunk, p.x, p.y - 1, p.z + 1);
-        Tile* c2Tile = GetTileInChunk(chunk, p.x + 1, p.y - 1, p.z + 1);
+        Tile c0Tile = GetTileInChunk(chunk, p.x - 1, p.y - 1, p.z - 1);
+        Tile fdnTile = GetTileInChunk(chunk, p.x, p.y - 1, p.z - 1);
+        Tile c1Tile = GetTileInChunk(chunk, p.x + 1, p.y - 1, p.z - 1);
+        Tile flTile = GetTileInChunk(chunk, p.x - 1, p.y - 1, p.z);
+        Tile frTile = GetTileInChunk(chunk, p.x + 1, p.y - 1, p.z);
+        Tile c3Tile = GetTileInChunk(chunk, p.x - 1, p.y - 1, p.z + 1);
+        Tile fupTile = GetTileInChunk(chunk, p.x, p.y - 1, p.z + 1);
+        Tile c2Tile = GetTileInChunk(chunk, p.x + 1, p.y - 1, p.z + 1);
 
-        Tile* ldnTile = GetTileInChunk(chunk, p.x - 1, p.y, p.z - 1);
-        Tile* rdnTile = GetTileInChunk(chunk, p.x + 1, p.y, p.z - 1);
-        Tile* lupTile = GetTileInChunk(chunk, p.x - 1, p.y, p.z + 1);
-        Tile* rupTile = GetTileInChunk(chunk, p.x + 1, p.y, p.z + 1);
+        Tile ldnTile = GetTileInChunk(chunk, p.x - 1, p.y, p.z - 1);
+        Tile rdnTile = GetTileInChunk(chunk, p.x + 1, p.y, p.z - 1);
+        Tile lupTile = GetTileInChunk(chunk, p.x - 1, p.y, p.z + 1);
+        Tile rupTile = GetTileInChunk(chunk, p.x + 1, p.y, p.z + 1);
 
-        Tile* c4Tile = GetTileInChunk(chunk, p.x - 1, p.y + 1, p.z - 1);
-        Tile* bdnTile = GetTileInChunk(chunk, p.x, p.y + 1, p.z - 1);
-        Tile* c5Tile = GetTileInChunk(chunk, p.x + 1, p.y + 1, p.z - 1);
-        Tile* blTile = GetTileInChunk(chunk, p.x - 1, p.y + 1, p.z);
-        Tile* brTile = GetTileInChunk(chunk, p.x + 1, p.y + 1, p.z);
-        Tile* c7Tile = GetTileInChunk(chunk, p.x - 1, p.y + 1, p.z + 1);
-        Tile* bupTile = GetTileInChunk(chunk, p.x, p.y + 1, p.z + 1);
-        Tile* c6Tile = GetTileInChunk(chunk, p.x + 1, p.y + 1, p.z + 1);
+        Tile c4Tile = GetTileInChunk(chunk, p.x - 1, p.y + 1, p.z - 1);
+        Tile bdnTile = GetTileInChunk(chunk, p.x, p.y + 1, p.z - 1);
+        Tile c5Tile = GetTileInChunk(chunk, p.x + 1, p.y + 1, p.z - 1);
+        Tile blTile = GetTileInChunk(chunk, p.x - 1, p.y + 1, p.z);
+        Tile brTile = GetTileInChunk(chunk, p.x + 1, p.y + 1, p.z);
+        Tile c7Tile = GetTileInChunk(chunk, p.x - 1, p.y + 1, p.z + 1);
+        Tile bupTile = GetTileInChunk(chunk, p.x, p.y + 1, p.z + 1);
+        Tile c6Tile = GetTileInChunk(chunk, p.x + 1, p.y + 1, p.z + 1);
 
         // NOTE: This stage works in left-handed coord system
         // and will be converted to right-handed in push vertex call
@@ -138,7 +160,7 @@ namespace soko
         v3 max = offset + 0.5f * V3(LEVEL_TILE_SIZE);
         max.z = offset.z - 0.5f * LEVEL_TILE_SIZE;
 
-        TileValue val = testTile->value;
+        TileValue val = testTile.value;
 
         v3 vtx0 = V3(min.x, min.y, max.z);
         v3 vtx1 = V3(max.x, min.y, max.z);
@@ -155,57 +177,57 @@ namespace soko
         case Direction_North:
         {
 
-            u32 ao5 = CalcVertexAO(TileNotEmpty(bdnTile), TileNotEmpty(brTile), TileNotEmpty(c5Tile));
-            u32 ao6 = CalcVertexAO(TileNotEmpty(bupTile), TileNotEmpty(brTile), TileNotEmpty(c6Tile));
-            u32 ao7 = CalcVertexAO(TileNotEmpty(bupTile), TileNotEmpty(blTile), TileNotEmpty(c7Tile));
-            u32 ao4 = CalcVertexAO(TileNotEmpty(bdnTile), TileNotEmpty(blTile), TileNotEmpty(c4Tile));
+            u32 ao5 = CalcVertexAO(TileCanOcclude(bdnTile), TileCanOcclude(brTile), TileCanOcclude(c5Tile));
+            u32 ao6 = CalcVertexAO(TileCanOcclude(bupTile), TileCanOcclude(brTile), TileCanOcclude(c6Tile));
+            u32 ao7 = CalcVertexAO(TileCanOcclude(bupTile), TileCanOcclude(blTile), TileCanOcclude(c7Tile));
+            u32 ao4 = CalcVertexAO(TileCanOcclude(bdnTile), TileCanOcclude(blTile), TileCanOcclude(c4Tile));
 
             result = PushChunkMeshQuad(outMesh, arena, vtx5, vtx4, vtx7, vtx6, ao5, ao4, ao7, ao6, val);
         } break;
         case Direction_South:
         {
-            u32 ao0 = CalcVertexAO(TileNotEmpty(fdnTile), TileNotEmpty(flTile), TileNotEmpty(c0Tile));
-            u32 ao1 = CalcVertexAO(TileNotEmpty(fdnTile), TileNotEmpty(frTile), TileNotEmpty(c1Tile));
-            u32 ao2 = CalcVertexAO(TileNotEmpty(fupTile), TileNotEmpty(frTile), TileNotEmpty(c2Tile));
-            u32 ao3 = CalcVertexAO(TileNotEmpty(fupTile), TileNotEmpty(flTile), TileNotEmpty(c3Tile));
+            u32 ao0 = CalcVertexAO(TileCanOcclude(fdnTile), TileCanOcclude(flTile), TileCanOcclude(c0Tile));
+            u32 ao1 = CalcVertexAO(TileCanOcclude(fdnTile), TileCanOcclude(frTile), TileCanOcclude(c1Tile));
+            u32 ao2 = CalcVertexAO(TileCanOcclude(fupTile), TileCanOcclude(frTile), TileCanOcclude(c2Tile));
+            u32 ao3 = CalcVertexAO(TileCanOcclude(fupTile), TileCanOcclude(flTile), TileCanOcclude(c3Tile));
 
             result = PushChunkMeshQuad(outMesh, arena, vtx0, vtx1, vtx2, vtx3, ao0, ao1, ao2, ao3, val);
         } break;
         case Direction_West:
         {
-            u32 ao4 = CalcVertexAO(TileNotEmpty(ldnTile), TileNotEmpty(blTile), TileNotEmpty(c4Tile));
-            u32 ao7 = CalcVertexAO(TileNotEmpty(lupTile), TileNotEmpty(blTile), TileNotEmpty(c7Tile));
-            u32 ao3 = CalcVertexAO(TileNotEmpty(lupTile), TileNotEmpty(flTile), TileNotEmpty(c3Tile));
-            u32 ao0 = CalcVertexAO(TileNotEmpty(ldnTile), TileNotEmpty(flTile), TileNotEmpty(c0Tile));
+            u32 ao4 = CalcVertexAO(TileCanOcclude(ldnTile), TileCanOcclude(blTile), TileCanOcclude(c4Tile));
+            u32 ao7 = CalcVertexAO(TileCanOcclude(lupTile), TileCanOcclude(blTile), TileCanOcclude(c7Tile));
+            u32 ao3 = CalcVertexAO(TileCanOcclude(lupTile), TileCanOcclude(flTile), TileCanOcclude(c3Tile));
+            u32 ao0 = CalcVertexAO(TileCanOcclude(ldnTile), TileCanOcclude(flTile), TileCanOcclude(c0Tile));
 
             result = PushChunkMeshQuad(outMesh, arena, vtx4, vtx0, vtx3, vtx7, ao4, ao0, ao3, ao7, val);
         } break;
         case Direction_East:
         {
-            u32 ao1 = CalcVertexAO(TileNotEmpty(frTile), TileNotEmpty(rdnTile), TileNotEmpty(c1Tile));
-            u32 ao2 = CalcVertexAO(TileNotEmpty(frTile), TileNotEmpty(rupTile), TileNotEmpty(c2Tile));
-            u32 ao6 = CalcVertexAO(TileNotEmpty(brTile), TileNotEmpty(rupTile), TileNotEmpty(c6Tile));
-            u32 ao5 = CalcVertexAO(TileNotEmpty(brTile), TileNotEmpty(rdnTile), TileNotEmpty(c5Tile));
+            u32 ao1 = CalcVertexAO(TileCanOcclude(frTile), TileCanOcclude(rdnTile), TileCanOcclude(c1Tile));
+            u32 ao2 = CalcVertexAO(TileCanOcclude(frTile), TileCanOcclude(rupTile), TileCanOcclude(c2Tile));
+            u32 ao6 = CalcVertexAO(TileCanOcclude(brTile), TileCanOcclude(rupTile), TileCanOcclude(c6Tile));
+            u32 ao5 = CalcVertexAO(TileCanOcclude(brTile), TileCanOcclude(rdnTile), TileCanOcclude(c5Tile));
 
             result = PushChunkMeshQuad(outMesh, arena, vtx1, vtx5, vtx6, vtx2, ao1, ao5, ao6, ao2, val);
 
         } break;
         case Direction_Up:
         {
-            u32 ao3 = CalcVertexAO(TileNotEmpty(fupTile), TileNotEmpty(lupTile), TileNotEmpty(c3Tile));
-            u32 ao7 = CalcVertexAO(TileNotEmpty(bupTile), TileNotEmpty(lupTile), TileNotEmpty(c7Tile));
-            u32 ao6 = CalcVertexAO(TileNotEmpty(bupTile), TileNotEmpty(rupTile), TileNotEmpty(c6Tile));
-            u32 ao2 = CalcVertexAO(TileNotEmpty(fupTile), TileNotEmpty(rupTile), TileNotEmpty(c2Tile));
+            u32 ao3 = CalcVertexAO(TileCanOcclude(fupTile), TileCanOcclude(lupTile), TileCanOcclude(c3Tile));
+            u32 ao7 = CalcVertexAO(TileCanOcclude(bupTile), TileCanOcclude(lupTile), TileCanOcclude(c7Tile));
+            u32 ao6 = CalcVertexAO(TileCanOcclude(bupTile), TileCanOcclude(rupTile), TileCanOcclude(c6Tile));
+            u32 ao2 = CalcVertexAO(TileCanOcclude(fupTile), TileCanOcclude(rupTile), TileCanOcclude(c2Tile));
 
             result = PushChunkMeshQuad(outMesh, arena, vtx3, vtx2, vtx6, vtx7, ao3, ao2, ao6, ao7, val);
 
         } break;
         case Direction_Down:
         {
-            u32 ao4 = CalcVertexAO(TileNotEmpty(bdnTile), TileNotEmpty(ldnTile), TileNotEmpty(c4Tile));
-            u32 ao0 = CalcVertexAO(TileNotEmpty(fdnTile), TileNotEmpty(ldnTile), TileNotEmpty(c0Tile));
-            u32 ao1 = CalcVertexAO(TileNotEmpty(fdnTile), TileNotEmpty(rdnTile), TileNotEmpty(c1Tile));
-            u32 ao5 = CalcVertexAO(TileNotEmpty(bdnTile), TileNotEmpty(rdnTile), TileNotEmpty(c5Tile));
+            u32 ao4 = CalcVertexAO(TileCanOcclude(bdnTile), TileCanOcclude(ldnTile), TileCanOcclude(c4Tile));
+            u32 ao0 = CalcVertexAO(TileCanOcclude(fdnTile), TileCanOcclude(ldnTile), TileCanOcclude(c0Tile));
+            u32 ao1 = CalcVertexAO(TileCanOcclude(fdnTile), TileCanOcclude(rdnTile), TileCanOcclude(c1Tile));
+            u32 ao5 = CalcVertexAO(TileCanOcclude(bdnTile), TileCanOcclude(rdnTile), TileCanOcclude(c5Tile));
 
             result = PushChunkMeshQuad(outMesh, arena, vtx4, vtx5, vtx1, vtx0, ao4, ao5, ao1, ao0, val);
         } break;
@@ -217,31 +239,56 @@ namespace soko
     internal bool
     GenChunkMesh(Chunk* chunk, ChunkMesh* outMesh, AB::MemoryArena* arena)
     {
-        bool result = 1;
-        ZERO_STRUCT(ChunkMesh, outMesh);
+        bool result = true;
+        i64 beginTime = GetTimeStamp();
+
+        if (outMesh->vertexCount)
+        {
+            SOKO_ASSERT(outMesh->head);
+            SOKO_ASSERT(outMesh->tail);
+            // TODO: @Speed: Stop freeing all blocks before generate
+            ChunkMeshVertexBlock* block = outMesh->head;
+            while (true)
+            {
+                auto nextBlock = block->nextBlock;
+                block->nextBlock = outMesh->free;
+                outMesh->free = block;
+
+                if (block == outMesh->tail) break;
+
+                block = nextBlock;
+            }
+
+            outMesh->vertexCount = 0;
+            outMesh->quadCount = 0;
+            outMesh->blockCount = 0;
+            outMesh->head = 0;
+            outMesh->tail = 0;
+        }
+
         for (u32 tileZ = 0; tileZ < CHUNK_DIM; tileZ++)
         {
             for (u32 tileY = 0; tileY < CHUNK_DIM; tileY++)
             {
                 for (u32 tileX = 0; tileX < CHUNK_DIM; tileX++)
                 {
-                    Tile* testTile = GetTileInChunk(chunk, tileX, tileY, tileZ);
+                    Tile testTile = GetTileInChunk(chunk, tileX, tileY, tileZ);
 
-                    if (testTile && testTile->value)
+                    if (IsTileOccupiedByTerrain(testTile))
                     {
-                        Tile* upTile = GetTileInChunk(chunk, tileX, tileY, tileZ + 1);
-                        Tile* dnTile = GetTileInChunk(chunk, tileX, tileY, tileZ - 1);
-                        Tile* lTile = GetTileInChunk(chunk, tileX - 1, tileY, tileZ);
-                        Tile* rTile = GetTileInChunk(chunk, tileX + 1, tileY, tileZ);
-                        Tile* fTile = GetTileInChunk(chunk, tileX, tileY - 1, tileZ);
-                        Tile* bTile = GetTileInChunk(chunk, tileX, tileY + 1, tileZ);
+                        Tile upTile = GetTileInChunk(chunk, tileX, tileY, tileZ + 1);
+                        Tile dnTile = GetTileInChunk(chunk, tileX, tileY, tileZ - 1);
+                        Tile lTile = GetTileInChunk(chunk, tileX - 1, tileY, tileZ);
+                        Tile rTile = GetTileInChunk(chunk, tileX + 1, tileY, tileZ);
+                        Tile fTile = GetTileInChunk(chunk, tileX, tileY - 1, tileZ);
+                        Tile bTile = GetTileInChunk(chunk, tileX, tileY + 1, tileZ);
 
-                        bool dnEmpty = (tileZ == 0) ? true : !TileNotEmpty(dnTile);
-                        bool lEmpty  = (tileX == 0) ? true : !TileNotEmpty(lTile);
-                        bool fEmpty  = (tileY == 0) ? true : !TileNotEmpty(fTile);
-                        bool upEmpty = (tileZ == (CHUNK_DIM - 1)) ? true : !TileNotEmpty(upTile);
-                        bool rEmpty  = (tileX == (CHUNK_DIM - 1)) ? true : !TileNotEmpty(rTile);
-                        bool bEmpty  = (tileY == (CHUNK_DIM - 1)) ? true : !TileNotEmpty(bTile);
+                        bool dnEmpty = (tileZ == 0) ? true : !TileCanOcclude(dnTile);
+                        bool lEmpty  = (tileX == 0) ? true : !TileCanOcclude(lTile);
+                        bool fEmpty  = (tileY == 0) ? true : !TileCanOcclude(fTile);
+                        bool upEmpty = (tileZ == (CHUNK_DIM - 1)) ? true : !TileCanOcclude(upTile);
+                        bool rEmpty  = (tileX == (CHUNK_DIM - 1)) ? true : !TileCanOcclude(rTile);
+                        bool bEmpty  = (tileY == (CHUNK_DIM - 1)) ? true : !TileCanOcclude(bTile);
 
                         if (upEmpty)
                         {
@@ -277,6 +324,10 @@ namespace soko
             }
         }
     loopEnd:
+        i64 timeElapsed = GetTimeStamp() - beginTime;
+        SOKO_INFO("Generated mesh for chunk (x: %i32, y:%i32, z:%i32). Time: %i64 us",
+                  chunk->coord.x, chunk->coord.y, chunk->coord.z, timeElapsed);
+
         return result;
     }
 }

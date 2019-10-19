@@ -125,48 +125,46 @@ namespace soko
     AddSerializedEntity(Level* level, const SerializedEntity* sEntity)
     {
         u32 result = 0;
-        Tile* tile = GetTile(level, sEntity->tile);
-        if (tile)
+        Tile tile = GetTile(level, sEntity->tile);
+        if (IsTileFree(level, sEntity->tile))
         {
-            if (tile->value != TileValue_Wall && TileIsFree(level, sEntity->tile))
-            {
-                // TODO: Better hash
-                u32 entityHash = sEntity->id % LEVEL_ENTITY_TABLE_SIZE;
+            // TODO: Better hash
+            u32 entityHash = sEntity->id % LEVEL_ENTITY_TABLE_SIZE;
 
 #if defined(SOKO_DEBUG)
-                if (level->entities[entityHash])
+            if (level->entities[entityHash])
+            {
+                Entity* e = level->entities[entityHash];
+                while (e)
                 {
-                    Entity* e = level->entities[entityHash];
-                    while (e)
-                    {
-                        SOKO_ASSERT(e->id != sEntity->id);
-                    }
-                }
-#endif
-                Entity* bucketEntity = level->entities[entityHash];
-                Entity* newEntity = GetEntityMemory(level);
-
-                if (newEntity)
-                {
-                    DeserializeBinEntity(sEntity, newEntity);
-
-                    newEntity->nextEntity = bucketEntity;
-                    level->entities[entityHash] = newEntity;
-                    level->entitySerialNumber++;
-                    level->entityCount++;
-
-                    bool registered = RegisterEntityInTile(level, newEntity);
-                    SOKO_ASSERT(registered);
-
-                    result = newEntity->id;
+                    SOKO_ASSERT(e->id != sEntity->id);
                 }
             }
-            else
+#endif
+            Entity* bucketEntity = level->entities[entityHash];
+            Entity* newEntity = GetEntityMemory(level);
+
+            if (newEntity)
             {
-                SOKO_WARN("Trying to load entity at occupied tile. Entity id: %u32. Tile coord: {%i32, %i32, %i32 }",
-                          sEntity->id, sEntity->tile.x, sEntity->tile.y, sEntity->tile.z);
+                DeserializeBinEntity(sEntity, newEntity);
+
+                newEntity->nextEntity = bucketEntity;
+                level->entities[entityHash] = newEntity;
+                level->entitySerialNumber++;
+                level->entityCount++;
+
+                bool registered = RegisterEntityInTile(level, newEntity);
+                SOKO_ASSERT(registered);
+
+                result = newEntity->id;
             }
         }
+        else
+        {
+            SOKO_WARN("Trying to load entity at occupied tile. Entity id: %u32. Tile coord: {%i32, %i32, %i32 }",
+                      sEntity->id, sEntity->tile.x, sEntity->tile.y, sEntity->tile.z);
+        }
+
         return result;
     }
 
@@ -174,31 +172,27 @@ namespace soko
     AddEntity(Level* level, Entity entity)
     {
         u32 result = 0;
-        Tile* tile = GetTile(level, entity.coord.tile);
-        if (tile)
+        if (IsTileFree(level, entity.coord.tile))
         {
-            if (tile->value != TileValue_Wall && TileIsFree(level, entity.coord.tile))
+            // TODO: Better hash
+            u32 entityId = level->entitySerialNumber + 1;
+            u32 entityHash = entityId % LEVEL_ENTITY_TABLE_SIZE;
+            Entity* bucketEntity = level->entities[entityHash];
+            Entity* newEntity = GetEntityMemory(level);
+            if (newEntity)
             {
-                // TODO: Better hash
-                u32 entityId = level->entitySerialNumber + 1;
-                u32 entityHash = entityId % LEVEL_ENTITY_TABLE_SIZE;
-                Entity* bucketEntity = level->entities[entityHash];
-                Entity* newEntity = GetEntityMemory(level);
-                if (newEntity)
-                {
-                    newEntity->nextEntity = bucketEntity;
-                    level->entities[entityHash] = newEntity;
-                    level->entitySerialNumber++;
-                    level->entityCount++;
+                newEntity->nextEntity = bucketEntity;
+                level->entities[entityHash] = newEntity;
+                level->entitySerialNumber++;
+                level->entityCount++;
 
-                    *newEntity = entity;
-                    newEntity->id = entityId;
+                *newEntity = entity;
+                newEntity->id = entityId;
 
-                    bool registered = RegisterEntityInTile(level, newEntity);
-                    SOKO_ASSERT(registered);
+                bool registered = RegisterEntityInTile(level, newEntity);
+                SOKO_ASSERT(registered);
 
-                    result = entityId;
-                }
+                result = entityId;
             }
         }
         return result;
@@ -357,46 +351,24 @@ namespace soko
     }
 
 
-    internal bool
+    inline bool
     ChangeEntityLocation(Level* level, Entity* entity, const WorldPos* desiredCoord)
     {
         bool result = false;
         iv3 oldCoord = entity->coord.tile;
-        Tile* oldTile = GetTile(level, entity->coord.tile);
-        SOKO_ASSERT(oldTile);
-        //SOKO_ASSERT(oldTile->entityList.first);
 
-        Tile* desiredTile = GetTile(level, desiredCoord->tile);
-        if (desiredTile)
+        Tile desiredTile = GetTile(level, desiredCoord->tile);
+        if (IsTileFree(level, desiredCoord->tile))
         {
-            bool tileIsFree = desiredTile->value != TileValue_Wall;
-            if (tileIsFree)
-            {
-                EntityMapIterator it = {};
-                while (true)
-                {
-                    Entity* entityInTile = YieldEntityIdFromTile(level, desiredCoord->tile, &it);
-                    if (!entityInTile) break;
+            UnregisterEntityInTile(level, entity);
+            entity->coord = *desiredCoord;
+            bool registered = RegisterEntityInTile(level, entity);
+            SOKO_ASSERT(registered);
 
-                    if (IsSet(entityInTile, EntityFlag_Collides))
-                    {
-                        tileIsFree = false;
-                        break;
-                    }
-                }
-            }
-            if (tileIsFree)
-            {
-                UnregisterEntityInTile(level, entity);
-                entity->coord = *desiredCoord;
-                bool registered = RegisterEntityInTile(level, entity);
-                SOKO_ASSERT(registered);
+            UpdateEntitiesInTile(level, oldCoord);
+            UpdateEntitiesInTile(level, desiredCoord->tile);
 
-                UpdateEntitiesInTile(level, oldCoord);
-                UpdateEntitiesInTile(level, desiredCoord->tile);
-
-                result = true;
-            }
+            result = true;
         }
         return result;
     }

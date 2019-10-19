@@ -83,6 +83,7 @@ inline void* ReallocForSTBI(void* p, uptr oldSize, uptr newSize)
 #define NetRecieve SOKO_PLATFORM_FUNCTION(NetRecieve)
 #define QueryNewArena SOKO_PLATFORM_FUNCTION(QueryNewArena)
 #define FreeArena SOKO_PLATFORM_FUNCTION(FreeArena)
+#define GetTimeStamp SOKO_PLATFORM_FUNCTION(GetTimeStamp)
 
 #define PLATFORM_QUERY_NEW_ARENA(size) QueryNewArena(size)
 #define PLATFORM_FREE_ARENA(arena) FreeArena(arena)

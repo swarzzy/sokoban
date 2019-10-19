@@ -44,10 +44,14 @@ namespace soko
         Direction_Down
     };
 
-    enum TileValue
+    enum TileValue : u8
     {
-        TileValue_Empty = 0,
+        TileValue_TileNotExist = 0,
+        TileValue_Empty,
         TileValue_Wall,
+        TileValue_Stone,
+        TileValue_Grass,
+        _TileValue_Count
     };
 
     struct Level;
@@ -65,11 +69,9 @@ namespace soko
 
     struct Tile
     {
-        // TODO: think about using i16 for less memory footprint
-#if defined(SOKO_DEBUG)
-        iv3 coord;
-#endif
         TileValue value;
+        // TODO: think about using i16 for less memory footprint
+        // TODO: Store array of tile coords for debugging
     };
 
 
@@ -95,6 +97,7 @@ namespace soko
     struct Chunk
     {
         Level* level;
+        bool dirty;
         bool loaded;
         iv3 coord;
         Tile tiles[CHUNK_TILE_COUNT];

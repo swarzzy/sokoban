@@ -27,7 +27,6 @@ namespace soko
         byte AO[CHUNK_MESH_VERTEX_BLOCK_CAPACITY];
     };
 
-
     struct ChunkMesh
     {
         u64 vertexCount;
@@ -35,6 +34,7 @@ namespace soko
         u32 blockCount;
         ChunkMeshVertexBlock* head;
         ChunkMeshVertexBlock* tail;
+        ChunkMeshVertexBlock* free;
     };
 
     internal bool GenChunkMesh(Chunk* chunk, ChunkMesh* outMesh, AB::MemoryArena* arena);

@@ -40,6 +40,22 @@ namespace hpm
     const f32 FLOAT_EPS = 0.000001f;
     const f32 FLOAT_NAN = NAN;
 
+    template<typename T> constexpr T Min(T a, T b)
+    {
+        return a < b ? a : b;
+    }
+
+    template<typename T> constexpr T Max(T a, T b)
+    {
+        return a > b ? a : b;
+    }
+
+    template<typename T> constexpr T Clamp(T x, T min, T max)
+    {
+        T result = (x < min) ? min : ((x > max) ? max : x);
+        return result;
+    }
+
     inline constexpr bool IsPowerOfTwo(u32 n)
     {
         bool result = ((n & (n - 1)) == 0);
@@ -222,16 +238,6 @@ namespace hpm
         };
         f32 data[4];
         //f128 _packed;
-    };
-
-    //
-    // @SECTION: AABB
-    //
-
-    struct BBoxAligned
-    {
-        Vector3 min;
-        Vector3 max;
     };
 
     union Matrix4
@@ -1345,6 +1351,37 @@ namespace hpm
     inline iv3 operator*(iv3 l, i32 s)
     {
         return IV3(l.x * s, l.y * s, l.z * s);
+    }
+
+    //
+    // @SECTION: AABB
+    //
+
+    struct BBoxAligned
+    {
+        Vector3 min;
+        Vector3 max;
+    };
+
+    struct TileBox
+    {
+        iv3 min;
+        iv3 max;
+    };
+
+    inline TileBox TileBoxFromTwoPoints(iv3 a, iv3 b)
+    {
+        TileBox result;
+
+        result.min.x = Min(a.x, b.x);
+        result.min.y = Min(a.y, b.y);
+        result.min.z = Min(a.z, b.z);
+
+        result.max.x = Max(a.x, b.x);
+        result.max.y = Max(a.y, b.y);
+        result.max.z = Max(a.z, b.z);
+
+        return result;
     }
 
     bool Inverse(Matrix3* m);

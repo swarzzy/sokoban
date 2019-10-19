@@ -57,10 +57,13 @@ namespace soko
         GLint aoDistribLoc;
     };
 
+    // TODO: Cleanup tile values and terrain textures
     enum TerrainTexture
     {
         TerrainTexture_Null = 0,
-        TerrainTexture_Block,
+        TerrainTexture_Block = TileValue_Wall,
+        TerrainTexture_Stone = TileValue_Stone,
+        TerrainTexture_Grass = TileValue_Grass
     };
 
     constant u32 RENDERER_TILE_TEX_DIM = 256;
@@ -331,6 +334,17 @@ namespace soko
         BeginTemporaryMemory(tempArena);
         unsigned char* bitmap = stbi_load("../res/tile.png", &width, &height, &bpp, 3);
 
+        i32 stoneW;
+        i32 stoneH;
+        i32 stoneBpp;
+        unsigned char* stoneBitmap = stbi_load("../res/tile_stone.png", &stoneW, &stoneH, &stoneBpp, 3);
+
+        i32 grassW;
+        i32 grassH;
+        i32 grassBpp;
+        unsigned char* grassBitmap = stbi_load("../res/tile_grass.png", &grassW, &grassH, &grassBpp, 3);
+
+
         GLuint terrainTexArray;
         glGenTextures(1, &terrainTexArray);
         glBindTexture(GL_TEXTURE_2D_ARRAY, terrainTexArray);
@@ -343,6 +357,15 @@ namespace soko
         glTexSubImage3D(GL_TEXTURE_2D_ARRAY, 0, 0, 0, TerrainTexture_Block,
                         RENDERER_TILE_TEX_DIM, RENDERER_TILE_TEX_DIM, 1,
                         GL_RGB, GL_UNSIGNED_BYTE, bitmap);
+
+        glTexSubImage3D(GL_TEXTURE_2D_ARRAY, 0, 0, 0, TerrainTexture_Stone,
+                        RENDERER_TILE_TEX_DIM, RENDERER_TILE_TEX_DIM, 1,
+                        GL_RGB, GL_UNSIGNED_BYTE, stoneBitmap);
+
+        glTexSubImage3D(GL_TEXTURE_2D_ARRAY, 0, 0, 0, TerrainTexture_Grass,
+                        RENDERER_TILE_TEX_DIM, RENDERER_TILE_TEX_DIM, 1,
+                        GL_RGB, GL_UNSIGNED_BYTE, grassBitmap);
+
 
         glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_WRAP_S, GL_REPEAT);
         glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_WRAP_T, GL_REPEAT);
@@ -395,6 +418,45 @@ namespace soko
         }
     }
 
+    internal u64 // NOTE: Quad count
+    RendererReloadChunkMesh(const ChunkMesh* mesh, u32 handle)
+    {
+        u64 result = 0;
+        glBindBuffer(GL_ARRAY_BUFFER, handle);
+        uptr bufferSize = mesh->quadCount * 4 * sizeof(ChunkMeshVertex);
+        glBufferData(GL_ARRAY_BUFFER, bufferSize, 0, GL_STATIC_DRAW);
+
+        // TODO: Use glBufferSubData
+        ChunkMeshVertex* buffer;
+        buffer = (ChunkMeshVertex*)glMapBuffer(GL_ARRAY_BUFFER, GL_READ_WRITE);
+        SOKO_ASSERT(buffer);
+        u32 bufferCount = 0;
+        u32 blockCount = 0;
+        ChunkMeshVertexBlock* block = mesh->tail;
+        if (block)
+        {
+            do
+            {
+                blockCount++;
+                for (u32 i = 0; i < block->at; i++)
+                {
+                    buffer[bufferCount].pos = block->positions[i];
+                    buffer[bufferCount].normal = block->normals[i];
+                    buffer[bufferCount].tileId = block->tileIds[i];
+                    buffer[bufferCount].AO = block->AO[i];
+                    bufferCount++;
+                }
+                block = block->prevBlock;
+            }
+            while(block);
+        }
+
+        glUnmapBuffer(GL_ARRAY_BUFFER);
+        glBindBuffer(GL_ARRAY_BUFFER, 0);
+        result = mesh->quadCount;
+        return result;
+    }
+
     internal LoadedChunkMesh
     RendererLoadChunkMesh(ChunkMesh* mesh)
     {
@@ -405,39 +467,8 @@ namespace soko
         glGenBuffers(1, &handle);
         if (handle)
         {
-            glBindBuffer(GL_ARRAY_BUFFER, handle);
-            uptr bufferSize = mesh->quadCount * 4 * sizeof(ChunkMeshVertex);
-            glBufferData(GL_ARRAY_BUFFER, bufferSize, 0, GL_STATIC_DRAW);
-
-            // TODO: Use glBufferSubData
-            ChunkMeshVertex* buffer;
-            buffer = (ChunkMeshVertex*)glMapBuffer(GL_ARRAY_BUFFER, GL_READ_WRITE);
-            SOKO_ASSERT(buffer);
-            u32 bufferCount = 0;
-            u32 blockCount = 0;
-            ChunkMeshVertexBlock* block = mesh->tail;
-            if (block)
-            {
-                do
-                {
-                    blockCount++;
-                    for (u32 i = 0; i < block->at; i++)
-                    {
-                        buffer[bufferCount].pos = block->positions[i];
-                        buffer[bufferCount].normal = block->normals[i];
-                        buffer[bufferCount].tileId = block->tileIds[i];
-                        buffer[bufferCount].AO = block->AO[i];
-                        bufferCount++;
-                    }
-                    block = block->prevBlock;
-                }
-                while(block);
-            }
-
-            glUnmapBuffer(GL_ARRAY_BUFFER);
-            glBindBuffer(GL_ARRAY_BUFFER, 0);
+            result.quadCount = RendererReloadChunkMesh(mesh, handle);
             result.gpuHandle = handle;
-            result.quadCount = mesh->quadCount;
         }
         return result;
     }

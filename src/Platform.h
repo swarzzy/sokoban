@@ -282,6 +282,8 @@ namespace AB
     typedef MemoryArena*(QueryNewArenaFn)(uptr size);
     typedef void(FreeArenaFn)(MemoryArena* arena);
 
+    typedef i64(GetTimeStampFn)();
+
     typedef void*(AllocForImGuiFn)(size_t sz, void* data);
     typedef void(FreeForImGuiFn)(void* ptr, void* data);
 
@@ -321,6 +323,8 @@ namespace AB
 
         QueryNewArenaFn* QueryNewArena;
         FreeArenaFn* FreeArena;
+
+        GetTimeStampFn* GetTimeStamp;
 
         AllocForImGuiFn* AllocForImGui;
         FreeForImGuiFn* FreeForImGui;

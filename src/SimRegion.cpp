@@ -260,8 +260,9 @@ namespace soko
         bool result = false;
 
         Level* level = region->level;
-        Tile* pushTile = GetTile(level, pushTilePos);
-        if (pushTile && pushTile->value != TileValue_Wall)
+        Tile pushTile = GetTile(level, pushTilePos);
+        // TODO: Consistent way of checking "is tile empty"
+        if (pushTile.value == TileValue_Empty)
         {
             result = true;
             EntityMapIterator it = {};
@@ -312,13 +313,13 @@ namespace soko
         bool result = false;
 
         Level* level = region->level;
-        if (!TileIsFree(level, pushTilePos, TileOccupancy_Terrain))
+        if (IsTileOccupiedByTerrain(level, pushTilePos))
         {
             result = true;
         }
         else
         {
-            Tile* pushTile = GetTile(level, pushTilePos);
+            Tile pushTile = GetTile(level, pushTilePos);
             result = true;
 
             if (result)
@@ -369,13 +370,13 @@ namespace soko
             iv3 revDesiredPos = stored->coord.tile;
             revDesiredPos -= DirToUnitOffset(dir);
 
-            Tile* desiredTile = GetTile(level, desiredPos);
+            Tile desiredTile = GetTile(level, desiredPos);
             u32 flags = TileOccupancy_Terrain;
             if (reverse && entity->stored->type == EntityType_Player)
             {
                 flags |= TileOccupancy_Entities;
             }
-            if (desiredTile && TileIsFree(level, desiredPos, flags))
+            if (IsTileFree(level, desiredPos, flags))
             {
                 auto pushTilePos = reverse ? revDesiredPos : desiredPos;
 
@@ -397,8 +398,8 @@ namespace soko
                     stored->transitionOrigin = stored->coord.tile;
                     stored->transitionDest = desiredPos;
 
-                    Tile* oldTile = GetTile(level, stored->coord.tile);
-                    SOKO_ASSERT(oldTile);
+                    Tile oldTile = GetTile(level, stored->coord.tile);
+                    SOKO_ASSERT(oldTile.value);
 
                     RegisterEntityInTile(level, entity->stored, desiredPos);
                 }
@@ -475,6 +476,7 @@ namespace soko
         b32 intersects;
         f32 tMin;
         v3 normal;
+        Direction normalDir;
     };
 
     // TODO: Move this to hypermath.h
@@ -487,6 +489,7 @@ namespace soko
         f32 tMin = 0.0f;
         bool hit = false;
         v3 normal = V3(0.0f);
+        Direction normalDir = Direction_Invalid;
 
         if (AbsF32(ray.x) > FLOAT_EPS)
         {
@@ -502,6 +505,7 @@ namespace soko
                     {
                         tMin = t;
                         normal = V3(-1.0f, 0.0f, 0.0f);
+                        normalDir = Direction_West;
                     }
                     hit = true;
                 }
@@ -522,6 +526,7 @@ namespace soko
                     {
                         tMin = t;
                         normal = V3(1.0f, 0.0f, 0.0f);
+                        normalDir = Direction_East;
                     }
 
                     hit = true;
@@ -543,6 +548,7 @@ namespace soko
                     {
                         tMin = t;
                         normal = V3(0.0f, -1.0f, 0.0f);
+                        normalDir = Direction_South;
                     }
 
                     hit = true;
@@ -564,6 +570,7 @@ namespace soko
                     {
                         tMin = t;
                         normal = V3(0.0f, 1.0f, 0.0f);
+                        normalDir = Direction_North;
                     }
 
                     hit = true;
@@ -585,6 +592,7 @@ namespace soko
                     {
                         tMin = t;
                         normal = V3(0.0f, 0.0f, -1.0f);
+                        normalDir = Direction_Down;
                     }
 
                     hit = true;
@@ -606,6 +614,7 @@ namespace soko
                     {
                         tMin = t;
                         normal = V3(0.0f, 0.0f, 1.0f);
+                        normalDir = Direction_Up;
                     }
 
                     hit = true;
@@ -616,6 +625,7 @@ namespace soko
         result.intersects = hit;
         result.tMin = tMin;
         result.normal = normal;
+        result.normalDir = normalDir;
 
         return result;
     }
@@ -634,6 +644,8 @@ namespace soko
     {
         b32 hit;
         iv3 tile;
+        v3 normal;
+        Direction normalDir;
         f32 tMin;
     };
 
@@ -680,10 +692,10 @@ namespace soko
                                     {
                                         // TODO: Grids
                                         // NOTE: Internal is faster
-                                        Tile* tile = GetTileInChunkInternal(chunk, x, y, z);
+                                        Tile* tile = GetTilePointerInChunkInternal(chunk, x, y, z);
                                         SOKO_ASSERT(tile);
                                         // TODO: TileIsFree?
-                                        if (tile->value)
+                                        if (IsTileOccupiedByTerrain(*tile))
                                         {
                                             iv3 worldPos = WorldTileFromChunkTile({chunkX, chunkY, chunkZ}, {x, y, z});
                                             v3 simPos = GetRelPos(region->origin, worldPos);
@@ -697,6 +709,8 @@ namespace soko
                                                 result.hit = true;
                                                 result.tMin = intersection.tMin;
                                                 result.tile = worldPos;
+                                                result.normal = intersection.normal;
+                                                result.normalDir = intersection.normalDir;
                                             }
                                         }
                                     }
