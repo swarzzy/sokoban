@@ -6,6 +6,7 @@ namespace soko
 {
     // TODO: Enum reflection
     // TODO: Check is these two actually evaluated at compile time
+    // NOTE: They are not evaluated at compile time!!!
     constexpr const char*
     TileValueToString(TileValue value)
     {
@@ -726,27 +727,27 @@ namespace soko
     }
 
     inline bool
-    IsTileOccupiedByTerrain(Tile tile)
+    TileIsTerrain(Tile tile)
     {
         bool result = tile.value != TileValue_Empty;
         return result;
     }
 
     inline bool
-    IsTileOccupiedByTerrain(Chunk* chunk, uv3 tileInChunk)
+    TileIsTerrain(Chunk* chunk, uv3 tileInChunk)
     {
         Tile tile = GetTileInChunk(chunk, tileInChunk);
-        bool result = IsTileOccupiedByTerrain(tile);
+        bool result = TileIsTerrain(tile);
         return result;
     }
 
     inline bool
-    IsTileOccupiedByTerrain(Level* level, iv3 tile)
+    TileIsTerrain(Level* level, iv3 tile)
     {
         iv3 c = GetChunkCoord(tile);
         uv3 t = GetTileCoordInChunk(tile);
         Chunk* chunk = GetChunk(level, c);
-        bool result = IsTileOccupiedByTerrain(chunk, t);
+        bool result = TileIsTerrain(chunk, t);
         return result;
     }
 
@@ -762,7 +763,7 @@ namespace soko
         bool result = true;
         Tile tile = GetTileInChunk(chunk, tileInChunk);
 
-        bool occupiedByTerrain = IsTileOccupiedByTerrain(tile);
+        bool occupiedByTerrain = TileIsTerrain(tile);
         bool occupiedByEntities = false;
 
         if (flags & TileOccupancy_Entities)

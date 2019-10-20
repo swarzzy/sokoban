@@ -29,6 +29,33 @@ namespace soko
         SimEntity entities[SIM_REGION_MAX_ENTITIES];
     };
 
+    enum RaycastFlags : u32
+    {
+        Raycast_Tilemap = 0x1,
+        Raycast_Entities = 0x2
+    };
+
+    struct RaycastResult
+    {
+        enum { None = 0, Entity, Tile } hit;
+        f32 tMin;
+        union
+        {
+            struct
+            {
+                iv3 coord;
+                v3 normal;
+                Direction normalDir;
+            } tile;
+            struct
+            {
+                i32 id;
+                v3 normal;
+                iv3 tile;
+            } entity;
+        };
+    };
+
     inline SimEntity*
     GetRegionEntityHashMapEntry(SimRegion* region, u32 id)
     {
@@ -313,7 +340,7 @@ namespace soko
         bool result = false;
 
         Level* level = region->level;
-        if (IsTileOccupiedByTerrain(level, pushTilePos))
+        if (TileIsTerrain(level, pushTilePos))
         {
             result = true;
         }
@@ -640,20 +667,8 @@ namespace soko
         return result;
     }
 
-    struct RaycastResult
-    {
-        b32 hit;
-        iv3 tile;
-        v3 normal;
-        Direction normalDir;
-        f32 tMin;
-    };
-
-    // NOTE: from is the origin of ray's basis
-    // So if camera ray passed, then it should be
-    // region relative camera position
     internal RaycastResult
-    Raycast(SimRegion* region, v3 from, v3 ray)
+    RaycastTilemap(SimRegion* region, v3 from, v3 ray)
     {
         RaycastResult result = {};
 
@@ -695,7 +710,7 @@ namespace soko
                                         Tile* tile = GetTilePointerInChunkInternal(chunk, x, y, z);
                                         SOKO_ASSERT(tile);
                                         // TODO: TileIsFree?
-                                        if (IsTileOccupiedByTerrain(*tile))
+                                        if (TileIsTerrain(*tile))
                                         {
                                             iv3 worldPos = WorldTileFromChunkTile({chunkX, chunkY, chunkZ}, {x, y, z});
                                             v3 simPos = GetRelPos(region->origin, worldPos);
@@ -706,11 +721,11 @@ namespace soko
                                             if (intersection.intersects &&
                                                 intersection.tMin < result.tMin)
                                             {
-                                                result.hit = true;
+                                                result.hit = RaycastResult::Tile;
                                                 result.tMin = intersection.tMin;
-                                                result.tile = worldPos;
-                                                result.normal = intersection.normal;
-                                                result.normalDir = intersection.normalDir;
+                                                result.tile.coord = worldPos;
+                                                result.tile.normal = intersection.normal;
+                                                result.tile.normalDir = intersection.normalDir;
                                             }
                                         }
                                     }
@@ -719,6 +734,62 @@ namespace soko
                         }
                     }
                 }
+            }
+        }
+        return result;
+    }
+
+    internal RaycastResult
+    RaycastEntities(SimRegion* region, v3 from, v3 ray)
+    {
+        RaycastResult result = {};
+
+        result.tMin = F32_MAX;
+
+        for (u32 index = 0; index < SIM_REGION_MAX_ENTITIES; index++)
+        {
+            SimEntity* entity = region->entities + index;
+            if (entity->id)
+            {
+                v3 simPos = entity->pos;
+                BBoxAligned aabb;
+                aabb.min = simPos - LEVEL_TILE_RADIUS;
+                aabb.max = simPos + LEVEL_TILE_RADIUS;
+                auto intersection = RayAABBIntersectionSlow(from, ray, &aabb);
+                if (intersection.intersects &&
+                    intersection.tMin < result.tMin)
+                {
+                    result.hit = RaycastResult::Entity;
+                    result.tMin = intersection.tMin;
+                    result.entity.normal = intersection.normal;
+                    result.entity.id = entity->stored->id;
+                    // TODO: Is using stored position during the simulation allowed?
+                    result.entity.tile = entity->stored->coord.tile;
+                }
+            }
+        }
+        return result;
+    }
+
+
+    // NOTE: from is the origin of ray's basis
+    // So if camera ray passed, then it should be
+    // region relative camera position
+    inline RaycastResult
+    Raycast(SimRegion* region, v3 from, v3 ray, u32 flags)
+    {
+        RaycastResult result = {};
+        result.tMin = F32_MAX;
+        if (flags & Raycast_Tilemap)
+        {
+            result = RaycastTilemap(region, from, ray);
+        }
+        if (flags & Raycast_Entities)
+        {
+            auto raycast = RaycastEntities(region, from, ray);
+            if (raycast.tMin < result.tMin)
+            {
+                result = raycast;
             }
         }
         return result;

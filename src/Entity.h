@@ -1,15 +1,15 @@
 #pragma once
 namespace soko
 {
-
     enum EntityType
     {
-        EntityType_Block,
+        EntityType_Block = 0,
         EntityType_Player,
         EntityType_Plate,
         EntityType_Portal,
         EntityType_Spikes,
-        EntityType_Button
+        EntityType_Button,
+        _EntityType_Count
     };
 
     enum EntityFlags : u32

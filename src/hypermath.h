@@ -1272,6 +1272,7 @@ namespace hpm
         {
             i32 x, y, z;
         };
+        i32 data[3];
         using v3 = Vector3;
         explicit operator v3() { return V3((f32)x, (f32)y, (f32)z); }
     };

@@ -2,13 +2,6 @@
 
 namespace soko
 {
-    inline bool
-    TileCanOcclude(Tile tile)
-    {
-        bool result = tile.value == TileValue_Wall;
-        return result;
-    }
-
     inline ChunkMeshVertexBlock*
     GetChunkMeshVertexBlock(ChunkMesh* mesh, AB::MemoryArena* arena)
     {
@@ -176,58 +169,57 @@ namespace soko
         {
         case Direction_North:
         {
-
-            u32 ao5 = CalcVertexAO(TileCanOcclude(bdnTile), TileCanOcclude(brTile), TileCanOcclude(c5Tile));
-            u32 ao6 = CalcVertexAO(TileCanOcclude(bupTile), TileCanOcclude(brTile), TileCanOcclude(c6Tile));
-            u32 ao7 = CalcVertexAO(TileCanOcclude(bupTile), TileCanOcclude(blTile), TileCanOcclude(c7Tile));
-            u32 ao4 = CalcVertexAO(TileCanOcclude(bdnTile), TileCanOcclude(blTile), TileCanOcclude(c4Tile));
+            u32 ao5 = CalcVertexAO(TileIsTerrain(bdnTile), TileIsTerrain(brTile), TileIsTerrain(c5Tile));
+            u32 ao6 = CalcVertexAO(TileIsTerrain(bupTile), TileIsTerrain(brTile), TileIsTerrain(c6Tile));
+            u32 ao7 = CalcVertexAO(TileIsTerrain(bupTile), TileIsTerrain(blTile), TileIsTerrain(c7Tile));
+            u32 ao4 = CalcVertexAO(TileIsTerrain(bdnTile), TileIsTerrain(blTile), TileIsTerrain(c4Tile));
 
             result = PushChunkMeshQuad(outMesh, arena, vtx5, vtx4, vtx7, vtx6, ao5, ao4, ao7, ao6, val);
         } break;
         case Direction_South:
         {
-            u32 ao0 = CalcVertexAO(TileCanOcclude(fdnTile), TileCanOcclude(flTile), TileCanOcclude(c0Tile));
-            u32 ao1 = CalcVertexAO(TileCanOcclude(fdnTile), TileCanOcclude(frTile), TileCanOcclude(c1Tile));
-            u32 ao2 = CalcVertexAO(TileCanOcclude(fupTile), TileCanOcclude(frTile), TileCanOcclude(c2Tile));
-            u32 ao3 = CalcVertexAO(TileCanOcclude(fupTile), TileCanOcclude(flTile), TileCanOcclude(c3Tile));
+            u32 ao0 = CalcVertexAO(TileIsTerrain(fdnTile), TileIsTerrain(flTile), TileIsTerrain(c0Tile));
+            u32 ao1 = CalcVertexAO(TileIsTerrain(fdnTile), TileIsTerrain(frTile), TileIsTerrain(c1Tile));
+            u32 ao2 = CalcVertexAO(TileIsTerrain(fupTile), TileIsTerrain(frTile), TileIsTerrain(c2Tile));
+            u32 ao3 = CalcVertexAO(TileIsTerrain(fupTile), TileIsTerrain(flTile), TileIsTerrain(c3Tile));
 
             result = PushChunkMeshQuad(outMesh, arena, vtx0, vtx1, vtx2, vtx3, ao0, ao1, ao2, ao3, val);
         } break;
         case Direction_West:
         {
-            u32 ao4 = CalcVertexAO(TileCanOcclude(ldnTile), TileCanOcclude(blTile), TileCanOcclude(c4Tile));
-            u32 ao7 = CalcVertexAO(TileCanOcclude(lupTile), TileCanOcclude(blTile), TileCanOcclude(c7Tile));
-            u32 ao3 = CalcVertexAO(TileCanOcclude(lupTile), TileCanOcclude(flTile), TileCanOcclude(c3Tile));
-            u32 ao0 = CalcVertexAO(TileCanOcclude(ldnTile), TileCanOcclude(flTile), TileCanOcclude(c0Tile));
+            u32 ao4 = CalcVertexAO(TileIsTerrain(ldnTile), TileIsTerrain(blTile), TileIsTerrain(c4Tile));
+            u32 ao7 = CalcVertexAO(TileIsTerrain(lupTile), TileIsTerrain(blTile), TileIsTerrain(c7Tile));
+            u32 ao3 = CalcVertexAO(TileIsTerrain(lupTile), TileIsTerrain(flTile), TileIsTerrain(c3Tile));
+            u32 ao0 = CalcVertexAO(TileIsTerrain(ldnTile), TileIsTerrain(flTile), TileIsTerrain(c0Tile));
 
             result = PushChunkMeshQuad(outMesh, arena, vtx4, vtx0, vtx3, vtx7, ao4, ao0, ao3, ao7, val);
         } break;
         case Direction_East:
         {
-            u32 ao1 = CalcVertexAO(TileCanOcclude(frTile), TileCanOcclude(rdnTile), TileCanOcclude(c1Tile));
-            u32 ao2 = CalcVertexAO(TileCanOcclude(frTile), TileCanOcclude(rupTile), TileCanOcclude(c2Tile));
-            u32 ao6 = CalcVertexAO(TileCanOcclude(brTile), TileCanOcclude(rupTile), TileCanOcclude(c6Tile));
-            u32 ao5 = CalcVertexAO(TileCanOcclude(brTile), TileCanOcclude(rdnTile), TileCanOcclude(c5Tile));
+            u32 ao1 = CalcVertexAO(TileIsTerrain(frTile), TileIsTerrain(rdnTile), TileIsTerrain(c1Tile));
+            u32 ao2 = CalcVertexAO(TileIsTerrain(frTile), TileIsTerrain(rupTile), TileIsTerrain(c2Tile));
+            u32 ao6 = CalcVertexAO(TileIsTerrain(brTile), TileIsTerrain(rupTile), TileIsTerrain(c6Tile));
+            u32 ao5 = CalcVertexAO(TileIsTerrain(brTile), TileIsTerrain(rdnTile), TileIsTerrain(c5Tile));
 
             result = PushChunkMeshQuad(outMesh, arena, vtx1, vtx5, vtx6, vtx2, ao1, ao5, ao6, ao2, val);
 
         } break;
         case Direction_Up:
         {
-            u32 ao3 = CalcVertexAO(TileCanOcclude(fupTile), TileCanOcclude(lupTile), TileCanOcclude(c3Tile));
-            u32 ao7 = CalcVertexAO(TileCanOcclude(bupTile), TileCanOcclude(lupTile), TileCanOcclude(c7Tile));
-            u32 ao6 = CalcVertexAO(TileCanOcclude(bupTile), TileCanOcclude(rupTile), TileCanOcclude(c6Tile));
-            u32 ao2 = CalcVertexAO(TileCanOcclude(fupTile), TileCanOcclude(rupTile), TileCanOcclude(c2Tile));
+            u32 ao3 = CalcVertexAO(TileIsTerrain(fupTile), TileIsTerrain(lupTile), TileIsTerrain(c3Tile));
+            u32 ao7 = CalcVertexAO(TileIsTerrain(bupTile), TileIsTerrain(lupTile), TileIsTerrain(c7Tile));
+            u32 ao6 = CalcVertexAO(TileIsTerrain(bupTile), TileIsTerrain(rupTile), TileIsTerrain(c6Tile));
+            u32 ao2 = CalcVertexAO(TileIsTerrain(fupTile), TileIsTerrain(rupTile), TileIsTerrain(c2Tile));
 
             result = PushChunkMeshQuad(outMesh, arena, vtx3, vtx2, vtx6, vtx7, ao3, ao2, ao6, ao7, val);
 
         } break;
         case Direction_Down:
         {
-            u32 ao4 = CalcVertexAO(TileCanOcclude(bdnTile), TileCanOcclude(ldnTile), TileCanOcclude(c4Tile));
-            u32 ao0 = CalcVertexAO(TileCanOcclude(fdnTile), TileCanOcclude(ldnTile), TileCanOcclude(c0Tile));
-            u32 ao1 = CalcVertexAO(TileCanOcclude(fdnTile), TileCanOcclude(rdnTile), TileCanOcclude(c1Tile));
-            u32 ao5 = CalcVertexAO(TileCanOcclude(bdnTile), TileCanOcclude(rdnTile), TileCanOcclude(c5Tile));
+            u32 ao4 = CalcVertexAO(TileIsTerrain(bdnTile), TileIsTerrain(ldnTile), TileIsTerrain(c4Tile));
+            u32 ao0 = CalcVertexAO(TileIsTerrain(fdnTile), TileIsTerrain(ldnTile), TileIsTerrain(c0Tile));
+            u32 ao1 = CalcVertexAO(TileIsTerrain(fdnTile), TileIsTerrain(rdnTile), TileIsTerrain(c1Tile));
+            u32 ao5 = CalcVertexAO(TileIsTerrain(bdnTile), TileIsTerrain(rdnTile), TileIsTerrain(c5Tile));
 
             result = PushChunkMeshQuad(outMesh, arena, vtx4, vtx5, vtx1, vtx0, ao4, ao5, ao1, ao0, val);
         } break;
@@ -274,7 +266,7 @@ namespace soko
                 {
                     Tile testTile = GetTileInChunk(chunk, tileX, tileY, tileZ);
 
-                    if (IsTileOccupiedByTerrain(testTile))
+                    if (TileIsTerrain(testTile))
                     {
                         Tile upTile = GetTileInChunk(chunk, tileX, tileY, tileZ + 1);
                         Tile dnTile = GetTileInChunk(chunk, tileX, tileY, tileZ - 1);
@@ -283,12 +275,12 @@ namespace soko
                         Tile fTile = GetTileInChunk(chunk, tileX, tileY - 1, tileZ);
                         Tile bTile = GetTileInChunk(chunk, tileX, tileY + 1, tileZ);
 
-                        bool dnEmpty = (tileZ == 0) ? true : !TileCanOcclude(dnTile);
-                        bool lEmpty  = (tileX == 0) ? true : !TileCanOcclude(lTile);
-                        bool fEmpty  = (tileY == 0) ? true : !TileCanOcclude(fTile);
-                        bool upEmpty = (tileZ == (CHUNK_DIM - 1)) ? true : !TileCanOcclude(upTile);
-                        bool rEmpty  = (tileX == (CHUNK_DIM - 1)) ? true : !TileCanOcclude(rTile);
-                        bool bEmpty  = (tileY == (CHUNK_DIM - 1)) ? true : !TileCanOcclude(bTile);
+                        bool dnEmpty = (tileZ == 0) ? true : !TileIsTerrain(dnTile);
+                        bool lEmpty  = (tileX == 0) ? true : !TileIsTerrain(lTile);
+                        bool fEmpty  = (tileY == 0) ? true : !TileIsTerrain(fTile);
+                        bool upEmpty = (tileZ == (CHUNK_DIM - 1)) ? true : !TileIsTerrain(upTile);
+                        bool rEmpty  = (tileX == (CHUNK_DIM - 1)) ? true : !TileIsTerrain(rTile);
+                        bool bEmpty  = (tileY == (CHUNK_DIM - 1)) ? true : !TileIsTerrain(bTile);
 
                         if (upEmpty)
                         {

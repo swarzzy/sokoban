@@ -2,15 +2,16 @@ namespace soko
 {
     enum ToolKind
     {
-        ToolKind_None,
-        ToolKind_TilePicker,
-        ToolKind_TilePlacer,
-        ToolKind_TileEraser
+        Tool_None,
+        Tool_TilePicker,
+        Tool_TilePlacer,
+        Tool_TileEraser,
+        Tool_EntityPicker
     };
 
     struct EditorUI
     {
-
+        b32 entityViewOpened;
         b32 windowOpened;
     };
 
@@ -20,14 +21,15 @@ namespace soko
         EditorUI ui;
         // NOTE: Camera should not gather input if mouse used
         b32 mouseUsed;
-        b32 placerIsHolding;
-        iv3 placerBeginTile;
-        iv3 placerEndTile;
-        iv3 hoveredTile;
-        iv3 selectedTile;
-        TileValue placerTile = TileValue_Wall;
+        b32 selectorHolding;
+        iv3 selectorBegin;
+        iv3 selectorEnd;
+        b32 entityPickerHolding;
+        iv3 entityPickerTile;
+        TileValue placerTile;
+        i32 selectedEntityID;
         // NOTE: Changes every frame
-        //SimRegion* region;
+        SimRegion* region;
     };
 
     struct EditorCamera
@@ -54,7 +56,6 @@ namespace soko
         i32 frameScrollOffset;
 
         v3 mouseRayRH;
-        v3 mouseFrameOffseRH;
     };
 
     internal void
@@ -222,7 +223,9 @@ namespace soko
     internal void
     EditorInit(Editor* editor)
     {
-        editor->selectedTile = {};
+        editor->placerTile = TileValue_Wall;
+        editor->ui.windowOpened = true;
+        editor->ui.entityViewOpened = true;
     }
 
     inline void
@@ -242,7 +245,7 @@ namespace soko
         bool opened = true;
         if (ImGui::Begin("Tools window", &opened, windowFlags))
         {
-            if (editor->tool == ToolKind_TilePlacer)
+            if (editor->tool == Tool_TilePlacer)
             {
                 ImGui::PushID("Tile picker listbox");
                 int tileValue = editor->placerTile - 1;
@@ -251,17 +254,68 @@ namespace soko
                 ImGui::PopID();
                 if (ImGui::Button("Go back"))
                 {
-                    editor->tool = ToolKind_None;
+                    editor->tool = Tool_None;
                 }
             }
             else
             {
                 ImGui::Text("Tools");
                 ImGui::Separator();
-                if (ImGui::Selectable("None", editor->tool == ToolKind_None)) editor->tool = ToolKind_None;
-                if (ImGui::Selectable("Tile picker", editor->tool == ToolKind_TilePicker)) editor->tool = ToolKind_TilePicker;
-                if (ImGui::Selectable("Tile placer", editor->tool == ToolKind_TilePlacer))editor->tool = ToolKind_TilePlacer;
-                if (ImGui::Selectable("Tile eraser", editor->tool == ToolKind_TileEraser))editor->tool = ToolKind_TileEraser;
+                if (ImGui::Selectable("None", editor->tool == Tool_None)) editor->tool = Tool_None;
+                if (ImGui::Selectable("Tile picker", editor->tool == Tool_TilePicker)) editor->tool = Tool_TilePicker;
+                if (ImGui::Selectable("Tile placer", editor->tool == Tool_TilePlacer))editor->tool = Tool_TilePlacer;
+                if (ImGui::Selectable("Tile eraser", editor->tool == Tool_TileEraser))editor->tool = Tool_TileEraser;
+                if (ImGui::Selectable("Entity picker", editor->tool == Tool_EntityPicker))editor->tool = Tool_EntityPicker;
+            }
+        }
+        ImGui::End();
+    }
+
+    internal void
+    EditorEntityView(Editor* editor)
+    {
+        ImGuiIO* io = &ImGui::GetIO();
+        ImGui::SetNextWindowSize({300, 600});
+        auto windowFlags =
+            ImGuiWindowFlags_NoResize;
+            ImGuiWindowFlags_AlwaysAutoResize;
+        if (ImGui::Begin("Entity view", (bool*)&editor->ui.entityViewOpened, windowFlags))
+        {
+            if (!editor->selectedEntityID)
+            {
+                ImGui::Text("Entity not selected");
+            }
+            else
+            {
+                SimEntity* entity = GetEntity(editor->region, editor->selectedEntityID);
+
+                char buffer[16];
+                FormatString(buffer, 16, "%i32", editor->selectedEntityID);
+                ImGui::Text("ID %s", buffer);
+                ImGui::Separator();
+
+                ImGui::Text("Position");
+                WorldPos pos = GetWorldPos(editor->region->origin, entity->pos);
+                //ImGui::SameLine();
+                ImGui::PushID("Entity position drag");
+                // TODO: Bounds of sim region
+                ImGui::InputInt("x", &pos.tile.x);
+                ImGui::InputInt("y", &pos.tile.y);
+                ImGui::InputInt("z", &pos.tile.z);
+
+
+                v3 newPos = GetRelPos(editor->region->origin, pos);
+                entity->pos = newPos;
+                ImGui::PopID();
+                ImGui::Separator();
+
+                ImGui::Text("Type\t ");
+                //ImGui::SameLine();
+                i32 type = (EntityType)entity->stored->type;
+                ImGui::PushID("Entity type listbox");
+                ImGui::Combo("", &type, GetEntityTypeStrings(), _EntityType_Count);
+                ImGui::PopID();
+                ImGui::Separator();
             }
         }
         ImGui::End();
@@ -273,6 +327,7 @@ namespace soko
         Editor* editor = session->editor;
 
         DrawToolBox(editor);
+        EditorEntityView(editor);
         f32 offset = 10.0f;
         ImGuiIO* io = &ImGui::GetIO();
         ImVec2 windowPos = ImVec2(io->DisplaySize.x - offset, offset + 70.0f);
@@ -280,13 +335,13 @@ namespace soko
         ImGui::SetNextWindowPos(windowPos, ImGuiCond_Always, windowPosPivot);
         auto windowFlags =
             ImGuiWindowFlags_NoResize;
-            ImGuiWindowFlags_AlwaysAutoResize;
+        ImGuiWindowFlags_AlwaysAutoResize;
         if (ImGui::Begin("Tile properties", (bool*)&editor->ui.windowOpened, windowFlags))
         {
-            Tile tile = GetTile(session->level, editor->selectedTile);
+            Tile tile = GetTile(session->level, editor->selectorBegin);
             ImGui::Separator();
             char buffer[128];
-            iv3 pos = editor->selectedTile;
+            iv3 pos = editor->selectorBegin;
             FormatString(buffer, 128, "Position: (x: %i32; y: %i32; z: %i32)", pos.x, pos.y, pos.z);
             ImGui::Text("%s", buffer);
             ImGui::Separator();
@@ -296,7 +351,7 @@ namespace soko
             i32 tileValue = (i32)tile.value - 1;
             ImGui::Combo("", &tileValue, GetTileValueStrings() + 1, _TileValue_Count - 1);
             ImGui::PopID();
-            SetTile(session->level, editor->selectedTile, (TileValue)(tileValue + 1));
+            SetTile(session->level, editor->selectorBegin, (TileValue)(tileValue + 1));
         }
         ImGui::End();
     }
@@ -308,10 +363,7 @@ namespace soko
         auto editor = gameState->session.editor;
         auto level = gameState->session.level;
 
-        if (!editor->mouseUsed)
-        {
-            EditorCameraGatherInput(camera);
-        }
+        EditorCameraGatherInput(camera);
         EditorCameraUpdate(camera);
 
         BeginTemporaryMemory(gameState->tempArena, true);
@@ -319,6 +371,7 @@ namespace soko
                                         gameState->session.level,
                                         gameState->session.editorCamera->targetWorldPos,
                                         2);
+        editor->region = simRegion;
 
         i32 actualRadius = simRegion->radius - 1;
         iv3 minBound = GetChunkCoord(simRegion->origin.tile) - actualRadius;
@@ -346,94 +399,138 @@ namespace soko
             }
         }
 
-        v3 from = RHToWorld(camera->conf.position);
-        v3 ray = RHToWorld(camera->mouseRayRH);
-        auto raycast = Raycast(simRegion, from, ray);
+        if (editor->tool != Tool_EntityPicker)
+        {
+            editor->selectedEntityID = 0;
+        }
 
         switch (editor->tool)
         {
-        case ToolKind_TilePicker:
+        case Tool_TilePicker:
         {
             if (JustPressed(MBUTTON_LEFT) && !IsMouseOnUI())
             {
+                v3 from = RHToWorld(camera->conf.position);
+                v3 ray = RHToWorld(camera->mouseRayRH);
+                auto raycast = Raycast(simRegion, from, ray, Raycast_Tilemap);
+
                 if (raycast.hit)
                 {
-                    PrintString("Hit tile (x: %i32, y: %i32, z:%i32), tMin = %f32\n",
-                                raycast.tile.x, raycast.tile.y, raycast.tile.z, raycast.tMin);
-                    editor->selectedTile = raycast.tile;
+                    editor->selectorBegin = raycast.tile.coord;
                 }
             }
         } break;
-        case ToolKind_TilePlacer:
+        case Tool_TilePlacer:
         {
-            if (raycast.hit)
-            {
-                editor->hoveredTile = raycast.tile + DirToUnitOffset(raycast.normalDir);
-            }
-            if (JustPressed(MBUTTON_LEFT) && !IsMouseOnUI())
-            {
-                editor->mouseUsed = true;
-                editor->placerIsHolding = true;
-                editor->placerBeginTile = editor->hoveredTile;
-            }
-            else if (JustReleased(MBUTTON_LEFT) && editor->placerIsHolding)
-            {
-                editor->mouseUsed = false;
-                editor->placerIsHolding = false;
-                editor->placerEndTile = editor->hoveredTile;
+            v3 from = RHToWorld(camera->conf.position);
+            v3 ray = RHToWorld(camera->mouseRayRH);
+            auto raycast = Raycast(simRegion, from, ray, Raycast_Tilemap);
 
-                TileBox box = TileBoxFromTwoPoints(editor->placerBeginTile, editor->placerEndTile);
-
-                for (i32 z = box.min.z; z <= box.max.z; z++)
+            if (raycast.hit == RaycastResult::Tile)
+            {
+                iv3 hoveredTile = raycast.tile.coord + DirToUnitOffset(raycast.tile.normalDir);
+                if (JustPressed(MBUTTON_LEFT) && !IsMouseOnUI())
                 {
-                    for (i32 y = box.min.y; y <= box.max.y; y++)
+                    editor->mouseUsed = true;
+                    editor->selectorHolding = true;
+                    editor->selectorBegin = hoveredTile;
+                }
+                else if (JustReleased(MBUTTON_LEFT) && editor->selectorHolding)
+                {
+                    editor->selectorHolding = false;
+                    editor->selectorEnd = hoveredTile;
+
+                    TileBox box = TileBoxFromTwoPoints(editor->selectorBegin, editor->selectorEnd);
+
+                    for (i32 z = box.min.z; z <= box.max.z; z++)
                     {
-                        for (i32 x = box.min.x; x <= box.max.x; x++)
+                        for (i32 y = box.min.y; y <= box.max.y; y++)
                         {
-                            SetTile(level, x, y, z, editor->placerTile);
+                            for (i32 x = box.min.x; x <= box.max.x; x++)
+                            {
+                                SetTile(level, x, y, z, editor->placerTile);
+                            }
                         }
                     }
                 }
-            }
 
-            if (editor->placerIsHolding)
-            {
-                editor->placerEndTile = editor->hoveredTile;
-            }
-
-        } break;
-        case ToolKind_TileEraser:
-        {
-            if (JustPressed(MBUTTON_LEFT) && !IsMouseOnUI())
-            {
-                if (raycast.hit)
+                if (editor->selectorHolding)
                 {
-                    editor->selectedTile = raycast.tile;
-                    SetTile(level, editor->selectedTile, TileValue_Empty);
+                    editor->selectorEnd = hoveredTile;
+                }
+            }
+        } break;
+        case Tool_TileEraser:
+        {
+            v3 from = RHToWorld(camera->conf.position);
+            v3 ray = RHToWorld(camera->mouseRayRH);
+            auto raycast = Raycast(simRegion, from, ray, Raycast_Tilemap);
+
+            if (raycast.hit == RaycastResult::Tile)
+            {
+                iv3 hoveredTile = raycast.tile.coord;
+                if (JustPressed(MBUTTON_LEFT) && !IsMouseOnUI())
+                {
+                    editor->mouseUsed = true;
+                    editor->selectorHolding = true;
+                    editor->selectorBegin = hoveredTile;
+                }
+                else if (JustReleased(MBUTTON_LEFT) && editor->selectorHolding)
+                {
+                    editor->selectorHolding = false;
+                    editor->selectorEnd = hoveredTile;
+
+                    TileBox box = TileBoxFromTwoPoints(editor->selectorBegin, editor->selectorEnd);
+
+                    for (i32 z = box.min.z; z <= box.max.z; z++)
+                    {
+                        for (i32 y = box.min.y; y <= box.max.y; y++)
+                        {
+                            for (i32 x = box.min.x; x <= box.max.x; x++)
+                            {
+                                SetTile(level, x, y, z, TileValue_Empty);
+                            }
+                        }
+                    }
+                }
+
+                if (editor->selectorHolding)
+                {
+                    editor->selectorEnd = hoveredTile;
                 }
             }
         }
+        case Tool_EntityPicker:
+        {
+            if (JustPressed(MBUTTON_LEFT) && !IsMouseOnUI())
+            {
+                v3 from = RHToWorld(camera->conf.position);
+                v3 ray = RHToWorld(camera->mouseRayRH);
+                auto raycast = Raycast(simRegion, from, ray, Raycast_Entities);
+
+                if (raycast.hit == RaycastResult::Entity)
+                {
+                    editor->selectedEntityID = raycast.entity.id;
+                }
+            }
+        } break;
         default:
         {
             //editor->selectedTile = {};
         } break;
         }
 
-
         RenderGroupSetCamera(gameState->renderGroup, &gameState->session.editorCamera->conf);
         EditorDrawUI(&gameState->session);
         RendererBeginFrame(gameState->renderer, V2(PlatformGlobals.windowWidth, PlatformGlobals.windowHeight));
 
-        v3 selTileRelPos = GetRelPos(camera->targetWorldPos, editor->selectedTile);
-        DrawAlignedBoxOutline(gameState->renderGroup,
-                              WorldToRH(selTileRelPos - V3(LEVEL_TILE_RADIUS)),
-                              WorldToRH(selTileRelPos + V3(LEVEL_TILE_RADIUS)),
-                              V3(1.0f, 0.0f, 0.0f), 2.0f);
-        if (editor->tool == ToolKind_TilePlacer)
+        switch (editor->tool)
         {
-            if (editor->placerIsHolding)
+        case Tool_TilePlacer:
+        {
+            if (editor->selectorHolding)
             {
-                TileBox box = TileBoxFromTwoPoints(editor->placerBeginTile, editor->placerEndTile);
+                TileBox box = TileBoxFromTwoPoints(editor->selectorBegin, editor->selectorEnd);
                 v3 minRelPos = GetRelPos(camera->targetWorldPos, box.min);
                 v3 maxRelPos = GetRelPos(camera->targetWorldPos, box.max);
 
@@ -442,14 +539,42 @@ namespace soko
                                       WorldToRH(maxRelPos + V3(LEVEL_TILE_RADIUS)),
                                       V3(0.0f, 1.0f, 0.0f), 2.0f);
             }
-            else
+        } break;
+        case Tool_TilePicker:
+        {
+            v3 selTileRelPos = GetRelPos(camera->targetWorldPos, editor->selectorBegin);
+            DrawAlignedBoxOutline(gameState->renderGroup,
+                                  WorldToRH(selTileRelPos - V3(LEVEL_TILE_RADIUS)),
+                                  WorldToRH(selTileRelPos + V3(LEVEL_TILE_RADIUS)),
+                                  V3(1.0f, 0.0f, 0.0f), 2.0f);
+        } break;
+        case Tool_TileEraser:
+        {
+            if (editor->selectorHolding)
             {
-                v3 hovTileRelPos = GetRelPos(camera->targetWorldPos, editor->hoveredTile);
+                TileBox box = TileBoxFromTwoPoints(editor->selectorBegin, editor->selectorEnd);
+                v3 minRelPos = GetRelPos(camera->targetWorldPos, box.min);
+                v3 maxRelPos = GetRelPos(camera->targetWorldPos, box.max);
+
                 DrawAlignedBoxOutline(gameState->renderGroup,
-                                      WorldToRH(hovTileRelPos - V3(LEVEL_TILE_RADIUS)),
-                                      WorldToRH(hovTileRelPos + V3(LEVEL_TILE_RADIUS)),
+                                      WorldToRH(minRelPos - V3(LEVEL_TILE_RADIUS)),
+                                      WorldToRH(maxRelPos + V3(LEVEL_TILE_RADIUS)),
                                       V3(0.0f, 1.0f, 0.0f), 2.0f);
             }
+        } break;
+        case Tool_EntityPicker:
+        {
+            if (editor->selectedEntityID)
+            {
+                SimEntity* entity = GetEntity(simRegion, editor->selectedEntityID);
+                // TODO: This is correct only while region
+                // origin and camera origin are the same value
+                DrawAlignedBoxOutline(gameState->renderGroup,
+                                      WorldToRH(entity->pos - V3(LEVEL_TILE_RADIUS)),
+                                      WorldToRH(entity->pos + V3(LEVEL_TILE_RADIUS)),
+                                      V3(1.0f, 0.0f, 0.0f), 2.0f);
+            }
+        }
         }
 
 
