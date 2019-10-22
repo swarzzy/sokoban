@@ -283,6 +283,7 @@ LogAssert(AB::LogLevel level, const char* file, const char* func, u32 line,
 #include "GameMenu.cpp"
 #include "GameSession.cpp"
 
+#include "MetaInfo.cpp"
 
 extern "C" GAME_CODE_ENTRY void
 GameUpdateAndRender(AB::MemoryArena* arena,
@@ -332,6 +333,30 @@ namespace soko
 
         GameState* gameState = _GlobalStaticStorage->gameState;
 
+        gameState->metaInfo = meta::InitMetaInfo(gameState->memoryArena);
+
+#if 1
+        for (u32 i = 0; i < _EntityMesh_Count; i++)
+        {
+            PrintString("%s\n", meta::GetEnumName(gameState->metaInfo, (EntityMesh)i));
+        }
+        for (u32 i = 0; i < _EntityMaterial_Count; i++)
+        {
+            PrintString("%s\n", meta::GetEnumName(gameState->metaInfo, (EntityMaterial)i));
+        }
+        for (u32 i = 0; i < _Direction_Count; i++)
+        {
+            PrintString("%s\n", meta::GetEnumName(gameState->metaInfo, (Direction)i));
+        }
+        for (u32 i = 0; i < _EntityType_Count; i++)
+        {
+            PrintString("%s\n", meta::GetEnumName(gameState->metaInfo, (EntityType)i));
+        }
+        for (u32 i = 0; i <= (u32)TestEnum::_Count; i++)
+        {
+            PrintString("%s\n", meta::GetEnumName(gameState->metaInfo, (TestEnum)i));
+        }
+#endif
         // NOTE: ImGui
         IMGUI_CHECKVERSION();
         ImGui::SetAllocatorFunctions(_GlobalPlatform->functions.AllocForImGui,

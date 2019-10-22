@@ -627,7 +627,7 @@ namespace soko
         }
         return result;
     }
-
+    /*/* */*/
     inline bool
     IsSpace(char c)
     {
@@ -895,7 +895,7 @@ namespace soko
                         token->beginStruct.structTypeEnd = end;
                         tokenizer->at = EatSpace(end);
                     }
-                }
+             j   }
             }
             else if (*tokenizer->at == ';')
             {

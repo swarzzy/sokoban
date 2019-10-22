@@ -1,7 +1,7 @@
 #pragma once
 namespace soko
 {
-    enum EntityType
+    enum [reflect seq_enum] EntityType
     {
         EntityType_Block = 0,
         EntityType_Player,
@@ -12,7 +12,12 @@ namespace soko
         _EntityType_Count
     };
 
-    enum EntityFlags : u32
+    enum class [reflect] TestEnum
+    {
+        Member1 = 0, Member2, Member3, _Count
+    };
+
+    enum [reflect flag_enum] EntityFlags : u32
     {
         EntityFlag_Collides = (1 << 1),
         EntityFlag_Movable = (1 << 2),

@@ -22,6 +22,13 @@
 
 #define SOKO_STATIC_ASSERT static_assert
 
+// NOTE: [reflect] - no hint
+// NOTE: [reflect seq_enum] - hint for sequential enums (using more suitable hash function)
+// NOTE: [reflect flag_enum] - hint for bitfiels flags enums
+#define reflect []
+#define seq_enum
+#define flag_enum
+
 struct ImGuiContext;
 
 namespace AB
@@ -67,7 +74,7 @@ namespace AB
 
     const u32 KEYBOARD_KEYS_COUNT = 256;
 
-    enum KeyCode : u8
+    enum [reflect seq_enum] KeyCode : u8
     {
         KEY_INVALIDKEY = 0x00,
         // Currently works only Ctrl for both left and right keys

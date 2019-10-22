@@ -16,6 +16,11 @@ namespace soko::net
     struct Client;
 }
 
+namespace soko::meta
+{
+    struct MetaInfo;
+}
+
 namespace soko
 {
     struct Mesh
@@ -41,9 +46,11 @@ namespace soko
     struct Renderer;
     struct GameState
     {
+        meta::MetaInfo* metaInfo;
         GameMode globalGameMode;
         GameMenu mainMenu;
         GameSession session;
+
 
         AB::MemoryArena* memoryArena;
         AB::MemoryArena* tempArena;

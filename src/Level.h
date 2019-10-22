@@ -8,7 +8,7 @@ namespace soko
 
     // TODO: Temporary stuff while we haven't an asset system
 
-    enum EntityMesh
+    enum [reflect seq_enum] EntityMesh
     {
         EntityMesh_Cube = 0,
         EntityMesh_Plate,
@@ -18,7 +18,7 @@ namespace soko
         _EntityMesh_Count,
     };
 
-    enum EntityMaterial
+    enum [reflect seq_enum] EntityMaterial
     {
         EntityMaterial_Tile = 0,
         EntityMaterial_Player,
@@ -31,7 +31,7 @@ namespace soko
     };
 
     // NOTE: Should fit in one byte
-    enum Direction : u32
+    enum [reflect seq_enum] Direction : u32
     {
         // NOTE: Movement action values should be same
         // as in PlayerAction enum
@@ -41,10 +41,11 @@ namespace soko
         Direction_West,
         Direction_East,
         Direction_Up,
-        Direction_Down
+        Direction_Down,
+        _Direction_Count
     };
 
-    enum TileValue : u8
+    enum [reflect seq_enum] TileValue : u8
     {
         TileValue_TileNotExist = 0,
         TileValue_Empty,

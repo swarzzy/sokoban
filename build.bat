@@ -27,7 +27,21 @@ set PlatformLinkerFlags=/INCREMENTAL:NO /OPT:REF /MACHINE:X64 Ws2_32.lib user32.
 set GameLinkerFlags=/INCREMENTAL:NO /OPT:REF /MACHINE:X64 /DLL /OUT:%BinOutDir%\SokoGame.dll /PDB:%BinOutDir%\SokoGame_%PdbMangleVal%.pdb
 rem set RendererLinkerFlags=/INCREMENTAL:NO /OPT:REF /MACHINE:X64 /DLL /OUT:%BinOutDir%\SokoRenderer.dll /PDB:%BinOutDir%\SokoRenderer_%PdbMangleVal%.pdb
 
+set PrepBuildArg=prepbuild
+if "%1" == "%PrepBuildArg%" (
+cl /W3 /Fo%ObjOutDir% /D_CRT_SECURE_NO_WARNINGS /DWIN32_LEAN_AND_MEAN %ReleaseCompilerFlags% %ConfigCompilerFlags% src/Preprocessor.cpp /link /INCREMENTAL:NO /OPT:REF /MACHINE:X64 /OUT:%BinOutDir%\Prep.exe /PDB:%BinOutDir%\Prep.pdb
+goto end
+)
+
 set ConfigCompilerFlags=%DebugCompilerFlags%
+
+rem echo Building preprocessor...
+rem cl /W3 /Fo%ObjOutDir% /D_CRT_SECURE_NO_WARNINGS /DWIN32_LEAN_AND_MEAN %CommonCompilerFlags% %ConfigCompilerFlags% src/Preprocessor.cpp /link /INCREMENTAL:NO /OPT:REF /MACHINE:X64 /OUT:%BinOutDir%\Prep.exe /PDB:%BinOutDir%\Prep.pdb
+
+echo Generating meta info...
+build\Prep.exe src/MetaInfo_Generated.cpp src/Entity.h src/Level.h
+rem src/Entity.h src/Level.h src/Platform.h
+
 echo Building platform...
 start /b "__soko_compilation__" cmd /c cl /W3 /FS /DAB_PLATFORM_CODE /Fo%ObjOutDir% %CommonDefines% %CommonCompilerFlags% %ConfigCompilerFlags% src/Win32Platform.cpp /link %PlatformLinkerFlags%
 rem cl /MP /W3 /FS /DAB_PLATFORM_CODE /Fo%ObjOutDir% %CommonDefines% %CommonCompilerFlags% %ConfigCompilerFlags% src/Win32Platform.cpp /link %PlatformLinkerFlags%
