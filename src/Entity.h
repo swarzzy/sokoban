@@ -1,7 +1,7 @@
 #pragma once
 namespace soko
 {
-    enum [reflect seq_enum] EntityType
+    enum [reflect] EntityType
     {
         EntityType_Block = 0,
         EntityType_Player,

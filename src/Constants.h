@@ -9,8 +9,9 @@ namespace soko
     constant i32 CHUNK_TILE_COUNT = CHUNK_DIM * CHUNK_DIM * CHUNK_DIM;
 
     constant i32 LEVEL_INVALID_COORD = 0x7fffffff;
-    constant i32 LEVEL_MAX_DIM = 128;
-    constant i32 LEVEL_MIN_DIM = -127;
+    // TODO: Is That correct
+    constant i32 LEVEL_MAX_DIM = 160;
+    constant i32 LEVEL_MIN_DIM = -96;
 
     constant u32 LEVEL_FULL_DIM_CHUNKS = (LEVEL_MAX_DIM * 2) / CHUNK_DIM; // 8
     constant i32 LEVEL_MAX_DIM_CHUNKS = LEVEL_FULL_DIM_CHUNKS / 2;

@@ -149,6 +149,34 @@ EatSpace(char* at)
 }
 
 inline char*
+EatSpaceBackwards(char* at)
+{
+    char* result = 0;
+    while (*at)
+    {
+        if (MatchStrings(at, "//"))
+        {
+            at = EatLine(at);
+        }
+        else if (MatchStrings(at, "/*"))
+        {
+            at = EatMultiLineComment(at);
+        }
+        else if (IsSpace(*at))
+        {
+            at--;
+        }
+        else
+        {
+            result = at;
+            return result;
+        }
+    }
+    result = at;
+    return result;
+}
+
+inline char*
 EatLine(char* at)
 {
     char* result = 0;
@@ -400,19 +428,11 @@ TokenizeEnum(Tokenizer* tokenizer)
                             at++;
                             at = EatSpace(at);
                             info.type = at;
-                            at = EatWord(at);
-                            if (*at == '{')
-                            {
-                                *at = 0;
-                                at++;
-                            }
-                            else
-                            {
-                                *at = 0;
-                                at++;
-                                at = EatUntilChar(at, '{');
-                                at++;
-                            }
+                            at = EatUntilChar(at, '{');
+                            char* term = EatSpaceBackwards(at - 1);
+                            term++;
+                            *term = 0;
+                            at++;
                         }
                         else
                         {

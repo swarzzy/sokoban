@@ -22,7 +22,7 @@
 
 #define SOKO_STATIC_ASSERT static_assert
 
-// NOTE: [reflect] - no hint
+// NOTE: [reflect] - no hint (using seq_enum by default)
 // NOTE: [reflect seq_enum] - hint for sequential enums (using more suitable hash function)
 // NOTE: [reflect flag_enum] - hint for bitfiels flags enums
 #define reflect []
@@ -54,7 +54,7 @@ namespace AB
     typedef float               f32;
     typedef double              f64;
 /*
-    // @TODO: Error here
+    // TODO: Error here
     const u32 UINT32_MAX = 0xffffffff;
     const i32 INT32_MIN = -(i32)(2147483648);
     const i32 INT32_MAX = (i32)(0x7fffffff);
