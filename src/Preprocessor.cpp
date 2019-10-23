@@ -16,6 +16,29 @@ using namespace AB;
 #include <assert.h>
 #include <time.h>
 
+constant const char* DEFAULT_ENUM_TYPE = "i32";
+
+struct EnumMember
+{
+    char* name;
+};
+
+enum MetaEnumHint
+{
+    MetaEnumHint_NoHint = 0,
+    MetaEnumHint_Sequential,
+    MetaEnumHint_Flags
+};
+
+struct EnumMetaInfo
+{
+    char* name;
+    char* type;
+    bool isEnumClass;
+    MetaEnumHint hint;
+    std::vector<EnumMember> members;
+};
+
 internal char*
 ReadEntireFileAsText(const char* filename, u32* bytesRead)
 {
@@ -306,26 +329,6 @@ EatUntilEnum(Tokenizer* tokenizer)
     tokenizer->eof = true;
 }
 
-struct EnumMember
-{
-    char* name;
-};
-
-enum MetaEnumHint
-{
-    MetaEnumHint_NoHint = 0,
-    MetaEnumHint_Sequential,
-    MetaEnumHint_Flags
-};
-
-struct EnumMetaInfo
-{
-    char* name;
-    bool isEnumClass;
-    MetaEnumHint hint;
-    std::vector<EnumMember> members;
-};
-
 internal EnumMetaInfo
 TokenizeEnum(Tokenizer* tokenizer)
 {
@@ -390,8 +393,32 @@ TokenizeEnum(Tokenizer* tokenizer)
                             *at = 0;
                             at++;
                         }
-                        at = EatUntilChar(at, '{');
-                        at++;
+
+                        at = EatSpace(at);
+                        if (*at == ':')
+                        {
+                            at++;
+                            at = EatSpace(at);
+                            info.type = at;
+                            at = EatWord(at);
+                            if (*at == '{')
+                            {
+                                *at = 0;
+                                at++;
+                            }
+                            else
+                            {
+                                *at = 0;
+                                at++;
+                                at = EatUntilChar(at, '{');
+                                at++;
+                            }
+                        }
+                        else
+                        {
+                            at = EatUntilChar(at, '{');
+                            at++;
+                        }
                     }
 
                     at = EatSpace(at);
@@ -465,8 +492,10 @@ R"(constant u32 ENTITY_META_TABLE_SIZE_%s = %d;
 struct MetaTable_%s
 {
     b32 isEnumClass;
+    const char* name;
+    const char* underlyingType;
     MetaEnumHint hint;
-    i32 values[ENTITY_META_TABLE_SIZE_%s];
+    %s values[ENTITY_META_TABLE_SIZE_%s];
     const char* names[ENTITY_META_TABLE_SIZE_%s];
 };
 
@@ -498,6 +527,8 @@ constant const char* metaTableInit =
 R"(
     info->%s.isEnumClass = %d;
     info->%s.hint = %s;
+    info->%s.name = "%s";
+    info->%s.underlyingType = "%s";
 )";
 
 constant const char* initAddEntry =
@@ -522,7 +553,7 @@ GetEnumName(MetaInfo* info, %s e)
 
 )";
 
-constant const char* addEntryFunc =
+constant const char* addEntryFuncSeq =
 R"(inline void
 AddEntry_%s(MetaTable_%s* table, %s at, const char* string)
 {
@@ -535,16 +566,16 @@ AddEntry_%s(MetaTable_%s* table, %s at, const char* string)
         u32 index = (hash + offset) & hashMask;
         if (!(table->names[index]))
         {
-            table->values[index] = (i32)at;
+            table->values[index] = (%s)at;
             table->names[index] = string;
             break;
         }
     }
- }
+}
 
 )";
 
-constant const char* getNameFunc =
+constant const char* getNameFuncSeq =
 R"(inline const char*
 GetEnumName_%s(MetaTable_%s* table, %s e)
 {
@@ -555,7 +586,7 @@ GetEnumName_%s(MetaTable_%s* table, %s e)
     for (u32 offset = 0; offset < ENTITY_META_TABLE_SIZE_%s; offset++)
     {
         u32 index = (hash + offset) & hashMask;
-        if (table->values[index] == (i32)e)
+        if (table->values[index] == (%s)e)
         {
             result = table->names[index];
             break;
@@ -565,6 +596,55 @@ GetEnumName_%s(MetaTable_%s* table, %s e)
 }
 
 )";
+
+constant const char* addEntryFuncFlags =
+R"(inline void
+AddEntry_%s(MetaTable_%s* table, %s at, const char* string)
+{
+    SOKO_STATIC_ASSERT(IsPowerOfTwo(ENTITY_META_TABLE_SIZE_%s));
+    u32 hashMask = ENTITY_META_TABLE_SIZE_%s - 1;
+    // TODO: Check this guy for performance
+    auto bitScanResult = FindLeastSignificantBitSet((u32)at);
+    u32 hash = bitScanResult.found ? (bitScanResult.index &  hashMask) : 0;
+
+    for (u32 offset = 0; offset < ENTITY_META_TABLE_SIZE_%s; offset++)
+    {
+        u32 index = (hash + offset) & hashMask;
+        if (!(table->names[index]))
+        {
+            table->values[index] = (%s)at;
+            table->names[index] = string;
+            break;
+        }
+    }
+}
+
+)";
+
+constant const char* getNameFuncFlags =
+R"(inline const char*
+GetEnumName_%s(MetaTable_%s* table, %s e)
+{
+    const char* result = UNKNOWN_ENUM_VALUE;
+    u32 hashMask = ENTITY_META_TABLE_SIZE_%s - 1;
+    // TODO: Check this guy for performance
+    auto bitScanResult = FindLeastSignificantBitSet((u32)e);
+    u32 hash = bitScanResult.found ? (bitScanResult.index &  hashMask) : 0;
+
+    for (u32 offset = 0; offset < ENTITY_META_TABLE_SIZE_%s; offset++)
+    {
+        u32 index = (hash + offset) & hashMask;
+        if (table->values[index] == (%s)e)
+        {
+            result = table->names[index];
+            break;
+        }
+    }
+    return result;
+}
+
+)";
+
 
 // NOTE: https://graphics.stanford.edu/~seander/bithacks.html#RoundUpPowerOf2
 inline int
@@ -591,8 +671,9 @@ WriteMetaInfo(FILE* file, const std::vector<EnumMetaInfo>& info)
 
     for (const EnumMetaInfo& entry : info)
     {
+        const char* type = entry.type ? entry.type : DEFAULT_ENUM_TYPE;
         fprintf(file, metaTable, entry.name, NextPowerOfTwo((int)entry.members.size()),
-                entry.name, entry.name, entry.name);
+                entry.name, type, entry.name, entry.name);
     }
 
     fprintf(file, metaInfoSourceBegin);
@@ -606,10 +687,23 @@ WriteMetaInfo(FILE* file, const std::vector<EnumMetaInfo>& info)
 
     for (const EnumMetaInfo& entry : info)
     {
-        fprintf(file, addEntryFunc, entry.name, entry.name, entry.name,
-                entry.name, entry.name, entry.name);
-        fprintf(file, getNameFunc, entry.name, entry.name, entry.name,
-                entry.name, entry.name);
+       const char* type = entry.type ? entry.type : DEFAULT_ENUM_TYPE;
+
+        if (entry.hint == MetaEnumHint_Flags)
+        {
+            fprintf(file, addEntryFuncFlags, entry.name, entry.name, entry.name,
+                entry.name, entry.name, entry.name, type);
+            fprintf(file, getNameFuncFlags, entry.name, entry.name, entry.name,
+                entry.name, entry.name, type);
+
+        }
+        else
+        {
+            fprintf(file, addEntryFuncSeq, entry.name, entry.name, entry.name,
+                entry.name, entry.name, entry.name, type);
+            fprintf(file, getNameFuncSeq, entry.name, entry.name, entry.name,
+                entry.name, entry.name, type);
+        }
     }
 
     for (const EnumMetaInfo& entry : info)
@@ -630,8 +724,10 @@ WriteMetaInfo(FILE* file, const std::vector<EnumMetaInfo>& info)
         default: { assert(false); }
         }
 
+        const char* type = entry.type ? entry.type : DEFAULT_ENUM_TYPE;
+
         fprintf(file, metaTableInit, entry.name, (int)entry.isEnumClass,
-                entry.name, hint);
+                entry.name, hint, entry.name, entry.name, entry.name, type);
 
         for (const EnumMember& member : entry.members)
         {

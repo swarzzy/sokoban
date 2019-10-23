@@ -33,12 +33,33 @@ typedef byte                b8;
 //typedef __m128                f128;
 
 #define HPM_USE_NAMESPACE
-
+#include <intrin.h>
 namespace hpm
 {
     const f32 PI_32 = 3.14159265358979323846f;
     const f32 FLOAT_EPS = 0.000001f;
     const f32 FLOAT_NAN = NAN;
+
+    // TODO: intrinsics file
+    struct BitScanResult
+    {
+        b32 found;
+        u32 index;
+    };
+
+    inline BitScanResult
+    FindLeastSignificantBitSet(u32 value)
+    {
+        BitScanResult result;
+#if defined(_MSC_VER)
+        result.found =  _BitScanForward((unsigned long*)&result.index, value);
+#else
+        result.found = (value != 0);
+        result.index = __builtin_ctz(value);
+#endif
+        return result;
+    }
+
 
     template<typename T> constexpr T Min(T a, T b)
     {

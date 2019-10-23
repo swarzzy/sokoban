@@ -12,11 +12,6 @@ namespace soko
         _EntityType_Count
     };
 
-    enum class [reflect] TestEnum
-    {
-        Member1 = 0, Member2, Member3, _Count
-    };
-
     enum [reflect flag_enum] EntityFlags : u32
     {
         EntityFlag_Collides = (1 << 1),

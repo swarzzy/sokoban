@@ -352,10 +352,6 @@ namespace soko
         {
             PrintString("%s\n", meta::GetEnumName(gameState->metaInfo, (EntityType)i));
         }
-        for (u32 i = 0; i <= (u32)TestEnum::_Count; i++)
-        {
-            PrintString("%s\n", meta::GetEnumName(gameState->metaInfo, (TestEnum)i));
-        }
 #endif
         // NOTE: ImGui
         IMGUI_CHECKVERSION();
