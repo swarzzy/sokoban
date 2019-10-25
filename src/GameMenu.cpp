@@ -139,7 +139,7 @@ namespace soko
         gameState->session.editor = PUSH_STRUCT(gameState->session.sessionArena, Editor);
         SOKO_ASSERT(gameState->session.editorCamera);
         SOKO_ASSERT(gameState->session.editor);
-        EditorInit(gameState->session.editor);
+        EditorInit(gameState->session.editor, &gameState->session);
         EditorCameraInit(gameState->session.editorCamera);
         RenderGroupSetCamera(gameState->renderGroup, &gameState->session.editorCamera->conf);
     }

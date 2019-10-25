@@ -91,4 +91,6 @@ namespace soko
         EditorCamera* editorCamera;
         b32 useDebugCamera;
     };
+
+    internal void DestroyGameSession(GameSession* session);
 }

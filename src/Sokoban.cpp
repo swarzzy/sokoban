@@ -5,59 +5,33 @@
 #include "Memory.h"
 #include "Platform.h"
 
-#include "RenderGroup.h"
-#include "Camera.h"
-#include "GameSession.h"
-#include "Sokoban.h"
-
-#include "FileFormats.h"
-#include "DebugOverlay.h"
-
 using namespace AB;
 
 namespace soko
 {
+    namespace meta
+    {
+        struct MetaInfo;
+    }
+
     struct GameState;
 
     struct StaticStorage
     {
         GameState* gameState;
+        meta::MetaInfo* metaInfo;
     };
 
     static AB::PlatformState* _GlobalPlatform;
     static StaticStorage* _GlobalStaticStorage;
+
+#define GlobalMetaInfo (*(const meta::MetaInfo*)(_GlobalStaticStorage->metaInfo))
 
     void GameInit(AB::MemoryArena* arena,  AB::PlatformState* platform);
     void GameReload(AB::MemoryArena* arena,  AB::PlatformState* platform);
     void GameUpdate(AB::MemoryArena* arena,  AB::PlatformState* platform);
     void GameRender(AB::MemoryArena* arena,  AB::PlatformState* platform);
 
-}
-
-#define STB_IMAGE_IMPLEMENTATION
-#define STBI_ONLY_PNG
-#define STBI_MALLOC(sz) PUSH_SIZE(soko::_GlobalStaticStorage->gameState->tempArena, sz)
-#define STBI_FREE(sz)
-inline void* ReallocForSTBI(void* p, uptr oldSize, uptr newSize)
-{
-    void* newMem = PUSH_SIZE(soko::_GlobalStaticStorage->gameState->tempArena, newSize);
-    COPY_BYTES(oldSize, newMem, p);
-    return newMem;
-}
-// NOTE: Realloc not used in PNG loading code
-#define STBI_REALLOC(p, newsz)
-#define STBI_REALLOC_SIZED(p, oldsz, newsz) ReallocForSTBI(p, oldsz, newsz)
-#include "stb/stb_image.h"
-
-#undef STB_IMAGE_IMPLEMENTATION
-
-// NOTE: Actual frame time
-#define GlobalAbsDeltaTime soko::_GlobalPlatform->absDeltaTime
-// NOTE: Frame time corrected by game speed
-#define GlobalGameDeltaTime soko::_GlobalPlatform->gameDeltaTime
-// NOTE: Why clang inserts the dot by itself
-#define GlobalInput soko::_GlobalPlatform->input
-#define PlatformGlobals (*soko::_GlobalPlatform)
 #if defined(AB_COMPILER_MSVC)
 #define SOKO_PLATFORM_FUNCTION(func) soko::_GlobalPlatform->functions.##func
 #else
@@ -87,6 +61,75 @@ inline void* ReallocForSTBI(void* p, uptr oldSize, uptr newSize)
 
 #define PLATFORM_QUERY_NEW_ARENA(size) QueryNewArena(size)
 #define PLATFORM_FREE_ARENA(arena) FreeArena(arena)
+
+        inline void
+        LogAssert(AB::LogLevel level, const char* file, const char* func, u32 line,
+                  const char* assertStr, const char* fmt, ...)
+        {
+            va_list args;
+            va_start(args, fmt);
+            LogAssertV(level, file, func, line, assertStr, fmt, &args);
+            va_end(args);
+        }
+
+    inline void
+    LogAssert(AB::LogLevel level, const char* file, const char* func, u32 line,
+              const char* assertStr)
+    {
+        LogAssertV(level, file, func, line, assertStr, nullptr, nullptr);
+    }
+}
+
+// NOTE: Panic macro should not be stripped in release build
+#if defined(AB_COMPILER_CLANG)
+#define SOKO_INFO(format, ...) Log(AB::LOG_INFO, __FILE__, __func__, __LINE__, format, ##__VA_ARGS__)
+#define SOKO_WARN(format, ...) Log(AB::LOG_WARN, __FILE__, __func__, __LINE__, format, ##__VA_ARGS__)
+#define SOKO_ASSERT(expr, ...) do { if (!(expr)) {soko::LogAssert(AB::LOG_FATAL, __FILE__, __func__, __LINE__, #expr, ##__VA_ARGS__); AB_DEBUG_BREAK();}} while(false)
+#define SOKO_PANIC(format, ...) do{ Log(AB::LOG_FATAL, __FILE__, __func__, __LINE__, format, ##__VA_ARGS__); abort();} while(false)
+#else
+#define SOKO_INFO(format, ...) Log(AB::LOG_INFO, __FILE__, __func__, __LINE__, format, __VA_ARGS__)
+#define SOKO_WARN(format, ...) Log(AB::LOG_WARN, __FILE__, __func__, __LINE__, format, __VA_ARGS__)
+#define SOKO_ASSERT(expr, ...) do { if (!(expr)) {soko::LogAssert(AB::LOG_FATAL, __FILE__, __func__, __LINE__, #expr, __VA_ARGS__); AB_DEBUG_BREAK();}} while(false)
+#define SOKO_PANIC(format, ...) do{ Log(AB::LOG_FATAL, __FILE__, __func__, __LINE__, format, __VA_ARGS__); abort();} while(false)
+#endif
+#define INVALID_DEFAULT_CASE default:{ SOKO_ASSERT(false, "Invalid default case."); }break
+#define INVALID_CODE_PATH SOKO_ASSERT(false, "Invalid code path.")
+
+#include "MetaInfo.cpp"
+#include "MetaInfo_Generated.h"
+
+#include "RenderGroup.h"
+#include "Camera.h"
+#include "GameSession.h"
+#include "Sokoban.h"
+
+#include "FileFormats.h"
+#include "DebugOverlay.h"
+
+#define STB_IMAGE_IMPLEMENTATION
+#define STBI_ONLY_PNG
+#define STBI_MALLOC(sz) PUSH_SIZE(soko::_GlobalStaticStorage->gameState->tempArena, sz)
+#define STBI_FREE(sz)
+inline void* ReallocForSTBI(void* p, uptr oldSize, uptr newSize)
+{
+    void* newMem = PUSH_SIZE(soko::_GlobalStaticStorage->gameState->tempArena, newSize);
+    COPY_BYTES(oldSize, newMem, p);
+    return newMem;
+}
+// NOTE: Realloc not used in PNG loading code
+#define STBI_REALLOC(p, newsz)
+#define STBI_REALLOC_SIZED(p, oldsz, newsz) ReallocForSTBI(p, oldsz, newsz)
+#include "stb/stb_image.h"
+
+#undef STB_IMAGE_IMPLEMENTATION
+
+// NOTE: Actual frame time
+#define GlobalAbsDeltaTime soko::_GlobalPlatform->absDeltaTime
+// NOTE: Frame time corrected by game speed
+#define GlobalGameDeltaTime soko::_GlobalPlatform->gameDeltaTime
+// NOTE: Why clang inserts the dot by itself
+#define GlobalInput soko::_GlobalPlatform->input
+#define PlatformGlobals (*soko::_GlobalPlatform)
 
 #define GL_FUNCTION(func) soko::_GlobalPlatform->gl->_##func
 
@@ -185,85 +228,53 @@ inline void* ReallocForSTBI(void* p, uptr oldSize, uptr newSize)
 #define glDetachShader GL_FUNCTION(glDetachShader)
 #define glDeleteProgram GL_FUNCTION(glDeleteProgram)
 
-namespace soko
-   {
-inline void
-LogAssert(AB::LogLevel level, const char* file, const char* func, u32 line,
-          const char* assertStr, const char* fmt, ...)
-{
-    va_list args;
-    va_start(args, fmt);
-    LogAssertV(level, file, func, line, assertStr, fmt, &args);
-    va_end(args);
-}
+            namespace soko
+            {
 
-        inline void
-        LogAssert(AB::LogLevel level, const char* file, const char* func, u32 line,
-                  const char* assertStr)
-        {
-            LogAssertV(level, file, func, line, assertStr, nullptr, nullptr);
-        }
+// TODO: Bounds checking of using enum classes
+                inline bool
+                JustPressed(AB::KeyCode code)
+                {
+                    bool result = GlobalInput.keys[(u32)code].pressedNow && !GlobalInput.keys[(u32)code].wasPressed;
+                    return result;
+                }
 
-        // TODO: Bounds checking of using enum classes
-        inline bool
-        JustPressed(AB::KeyCode code)
-        {
-            bool result = GlobalInput.keys[(u32)code].pressedNow && !GlobalInput.keys[(u32)code].wasPressed;
-            return result;
-        }
+                inline bool
+                JustReleased(AB::KeyCode code)
+                {
+                    bool result = !GlobalInput.keys[(u32)code].pressedNow && GlobalInput.keys[(u32)code].wasPressed;
+                    return result;
+                }
 
-        inline bool
-        JustReleased(AB::KeyCode code)
-        {
-            bool result = !GlobalInput.keys[(u32)code].pressedNow && GlobalInput.keys[(u32)code].wasPressed;
-            return result;
-        }
+                inline bool
+                IsDown(AB::KeyCode code)
+                {
+                    bool result = GlobalInput.keys[(u32)code].pressedNow;
+                    return result;
+                }
 
-        inline bool
-        IsDown(AB::KeyCode code)
-        {
-            bool result = GlobalInput.keys[(u32)code].pressedNow;
-            return result;
-        }
+                inline bool
+                JustPressed(AB::MouseButton button)
+                {
+                    bool result = GlobalInput.mouseButtons[(u32)button].pressedNow && !GlobalInput.mouseButtons[(u32)button].wasPressed;
+                    return result;
+                }
 
-       inline bool
-       JustPressed(AB::MouseButton button)
-       {
-           bool result = GlobalInput.mouseButtons[(u32)button].pressedNow && !GlobalInput.mouseButtons[(u32)button].wasPressed;
-           return result;
-       }
+                inline bool
+                JustReleased(AB::MouseButton button)
+                {
+                    bool result = !GlobalInput.mouseButtons[(u32)button].pressedNow && GlobalInput.mouseButtons[(u32)button].wasPressed;
+                    return result;
+                }
 
-       inline bool
-       JustReleased(AB::MouseButton button)
-       {
-           bool result = !GlobalInput.mouseButtons[(u32)button].pressedNow && GlobalInput.mouseButtons[(u32)button].wasPressed;
-           return result;
-       }
+                inline bool
+                IsDown(AB::MouseButton button)
+                {
+                    bool result = GlobalInput.mouseButtons[(u32)button].pressedNow;
+                    return result;
+                }
 
-       inline bool
-       IsDown(AB::MouseButton button)
-       {
-           bool result = GlobalInput.mouseButtons[(u32)button].pressedNow;
-           return result;
-       }
-
-    }
-
-// TODO:: Asserts without message
-// NOTE: Panic macro should not be stripped in release build
-#if defined(AB_COMPILER_CLANG)
-#define SOKO_INFO(format, ...) Log(AB::LOG_INFO, __FILE__, __func__, __LINE__, format, ##__VA_ARGS__)
-#define SOKO_WARN(format, ...) Log(AB::LOG_WARN, __FILE__, __func__, __LINE__, format, ##__VA_ARGS__)
-#define SOKO_ASSERT(expr, ...) do { if (!(expr)) {soko::LogAssert(AB::LOG_FATAL, __FILE__, __func__, __LINE__, #expr, ##__VA_ARGS__); AB_DEBUG_BREAK();}} while(false)
-#define SOKO_PANIC(format, ...) do{ Log(AB::LOG_FATAL, __FILE__, __func__, __LINE__, format, ##__VA_ARGS__); abort();} while(false)
-#else
-#define SOKO_INFO(format, ...) Log(AB::LOG_INFO, __FILE__, __func__, __LINE__, format, __VA_ARGS__)
-#define SOKO_WARN(format, ...) Log(AB::LOG_WARN, __FILE__, __func__, __LINE__, format, __VA_ARGS__)
-#define SOKO_ASSERT(expr, ...) do { if (!(expr)) {soko::LogAssert(AB::LOG_FATAL, __FILE__, __func__, __LINE__, #expr, __VA_ARGS__); AB_DEBUG_BREAK();}} while(false)
-#define SOKO_PANIC(format, ...) do{ Log(AB::LOG_FATAL, __FILE__, __func__, __LINE__, format, __VA_ARGS__); abort();} while(false)
-#endif
-#define INVALID_DEFAULT_CASE default:{ SOKO_ASSERT(false, "Invalid default case."); }break
-#define INVALID_CODE_PATH SOKO_ASSERT(false, "Invalid code path.")
+            }
 
 #include "imgui/imgui.h"
 //#include "imgui/imgui_internal.h"
@@ -283,7 +294,7 @@ LogAssert(AB::LogLevel level, const char* file, const char* func, u32 line,
 #include "GameMenu.cpp"
 #include "GameSession.cpp"
 
-#include "MetaInfo.cpp"
+#include "MetaInfo_Generated.cpp"
 
 extern "C" GAME_CODE_ENTRY void
 GameUpdateAndRender(AB::MemoryArena* arena,
@@ -317,8 +328,8 @@ namespace soko
     void
     GameInit(AB::MemoryArena* arena, AB::PlatformState* platform)
     {
-        _GlobalStaticStorage = (StaticStorage*)PUSH_SIZE(arena, KILOBYTES(1));
-        SOKO_ASSERT(_GlobalStaticStorage == arena->begin, 0);
+        _GlobalStaticStorage = (StaticStorage*)PUSH_STRUCT(arena, StaticStorage);
+        SOKO_ASSERT(_GlobalStaticStorage == arena->begin);
         _GlobalPlatform = platform;
 
         _GlobalPlatform->gameSpeed = 1.0f;
@@ -333,26 +344,8 @@ namespace soko
 
         GameState* gameState = _GlobalStaticStorage->gameState;
 
-        gameState->metaInfo = meta::InitMetaInfo(gameState->memoryArena);
+        _GlobalStaticStorage->metaInfo = meta::InitMetaInfo(gameState->memoryArena);
 
-#if 1
-        for (u32 i = 0; i < _EntityMesh_Count; i++)
-        {
-            PrintString("%s\n", meta::GetEnumName(gameState->metaInfo, (EntityMesh)i));
-        }
-        for (u32 i = 0; i < _EntityMaterial_Count; i++)
-        {
-            PrintString("%s\n", meta::GetEnumName(gameState->metaInfo, (EntityMaterial)i));
-        }
-        for (u32 i = 0; i < _Direction_Count; i++)
-        {
-            PrintString("%s\n", meta::GetEnumName(gameState->metaInfo, (Direction)i));
-        }
-        for (u32 i = 0; i < _EntityType_Count; i++)
-        {
-            PrintString("%s\n", meta::GetEnumName(gameState->metaInfo, (EntityType)i));
-        }
-#endif
         // NOTE: ImGui
         IMGUI_CHECKVERSION();
         ImGui::SetAllocatorFunctions(_GlobalPlatform->functions.AllocForImGui,
@@ -702,7 +695,7 @@ namespace soko
         //gameState->port = 9999;
         //gameState->ipOctets[0] = 127;
         //gameState->ipOctets[3] = 1;
-}
+    }
 
     void
     GameReload(AB::MemoryArena* arena, AB::PlatformState* platform)
@@ -737,7 +730,7 @@ namespace soko
         bool show = true;
 
         DrawOverlay(gameState);
-        //ImGui::ShowDemoWindow(&show);
+        ImGui::ShowDemoWindow(&show);
         DEBUG_OVERLAY_TRACE(gameState->session.debugCamera.conf.position);
         DEBUG_OVERLAY_TRACE(gameState->session.debugCamera.conf.front);
 
@@ -974,10 +967,6 @@ namespace soko
             EndTemporaryMemory(gameState->tempArena);
 
         }
-        else if (gameState->globalGameMode == GAME_MODE_EDITOR)
-        {
-            EditorUpdateAndRender(gameState);
-        }
         else
         {
             INVALID_CODE_PATH;
@@ -993,6 +982,7 @@ namespace soko
         switch (gameState->globalGameMode)
         {
         case GAME_MODE_MENU: { MenuUpdateAndRender(&gameState->mainMenu, gameState); } break;
+        case GAME_MODE_EDITOR: { EditorUpdateAndRender(gameState); } break;
         default:
         {
             DoOtherStuff(gameState);

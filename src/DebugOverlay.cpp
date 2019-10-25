@@ -57,7 +57,6 @@ namespace soko
                          ImGuiWindowFlags_NoFocusOnAppearing |
                          ImGuiWindowFlags_NoNav))
         {
-            //ImGui::Text("Debug overlay");
         }
         ImGui::End();
     }

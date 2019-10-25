@@ -9,7 +9,6 @@ namespace soko
         EntityType_Portal,
         EntityType_Spikes,
         EntityType_Button,
-        _EntityType_Count
     };
 
     enum [reflect flag_enum] EntityFlags : u32

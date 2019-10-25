@@ -30,41 +30,6 @@ namespace soko
         e->movementSpeed = se->movementSpeed;
     }
 
-    // TODO: Enum reflection
-    // TODO: Check is these two actually evaluated at compile time
-    // NOTE: They are not evaluated at compile time!!!
-    constexpr const char*
-    EntityTypeToString(EntityType type)
-    {
-#define CASE(c) case c: { result = #c; } break
-        const char* result = 0;
-        switch (type)
-        {
-            CASE(EntityType_Block);
-            CASE(EntityType_Player);
-            CASE(EntityType_Plate);
-            CASE(EntityType_Portal);
-            CASE(EntityType_Spikes);
-            CASE(EntityType_Button);
-            INVALID_DEFAULT_CASE;
-        }
-        return result;
-#undef CASE
-    }
-
-    constexpr const char**
-    GetEntityTypeStrings()
-    {
-        local_persist const char* strings[_EntityType_Count] = {};
-
-        for (u32 i = 0; i < _EntityType_Count; i++)
-        {
-            strings[i] = EntityTypeToString((EntityType)i);
-        }
-        return strings;
-    }
-
-
     inline uptr
     CalcSerializedEntitiesSize(const Level* level)
     {

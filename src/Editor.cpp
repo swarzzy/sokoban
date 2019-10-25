@@ -11,12 +11,16 @@ namespace soko
 
     struct EditorUI
     {
+        b32 entityListerOpened;
         b32 entityViewOpened;
+        b32 tileViewOpened;
         b32 windowOpened;
+        b32 exitToMainMenu;
     };
 
     struct Editor
     {
+        GameSession* session;
         ToolKind tool;
         EditorUI ui;
         // NOTE: Camera should not gather input if mouse used
@@ -163,7 +167,7 @@ namespace soko
 
         camera->latitude = Lerp(camera->latitude, camera->targetOrbit.y,
                                 GlobalAbsDeltaTime * camera->latSmooth);
-        DEBUG_OVERLAY_TRACE(camera->latitude);
+        //DEBUG_OVERLAY_TRACE(camera->latitude);
 
         camera->longitude = Lerp(camera->longitude, camera->targetOrbit.x,
                                  GlobalAbsDeltaTime * camera->longSmooth);
@@ -187,8 +191,8 @@ namespace soko
         v2 normMousePos;
         normMousePos.x = 2.0f * GlobalInput.mouseX - 1.0f;
         normMousePos.y = 2.0f * GlobalInput.mouseY - 1.0f;
-        DEBUG_OVERLAY_TRACE(normMousePos.x);
-        DEBUG_OVERLAY_TRACE(normMousePos.y);
+        //DEBUG_OVERLAY_TRACE(normMousePos.x);
+        //DEBUG_OVERLAY_TRACE(normMousePos.y);
 
         v4 mouseClip = V4(normMousePos, -1.0f, 0.0f);
 
@@ -221,11 +225,10 @@ namespace soko
     }
 
     internal void
-    EditorInit(Editor* editor)
+    EditorInit(Editor* editor, GameSession* session)
     {
+        editor->session = session;
         editor->placerTile = TileValue_Wall;
-        editor->ui.windowOpened = true;
-        editor->ui.entityViewOpened = true;
     }
 
     inline void
@@ -249,7 +252,7 @@ namespace soko
             {
                 ImGui::PushID("Tile picker listbox");
                 int tileValue = editor->placerTile - 1;
-                ImGui::ListBox("", &tileValue, GetTileValueStrings() + 1, _TileValue_Count - 1);
+                ImGui::ListBox("", &tileValue, TypeInfo(TileValue).names, TypeTraits(TileValue)::MemberCount);
                 editor->placerTile = (TileValue)(tileValue + 1);
                 ImGui::PopID();
                 if (ImGui::Button("Go back"))
@@ -278,7 +281,7 @@ namespace soko
         ImGui::SetNextWindowSize({300, 600});
         auto windowFlags =
             ImGuiWindowFlags_NoResize;
-            ImGuiWindowFlags_AlwaysAutoResize;
+        ImGuiWindowFlags_AlwaysAutoResize;
         if (ImGui::Begin("Entity view", (bool*)&editor->ui.entityViewOpened, windowFlags))
         {
             if (!editor->selectedEntityID)
@@ -310,24 +313,91 @@ namespace soko
                 ImGui::Separator();
 
                 ImGui::Text("Type\t ");
-                //ImGui::SameLine();
-                i32 type = (EntityType)entity->stored->type;
+                i32 type = entity->stored->type;
                 ImGui::PushID("Entity type listbox");
-                ImGui::Combo("", &type, GetEntityTypeStrings(), _EntityType_Count);
+                ImGui::Combo("", &type, TypeInfo(EntityType).names, TypeTraits(EntityType)::MemberCount);
+                entity->stored->type = (EntityType)type;
                 ImGui::PopID();
                 ImGui::Separator();
+
+                ImGui::Text("Entity flags");
+                if (ImGui::CollapsingHeader("Flags"))
+                {
+                    for (u32 i = 0; i < TypeTraits(EntityFlags)::MemberCount; i++)
+                    {
+                        bool isSet = IsSet(entity->stored, TypeInfo(EntityFlags).values[i]);
+                        ImGui::Checkbox(TypeInfo(EntityFlags).names[i], &isSet);
+                        if (isSet)
+                        {
+                            SetFlag(entity->stored, TypeInfo(EntityFlags).values[i]);
+                        }
+                        else
+                        {
+                            UnsetFlag(entity->stored, TypeInfo(EntityFlags).values[i]);
+                        }
+                    }
+                }
+                ImGui::Separator();
+
+                ImGui::Text("Mesh");
+                i32 mesh = entity->stored->mesh;
+                ImGui::PushID("Entity mesh listbox");
+                ImGui::Combo("", &mesh, TypeInfo(EntityMesh).names, TypeTraits(EntityMesh)::MemberCount);
+                entity->stored->mesh = (EntityMesh)mesh;
+                ImGui::PopID();
+                ImGui::Separator();
+
+                ImGui::Text("Material");
+                i32 material = entity->stored->material;
+                ImGui::PushID("Entity material listbox");
+                ImGui::Combo("", &material, TypeInfo(EntityMaterial).names, TypeTraits(EntityMaterial)::MemberCount);
+                entity->stored->material = (EntityMaterial)material;
+                ImGui::PopID();
+                ImGui::Separator();
+
+
             }
         }
         ImGui::End();
     }
 
-    internal void
-    EditorDrawUI(GameSession* session)
+    internal u32
+    EditorEntityLister(Editor* editor)
     {
-        Editor* editor = session->editor;
+        u32 selectedEntity = editor->selectedEntityID;
+        ImGuiIO* io = &ImGui::GetIO();
+        ImGui::SetNextWindowSize({300, 600});
+        auto windowFlags =
+            ImGuiWindowFlags_NoResize;
+        ImGuiWindowFlags_AlwaysAutoResize;
+        if (ImGui::Begin("Entity lister", (bool*)&editor->ui.entityListerOpened, windowFlags))
+        {
+            ImGui::BeginChild("Entity lister list");
+            for (u32 i = 0 ; i < LEVEL_ENTITY_TABLE_SIZE; i++)
+            {
+                Entity* e = editor->session->level->entities[i];
+                while (e)
+                {
+                    bool wasSelected = (e->id == editor->selectedEntityID);
+                    char buffer[128];
+                    FormatString(buffer, 128, "ID: %u32, %s", e->id,  EnumeratorName(e->type));
+                    bool selected = ImGui::Selectable(buffer, wasSelected);
+                    if (selected)
+                    {
+                        selectedEntity = e->id;
+                    }
+                    e = e->nextEntity;
+                }
+            }
+            ImGui::EndChild();
+        }
+        ImGui::End();
+        return selectedEntity;
+    }
 
-        DrawToolBox(editor);
-        EditorEntityView(editor);
+    internal void
+    EditorTileView(Editor* editor)
+    {
         f32 offset = 10.0f;
         ImGuiIO* io = &ImGui::GetIO();
         ImVec2 windowPos = ImVec2(io->DisplaySize.x - offset, offset + 70.0f);
@@ -338,7 +408,7 @@ namespace soko
         ImGuiWindowFlags_AlwaysAutoResize;
         if (ImGui::Begin("Tile properties", (bool*)&editor->ui.windowOpened, windowFlags))
         {
-            Tile tile = GetTile(session->level, editor->selectorBegin);
+            Tile tile = GetTile(editor->session->level, editor->selectorBegin);
             ImGui::Separator();
             char buffer[128];
             iv3 pos = editor->selectorBegin;
@@ -349,11 +419,58 @@ namespace soko
             ImGui::SameLine();
             ImGui::PushID("Tile combo box");
             i32 tileValue = (i32)tile.value - 1;
-            ImGui::Combo("", &tileValue, GetTileValueStrings() + 1, _TileValue_Count - 1);
+            ImGui::Combo("", &tileValue, TypeInfo(TileValue).names, TypeTraits(TileValue)::MemberCount);
             ImGui::PopID();
-            SetTile(session->level, editor->selectorBegin, (TileValue)(tileValue + 1));
+            SetTile(editor->session->level, editor->selectorBegin, (TileValue)(tileValue + 1));
         }
         ImGui::End();
+    }
+
+
+    internal void
+    EditorDrawUI(Editor* editor)
+    {
+        ImGui::BeginMainMenuBar();
+        if (ImGui::BeginMenu("Level"))
+        {
+            if (ImGui::MenuItem("Exit to main menu"))
+            {
+                editor->ui.exitToMainMenu = true;
+            }
+            ImGui::EndMenu();
+        }
+        if (ImGui::BeginMenu("Windows"))
+        {
+            if (ImGui::MenuItem("Entity lister", 0, editor->ui.entityListerOpened))
+            {
+                editor->ui.entityListerOpened = !editor->ui.entityListerOpened;
+            }
+            if (ImGui::MenuItem("Entity view", 0, editor->ui.entityViewOpened))
+            {
+                editor->ui.entityViewOpened = !editor->ui.entityViewOpened;
+            }
+            if (ImGui::MenuItem("Tile view", 0, editor->ui.tileViewOpened))
+            {
+                editor->ui.tileViewOpened = !editor->ui.tileViewOpened;
+            }
+            ImGui::EndMenu();
+        }
+        ImGui::EndMainMenuBar();
+
+        DrawToolBox(editor);
+
+        if (editor->ui.entityViewOpened)
+        {
+            EditorEntityView(editor);
+        }
+        if (editor->ui.entityListerOpened)
+        {
+            editor->selectedEntityID = EditorEntityLister(editor);
+        }
+        if (editor->ui.entityListerOpened)
+        {
+            EditorTileView(editor);
+        }
     }
 
     internal void
@@ -521,7 +638,7 @@ namespace soko
         }
 
         RenderGroupSetCamera(gameState->renderGroup, &gameState->session.editorCamera->conf);
-        EditorDrawUI(&gameState->session);
+        EditorDrawUI(editor);
         RendererBeginFrame(gameState->renderer, V2(PlatformGlobals.windowWidth, PlatformGlobals.windowHeight));
 
         switch (editor->tool)
@@ -593,5 +710,11 @@ namespace soko
 
         EndSim(gameState->session.level, simRegion);
         EndTemporaryMemory(gameState->tempArena);
+
+        if (editor->ui.exitToMainMenu)
+        {
+            DestroyGameSession(&gameState->session);
+            gameState->globalGameMode = GAME_MODE_MENU;
+        }
     }
 }

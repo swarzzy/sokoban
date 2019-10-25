@@ -10,7 +10,7 @@ namespace soko::meta
     constant const char* UNKNOWN_ENUM_VALUE = "<unknown enum value>";
 
     inline const char*
-    GetEnumName(MetaInfo* info, ...)
+    GetEnumName(...)
     {
         return UNKNOWN_ENUM_VALUE;
     }
@@ -19,5 +19,8 @@ namespace soko::meta
 
     internal MetaInfo* InitMetaInfo(AB::MemoryArena* arena);
 
-#include "MetaInfo_Generated.cpp"
+// TODO: Functions for this and bounds checking
+#define TypeTraits(type) soko::meta::MetaTable_##type
+#define TypeInfo(type) GlobalMetaInfo.##type
+#define EnumeratorName meta::GetEnumName
 }

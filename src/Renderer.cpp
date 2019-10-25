@@ -719,7 +719,7 @@ namespace soko
                     if (firstChunkMeshShaderInvocation)
                     {
                         local_persist v4 aoDistrib = {0.75f, 0.825f, 0.9f, 1.0f};
-                        DEBUG_OVERLAY_SLIDER(aoDistrib, 0.0f, 1.0f);
+                        //DEBUG_OVERLAY_SLIDER(aoDistrib, 0.0f, 1.0f);
 
                         glUniform4fv(chunkProg->aoDistribLoc, 1, aoDistrib.data);
 

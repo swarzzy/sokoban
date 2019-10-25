@@ -46,7 +46,6 @@ namespace soko
     struct Renderer;
     struct GameState
     {
-        meta::MetaInfo* metaInfo;
         GameMode globalGameMode;
         GameMenu mainMenu;
         GameSession session;

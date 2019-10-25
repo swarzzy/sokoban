@@ -4,38 +4,6 @@
 
 namespace soko
 {
-    // TODO: Enum reflection
-    // TODO: Check is these two actually evaluated at compile time
-    // NOTE: They are not evaluated at compile time!!!
-    constexpr const char*
-    TileValueToString(TileValue value)
-    {
-        const char* result = 0;
-        switch (value)
-        {
-        case TileValue_TileNotExist: { result = "TileValue_TileNotExist"; } break;
-        case TileValue_Empty: { result = "TileValue_Empty"; } break;
-        case TileValue_Wall: { result = "TileValue_Wall"; } break;
-        case TileValue_Stone: { result = "TileValue_Stone"; } break;
-        case TileValue_Grass: { result = "TileValue_Grass"; } break;
-            INVALID_DEFAULT_CASE;
-        }
-        return result;
-    }
-
-    // NOTE: Also returns string for TileValue_TileNotExist
-    constexpr const char**
-    GetTileValueStrings()
-    {
-        local_persist const char* strings[_TileValue_Count] = {};
-
-        for (u32 i = 0; i < _TileValue_Count; i++)
-        {
-            strings[i] = TileValueToString((TileValue)i);
-        }
-        return strings;
-    }
-
     inline iv3
     DirToUnitOffset(Direction dir)
     {
