@@ -916,7 +916,7 @@ namespace soko
                 }
                 // TODO: Store meshes on the cpu and load on the gpu only when necessary
                 ChunkMesh mesh = {};
-                if (GenChunkMesh(newChunk, &mesh, levelArena))
+                if (GenChunkMesh(loadedLevel, newChunk, &mesh, levelArena))
                 {
                     // TODO: Check if loading failed
                     LoadedChunkMesh loadedMesh = RendererLoadChunkMesh(&mesh);
@@ -1046,10 +1046,10 @@ namespace soko
                     }
                 }
                 ChunkMesh mesh = {};
-                bool meshResult = GenChunkMesh(chunk, &mesh, tempArena);
+                bool meshResult = GenChunkMesh(level, chunk, &mesh, tempArena);
                 SOKO_ASSERT(meshResult);
                 chunk->mesh = mesh;
-                level->globalChunkMeshBlockCount += mesh.blockCount;
+                //level->globalChunkMeshBlockCount += mesh.blockCount;
             }
         }
 

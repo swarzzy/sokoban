@@ -37,5 +37,6 @@ namespace soko
         ChunkMeshVertexBlock* free;
     };
 
-    internal bool GenChunkMesh(Chunk* chunk, ChunkMesh* outMesh, AB::MemoryArena* arena);
+    struct Level;
+    internal bool GenChunkMesh(Level* level, Chunk* chunk, ChunkMesh* outMesh, AB::MemoryArena* arena);
 }

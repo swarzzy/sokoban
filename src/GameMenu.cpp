@@ -96,6 +96,12 @@ namespace soko
             // TODO: Validate level name
             menu->state = MainMenu_EditorCreateLevel;
         }
+        ImGui::SameLine();
+        if (ImGui::Button("Return", ImVec2(100, 20)))
+        {
+            menu->state = MainMenu_ModeSelection;
+        }
+
     }
 
     internal void

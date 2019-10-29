@@ -1,13 +1,17 @@
 namespace soko
 {
+
     enum ToolKind
     {
         Tool_None,
         Tool_TilePicker,
         Tool_TilePlacer,
         Tool_TileEraser,
-        Tool_EntityPicker
+        Tool_EntityPicker,
+        Tool_EntityPlacer
     };
+
+    constant u32 EDITOR_UI_LEVEL_NAME_SIZE = 256;
 
     struct EditorUI
     {
@@ -16,6 +20,10 @@ namespace soko
         b32 tileViewOpened;
         b32 windowOpened;
         b32 exitToMainMenu;
+        b32 wantsToSaveLevel;
+        b32 saveAs;
+        char levelName[EDITOR_UI_LEVEL_NAME_SIZE];
+        wchar_t wLevelName[EDITOR_UI_LEVEL_NAME_SIZE];
     };
 
     struct Editor
@@ -217,10 +225,18 @@ namespace soko
     }
 
     inline bool
-    IsMouseOnUI()
+    IsMouseCapturedByUI()
     {
         ImGuiIO* io = &ImGui::GetIO();
         bool result = io->WantCaptureMouse;
+        return result;
+    }
+
+    inline bool
+    IsKeyboradCapturedByUI()
+    {
+        ImGuiIO* io = &ImGui::GetIO();
+        bool result = io->WantCaptureKeyboard;
         return result;
     }
 
@@ -269,6 +285,7 @@ namespace soko
                 if (ImGui::Selectable("Tile placer", editor->tool == Tool_TilePlacer))editor->tool = Tool_TilePlacer;
                 if (ImGui::Selectable("Tile eraser", editor->tool == Tool_TileEraser))editor->tool = Tool_TileEraser;
                 if (ImGui::Selectable("Entity picker", editor->tool == Tool_EntityPicker))editor->tool = Tool_EntityPicker;
+                if (ImGui::Selectable("Entity placer", editor->tool == Tool_EntityPlacer))editor->tool = Tool_EntityPlacer;
             }
         }
         ImGui::End();
@@ -366,7 +383,7 @@ namespace soko
     {
         u32 selectedEntity = editor->selectedEntityID;
         ImGuiIO* io = &ImGui::GetIO();
-        ImGui::SetNextWindowSize({300, 600});
+        ImGui::SetNextWindowSize({200, 400});
         auto windowFlags =
             ImGuiWindowFlags_NoResize;
         ImGuiWindowFlags_AlwaysAutoResize;
@@ -426,13 +443,58 @@ namespace soko
         ImGui::End();
     }
 
+    internal void
+    EditorSaveAs(Editor* editor)
+    {
+        if (!ImGui::IsPopupOpen("Save as"))
+        {
+            ImGui::OpenPopup("Save as");
+        }
+        if (ImGui::BeginPopupModal("Save as", 0, ImGuiWindowFlags_AlwaysAutoResize))
+        {
+            ImGui::PushID("Save as filename input");
+            if (ImGui::InputText("", editor->ui.levelName, EDITOR_UI_LEVEL_NAME_SIZE))
+            {
+                mbstowcs(editor->ui.wLevelName, editor->ui.levelName, EDITOR_UI_LEVEL_NAME_SIZE);
+            }
+            ImGui::PopID();
+
+            if (ImGui::Button("Save"))
+            {
+                bool fileNotExit = !DebugGetFileSize(editor->ui.wLevelName);
+                if (fileNotExit)
+                {
+                    editor->ui.wantsToSaveLevel = true;
+                    editor->ui.saveAs = false;
+                    ImGui::CloseCurrentPopup();
+                }
+            }
+
+            ImGui::SameLine();
+
+            if (ImGui::Button("Close"))
+            {
+                editor->ui.saveAs = false;
+                ImGui::CloseCurrentPopup();
+            }
+            ImGui::EndPopup();
+        }
+    }
+
 
     internal void
     EditorDrawUI(Editor* editor)
     {
+        local_persist bool show = true;
+        ImGui::ShowDemoWindow(&show);
+
         ImGui::BeginMainMenuBar();
         if (ImGui::BeginMenu("Level"))
         {
+            if (ImGui::MenuItem("Save as"))
+            {
+                editor->ui.saveAs = true;
+            }
             if (ImGui::MenuItem("Exit to main menu"))
             {
                 editor->ui.exitToMainMenu = true;
@@ -467,9 +529,13 @@ namespace soko
         {
             editor->selectedEntityID = EditorEntityLister(editor);
         }
-        if (editor->ui.entityListerOpened)
+        if (editor->ui.tileViewOpened)
         {
             EditorTileView(editor);
+        }
+        if (editor->ui.saveAs)
+        {
+            EditorSaveAs(editor);
         }
     }
 
@@ -480,8 +546,14 @@ namespace soko
         auto editor = gameState->session.editor;
         auto level = gameState->session.level;
 
-        EditorCameraGatherInput(camera);
-        EditorCameraUpdate(camera);
+        DEBUG_OVERLAY_TRACE((u32)IsKeyboradCapturedByUI());
+        DEBUG_OVERLAY_TRACE((u32)IsMouseCapturedByUI());
+        // TODO: Not here
+        if (!IsKeyboradCapturedByUI())
+        {
+            EditorCameraGatherInput(camera);
+            EditorCameraUpdate(camera);
+        }
 
         BeginTemporaryMemory(gameState->tempArena, true);
         SimRegion* simRegion = BeginSim(gameState->tempArena,
@@ -506,7 +578,7 @@ namespace soko
                         if (chunk->dirty)
                         {
                             // TODO: Dynamically growing arenas for editor?
-                            bool result = GenChunkMesh(chunk, &chunk->mesh, gameState->session.sessionArena);
+                            bool result = GenChunkMesh(level, chunk, &chunk->mesh, gameState->session.sessionArena);
                             SOKO_ASSERT(result);
                             chunk->loadedMesh.quadCount = RendererReloadChunkMesh(&chunk->mesh, chunk->loadedMesh.gpuHandle);
                             chunk->dirty = false;
@@ -516,16 +588,40 @@ namespace soko
             }
         }
 
-        if (editor->tool != Tool_EntityPicker)
+        if ((editor->tool != Tool_EntityPicker) &&
+            (editor->tool != Tool_EntityPlacer))
         {
             editor->selectedEntityID = 0;
         }
 
         switch (editor->tool)
         {
+        case Tool_EntityPlacer:
+        {
+            v3 from = RHToWorld(camera->conf.position);
+            v3 ray = RHToWorld(camera->mouseRayRH);
+            auto raycast = Raycast(simRegion, from, ray, Raycast_Tilemap);
+
+            if (raycast.hit == RaycastResult::Tile)
+            {
+                iv3 hoveredTile = raycast.tile.coord + DirToUnitOffset(raycast.tile.normalDir);
+                editor->selectorBegin = hoveredTile;
+                if (JustPressed(MBUTTON_LEFT) && !IsMouseCapturedByUI())
+                {
+                    u32 id = AddEntity(level, EntityType_Block, hoveredTile, 0.0f,
+                                       EntityMesh_Cube, EntityMaterial_Block);
+                    if (id)
+                    {
+                        SimEntity* entity = AddEntityToRegion(simRegion, GetEntity(level, id));
+                        SOKO_ASSERT(entity);
+                        editor->selectedEntityID = id;
+                    }
+                }
+            }
+        } break;
         case Tool_TilePicker:
         {
-            if (JustPressed(MBUTTON_LEFT) && !IsMouseOnUI())
+            if (JustPressed(MBUTTON_LEFT) && !IsMouseCapturedByUI())
             {
                 v3 from = RHToWorld(camera->conf.position);
                 v3 ray = RHToWorld(camera->mouseRayRH);
@@ -546,7 +642,7 @@ namespace soko
             if (raycast.hit == RaycastResult::Tile)
             {
                 iv3 hoveredTile = raycast.tile.coord + DirToUnitOffset(raycast.tile.normalDir);
-                if (JustPressed(MBUTTON_LEFT) && !IsMouseOnUI())
+                if (JustPressed(MBUTTON_LEFT) && !IsMouseCapturedByUI())
                 {
                     editor->mouseUsed = true;
                     editor->selectorHolding = true;
@@ -586,7 +682,7 @@ namespace soko
             if (raycast.hit == RaycastResult::Tile)
             {
                 iv3 hoveredTile = raycast.tile.coord;
-                if (JustPressed(MBUTTON_LEFT) && !IsMouseOnUI())
+                if (JustPressed(MBUTTON_LEFT) && !IsMouseCapturedByUI())
                 {
                     editor->mouseUsed = true;
                     editor->selectorHolding = true;
@@ -619,7 +715,7 @@ namespace soko
         }
         case Tool_EntityPicker:
         {
-            if (JustPressed(MBUTTON_LEFT) && !IsMouseOnUI())
+            if (JustPressed(MBUTTON_LEFT) && !IsMouseCapturedByUI())
             {
                 v3 from = RHToWorld(camera->conf.position);
                 v3 ray = RHToWorld(camera->mouseRayRH);
@@ -643,6 +739,14 @@ namespace soko
 
         switch (editor->tool)
         {
+        case Tool_EntityPlacer:
+        {
+            v3 selTileRelPos = GetRelPos(camera->targetWorldPos, editor->selectorBegin);
+            DrawAlignedBoxOutline(gameState->renderGroup,
+                                  WorldToRH(selTileRelPos - V3(LEVEL_TILE_RADIUS)),
+                                  WorldToRH(selTileRelPos + V3(LEVEL_TILE_RADIUS)),
+                                  V3(1.0f, 0.0f, 0.0f), 2.0f);
+        } break;
         case Tool_TilePlacer:
         {
             if (editor->selectorHolding)
@@ -711,10 +815,19 @@ namespace soko
         EndSim(gameState->session.level, simRegion);
         EndTemporaryMemory(gameState->tempArena);
 
+        if (editor->ui.wantsToSaveLevel)
+        {
+            editor->ui.wantsToSaveLevel = false;
+            BeginTemporaryMemory(gameState->tempArena);
+            bool saved = SaveLevel(editor->session->level, editor->ui.wLevelName, gameState->tempArena);
+            SOKO_ASSERT(saved);
+            EndTemporaryMemory(gameState->tempArena);
+        }
         if (editor->ui.exitToMainMenu)
         {
             DestroyGameSession(&gameState->session);
             gameState->globalGameMode = GAME_MODE_MENU;
         }
+
     }
 }

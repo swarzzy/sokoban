@@ -3,7 +3,7 @@
 namespace soko
 {
     inline ChunkMeshVertexBlock*
-    GetChunkMeshVertexBlock(ChunkMesh* mesh, AB::MemoryArena* arena)
+    GetChunkMeshVertexBlock(Level* level, ChunkMesh* mesh, AB::MemoryArena* arena)
     {
         ChunkMeshVertexBlock* result = 0;
         if (mesh->free)
@@ -17,6 +17,7 @@ namespace soko
         }
         if (result)
         {
+            level->globalChunkMeshBlockCount++;
             result->nextBlock = 0;
             result->prevBlock = 0;
             result->at = 0;
@@ -25,14 +26,14 @@ namespace soko
     }
 
     inline bool
-    PushChunkMeshVertex(ChunkMesh* mesh, AB::MemoryArena* arena,
+    PushChunkMeshVertex(Level* level, ChunkMesh* mesh, AB::MemoryArena* arena,
                         v3 position, v3 normal, byte ao, byte tileId)
     {
         bool result = 0;
         bool memoryIsAvailable = 1;
         if (!mesh->head)
         {
-            mesh->head = GetChunkMeshVertexBlock(mesh, arena);
+            mesh->head = GetChunkMeshVertexBlock(level, mesh, arena);
             if (mesh->head)
             {
                 ZERO_STRUCT(ChunkMeshVertexBlock, mesh->head);
@@ -47,7 +48,7 @@ namespace soko
         }
         else if (mesh->head->at >= CHUNK_MESH_VERTEX_BLOCK_CAPACITY)
         {
-            ChunkMeshVertexBlock* newBlock = GetChunkMeshVertexBlock(mesh, arena);
+            ChunkMeshVertexBlock* newBlock = GetChunkMeshVertexBlock(level, mesh, arena);
             if (newBlock)
             {
                 ZERO_STRUCT(ChunkMeshVertexBlock, newBlock);
@@ -82,7 +83,7 @@ namespace soko
     }
 
     inline bool
-    PushChunkMeshQuad(ChunkMesh* mesh, AB::MemoryArena* arena,
+    PushChunkMeshQuad(Level* level, ChunkMesh* mesh, AB::MemoryArena* arena,
                       v3 vtx0, v3 vtx1, v3 vtx2, v3 vtx3,
                       u32 ao0, u32 ao1, u32 ao2, u32 ao3,
                       TileValue val)
@@ -91,10 +92,10 @@ namespace soko
         bool result = false;
         byte ao = (byte)ao0 | (byte)(ao1 << 2) | (byte)(ao2 << 4) | (byte)(ao3 << 6);
 
-        result = PushChunkMeshVertex(mesh, arena, vtx0, normal, ao, val) &&
-            PushChunkMeshVertex(mesh, arena, vtx1, normal, ao, val) &&
-            PushChunkMeshVertex(mesh, arena, vtx2, normal, ao, val) &&
-            PushChunkMeshVertex(mesh, arena, vtx3, normal, ao, val);
+        result = PushChunkMeshVertex(level, mesh, arena, vtx0, normal, ao, val) &&
+            PushChunkMeshVertex(level, mesh, arena, vtx1, normal, ao, val) &&
+            PushChunkMeshVertex(level, mesh, arena, vtx2, normal, ao, val) &&
+            PushChunkMeshVertex(level, mesh, arena, vtx3, normal, ao, val);
             mesh->quadCount++;
             return result;
     }
@@ -113,7 +114,7 @@ namespace soko
     }
 
     inline bool
-    BuildFace(Chunk* chunk, ChunkMesh* outMesh, AB::MemoryArena* arena, iv3 p, Direction dir)
+    BuildFace(Level* level, Chunk* chunk, ChunkMesh* outMesh, AB::MemoryArena* arena, iv3 p, Direction dir)
     {
         bool result = false;
 
@@ -174,7 +175,7 @@ namespace soko
             u32 ao7 = CalcVertexAO(TileIsTerrain(bupTile), TileIsTerrain(blTile), TileIsTerrain(c7Tile));
             u32 ao4 = CalcVertexAO(TileIsTerrain(bdnTile), TileIsTerrain(blTile), TileIsTerrain(c4Tile));
 
-            result = PushChunkMeshQuad(outMesh, arena, vtx5, vtx4, vtx7, vtx6, ao5, ao4, ao7, ao6, val);
+            result = PushChunkMeshQuad(level, outMesh, arena, vtx5, vtx4, vtx7, vtx6, ao5, ao4, ao7, ao6, val);
         } break;
         case Direction_South:
         {
@@ -183,7 +184,7 @@ namespace soko
             u32 ao2 = CalcVertexAO(TileIsTerrain(fupTile), TileIsTerrain(frTile), TileIsTerrain(c2Tile));
             u32 ao3 = CalcVertexAO(TileIsTerrain(fupTile), TileIsTerrain(flTile), TileIsTerrain(c3Tile));
 
-            result = PushChunkMeshQuad(outMesh, arena, vtx0, vtx1, vtx2, vtx3, ao0, ao1, ao2, ao3, val);
+            result = PushChunkMeshQuad(level, outMesh, arena, vtx0, vtx1, vtx2, vtx3, ao0, ao1, ao2, ao3, val);
         } break;
         case Direction_West:
         {
@@ -192,7 +193,7 @@ namespace soko
             u32 ao3 = CalcVertexAO(TileIsTerrain(lupTile), TileIsTerrain(flTile), TileIsTerrain(c3Tile));
             u32 ao0 = CalcVertexAO(TileIsTerrain(ldnTile), TileIsTerrain(flTile), TileIsTerrain(c0Tile));
 
-            result = PushChunkMeshQuad(outMesh, arena, vtx4, vtx0, vtx3, vtx7, ao4, ao0, ao3, ao7, val);
+            result = PushChunkMeshQuad(level, outMesh, arena, vtx4, vtx0, vtx3, vtx7, ao4, ao0, ao3, ao7, val);
         } break;
         case Direction_East:
         {
@@ -201,7 +202,7 @@ namespace soko
             u32 ao6 = CalcVertexAO(TileIsTerrain(brTile), TileIsTerrain(rupTile), TileIsTerrain(c6Tile));
             u32 ao5 = CalcVertexAO(TileIsTerrain(brTile), TileIsTerrain(rdnTile), TileIsTerrain(c5Tile));
 
-            result = PushChunkMeshQuad(outMesh, arena, vtx1, vtx5, vtx6, vtx2, ao1, ao5, ao6, ao2, val);
+            result = PushChunkMeshQuad(level, outMesh, arena, vtx1, vtx5, vtx6, vtx2, ao1, ao5, ao6, ao2, val);
 
         } break;
         case Direction_Up:
@@ -211,7 +212,7 @@ namespace soko
             u32 ao6 = CalcVertexAO(TileIsTerrain(bupTile), TileIsTerrain(rupTile), TileIsTerrain(c6Tile));
             u32 ao2 = CalcVertexAO(TileIsTerrain(fupTile), TileIsTerrain(rupTile), TileIsTerrain(c2Tile));
 
-            result = PushChunkMeshQuad(outMesh, arena, vtx3, vtx2, vtx6, vtx7, ao3, ao2, ao6, ao7, val);
+            result = PushChunkMeshQuad(level, outMesh, arena, vtx3, vtx2, vtx6, vtx7, ao3, ao2, ao6, ao7, val);
 
         } break;
         case Direction_Down:
@@ -221,7 +222,7 @@ namespace soko
             u32 ao1 = CalcVertexAO(TileIsTerrain(fdnTile), TileIsTerrain(rdnTile), TileIsTerrain(c1Tile));
             u32 ao5 = CalcVertexAO(TileIsTerrain(bdnTile), TileIsTerrain(rdnTile), TileIsTerrain(c5Tile));
 
-            result = PushChunkMeshQuad(outMesh, arena, vtx4, vtx5, vtx1, vtx0, ao4, ao5, ao1, ao0, val);
+            result = PushChunkMeshQuad(level, outMesh, arena, vtx4, vtx5, vtx1, vtx0, ao4, ao5, ao1, ao0, val);
         } break;
         default: {} break;
         }
@@ -229,7 +230,7 @@ namespace soko
     }
 
     internal bool
-    GenChunkMesh(Chunk* chunk, ChunkMesh* outMesh, AB::MemoryArena* arena)
+    GenChunkMesh(Level* level, Chunk* chunk, ChunkMesh* outMesh, AB::MemoryArena* arena)
     {
         bool result = true;
         i64 beginTime = GetTimeStamp();
@@ -245,6 +246,8 @@ namespace soko
                 auto nextBlock = block->nextBlock;
                 block->nextBlock = outMesh->free;
                 outMesh->free = block;
+                // TODO: Global freelidt for all chunks
+                level->globalChunkMeshBlockCount--;
 
                 if (block == outMesh->tail) break;
 
@@ -284,27 +287,27 @@ namespace soko
 
                         if (upEmpty)
                         {
-                            result = result && BuildFace(chunk, outMesh, arena, IV3(tileX, tileY, tileZ), Direction_Up);
+                            result = result && BuildFace(level, chunk, outMesh, arena, IV3(tileX, tileY, tileZ), Direction_Up);
                         }
                         if (dnEmpty)
                         {
-                            result = result && BuildFace(chunk, outMesh, arena, IV3(tileX, tileY, tileZ), Direction_Down);
+                            result = result && BuildFace(level, chunk, outMesh, arena, IV3(tileX, tileY, tileZ), Direction_Down);
                         }
                         if (rEmpty)
                         {
-                            result = result && BuildFace(chunk, outMesh, arena, IV3(tileX, tileY, tileZ), Direction_East);
+                            result = result && BuildFace(level, chunk, outMesh, arena, IV3(tileX, tileY, tileZ), Direction_East);
                         }
                         if (lEmpty)
                         {
-                            result = result && BuildFace(chunk, outMesh, arena, IV3(tileX, tileY, tileZ), Direction_West);
+                            result = result && BuildFace(level, chunk, outMesh, arena, IV3(tileX, tileY, tileZ), Direction_West);
                         }
                         if (fEmpty)
                         {
-                            result = result && BuildFace(chunk, outMesh, arena, IV3(tileX, tileY, tileZ), Direction_South);
+                            result = result && BuildFace(level, chunk, outMesh, arena, IV3(tileX, tileY, tileZ), Direction_South);
                         }
                         if (bEmpty)
                         {
-                            result = result && BuildFace(chunk, outMesh, arena, IV3(tileX, tileY, tileZ), Direction_North);
+                            result = result && BuildFace(level, chunk, outMesh, arena, IV3(tileX, tileY, tileZ), Direction_North);
                         }
                     }
 
