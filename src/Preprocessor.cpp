@@ -678,7 +678,7 @@ GetEnumName(%s e)
 
 
 // NOTE: https://graphics.stanford.edu/~seander/bithacks.html#RoundUpPowerOf2
-inline int
+inline constexpr int
 NextPowerOfTwo(int v)
 {
     v--;

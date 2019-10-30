@@ -67,7 +67,7 @@ namespace soko
     };
 #pragma pack(pop)
 
-    internal void SerializeEntititiesToBuffer(const Level* level, void* buffer, uptr bufferSize);
+    internal u32 SerializeEntititiesToBuffer(const Level* level, void* buffer, uptr bufferSize);
     inline uptr CalcSerializedEntitiesSize(const Level* level);
     inline Entity* GetEntity(Level* level, u32 id);
     internal u32 AddEntity(Level* level, Entity entity);

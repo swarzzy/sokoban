@@ -426,32 +426,35 @@ namespace soko
         uptr bufferSize = mesh->quadCount * 4 * sizeof(ChunkMeshVertex);
         glBufferData(GL_ARRAY_BUFFER, bufferSize, 0, GL_STATIC_DRAW);
 
-        // TODO: Use glBufferSubData
-        ChunkMeshVertex* buffer;
-        buffer = (ChunkMeshVertex*)glMapBuffer(GL_ARRAY_BUFFER, GL_READ_WRITE);
-        SOKO_ASSERT(buffer);
-        u32 bufferCount = 0;
-        u32 blockCount = 0;
-        ChunkMeshVertexBlock* block = mesh->tail;
-        if (block)
+        if (bufferSize)
         {
-            do
+            // TODO: Use glBufferSubData
+            ChunkMeshVertex* buffer;
+            buffer = (ChunkMeshVertex*)glMapBuffer(GL_ARRAY_BUFFER, GL_READ_WRITE);
+            SOKO_ASSERT(buffer);
+            u32 bufferCount = 0;
+            u32 blockCount = 0;
+            ChunkMeshVertexBlock* block = mesh->tail;
+            if (block)
             {
-                blockCount++;
-                for (u32 i = 0; i < block->at; i++)
+                do
                 {
-                    buffer[bufferCount].pos = block->positions[i];
-                    buffer[bufferCount].normal = block->normals[i];
-                    buffer[bufferCount].tileId = block->tileIds[i];
-                    buffer[bufferCount].AO = block->AO[i];
-                    bufferCount++;
+                    blockCount++;
+                    for (u32 i = 0; i < block->at; i++)
+                    {
+                        buffer[bufferCount].pos = block->positions[i];
+                        buffer[bufferCount].normal = block->normals[i];
+                        buffer[bufferCount].tileId = block->tileIds[i];
+                        buffer[bufferCount].AO = block->AO[i];
+                        bufferCount++;
+                    }
+                    block = block->prevBlock;
                 }
-                block = block->prevBlock;
+                while(block);
             }
-            while(block);
-        }
 
-        glUnmapBuffer(GL_ARRAY_BUFFER);
+            glUnmapBuffer(GL_ARRAY_BUFFER);
+        }
         glBindBuffer(GL_ARRAY_BUFFER, 0);
         result = mesh->quadCount;
         return result;

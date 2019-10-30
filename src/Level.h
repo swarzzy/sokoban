@@ -14,8 +14,7 @@ namespace soko
         EntityMesh_Plate,
         EntityMesh_Portal,
         EntityMesh_Spikes,
-        EntityMesh_Button,
-        _EntityMesh_Count,
+        EntityMesh_Button
     };
 
     enum [reflect seq_enum] EntityMaterial
@@ -26,8 +25,7 @@ namespace soko
         EntityMaterial_RedPlate,
         EntityMaterial_Portal,
         EntityMaterial_Spikes,
-        EntityMaterial_Button,
-        _EntityMaterial_Count
+        EntityMaterial_Button
     };
 
     // NOTE: Should fit in one byte
@@ -41,8 +39,7 @@ namespace soko
         Direction_West,
         Direction_East,
         Direction_Up,
-        Direction_Down,
-        _Direction_Count
+        Direction_Down
     };
 
     enum [reflect seq_enum] TileValue : u8
@@ -51,8 +48,7 @@ namespace soko
         TileValue_Empty,
         TileValue_Wall,
         TileValue_Stone,
-        TileValue_Grass,
-        _TileValue_Count
+        TileValue_Grass
     };
 
     struct Level;
@@ -71,10 +67,7 @@ namespace soko
     struct Tile
     {
         TileValue value;
-        // TODO: think about using i16 for less memory footprint
-        // TODO: Store array of tile coords for debugging
     };
-
 
     constant u32 CHUNK_ENTITY_MAP_SIZE = CHUNK_DIM * CHUNK_DIM * CHUNK_DIM;
 
@@ -99,15 +92,17 @@ namespace soko
     {
         Level* level;
         bool dirty;
-        bool loaded;
         iv3 coord;
         Tile tiles[CHUNK_TILE_COUNT];
         LoadedChunkMesh loadedMesh;
         ChunkMesh mesh;
         ChunkEntityMapResidentBlock entityMap[CHUNK_ENTITY_MAP_SIZE];
+
+        Chunk* nextInHash;
         // TODO: Acelleration structure for traversing entities
         // in chunk sequentially
     };
+
 
     struct Level
     {
@@ -120,8 +115,8 @@ namespace soko
         u32 loadedChunksCount;
         // TODO: @Robustness Store linked list of loaded chunks
         // for fast traversing
-        u32 chunkTableSize;
-        Chunk* chunkTable;
+        // TODO: @Speed store key data inside table buckets
+        Chunk* chunkTable[LEVEL_CHUNK_TABLE_SIZE];
 
         // TODO: Use 64bit IDs for entities
         u32 entitySerialNumber;

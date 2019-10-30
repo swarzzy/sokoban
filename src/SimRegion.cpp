@@ -31,13 +31,13 @@ namespace soko
 
     enum RaycastFlags : u32
     {
-        Raycast_Tilemap = 0x1,
-        Raycast_Entities = 0x2
+        Raycast_Tilemap = (1 << 0),
+        Raycast_Entities = (1 << 1),
     };
 
     struct RaycastResult
     {
-        enum { None = 0, Entity, Tile } hit;
+        enum { None = 0, Entity, Tile, Chunk } hit;
         f32 tMin;
         union
         {
@@ -60,7 +60,7 @@ namespace soko
     GetRegionEntityHashMapEntry(SimRegion* region, u32 id)
     {
         SOKO_STATIC_ASSERT(IsPowerOfTwo(SIM_REGION_MAX_ENTITIES));
-        SimEntity* result = null;
+        SimEntity* result = 0;
         // TODO: Better hash
         u32 hashMask = SIM_REGION_MAX_ENTITIES - 1;
         u32 hash = id & hashMask;
@@ -676,7 +676,10 @@ namespace soko
         iv3 minBound = GetChunkCoord(region->origin.tile) - actualRadius;
         iv3 maxBound = GetChunkCoord(region->origin.tile) + actualRadius;
 
-        result.tMin = F32_MAX;
+        IntersectionResult tileResult = {};
+        iv3 tileResultWorldPos = {};
+
+        tileResult.tMin = F32_MAX;
 
         // TODO: Store a little array of pointers to chunk in sim region
         // And traverse chunks from that array, not by using loops and
@@ -689,14 +692,15 @@ namespace soko
                 {
                     v3 chunkSimPos = GetRelPos(region->origin, IV3(chunkX, chunkY, chunkZ) * CHUNK_DIM);
                     BBoxAligned chunkBBox = GetChunkAABB(chunkSimPos);
-                    auto chunkIntersects = RayAABBIntersectionSlow(from, ray, &chunkBBox);
+                    auto chunkIntersection = RayAABBIntersectionSlow(from, ray, &chunkBBox);
 
-                    if (chunkIntersects.intersects)
+                    if (chunkIntersection.intersects)
                     {
+                        Chunk* chunk = GetChunk(region->level, chunkX, chunkY, chunkZ);
+
                         // TODO: Chunk query may be faster than ray-aabb intersection
                         // So maybe query chunk before intersection test
                         // and then if chunk exists do the test
-                        Chunk* chunk = GetChunk(region->level, chunkX, chunkY, chunkZ);
                         if (chunk)
                         {
                             for (u32 z = 0; z < CHUNK_DIM; z++)
@@ -719,13 +723,10 @@ namespace soko
                                             aabb.max = simPos + LEVEL_TILE_RADIUS;
                                             auto intersection = RayAABBIntersectionSlow(from, ray, &aabb);
                                             if (intersection.intersects &&
-                                                intersection.tMin < result.tMin)
+                                                intersection.tMin < tileResult.tMin)
                                             {
-                                                result.hit = RaycastResult::Tile;
-                                                result.tMin = intersection.tMin;
-                                                result.tile.coord = worldPos;
-                                                result.tile.normal = intersection.normal;
-                                                result.tile.normalDir = intersection.normalDir;
+                                                tileResult = intersection;
+                                                tileResultWorldPos = worldPos;
                                             }
                                         }
                                     }
@@ -736,6 +737,16 @@ namespace soko
                 }
             }
         }
+
+        if (tileResult.intersects)
+        {
+            result.hit = RaycastResult::Tile;
+            result.tMin = tileResult.tMin;
+            result.tile.coord = tileResultWorldPos;
+            result.tile.normal = tileResult.normal;
+            result.tile.normalDir = tileResult.normalDir;
+        }
+
         return result;
     }
 
@@ -770,7 +781,6 @@ namespace soko
         }
         return result;
     }
-
 
     // NOTE: from is the origin of ray's basis
     // So if camera ray passed, then it should be

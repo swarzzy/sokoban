@@ -1,6 +1,5 @@
 namespace soko
 {
-
     enum ToolKind
     {
         Tool_None,
@@ -8,7 +7,8 @@ namespace soko
         Tool_TilePlacer,
         Tool_TileEraser,
         Tool_EntityPicker,
-        Tool_EntityPlacer
+        Tool_EntityPlacer,
+        Tool_ChunkTool,
     };
 
     constant u32 EDITOR_UI_LEVEL_NAME_SIZE = 256;
@@ -19,6 +19,7 @@ namespace soko
         b32 entityViewOpened;
         b32 tileViewOpened;
         b32 windowOpened;
+        b32 chunkListerOpened;
         b32 exitToMainMenu;
         b32 wantsToSaveLevel;
         b32 saveAs;
@@ -267,9 +268,9 @@ namespace soko
             if (editor->tool == Tool_TilePlacer)
             {
                 ImGui::PushID("Tile picker listbox");
-                int tileValue = editor->placerTile - 1;
+                int tileValue = editor->placerTile;
                 ImGui::ListBox("", &tileValue, TypeInfo(TileValue).names, TypeTraits(TileValue)::MemberCount);
-                editor->placerTile = (TileValue)(tileValue + 1);
+                editor->placerTile = (TileValue)(tileValue);
                 ImGui::PopID();
                 if (ImGui::Button("Go back"))
                 {
@@ -286,6 +287,7 @@ namespace soko
                 if (ImGui::Selectable("Tile eraser", editor->tool == Tool_TileEraser))editor->tool = Tool_TileEraser;
                 if (ImGui::Selectable("Entity picker", editor->tool == Tool_EntityPicker))editor->tool = Tool_EntityPicker;
                 if (ImGui::Selectable("Entity placer", editor->tool == Tool_EntityPlacer))editor->tool = Tool_EntityPlacer;
+                if (ImGui::Selectable("Chunk tool", editor->tool == Tool_ChunkTool))editor->tool = Tool_ChunkTool;
             }
         }
         ImGui::End();
@@ -413,6 +415,56 @@ namespace soko
     }
 
     internal void
+    EditorChunkLister(Editor* editor)
+    {
+        ImGuiIO* io = &ImGui::GetIO();
+        ImGui::SetNextWindowSize({230, 300});
+        auto windowFlags =
+            ImGuiWindowFlags_NoResize;
+        ImGuiWindowFlags_AlwaysAutoResize;
+        if (ImGui::Begin("Chunk lister", (bool*)&editor->ui.chunkListerOpened, windowFlags))
+        {
+            ImGui::BeginChild("Chunk lister list");
+            for (i32 z = LEVEL_MIN_DIM_CHUNKS; z <= LEVEL_MAX_DIM_CHUNKS; z++)
+            {
+                for (i32 y = LEVEL_MIN_DIM_CHUNKS; y <= LEVEL_MAX_DIM_CHUNKS; y++)
+                {
+                    for (i32 x = LEVEL_MIN_DIM_CHUNKS; x <= LEVEL_MAX_DIM_CHUNKS; x++)
+                    {
+                        Chunk* chunk = GetChunk(editor->session->level, x, y, z);
+                        char buffer[64];
+                        FormatString(buffer, 64, "(x: %i32, y: %i32, z %i32)", x, y, z);
+                        if (!chunk)
+                        {
+                            ImGui::PushID(buffer);
+                            if (ImGui::Button("Add"))
+                            {
+                                Chunk* chunk = AddChunk(editor->session->level, x, y, z, true);
+                                SOKO_ASSERT(chunk);
+                                // TODO: Store meshes on the cpu and load on the gpu only when necessary
+                                ChunkMesh mesh = {};
+                                if (GenChunkMesh(editor->session->level, chunk, &mesh))
+                                {
+                                    // TODO: Check if loading failed
+                                    LoadedChunkMesh loadedMesh = RendererLoadChunkMesh(&mesh);
+                                    chunk->loadedMesh = loadedMesh;
+                                    chunk->mesh = mesh;
+                                }
+
+                            }
+                            ImGui::PopID();
+                            ImGui::SameLine();
+                        }
+                        ImGui::Text("%s", buffer);
+                    }
+                }
+            }
+            ImGui::EndChild();
+        }
+        ImGui::End();
+    }
+
+    internal void
     EditorTileView(Editor* editor)
     {
         f32 offset = 10.0f;
@@ -515,6 +567,11 @@ namespace soko
             {
                 editor->ui.tileViewOpened = !editor->ui.tileViewOpened;
             }
+            if (ImGui::MenuItem("Chunk lister", 0, editor->ui.chunkListerOpened))
+            {
+                editor->ui.chunkListerOpened = !editor->ui.chunkListerOpened;
+            }
+
             ImGui::EndMenu();
         }
         ImGui::EndMainMenuBar();
@@ -532,6 +589,10 @@ namespace soko
         if (editor->ui.tileViewOpened)
         {
             EditorTileView(editor);
+        }
+        if (editor->ui.chunkListerOpened)
+        {
+            EditorChunkLister(editor);
         }
         if (editor->ui.saveAs)
         {
@@ -578,7 +639,7 @@ namespace soko
                         if (chunk->dirty)
                         {
                             // TODO: Dynamically growing arenas for editor?
-                            bool result = GenChunkMesh(level, chunk, &chunk->mesh, gameState->session.sessionArena);
+                            bool result = GenChunkMesh(level, chunk, &chunk->mesh);
                             SOKO_ASSERT(result);
                             chunk->loadedMesh.quadCount = RendererReloadChunkMesh(&chunk->mesh, chunk->loadedMesh.gpuHandle);
                             chunk->dirty = false;
@@ -596,6 +657,9 @@ namespace soko
 
         switch (editor->tool)
         {
+        case Tool_ChunkTool:
+        {
+        } break;
         case Tool_EntityPlacer:
         {
             v3 from = RHToWorld(camera->conf.position);
@@ -739,6 +803,35 @@ namespace soko
 
         switch (editor->tool)
         {
+        case Tool_ChunkTool:
+        {
+            for (i32 z = minBound.z; z <= maxBound.z; z++)
+            {
+                for (i32 y = minBound.y; y <= maxBound.y; y++)
+                {
+                    for (i32 x = minBound.x; x <= maxBound.x; x++)
+                    {
+                        Chunk* chunk = GetChunk(simRegion->level, x, y, z);
+                        if (chunk)
+                        {
+                            v3 color = V3(0.0f, 0.0f, 1.0f);
+                            WorldPos chunkPos = MakeWorldPos(IV3(x, y, z) * CHUNK_DIM);
+                            v3 camOffset = WorldToRH(GetRelPos(camera->targetWorldPos, chunkPos));
+                            v3 offset = camOffset;
+
+                            f32 chunkDim = CHUNK_DIM * LEVEL_TILE_SIZE;
+                            v3 tileOff = V3(LEVEL_TILE_RADIUS, LEVEL_TILE_RADIUS, -LEVEL_TILE_RADIUS);
+
+                            DrawAlignedBoxOutline(gameState->renderGroup,
+                                                  offset - tileOff,
+                                                  offset + V3(chunkDim, chunkDim, -chunkDim) - tileOff,
+                                                  color, 2.0f);
+                        }
+                    }
+                }
+            }
+
+        } break;
         case Tool_EntityPlacer:
         {
             v3 selTileRelPos = GetRelPos(camera->targetWorldPos, editor->selectorBegin);

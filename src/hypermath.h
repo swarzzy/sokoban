@@ -60,6 +60,21 @@ namespace hpm
         return result;
     }
 
+    // NOTE: https://graphics.stanford.edu/~seander/bithacks.html#RoundUpPowerOf2
+    inline constexpr u32
+    NextPowerOfTwo(u32 v)
+    {
+        v--;
+        v |= v >> 1;
+        v |= v >> 2;
+        v |= v >> 4;
+        v |= v >> 8;
+        v |= v >> 16;
+        v++;
+        return v;
+    }
+
+
 
     template<typename T> constexpr T Min(T a, T b)
     {
@@ -83,12 +98,12 @@ namespace hpm
         return result;
     }
 
-    inline f32 Abs(f32 value)
+    inline constexpr f32 Abs(f32 value)
     {
         return value >= 0.0f ? value : -value;
     }
 
-    inline u32 Abs(i32 value)
+    inline constexpr u32 Abs(i32 value)
     {
         return value >= 0 ? (u32)value : (u32)(-value);
     }

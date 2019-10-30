@@ -37,7 +37,7 @@ namespace soko
         return result;
     }
 
-    internal void
+    internal u32
     SerializeEntititiesToBuffer(const Level* level, void* buffer, uptr bufferSize)
     {
         uptr bufferCapacity = bufferSize / sizeof(SerializedEntity);
@@ -49,7 +49,8 @@ namespace soko
             const Entity* e = level->entities[i];
             while (e)
             {
-                if (e->type != EntityType_Player)
+                if (e->id != 0 &&
+                    e->type != EntityType_Player)
                 {
                     SOKO_ASSERT(bufferCapacity);
                     if (!bufferCapacity) goto end;
@@ -66,7 +67,7 @@ namespace soko
             }
         }
     end:
-        return;
+        return entitiesWritten;
     }
 
 
@@ -150,7 +151,14 @@ namespace soko
 
                 newEntity->nextEntity = bucketEntity;
                 level->entities[entityHash] = newEntity;
-                level->entitySerialNumber++;
+                if (newEntity->id > level->entitySerialNumber)
+                {
+                    level->entitySerialNumber = newEntity->id + 1;
+                }
+                else
+                {
+                    level->entitySerialNumber++;
+                }
                 level->entityCount++;
 
                 bool registered = RegisterEntityInTile(level, newEntity);

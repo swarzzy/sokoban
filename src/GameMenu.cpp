@@ -93,7 +93,6 @@ namespace soko
         ImGui::SameLine();
         if (ImGui::Button("Create", ImVec2(60, 20)))
         {
-            // TODO: Validate level name
             menu->state = MainMenu_EditorCreateLevel;
         }
         ImGui::SameLine();
@@ -101,18 +100,42 @@ namespace soko
         {
             menu->state = MainMenu_ModeSelection;
         }
-
     }
 
     internal void
     MenuEditorLoadLevel(GameMenu* menu, GameState* gameState)
     {
-        MainMenuState nextState = MainMenu_SingleSelectLevel;
+        MainMenuState nextState = MainMenu_EditorConf;
         uptr arenaSize = CalcLevelArenaSize(&menu->levelMetaInfo, ENTITY_MEMORY_SIZE_FOR_LEVEL);
         MemoryArena* levelArena = PLATFORM_QUERY_NEW_ARENA(arenaSize);
         SOKO_ASSERT(levelArena);
         // TODO: Remove level from GameState
         Level* level = InitializeLevel(menu->wLevelPathBuffer, levelArena, gameState);
+        if (level)
+        {
+            // TODO: Player spawn position
+            menu->session.sessionArena = levelArena;
+            menu->session.level = level;
+            //menu->session.controlledPlayer = AddPlayer(&menu->session, IV3(10, 10, 1));
+            nextState = MainMenu_EnterEditor;
+        }
+        else
+        {
+            PLATFORM_FREE_ARENA(levelArena);
+        }
+        menu->state = nextState;
+    }
+
+    internal void
+    MenuEditorCreateLevel(GameMenu* menu, GameState* gameState)
+    {
+        MainMenuState nextState = MainMenu_EditorConf;
+        // TODO: Dynamically growing arenas
+        uptr arenaSize = MEGABYTES(16);
+        MemoryArena* levelArena = PLATFORM_QUERY_NEW_ARENA(arenaSize);
+        SOKO_ASSERT(levelArena);
+        // TODO: Remove level from GameState
+        Level* level = CreateLevel(levelArena);
         if (level)
         {
             // TODO: Player spawn position
@@ -562,7 +585,7 @@ namespace soko
         case MainMenu_EnterEditor: { MenuEnterEditor(menu, gameState); } break;
         case MainMenu_EditorConf: { MenuEditorConf(menu); } break;
         case MainMenu_EditorLoadLevel: { MenuEditorLoadLevel(menu, gameState); } break;
-        case MainMenu_EditorCreateLevel: { } break;
+        case MainMenu_EditorCreateLevel: { MenuEditorCreateLevel(menu, gameState); } break;
         INVALID_DEFAULT_CASE;
         }
 

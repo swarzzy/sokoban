@@ -55,8 +55,8 @@ namespace soko
         AB::MemoryArena* tempArena;
         Renderer* renderer;
         RenderGroup* renderGroup;
-        Material materials[_EntityMaterial_Count];
-        Mesh meshes[_EntityMesh_Count];
+        Material materials[TypeTraits(EntityMaterial)::MemberCount];
+        Mesh meshes[TypeTraits(EntityMesh)::MemberCount];
         CubeTexture skybox;
         u32 overlayCorner;
     };

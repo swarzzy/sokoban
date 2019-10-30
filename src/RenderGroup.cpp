@@ -217,7 +217,7 @@ namespace soko
 
     }
 #endif
-    void
+    internal void
     DrawAlignedBoxOutline(RenderGroup* renderGroup, v3 min, v3 max, v3 color, f32 lineWidth)
     {
 

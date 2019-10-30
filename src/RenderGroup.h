@@ -130,9 +130,7 @@ namespace soko
 
     void RenderGroupSetCamera(RenderGroup* group, const CameraConfig* config);
 
-    void DrawAlignedBoxOutline(RenderGroup* renderGroup,
-                               v3 min, v3 max, v3 color, f32 lineWidth);
+    internal void DrawAlignedBoxOutline(RenderGroup* renderGroup, v3 min, v3 max, v3 color, f32 lineWidth);
 
-    void DrawStraightLine(RenderGroup* renderGroup,
-                          v3 begin, v3 end, v3 color, f32 lineWidth);
+    void DrawStraightLine(RenderGroup* renderGroup, v3 begin, v3 end, v3 color, f32 lineWidth);
 }

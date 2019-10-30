@@ -230,8 +230,9 @@ namespace soko
     }
 
     internal bool
-    GenChunkMesh(Level* level, Chunk* chunk, ChunkMesh* outMesh, AB::MemoryArena* arena)
+    GenChunkMesh(Level* level, Chunk* chunk, ChunkMesh* outMesh)
     {
+        AB::MemoryArena* arena = level->sessionArena;
         bool result = true;
         i64 beginTime = GetTimeStamp();
 

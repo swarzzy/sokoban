@@ -140,27 +140,15 @@ namespace soko
     }
 
     internal Level*
-    CreateLevel(AB::MemoryArena* arena, u32 chunksNum)
+    CreateLevel(AB::MemoryArena* arena)
     {
-        SOKO_ASSERT(chunksNum <= LEVEL_FULL_DIM_CHUNKS * LEVEL_FULL_DIM_CHUNKS * LEVEL_FULL_DIM_CHUNKS);
         Level* result = 0;
         Level* level = PUSH_STRUCT(arena, Level);
         if (level)
         {
-            level->chunkTable = PUSH_ARRAY(arena, Chunk, chunksNum);
-            if (level->chunkTable)
-            {
-                level->chunkTableSize = chunksNum;
-                level->sessionArena = arena;
-                for (u32 i = 0; i < chunksNum; i++)
-                {
-                    Chunk* chunk = level->chunkTable + i;
-                    chunk->coord = IV3(LEVEL_INVALID_COORD);
-                    // NOTE: Reserving null entity
-                    level->entityCount = 1;
-                }
-                result = level;
-            }
+            level->sessionArena = arena;
+            level->entityCount = 1;
+            result = level;
         }
         return result;
     }
@@ -179,17 +167,15 @@ namespace soko
             (z <= LEVEL_MAX_DIM_CHUNKS))
         {
             // TODO: Better hash
-            u32 hash = (Abs(x) * 7 + Abs(y) * Abs(13) + Abs(z) * 23) % level->chunkTableSize;
+            u32 hashMask = LEVEL_CHUNK_TABLE_SIZE - 1;
+            u32 hash = (Abs(x) * 7 + Abs(y) * Abs(13) + Abs(z) * 23) & hashMask;
 
-            for (u32 offset = 0; offset < level->chunkTableSize; offset++)
+            for (u32 offset = 0; offset < LEVEL_CHUNK_TABLE_SIZE; offset++)
             {
-                u32 index = hash + offset;
-                if (index > (level->chunkTableSize - 1))
-                {
-                    index -= level->chunkTableSize;
-                }
-                Chunk* chunk = level->chunkTable + index;
-                if (chunk->loaded &&
+                u32 index = (hash + offset) & hashMask;
+
+                Chunk* chunk = level->chunkTable[index];
+                if (chunk &&
                     chunk->coord.x == x &&
                     chunk->coord.y == y &&
                     chunk->coord.z == z)
@@ -502,8 +488,11 @@ namespace soko
         UnregisterEntityInTile(chunk, e);
     }
 
+    inline void
+    SetTileInChunkInternal(Chunk* chunk, u32 x, u32 y, u32 z, TileValue value);
+
     inline Chunk*
-    InitChunk(Level* level, i32 x, i32 y, i32 z)
+    AddChunk(Level* level, i32 x, i32 y, i32 z, bool anchor = false)
     {
         Chunk* result = 0;
 
@@ -512,40 +501,32 @@ namespace soko
         SOKO_ASSERT(z >= LEVEL_MIN_DIM_CHUNKS && z <= LEVEL_MAX_DIM_CHUNKS);
 
         // TODO: Better hash
-        u32 hash = (Abs(x) * 7 + Abs(y) * Abs(13) + Abs(z) * 23) % level->chunkTableSize;
+        u32 hashMask = LEVEL_CHUNK_TABLE_SIZE - 1;
+        u32 hash = (Abs(x) * 7 + Abs(y) * Abs(13) + Abs(z) * 23) & hashMask;
 
-        for (u32 offset = 0; offset < level->chunkTableSize; offset++)
+        for (u32 offset = 0; offset < LEVEL_CHUNK_TABLE_SIZE; offset++)
         {
-            u32 index = hash + offset;
-            if (index > (level->chunkTableSize - 1))
-            {
-                index -= level->chunkTableSize;
-            }
-            Chunk* chunk = level->chunkTable + index;
-            if (!chunk->loaded)
-            {
-                chunk->level = level;
-                chunk->loaded = true;
-                chunk->coord = IV3(x, y, z);
-                result = chunk;
-                SET_ARRAY(Tile, CHUNK_TILE_COUNT, chunk->tiles, (i32)TileValue_Empty);
-                ZERO_ARRAY(ChunkEntityMapResidentBlock, CHUNK_ENTITY_MAP_SIZE, chunk->entityMap);
-                break;
-            }
-        }
+            u32 index = (hash + offset) & hashMask;
 
-        level->loadedChunksCount++;
-        if (result)
-        {
-            for (u32 tileZ = 0; tileZ < CHUNK_DIM; tileZ++)
+            Chunk* chunk = level->chunkTable[index];
+            if (!chunk)
             {
-                for (u32 tileY = 0; tileY < CHUNK_DIM; tileY++)
+                Chunk* newChunk = PUSH_STRUCT(level->sessionArena, Chunk);
+                if (newChunk)
                 {
-                    for (u32 tileX = 0; tileX < CHUNK_DIM; tileX++)
+                    level->chunkTable[index] = newChunk;
+                    newChunk->level = level;
+                    newChunk->coord = IV3(x, y, z);
+                    result = newChunk;
+                    level->loadedChunksCount++;
+                    SET_ARRAY(Tile, CHUNK_TILE_COUNT, newChunk->tiles, (i32)TileValue_Empty);
+                    //ZERO_ARRAY(ChunkEntityMapResidentBlock, CHUNK_ENTITY_MAP_SIZE, chunk->entityMap);
+                    if (anchor)
                     {
-                        u32 tileIndex = tileZ * CHUNK_DIM * CHUNK_DIM + tileY * CHUNK_DIM + tileX;
-                        Tile* tile = result->tiles + tileIndex;
+                        iv3 center = IV3(CHUNK_DIM / 2);
+                        SetTileInChunkInternal(newChunk, center.x, center.y, 0, TileValue_Wall);
                     }
+                    break;
                 }
             }
         }
@@ -553,9 +534,9 @@ namespace soko
     }
 
     inline Chunk*
-    InitChunk(Level* level, iv3 coord)
+    AddChunk(Level* level, iv3 coord)
     {
-        Chunk* result = InitChunk(level, coord.x, coord.y, coord.z);
+        Chunk* result = AddChunk(level, coord.x, coord.y, coord.z);
         return result;
     }
 
@@ -577,11 +558,16 @@ namespace soko
     GetTileInChunk(Chunk* chunk, u32 x, u32 y, u32 z)
     {
         Tile result = { TileValue_TileNotExist };
-        if (x < CHUNK_DIM &&
+        if (chunk &&
+            x < CHUNK_DIM &&
             y < CHUNK_DIM &&
             z < CHUNK_DIM)
         {
-            result = *GetTilePointerInChunkInternal(chunk, x, y, z);
+            Tile* tile = GetTilePointerInChunkInternal(chunk, x, y, z);
+            if (tile)
+            {
+                result = *tile;
+            }
         }
         return result;
     }
@@ -596,10 +582,12 @@ namespace soko
     GetTilePointerInternal(Level* level, i32 x, i32 y, i32 z)
     {
         Tile* result = 0;
-        // TODO: Real check instead of asserts
-        SOKO_ASSERT(x >= LEVEL_MIN_DIM && x <= LEVEL_MAX_DIM);
-        SOKO_ASSERT(y >= LEVEL_MIN_DIM && y <= LEVEL_MAX_DIM);
-        SOKO_ASSERT(z >= LEVEL_MIN_DIM && z <= LEVEL_MAX_DIM);
+
+#if 0
+        if ((x >= LEVEL_MIN_DIM && x <= LEVEL_MAX_DIM) &&
+            (y >= LEVEL_MIN_DIM && y <= LEVEL_MAX_DIM) &&
+            (z >= LEVEL_MIN_DIM && z <= LEVEL_MAX_DIM))
+#endif
 
         iv3 c = GetChunkCoord(x, y, z);
         uv3 t = GetTileCoordInChunk(x, y, z);
@@ -617,7 +605,13 @@ namespace soko
     GetTile(Level* level, i32 x, i32 y, i32 z)
     {
         Tile result = { TileValue_TileNotExist };
-        result = *GetTilePointerInternal(level, x, y, z);
+        // TODO: @Speed: Stop returninig pointers and dereferencing them here
+        // This code needs cleanup
+        Tile* tile = GetTilePointerInternal(level, x, y, z);
+        if (tile)
+        {
+            result = *tile;
+        }
         return result;
     }
 
@@ -814,16 +808,16 @@ namespace soko
             header->chunkCount = level->loadedChunksCount;
             header->chunkMeshBlockCount = level->globalChunkMeshBlockCount;
             header->firstChunkOffset = sizeof(AB::AABLevelHeader);
-            header->entityCount = level->entityCount - 1; // Null entity is not considered
+            //header->entityCount = level->entityCount - 1; // Null entity is not considered
             header->firstEntityOffset = headerSize + chunksSize;
 
             auto chunks = (SerializedChunk*)(buffer + header->firstChunkOffset);
 
             u32 chunksWritten = 0;
-            for (u32 i = 0; i < level->chunkTableSize; i++)
+            for (u32 i = 0; i < LEVEL_CHUNK_TABLE_SIZE; i++)
             {
-                Chunk* chunk = level->chunkTable + i;
-                if (chunk->loaded)
+                Chunk* chunk = level->chunkTable[i];
+                if (chunk)
                 {
                     chunksWritten++;
                     SOKO_ASSERT(chunksWritten <= header->chunkCount);
@@ -840,7 +834,8 @@ namespace soko
             SOKO_ASSERT(chunksWritten == level->loadedChunksCount);
 
             void* entities = buffer + headerSize + chunksSize;
-            SerializeEntititiesToBuffer(level, entities, entitiesSize);
+            // TODO: Checking
+            header->entityCount = SerializeEntititiesToBuffer(level, entities, entitiesSize);
 
             SOKO_ASSERT(bufferSize <= 0xffffffff);
             result = DebugWriteFile(filename, buffer, (u32)bufferSize);
@@ -897,7 +892,7 @@ namespace soko
         for (u32 chunkIdx = 0; chunkIdx < chunkCount; chunkIdx++)
         {
             SerializedChunk* sChunk = chunks + chunkIdx;
-            Chunk* newChunk = InitChunk(loadedLevel, sChunk->coord);
+            Chunk* newChunk = AddChunk(loadedLevel, sChunk->coord);
             if (newChunk)
             {
                 for (u32 z = 0; z < CHUNK_DIM; z++)
@@ -916,7 +911,7 @@ namespace soko
                 }
                 // TODO: Store meshes on the cpu and load on the gpu only when necessary
                 ChunkMesh mesh = {};
-                if (GenChunkMesh(loadedLevel, newChunk, &mesh, levelArena))
+                if (GenChunkMesh(loadedLevel, newChunk, &mesh))
                 {
                     // TODO: Check if loading failed
                     LoadedChunkMesh loadedMesh = RendererLoadChunkMesh(&mesh);
@@ -973,7 +968,7 @@ namespace soko
                     u32 bytesRead = DebugReadFile(fileBuffer, fileSize, filename);
                     if (bytesRead == fileSize)
                     {
-                        Level* loadedLevel = CreateLevel(levelArena, header.chunkCount);
+                        Level* loadedLevel = CreateLevel(levelArena);
                         if (loadedLevel)
                         {
                             auto chunks = (SerializedChunk*)((byte*)fileBuffer + header.firstChunkOffset);
@@ -1000,12 +995,12 @@ namespace soko
     {
         BeginTemporaryMemory(tempArena, true);
         bool result = 0;
-        Level* level = CreateLevel(tempArena, 8 * 8);
+        Level* level = CreateLevel(tempArena);
         for (i32 chunkX = LEVEL_MIN_DIM_CHUNKS; chunkX <= LEVEL_MAX_DIM_CHUNKS; chunkX++)
         {
             for (i32 chunkY = LEVEL_MIN_DIM_CHUNKS; chunkY <= LEVEL_MAX_DIM_CHUNKS; chunkY++)
             {
-                Chunk* chunk = InitChunk(level, chunkX, chunkY, 0);
+                Chunk* chunk = AddChunk(level, chunkX, chunkY, 0);
                 SOKO_ASSERT(chunk);
 
                 for (u32 x = 0; x < CHUNK_DIM; x++)
@@ -1046,7 +1041,7 @@ namespace soko
                     }
                 }
                 ChunkMesh mesh = {};
-                bool meshResult = GenChunkMesh(level, chunk, &mesh, tempArena);
+                bool meshResult = GenChunkMesh(level, chunk, &mesh);
                 SOKO_ASSERT(meshResult);
                 chunk->mesh = mesh;
                 //level->globalChunkMeshBlockCount += mesh.blockCount;
