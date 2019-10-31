@@ -54,6 +54,7 @@ namespace AB
         u32 entityCount;
         u64 firstChunkOffset;
         u64 firstEntityOffset;
+        u32 spawnerID;
     };
 #pragma pack (pop)
 

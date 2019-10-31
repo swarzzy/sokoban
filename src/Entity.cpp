@@ -70,6 +70,14 @@ namespace soko
         return entitiesWritten;
     }
 
+#if 0
+    internal void
+    ChangeEntityType(Entity* entity, EntityType newType)
+    {
+        entity->type = newType;
+        entity->flags = EntityTypesFlags[newType];
+    }
+#endif
 
     inline Entity*
     GetEntityMemory(Level* level)
@@ -217,16 +225,7 @@ namespace soko
         entity.mesh = mesh;
         entity.material = material;
         entity.movementSpeed = movementSpeed;
-        switch (type)
-        {
-        case EntityType_Block:  { entity.flags = EntityFlag_Movable | EntityFlag_Collides; } break;
-        case EntityType_Player: { entity.flags = EntityFlag_Movable | EntityFlag_Collides | EntityFlag_Player; } break;
-        case EntityType_Plate:  { entity.flags = 0; } break;
-        case EntityType_Portal: { entity.flags = 0; } break;
-        case EntityType_Spikes: { entity.flags = 0; } break;
-        case EntityType_Button: { entity.flags = 0; } break;
-            INVALID_DEFAULT_CASE;
-        }
+        entity.flags = EntityTypesFlags[type];
         result = AddEntity(level, entity);
         return result;
     }
@@ -321,7 +320,8 @@ namespace soko
                     }
                 }
             } break;
-            case EntityType_Spikes: {
+            case EntityType_Spikes:
+            {
                 EntityMapIterator it = {};
                 while (true)
                 {

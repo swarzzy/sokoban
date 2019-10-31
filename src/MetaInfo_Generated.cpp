@@ -13,6 +13,7 @@ InitMetaInfo(AB::MemoryArena* arena)
     AddEntry_EntityType(&info->EntityType, 3, EntityType_Portal, "EntityType_Portal");
     AddEntry_EntityType(&info->EntityType, 4, EntityType_Spikes, "EntityType_Spikes");
     AddEntry_EntityType(&info->EntityType, 5, EntityType_Button, "EntityType_Button");
+    AddEntry_EntityType(&info->EntityType, 6, EntityType_Spawner, "EntityType_Spawner");
     AddEntry_EntityFlags(&info->EntityFlags, 0, EntityFlag_Collides, "EntityFlag_Collides");
     AddEntry_EntityFlags(&info->EntityFlags, 1, EntityFlag_Movable, "EntityFlag_Movable");
     AddEntry_EntityFlags(&info->EntityFlags, 2, EntityFlag_JustTeleported, "EntityFlag_JustTeleported");

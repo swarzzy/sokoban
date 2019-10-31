@@ -398,12 +398,14 @@ namespace soko
             revDesiredPos -= DirToUnitOffset(dir);
 
             Tile desiredTile = GetTile(level, desiredPos);
+            Tile desiredGroundTile = GetTile(level, desiredPos - IV3(0, 0, 1));
+
             u32 flags = TileOccupancy_Terrain;
             if (reverse && entity->stored->type == EntityType_Player)
             {
                 flags |= TileOccupancy_Entities;
             }
-            if (IsTileFree(level, desiredPos, flags))
+            if (IsTileFree(level, desiredPos, flags) && TileIsTerrain(desiredGroundTile))
             {
                 auto pushTilePos = reverse ? revDesiredPos : desiredPos;
 

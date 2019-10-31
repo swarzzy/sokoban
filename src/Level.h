@@ -109,22 +109,20 @@ namespace soko
         AB::MemoryArena* sessionArena;
         u32 globalChunkMeshBlockCount;
 
-        // NOTE: Maximum size of the level is 1024-tile-side cube
-        // so count of tiles in cube is less than 2^32
-
         u32 loadedChunksCount;
         // TODO: @Robustness Store linked list of loaded chunks
         // for fast traversing
         // TODO: @Speed store key data inside table buckets
         Chunk* chunkTable[LEVEL_CHUNK_TABLE_SIZE];
 
-        // TODO: Use 64bit IDs for entities
         u32 entitySerialNumber;
         u32 entityCount;
         u32 deletedEntityCount;
         Entity* entityFreeList;
         Entity* entities[LEVEL_ENTITY_TABLE_SIZE];
         b32 platePressed;
+
+        u32 spawnerID;
 
         u32 chunkEntityMapBlockCount;
         u32 freeChunkEntityMapBlockCount;

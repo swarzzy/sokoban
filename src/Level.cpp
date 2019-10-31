@@ -1,3 +1,4 @@
+
 #include "Level.h"
 #include "Memory.h"
 #include "Entity.h"
@@ -691,7 +692,7 @@ namespace soko
     inline bool
     TileIsTerrain(Tile tile)
     {
-        bool result = tile.value != TileValue_Empty;
+        bool result = ((tile.value != TileValue_Empty) && IsTileExists(tile));
         return result;
     }
 
@@ -808,6 +809,8 @@ namespace soko
             header->chunkCount = level->loadedChunksCount;
             header->chunkMeshBlockCount = level->globalChunkMeshBlockCount;
             header->firstChunkOffset = sizeof(AB::AABLevelHeader);
+            SOKO_ASSERT(level->spawnerID);
+            header->spawnerID = level->spawnerID;
             //header->entityCount = level->entityCount - 1; // Null entity is not considered
             header->firstEntityOffset = headerSize + chunksSize;
 
@@ -971,6 +974,8 @@ namespace soko
                         Level* loadedLevel = CreateLevel(levelArena);
                         if (loadedLevel)
                         {
+                            SOKO_ASSERT(header.spawnerID);
+                            loadedLevel->spawnerID = header.spawnerID;
                             auto chunks = (SerializedChunk*)((byte*)fileBuffer + header.firstChunkOffset);
                             if (LoadChunks(levelArena, loadedLevel, chunks, header.chunkCount))
                             {
@@ -1058,6 +1063,20 @@ namespace soko
 
         AddEntity(level, entity1);
         //AddEntity(playerLevel)
+
+        Entity spawner = {};
+        spawner.type = EntityType_Spawner;
+        spawner.flags = 0;
+        spawner.coord = MakeWorldPos(10, 10, 1);
+        spawner.movementSpeed = 0.0f;
+        spawner.mesh = EntityMesh_Plate;
+        spawner.material = EntityMaterial_RedPlate;
+
+        u32 spawnerID = AddEntity(level, spawner);
+        SOKO_ASSERT(spawnerID);
+        level->spawnerID = spawnerID;
+        //AddEntity(playerLevel)
+
 
         Entity entity2 = {};
         entity2.type = EntityType_Block;

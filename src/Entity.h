@@ -9,6 +9,7 @@ namespace soko
         EntityType_Portal,
         EntityType_Spikes,
         EntityType_Button,
+        EntityType_Spawner
     };
 
     enum [reflect flag_enum] EntityFlags : u32
@@ -17,6 +18,13 @@ namespace soko
         EntityFlag_Movable = (1 << 2),
         EntityFlag_JustTeleported = (1 << 3),
         EntityFlag_Player = (1 << 4)
+    };
+
+    constant u32 EntityTypesFlags[TypeTraits(EntityType)::MemberCount] =
+    {
+        /* block */  EntityFlag_Movable | EntityFlag_Collides,
+        /* player */ EntityFlag_Movable | EntityFlag_Collides | EntityFlag_Player,
+        /* plate */  // all zeros
     };
 
     struct SimEntity;

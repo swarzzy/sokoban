@@ -168,7 +168,7 @@ namespace soko
         gameState->session.editor = PUSH_STRUCT(gameState->session.sessionArena, Editor);
         SOKO_ASSERT(gameState->session.editorCamera);
         SOKO_ASSERT(gameState->session.editor);
-        EditorInit(gameState->session.editor, &gameState->session);
+        EditorInit(gameState->session.editor, &gameState->session, gameState);
         EditorCameraInit(gameState->session.editorCamera);
         RenderGroupSetCamera(gameState->renderGroup, &gameState->session.editorCamera->conf);
     }
@@ -218,10 +218,11 @@ namespace soko
         Level* level = InitializeLevel(menu->wLevelPathBuffer, levelArena, gameState);
         if (level)
         {
-            // TODO: Player spawn position
             menu->session.sessionArena = levelArena;
             menu->session.level = level;
-            menu->session.controlledPlayer = AddPlayer(&menu->session, IV3(10, 10, 1));
+            Entity* spawner = GetEntity(level, level->spawnerID);
+            SOKO_ASSERT(spawner);
+            menu->session.controlledPlayer = AddPlayer(&menu->session, spawner->coord.tile);
             nextState = MainMenu_EnterLevel;
         }
         else

@@ -353,6 +353,12 @@ namespace soko
                                      _GlobalPlatform->imGuiAllocatorData);
         ImGui::SetCurrentContext(_GlobalPlatform->imGuiContext);
 
+        ImGuiIO* io = &ImGui::GetIO();
+        //gameState->notoMonoFont10px = io->Fonts->AddFontFromFileTTF("../res/NotoMono-Regular.ttf", 10.0f);
+        //gameState->notoMonoFont14px = io->Fonts->AddFontFromFileTTF("../res/NotoMono-Regular.ttf", 14.0f);
+
+        //ImGui::PushFont(0);
+
         gameState->overlayCorner = 1;
 
         gameState->renderer = AllocAndInitRenderer(arena, tempArena);
@@ -727,10 +733,10 @@ namespace soko
     DoOtherStuff(GameState* gameState)
     {
         AB::MemoryArena* arena = gameState->memoryArena;
-        bool show = true;
+        bool show = false;
 
         DrawOverlay(gameState);
-        ImGui::ShowDemoWindow(&show);
+        //ImGui::ShowDemoWindow(&show);
         DEBUG_OVERLAY_TRACE(gameState->session.debugCamera.conf.position);
         DEBUG_OVERLAY_TRACE(gameState->session.debugCamera.conf.front);
 

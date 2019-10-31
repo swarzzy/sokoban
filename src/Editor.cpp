@@ -21,8 +21,10 @@ namespace soko
         b32 windowOpened;
         b32 chunkListerOpened;
         b32 exitToMainMenu;
+        b32 levelSettingsOpened;
         b32 wantsToSaveLevel;
         b32 saveAs;
+        i32 chunkListerZLevel;
         char levelName[EDITOR_UI_LEVEL_NAME_SIZE];
         wchar_t wLevelName[EDITOR_UI_LEVEL_NAME_SIZE];
     };
@@ -30,6 +32,7 @@ namespace soko
     struct Editor
     {
         GameSession* session;
+        GameState* gameState;
         ToolKind tool;
         EditorUI ui;
         // NOTE: Camera should not gather input if mouse used
@@ -242,9 +245,10 @@ namespace soko
     }
 
     internal void
-    EditorInit(Editor* editor, GameSession* session)
+    EditorInit(Editor* editor, GameSession* session, GameState* gameState)
     {
         editor->session = session;
+        editor->gameState = gameState;
         editor->placerTile = TileValue_Wall;
     }
 
@@ -294,6 +298,44 @@ namespace soko
     }
 
     internal void
+    EditorLevelSettings(Editor* editor)
+    {
+        ImGuiIO* io = &ImGui::GetIO();
+        ImGui::SetNextWindowSize({400, 150});
+        auto windowFlags = ImGuiWindowFlags_NoResize | ImGuiWindowFlags_AlwaysAutoResize;
+        if (ImGui::Begin("Level settings", (bool*)&editor->ui.levelSettingsOpened, windowFlags))
+        {
+            char string[32];
+            FormatString(string, 32, "id: %u32", editor->session->level->spawnerID);
+            if (ImGui::BeginCombo("Spawner entity", string))
+            {
+                for (u32 i = 0 ; i < LEVEL_ENTITY_TABLE_SIZE; i++)
+                {
+                    Entity* e = editor->session->level->entities[i];
+                    while (e)
+                    {
+                        if (e->type == EntityType_Spawner)
+                        {
+                            bool wasSelected = (e->id == editor->selectedEntityID);
+                            FormatString(string, 32, "id: %u32", e->id);
+                            bool selected = ImGui::Selectable(string, wasSelected);
+                            if (selected)
+                            {
+                                editor->session->level->spawnerID = e->id;
+                            }
+                        }
+                        e = e->nextEntity;
+                    }
+                }
+
+                ImGui::EndCombo();
+            }
+
+        }
+        ImGui::End();
+    }
+
+    internal void
     EditorEntityView(Editor* editor)
     {
         ImGuiIO* io = &ImGui::GetIO();
@@ -314,67 +356,74 @@ namespace soko
                 char buffer[16];
                 FormatString(buffer, 16, "%i32", editor->selectedEntityID);
                 ImGui::Text("ID %s", buffer);
-                ImGui::Separator();
-
-                ImGui::Text("Position");
-                WorldPos pos = GetWorldPos(editor->region->origin, entity->pos);
-                //ImGui::SameLine();
-                ImGui::PushID("Entity position drag");
-                // TODO: Bounds of sim region
-                ImGui::InputInt("x", &pos.tile.x);
-                ImGui::InputInt("y", &pos.tile.y);
-                ImGui::InputInt("z", &pos.tile.z);
-
-
-                v3 newPos = GetRelPos(editor->region->origin, pos);
-                entity->pos = newPos;
-                ImGui::PopID();
-                ImGui::Separator();
-
-                ImGui::Text("Type\t ");
-                i32 type = entity->stored->type;
-                ImGui::PushID("Entity type listbox");
-                ImGui::Combo("", &type, TypeInfo(EntityType).names, TypeTraits(EntityType)::MemberCount);
-                entity->stored->type = (EntityType)type;
-                ImGui::PopID();
-                ImGui::Separator();
-
-                ImGui::Text("Entity flags");
-                if (ImGui::CollapsingHeader("Flags"))
+                ImGui::SameLine();
+                if (ImGui::Button("Delete"))
                 {
-                    for (u32 i = 0; i < TypeTraits(EntityFlags)::MemberCount; i++)
+                    editor->selectedEntityID = 0;
+                    DeleteEntity(editor->session->level, entity->stored);
+                }
+                else
+                {
+                    ImGui::Separator();
+
+                    ImGui::Text("Position");
+                    WorldPos pos = GetWorldPos(editor->region->origin, entity->pos);
+                    //ImGui::SameLine();
+                    ImGui::PushID("Entity position drag");
+                    // TODO: Bounds of sim region
+                    ImGui::InputInt("x", &pos.tile.x);
+                    ImGui::InputInt("y", &pos.tile.y);
+                    ImGui::InputInt("z", &pos.tile.z);
+
+
+                    v3 newPos = GetRelPos(editor->region->origin, pos);
+                    entity->pos = newPos;
+                    ImGui::PopID();
+                    ImGui::Separator();
+
+                    ImGui::Text("Type\t ");
+                    i32 type = entity->stored->type;
+                    ImGui::PushID("Entity type listbox");
+                    ImGui::Combo("", &type, TypeInfo(EntityType).names, TypeTraits(EntityType)::MemberCount);
+                    entity->stored->type = (EntityType)type;
+                    ImGui::PopID();
+                    ImGui::Separator();
+
+                    ImGui::Text("Entity flags");
+                    if (ImGui::CollapsingHeader("Flags"))
                     {
-                        bool isSet = IsSet(entity->stored, TypeInfo(EntityFlags).values[i]);
-                        ImGui::Checkbox(TypeInfo(EntityFlags).names[i], &isSet);
-                        if (isSet)
+                        for (u32 i = 0; i < TypeTraits(EntityFlags)::MemberCount; i++)
                         {
-                            SetFlag(entity->stored, TypeInfo(EntityFlags).values[i]);
-                        }
-                        else
-                        {
-                            UnsetFlag(entity->stored, TypeInfo(EntityFlags).values[i]);
+                            bool isSet = IsSet(entity->stored, TypeInfo(EntityFlags).values[i]);
+                            ImGui::Checkbox(TypeInfo(EntityFlags).names[i], &isSet);
+                            if (isSet)
+                            {
+                                SetFlag(entity->stored, TypeInfo(EntityFlags).values[i]);
+                            }
+                            else
+                            {
+                                UnsetFlag(entity->stored, TypeInfo(EntityFlags).values[i]);
+                            }
                         }
                     }
+                    ImGui::Separator();
+
+                    ImGui::Text("Mesh");
+                    i32 mesh = entity->stored->mesh;
+                    ImGui::PushID("Entity mesh listbox");
+                    ImGui::Combo("", &mesh, TypeInfo(EntityMesh).names, TypeTraits(EntityMesh)::MemberCount);
+                    entity->stored->mesh = (EntityMesh)mesh;
+                    ImGui::PopID();
+                    ImGui::Separator();
+
+                    ImGui::Text("Material");
+                    i32 material = entity->stored->material;
+                    ImGui::PushID("Entity material listbox");
+                    ImGui::Combo("", &material, TypeInfo(EntityMaterial).names, TypeTraits(EntityMaterial)::MemberCount);
+                    entity->stored->material = (EntityMaterial)material;
+                    ImGui::PopID();
+                    ImGui::Separator();
                 }
-                ImGui::Separator();
-
-                ImGui::Text("Mesh");
-                i32 mesh = entity->stored->mesh;
-                ImGui::PushID("Entity mesh listbox");
-                ImGui::Combo("", &mesh, TypeInfo(EntityMesh).names, TypeTraits(EntityMesh)::MemberCount);
-                entity->stored->mesh = (EntityMesh)mesh;
-                ImGui::PopID();
-                ImGui::Separator();
-
-                ImGui::Text("Material");
-                i32 material = entity->stored->material;
-                ImGui::PushID("Entity material listbox");
-                ImGui::Combo("", &material, TypeInfo(EntityMaterial).names, TypeTraits(EntityMaterial)::MemberCount);
-                entity->stored->material = (EntityMaterial)material;
-                ImGui::PopID();
-                ImGui::Separator();
-
-
             }
         }
         ImGui::End();
@@ -420,10 +469,10 @@ namespace soko
         ImGuiIO* io = &ImGui::GetIO();
         ImGui::SetNextWindowSize({230, 300});
         auto windowFlags =
-            ImGuiWindowFlags_NoResize;
-        ImGuiWindowFlags_AlwaysAutoResize;
+            ImGuiWindowFlags_AlwaysAutoResize;
         if (ImGui::Begin("Chunk lister", (bool*)&editor->ui.chunkListerOpened, windowFlags))
         {
+#if 1
             ImGui::BeginChild("Chunk lister list");
             for (i32 z = LEVEL_MIN_DIM_CHUNKS; z <= LEVEL_MAX_DIM_CHUNKS; z++)
             {
@@ -460,6 +509,25 @@ namespace soko
                 }
             }
             ImGui::EndChild();
+#else
+            // TODO: Propper font scaling
+            //ImGui::PushFont(editor->gameState->notoMonoFont10px);
+            ImGui::SliderInt("Z level", &editor->ui.chunkListerZLevel, LEVEL_MIN_DIM_CHUNKS, LEVEL_MAX_DIM_CHUNKS);
+
+            for (i32 y = LEVEL_MAX_DIM_CHUNKS; y >= LEVEL_MIN_DIM_CHUNKS; y--)
+            {
+                for (i32 x = LEVEL_MIN_DIM_CHUNKS; x <= LEVEL_MAX_DIM_CHUNKS; x++)
+                {
+                    Chunk* chunk = GetChunk(editor->session->level, x, y, editor->ui.chunkListerZLevel);
+                    char string[32];
+                    FormatString(string, 32, "(%i32, %i32)", x, y);
+                    ImGui::Button(string, ImVec2(40.0f, 40.0f));
+                    ImGui::SameLine();
+                }
+                ImGui::NewLine();
+            }
+            //ImGui::PushFont(0);
+#endif
         }
         ImGui::End();
     }
@@ -475,7 +543,7 @@ namespace soko
         auto windowFlags =
             ImGuiWindowFlags_NoResize;
         ImGuiWindowFlags_AlwaysAutoResize;
-        if (ImGui::Begin("Tile properties", (bool*)&editor->ui.windowOpened, windowFlags))
+        if (ImGui::Begin("Tile properties", (bool*)&editor->ui.tileViewOpened, windowFlags))
         {
             Tile tile = GetTile(editor->session->level, editor->selectorBegin);
             ImGui::Separator();
@@ -514,7 +582,8 @@ namespace soko
             if (ImGui::Button("Save"))
             {
                 bool fileNotExit = !DebugGetFileSize(editor->ui.wLevelName);
-                if (fileNotExit)
+                // TODO: Show message if spawner is not selected
+                if (fileNotExit && editor->session->level->spawnerID)
                 {
                     editor->ui.wantsToSaveLevel = true;
                     editor->ui.saveAs = false;
@@ -537,8 +606,8 @@ namespace soko
     internal void
     EditorDrawUI(Editor* editor)
     {
-        local_persist bool show = true;
-        ImGui::ShowDemoWindow(&show);
+        //local_persist bool show = false;
+        //ImGui::ShowDemoWindow(&show);
 
         ImGui::BeginMainMenuBar();
         if (ImGui::BeginMenu("Level"))
@@ -571,6 +640,11 @@ namespace soko
             {
                 editor->ui.chunkListerOpened = !editor->ui.chunkListerOpened;
             }
+            if (ImGui::MenuItem("Level settings", 0, editor->ui.levelSettingsOpened))
+            {
+                editor->ui.levelSettingsOpened = !editor->ui.levelSettingsOpened;
+            }
+
 
             ImGui::EndMenu();
         }
@@ -597,6 +671,10 @@ namespace soko
         if (editor->ui.saveAs)
         {
             EditorSaveAs(editor);
+        }
+        if (editor->ui.levelSettingsOpened)
+        {
+            EditorLevelSettings(editor);
         }
     }
 
@@ -662,23 +740,38 @@ namespace soko
         } break;
         case Tool_EntityPlacer:
         {
-            v3 from = RHToWorld(camera->conf.position);
-            v3 ray = RHToWorld(camera->mouseRayRH);
-            auto raycast = Raycast(simRegion, from, ray, Raycast_Tilemap);
-
-            if (raycast.hit == RaycastResult::Tile)
+            if (JustPressed(MBUTTON_RIGHT) && !IsMouseCapturedByUI())
             {
-                iv3 hoveredTile = raycast.tile.coord + DirToUnitOffset(raycast.tile.normalDir);
-                editor->selectorBegin = hoveredTile;
-                if (JustPressed(MBUTTON_LEFT) && !IsMouseCapturedByUI())
+                v3 from = RHToWorld(camera->conf.position);
+                v3 ray = RHToWorld(camera->mouseRayRH);
+                auto raycast = Raycast(simRegion, from, ray, Raycast_Entities);
+                if (raycast.hit == RaycastResult::Entity)
                 {
-                    u32 id = AddEntity(level, EntityType_Block, hoveredTile, 0.0f,
-                                       EntityMesh_Cube, EntityMaterial_Block);
-                    if (id)
+                    Entity* entity = GetEntity(level, raycast.entity.id);
+                    SOKO_ASSERT(entity);
+                    DeleteEntity(level, entity);
+                }
+            }
+            else
+            {
+                v3 from = RHToWorld(camera->conf.position);
+                v3 ray = RHToWorld(camera->mouseRayRH);
+                auto raycast = Raycast(simRegion, from, ray, Raycast_Tilemap);
+
+                if (raycast.hit == RaycastResult::Tile)
+                {
+                    iv3 hoveredTile = raycast.tile.coord + DirToUnitOffset(raycast.tile.normalDir);
+                    editor->selectorBegin = hoveredTile;
+                    if (JustPressed(MBUTTON_LEFT) && !IsMouseCapturedByUI())
                     {
-                        SimEntity* entity = AddEntityToRegion(simRegion, GetEntity(level, id));
-                        SOKO_ASSERT(entity);
-                        editor->selectedEntityID = id;
+                        u32 id = AddEntity(level, EntityType_Block, hoveredTile, 0.0f,
+                                           EntityMesh_Cube, EntityMaterial_Block);
+                        if (id)
+                        {
+                            SimEntity* entity = AddEntityToRegion(simRegion, GetEntity(level, id));
+                            SOKO_ASSERT(entity);
+                            editor->selectedEntityID = id;
+                        }
                     }
                 }
             }
@@ -712,30 +805,30 @@ namespace soko
                     editor->selectorHolding = true;
                     editor->selectorBegin = hoveredTile;
                 }
-                else if (JustReleased(MBUTTON_LEFT) && editor->selectorHolding)
-                {
-                    editor->selectorHolding = false;
-                    editor->selectorEnd = hoveredTile;
-
-                    TileBox box = TileBoxFromTwoPoints(editor->selectorBegin, editor->selectorEnd);
-
-                    for (i32 z = box.min.z; z <= box.max.z; z++)
-                    {
-                        for (i32 y = box.min.y; y <= box.max.y; y++)
-                        {
-                            for (i32 x = box.min.x; x <= box.max.x; x++)
-                            {
-                                SetTile(level, x, y, z, editor->placerTile);
-                            }
-                        }
-                    }
-                }
 
                 if (editor->selectorHolding)
                 {
                     editor->selectorEnd = hoveredTile;
                 }
             }
+            if (JustReleased(MBUTTON_LEFT) && editor->selectorHolding)
+            {
+                editor->selectorHolding = false;
+
+                TileBox box = TileBoxFromTwoPoints(editor->selectorBegin, editor->selectorEnd);
+
+                for (i32 z = box.min.z; z <= box.max.z; z++)
+                {
+                    for (i32 y = box.min.y; y <= box.max.y; y++)
+                    {
+                        for (i32 x = box.min.x; x <= box.max.x; x++)
+                        {
+                            SetTile(level, x, y, z, editor->placerTile);
+                        }
+                    }
+                }
+            }
+
         } break;
         case Tool_TileEraser:
         {
@@ -752,30 +845,31 @@ namespace soko
                     editor->selectorHolding = true;
                     editor->selectorBegin = hoveredTile;
                 }
-                else if (JustReleased(MBUTTON_LEFT) && editor->selectorHolding)
-                {
-                    editor->selectorHolding = false;
-                    editor->selectorEnd = hoveredTile;
-
-                    TileBox box = TileBoxFromTwoPoints(editor->selectorBegin, editor->selectorEnd);
-
-                    for (i32 z = box.min.z; z <= box.max.z; z++)
-                    {
-                        for (i32 y = box.min.y; y <= box.max.y; y++)
-                        {
-                            for (i32 x = box.min.x; x <= box.max.x; x++)
-                            {
-                                SetTile(level, x, y, z, TileValue_Empty);
-                            }
-                        }
-                    }
-                }
 
                 if (editor->selectorHolding)
                 {
                     editor->selectorEnd = hoveredTile;
                 }
             }
+
+            if (JustReleased(MBUTTON_LEFT) && editor->selectorHolding)
+            {
+                editor->selectorHolding = false;
+
+                TileBox box = TileBoxFromTwoPoints(editor->selectorBegin, editor->selectorEnd);
+
+                for (i32 z = box.min.z; z <= box.max.z; z++)
+                {
+                    for (i32 y = box.min.y; y <= box.max.y; y++)
+                    {
+                        for (i32 x = box.min.x; x <= box.max.x; x++)
+                        {
+                            SetTile(level, x, y, z, TileValue_Empty);
+                        }
+                    }
+                }
+            }
+
         }
         case Tool_EntityPicker:
         {

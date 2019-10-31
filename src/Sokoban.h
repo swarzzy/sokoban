@@ -21,6 +21,8 @@ namespace soko::meta
     struct MetaInfo;
 }
 
+struct ImFont;
+
 namespace soko
 {
     struct Mesh
@@ -59,5 +61,7 @@ namespace soko
         Mesh meshes[TypeTraits(EntityMesh)::MemberCount];
         CubeTexture skybox;
         u32 overlayCorner;
+        ImFont* notoMonoFont10px;
+        ImFont* notoMonoFont14px;
     };
 }
