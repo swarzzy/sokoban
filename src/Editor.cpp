@@ -893,7 +893,6 @@ namespace soko
 
         RenderGroupSetCamera(gameState->renderGroup, &gameState->session.editorCamera->conf);
         EditorDrawUI(editor);
-        RendererBeginFrame(gameState->renderer, V2(PlatformGlobals.windowWidth, PlatformGlobals.windowHeight));
 
         switch (editor->tool)
         {
@@ -997,7 +996,9 @@ namespace soko
                                (void*)&lightCommand);
 
         DrawRegion(simRegion, gameState, camera->targetWorldPos);
+        RendererBeginFrame(gameState->renderer, V2(PlatformGlobals.windowWidth, PlatformGlobals.windowHeight));
         FlushRenderGroup(gameState->renderer, gameState->renderGroup);
+        RendererEndFrame(gameState->renderer);
 
         EndSim(gameState->session.level, simRegion);
         EndTemporaryMemory(gameState->tempArena);

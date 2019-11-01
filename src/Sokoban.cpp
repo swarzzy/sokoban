@@ -361,7 +361,7 @@ namespace soko
 
         gameState->overlayCorner = 1;
 
-        gameState->renderer = AllocAndInitRenderer(arena, tempArena);
+        gameState->renderer = AllocAndInitRenderer(arena, tempArena, {PlatformGlobals.windowWidth, PlatformGlobals.windowHeight});
         gameState->renderGroup = AllocateRenderGroup(arena, KILOBYTES(1024), 16384);
 
         gameState->renderer->clearColor = V4(0.8f, 0.8f, 0.8f, 1.0f);
@@ -501,7 +501,7 @@ namespace soko
             unsigned char* diffBitmap = stbi_load("../res/tile.png", &width, &height, &bpp, 3);
 
             Material material = {};
-            material.diffMap.format = GL_RGB8;
+            material.diffMap.format = GL_SRGB8;
             material.diffMap.width = width;
             material.diffMap.height = height;
             material.diffMap.data = diffBitmap;
@@ -519,7 +519,7 @@ namespace soko
             unsigned char* diffBitmap = stbi_load("../res/tile_player.png", &width, &height, &bpp, 3);
 
             Material material = {};
-            material.diffMap.format = GL_RGB8;
+            material.diffMap.format = GL_SRGB8;
             material.diffMap.width = width;
             material.diffMap.height = height;
             material.diffMap.data = diffBitmap;
@@ -537,7 +537,7 @@ namespace soko
             unsigned char* diffBitmap = stbi_load("../res/tile_block.png", &width, &height, &bpp, 3);
 
             Material material = {};
-            material.diffMap.format = GL_RGB8;
+            material.diffMap.format = GL_SRGB8;
             material.diffMap.width = width;
             material.diffMap.height = height;
             material.diffMap.data = diffBitmap;
@@ -555,7 +555,7 @@ namespace soko
             unsigned char* diffBitmap = stbi_load("../res/plate_palette.png", &width, &height, &bpp, 3);
 
             Material material = {};
-            material.diffMap.format = GL_RGB8;
+            material.diffMap.format = GL_SRGB8;
             material.diffMap.width = width;
             material.diffMap.height = height;
             material.diffMap.data = diffBitmap;
@@ -578,11 +578,11 @@ namespace soko
 
 
             Material material = {};
-            material.diffMap.format = GL_RGB8;
+            material.diffMap.format = GL_SRGB8;
             material.diffMap.width = widthDiff;
             material.diffMap.height = heightDiff;
             material.diffMap.data = diffBitmap;
-            material.specMap.format = GL_RGB8;
+            material.specMap.format = GL_SRGB8;
             material.specMap.width = widthSpec;
             material.specMap.height = heightSpec;
             material.specMap.data = specBitmap;
@@ -607,7 +607,7 @@ namespace soko
             i32 bpp = 3;
 
             Material material = {};
-            material.diffMap.format = GL_RGB8;
+            material.diffMap.format = GL_SRGB8;
             material.diffMap.width = width;
             material.diffMap.height = height;
             material.diffMap.data = bitmap;
@@ -624,7 +624,7 @@ namespace soko
             unsigned char* diffBitmap = stbi_load("../res/button.png", &width, &height, &bpp, 3);
 
             Material material = {};
-            material.diffMap.format = GL_RGB8;
+            material.diffMap.format = GL_SRGB8;
             material.diffMap.width = width;
             material.diffMap.height = height;
             material.diffMap.data = diffBitmap;
@@ -657,32 +657,32 @@ namespace soko
             unsigned char* upData = stbi_load("../res/skybox/sky_up.png", &upWidth, &upHeight, &upBpp, 3);
 
             CubeTexture texture = {};
-            texture.back.format = GL_RGB8;
+            texture.back.format = GL_SRGB8;
             texture.back.width = backWidth;
             texture.back.height = backHeight;
             texture.back.data = backData;
 
-            texture.down.format = GL_RGB8;
+            texture.down.format = GL_SRGB8;
             texture.down.width = downWidth;
             texture.down.height = downHeight;
             texture.down.data = downData;
 
-            texture.front.format = GL_RGB8;
+            texture.front.format = GL_SRGB8;
             texture.front.width = frontWidth;
             texture.front.height = frontHeight;
             texture.front.data = frontData;
 
-            texture.left.format = GL_RGB8;
+            texture.left.format = GL_SRGB8;
             texture.left.width = leftWidth;
             texture.left.height = leftHeight;
             texture.left.data = leftData;
 
-            texture.right.format = GL_RGB8;
+            texture.right.format = GL_SRGB8;
             texture.right.width = rightWidth;
             texture.right.height = rightHeight;
             texture.right.data = rightData;
 
-            texture.up.format = GL_RGB8;
+            texture.up.format = GL_SRGB8;
             texture.up.width = upWidth;
             texture.up.height = upHeight;
             texture.up.data = upData;
@@ -949,7 +949,6 @@ namespace soko
 
             RenderGroupSetCamera(gameState->renderGroup, camConf);
 
-            RendererBeginFrame(gameState->renderer, V2(PlatformGlobals.windowWidth, PlatformGlobals.windowHeight));
 
             v3 beg = gameState->session.camera.conf.position;
             //v3 ray = gameState->session.camera.mouseRayRH;// + V3(0.1f, .0f, 0.0f);
@@ -967,7 +966,11 @@ namespace soko
                                    (void*)&lightCommand);
 
             DrawRegion(simRegion, gameState, gameState->session.camera.worldPos);
+
+            DEBUG_OVERLAY_SLIDER(gameState->renderer->gamma, 1.0f, 3.0f);
+            RendererBeginFrame(gameState->renderer, V2(PlatformGlobals.windowWidth, PlatformGlobals.windowHeight));
             FlushRenderGroup(gameState->renderer, gameState->renderGroup);
+            RendererEndFrame(gameState->renderer);
 
             EndSim(gameState->session.level, simRegion);
             EndTemporaryMemory(gameState->tempArena);

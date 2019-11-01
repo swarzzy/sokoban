@@ -1299,6 +1299,64 @@ namespace hpm
     }
 
     //
+    // @SECTION: uv2
+    //
+
+    union uv2
+    {
+        struct
+        {
+            u32 x, y;
+        };
+        u32 data[2];
+    };
+
+    inline uv2 UV2(u32 x, u32 y)
+    {
+        uv2 result;
+        result.x = x;
+        result.y = y;
+        return result;
+    }
+
+    inline uv2 UV2(u32 a)
+    {
+        uv2 result;
+        result.x = a;
+        result.y = a;
+        return result;
+    }
+
+    //
+    // @SECTION: iv2
+    //
+
+    union iv2
+    {
+        struct
+        {
+            i32 x, y;
+        };
+        i32 data[2];
+    };
+
+    inline iv2 IV2(i32 x, i32 y)
+    {
+        iv2 result;
+        result.x = x;
+        result.y = y;
+        return result;
+    }
+
+    inline iv2 IV2(i32 a)
+    {
+        iv2 result;
+        result.x = a;
+        result.y = a;
+        return result;
+    }
+
+    //
     // @SECTION: iv3
     //
 

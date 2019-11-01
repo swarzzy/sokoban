@@ -14,6 +14,7 @@ namespace soko
     internal void DebugOverlayPushVar(const char* title, v4 var);
     internal void DebugOverlayPushVar(const char* title, u32 var);
     internal void DebugOverlayPushVar(const char* title, f32 var);
+    internal void DebugOverlayPushSlider(const char* title, f32* var, f32 min, f32 max);
     internal void DebugOverlayPushSlider(const char* title, v3* var, f32 min, f32 max);
     internal void DebugOverlayPushSlider(const char* title, v4* var, f32 min, f32 max);
 }

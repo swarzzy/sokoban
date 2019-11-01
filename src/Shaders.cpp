@@ -1,5 +1,57 @@
 namespace soko
 {
+    static const char* POSTFX_VERTEX_SOURCE = R"(
+#version 330 core
+vec2 VERTICES[] = vec2[](vec2(-1.0f, -1.0f),
+                         vec2(1.0f, -1.0f),
+                         vec2(1.0f, 1.0f),
+                         vec2(1.0f, 1.0f),
+                         vec2(-1.0f, 1.0f),
+                         vec2(-1.0f, -1.0f));
+out vec2 v_UV;
+
+void main()
+{
+    vec4 vertexPos = vec4(VERTICES[min(gl_VertexID, 6)], 0.0f, 1.0f);
+    gl_Position = vertexPos;
+    v_UV = vertexPos.xy / 2.0f + 0.5f;
+})";
+
+    static const char* POSTFX_FRAG_SOURCE = R"(
+#version 330 core
+in vec2 v_UV;
+out vec4 fragColorResult;
+
+uniform float u_Gamma = 2.4f;
+
+uniform sampler2D u_ColorSourceLinear;
+
+float D3DX_FLOAT_to_SRGB(float val)
+{
+    if (val < 0.0031308f)
+    {
+        val *= 12.92f;
+    }
+    else
+    {
+        val = 1.055f * pow(val, 1.0f / u_Gamma) - 0.055f;
+    }
+    return val;
+}
+
+void main()
+{
+    vec4 sample = vec4(texture(u_ColorSourceLinear, v_UV).xyz, 1.0f);
+
+    vec4 srgbSample;
+    srgbSample.r = D3DX_FLOAT_to_SRGB(sample.r);
+    srgbSample.g = D3DX_FLOAT_to_SRGB(sample.g);
+    srgbSample.b = D3DX_FLOAT_to_SRGB(sample.b);
+    srgbSample.a = sample.a;
+
+    fragColorResult = srgbSample;
+})";
+
     static const char* SKYBOX_VERTEX_SOURCE = R"(
 #version 330 core
 

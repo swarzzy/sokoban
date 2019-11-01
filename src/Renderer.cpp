@@ -4,6 +4,15 @@
 
 namespace soko
 {
+    struct PostfxProgram
+    {
+        GLint handle;
+        GLint gammaLoc;
+        GLint colorSourceLoc;
+        u32 colorSourceSampler;
+        GLenum colorSourceSlot;
+    };
+
     struct SkyboxProgram
     {
         GLint handle;
@@ -77,6 +86,7 @@ namespace soko
         MeshProgram meshProgram;
         ChunkProgram chunkProgram;
         SkyboxProgram skyboxProgram;
+        PostfxProgram postfxProgram;
 
         GLuint tileTexArrayHandle;
 
@@ -84,6 +94,12 @@ namespace soko
         GLuint chunkIndexBuffer;
         v4 clearColor;
 
+        uv2 renderRes;
+        float gamma;
+
+        GLuint offscreenBufferHandle;
+        GLuint offscreenColorTarget;
+        GLuint offscreenDepthTarget;
     };
 
     internal GLuint
@@ -278,12 +294,38 @@ namespace soko
         return result;
     }
 
+    internal PostfxProgram
+    CreatePostfxProgram()
+    {
+        PostfxProgram result = {};
+        auto handle = CreateProgram(POSTFX_VERTEX_SOURCE, POSTFX_FRAG_SOURCE);
+        if (handle)
+        {
+            result.handle = handle;
+            result.gammaLoc = glGetUniformLocation(handle, "u_Gamma");
+            result.colorSourceLoc = glGetUniformLocation(handle, "u_ColorSourceLinear");
+
+            result.colorSourceSampler = 0;
+            result.colorSourceSlot = GL_TEXTURE0;
+
+            glUseProgram(handle);
+
+            glUniform1i(result.colorSourceLoc, result.colorSourceSampler);
+
+            glUseProgram(0);
+        }
+        return result;
+    }
+
     internal Renderer*
-    AllocAndInitRenderer(AB::MemoryArena* arena, AB::MemoryArena* tempArena)
+    AllocAndInitRenderer(AB::MemoryArena* arena, AB::MemoryArena* tempArena, uv2 renderRes)
     {
         Renderer* renderer = nullptr;
         renderer = PUSH_STRUCT(arena, Renderer);
         SOKO_ASSERT(renderer);
+
+        renderer->gamma = 2.4;
+        renderer->renderRes = renderRes;
 
         renderer->lineProgram = CreateLineProgram();
         SOKO_ASSERT(renderer->lineProgram.handle);
@@ -296,6 +338,9 @@ namespace soko
 
         renderer->skyboxProgram = CreateSkyboxProgram();
         SOKO_ASSERT(renderer->skyboxProgram.handle);
+
+        renderer->postfxProgram = CreatePostfxProgram();
+        SOKO_ASSERT(renderer->postfxProgram.handle);
 
         GLuint lineBufferHandle;
         glGenBuffers(1, &lineBufferHandle);
@@ -349,7 +394,7 @@ namespace soko
         glGenTextures(1, &terrainTexArray);
         glBindTexture(GL_TEXTURE_2D_ARRAY, terrainTexArray);
         // TODO : STUDY: glTexStorage and glTexSubImage
-        glTexImage3D(GL_TEXTURE_2D_ARRAY, 0, GL_RGB8,
+        glTexImage3D(GL_TEXTURE_2D_ARRAY, 0, GL_SRGB8,
                      RENDERER_TILE_TEX_DIM, RENDERER_TILE_TEX_DIM,
                      RENDERER_TERRAIN_TEX_ARRAY_SIZE,
                      0, GL_RGB, GL_UNSIGNED_BYTE, 0);
@@ -375,6 +420,33 @@ namespace soko
         EndTemporaryMemory(tempArena);
         glBindTexture(GL_TEXTURE_2D_ARRAY, 0);
         renderer->tileTexArrayHandle = terrainTexArray;
+
+        glGenFramebuffers(1, &renderer->offscreenBufferHandle);
+        SOKO_ASSERT(renderer->offscreenBufferHandle);
+        glGenTextures(1, &renderer->offscreenColorTarget);
+        SOKO_ASSERT(renderer->offscreenColorTarget);
+        glGenTextures(1, &renderer->offscreenDepthTarget);
+        SOKO_ASSERT(renderer->offscreenDepthTarget);
+
+        glBindTexture(GL_TEXTURE_2D, renderer->offscreenColorTarget);
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, renderRes.x, renderRes.y, 0, GL_RGBA, GL_UNSIGNED_BYTE, 0);
+        glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_WRAP_S, GL_REPEAT);
+        glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_WRAP_T, GL_REPEAT);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+
+        glBindTexture(GL_TEXTURE_2D, renderer->offscreenDepthTarget);
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT32, renderRes.x, renderRes.y, 0, GL_DEPTH_COMPONENT, GL_FLOAT, 0);
+        glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_WRAP_S, GL_REPEAT);
+        glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_WRAP_T, GL_REPEAT);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+
+        glBindFramebuffer(GL_FRAMEBUFFER, renderer->offscreenBufferHandle);
+        glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, renderer->offscreenColorTarget, 0);
+        glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, renderer->offscreenDepthTarget, 0);
+        SOKO_ASSERT(glCheckFramebufferStatus(GL_FRAMEBUFFER) == GL_FRAMEBUFFER_COMPLETE);
+        glBindFramebuffer(GL_FRAMEBUFFER, 0);
 
         return renderer;
     }
@@ -496,8 +568,8 @@ namespace soko
 
                 switch (texture->format)
                 {
-                case GL_RGBA8: { format = GL_RGBA; } break;
-                case GL_RGB8: { format = GL_RGB; } break;
+                case GL_SRGB8_ALPHA8: { format = GL_RGBA; } break;
+                case GL_SRGB8: { format = GL_RGB; } break;
                     INVALID_DEFAULT_CASE;
                 }
 
@@ -540,8 +612,8 @@ namespace soko
 
                     switch (internalFormat)
                     {
-                    case GL_RGBA8: { format = GL_RGBA; } break;
-                    case GL_RGB8: { format = GL_RGB; } break;
+                    case GL_SRGB8_ALPHA8: { format = GL_RGBA; } break;
+                    case GL_SRGB8: { format = GL_RGB; } break;
                         INVALID_DEFAULT_CASE;
                     }
 
@@ -560,6 +632,7 @@ namespace soko
     internal void
     RendererBeginFrame(Renderer* renderer, v2 viewportDim)
     {
+        glBindFramebuffer(GL_DRAW_FRAMEBUFFER, renderer->offscreenBufferHandle);
         glViewport(0, 0, (GLsizei)viewportDim.x, (GLsizei)viewportDim.y);
         glClearColor(renderer->clearColor.r,
                      renderer->clearColor.g,
@@ -569,7 +642,27 @@ namespace soko
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
     }
 
-    inline void
+    internal void
+    RendererEndFrame(Renderer* renderer)
+    {
+        glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
+        glClearColor(renderer->clearColor.r,
+                     renderer->clearColor.g,
+                     renderer->clearColor.b,
+                     renderer->clearColor.a);
+
+        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+        auto prog = &renderer->postfxProgram;
+        glUseProgram(prog->handle);
+        glUniform1f(prog->gammaLoc, renderer->gamma);
+
+        glActiveTexture(prog->colorSourceSlot);
+        glBindTexture(GL_TEXTURE_2D, renderer->offscreenColorTarget);
+
+        glDrawArrays(GL_TRIANGLES, 0, 6);
+    }
+
+    internal void
     DrawSkybox(Renderer* renderer, RenderGroup* group,
                const m4x4* view, const m4x4* proj)
     {
