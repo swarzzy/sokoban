@@ -418,6 +418,26 @@ namespace AB
                 }
             }
         }
+
+        if (success)
+        {
+            GLint numExtensions;
+            funcTable->_glGetIntegerv(GL_NUM_EXTENSIONS, &numExtensions);
+            b32 ARB_texture_filter_anisotropic = false;
+            for (i32 i = 0; i < numExtensions; i++)
+            {
+                const GLubyte* extensionString;
+                extensionString = funcTable->_glGetStringi(GL_EXTENSIONS, i);
+                PrintString("%s\n", (const char*)extensionString);
+                if (strcmp((const char*)extensionString, "GL_EXT_texture_filter_anisotropic") == 0)
+                {
+                    ARB_texture_filter_anisotropic = true;
+                    break;
+                }
+            }
+            AB_CORE_ASSERT(ARB_texture_filter_anisotropic);
+        }
+
         return {funcTable, success};
     }
 

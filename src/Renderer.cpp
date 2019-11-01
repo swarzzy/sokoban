@@ -100,6 +100,8 @@ namespace soko
         GLuint offscreenBufferHandle;
         GLuint offscreenColorTarget;
         GLuint offscreenDepthTarget;
+
+        GLfloat maxAnisotropy;
     };
 
     internal GLuint
@@ -324,6 +326,10 @@ namespace soko
         renderer = PUSH_STRUCT(arena, Renderer);
         SOKO_ASSERT(renderer);
 
+        GLfloat maxAnisotropy;
+        glGetFloatv(GL_MAX_TEXTURE_MAX_ANISOTROPY_EXT, &maxAnisotropy);
+        renderer->maxAnisotropy = maxAnisotropy;
+
         renderer->gamma = 2.4;
         renderer->renderRes = renderRes;
 
@@ -393,6 +399,10 @@ namespace soko
         GLuint terrainTexArray;
         glGenTextures(1, &terrainTexArray);
         glBindTexture(GL_TEXTURE_2D_ARRAY, terrainTexArray);
+
+        // NOTE: https://www.khronos.org/opengl/wiki/Common_Mistakes#Automatic_mipmap_generation
+        glEnable(GL_TEXTURE_2D_ARRAY);
+
         // TODO : STUDY: glTexStorage and glTexSubImage
         glTexImage3D(GL_TEXTURE_2D_ARRAY, 0, GL_SRGB8,
                      RENDERER_TILE_TEX_DIM, RENDERER_TILE_TEX_DIM,
@@ -411,11 +421,15 @@ namespace soko
                         RENDERER_TILE_TEX_DIM, RENDERER_TILE_TEX_DIM, 1,
                         GL_RGB, GL_UNSIGNED_BYTE, grassBitmap);
 
+        glGenerateMipmap(GL_TEXTURE_2D_ARRAY);
+
 
         glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_WRAP_S, GL_REPEAT);
         glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_WRAP_T, GL_REPEAT);
-        glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+        glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
         glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+        glTexParameterf(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_LOD_BIAS, -0.1f); // -0.86 for trilinear
+        glTexParameterf(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_MAX_ANISOTROPY_EXT, renderer->maxAnisotropy);
 
         EndTemporaryMemory(tempArena);
         glBindTexture(GL_TEXTURE_2D_ARRAY, 0);
@@ -558,12 +572,7 @@ namespace soko
             if (handle)
             {
                 glBindTexture(GL_TEXTURE_2D, handle);
-
-                glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
-                glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
-                glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-                glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-
+                //glEnable(GL_TEXTURE_2D);
                 GLenum format;
 
                 switch (texture->format)
@@ -575,6 +584,16 @@ namespace soko
 
                 glTexImage2D(GL_TEXTURE_2D, 0, texture->format, texture->width,
                              texture->height, 0, format, GL_UNSIGNED_BYTE, texture->data);
+
+                glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
+                glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+                glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+                glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
+                // TODO: Anisotropy value
+                glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAX_ANISOTROPY_EXT, 8.0f);
+
+                glGenerateMipmap(GL_TEXTURE_2D);
+
 
                 glBindTexture(GL_TEXTURE_2D, 0);
 
@@ -632,6 +651,7 @@ namespace soko
     internal void
     RendererBeginFrame(Renderer* renderer, v2 viewportDim)
     {
+        DEBUG_OVERLAY_TRACE(renderer->maxAnisotropy);
         glBindFramebuffer(GL_DRAW_FRAMEBUFFER, renderer->offscreenBufferHandle);
         glViewport(0, 0, (GLsizei)viewportDim.x, (GLsizei)viewportDim.y);
         glClearColor(renderer->clearColor.r,
@@ -811,6 +831,10 @@ namespace soko
                     glUseProgram(chunkProg->handle);
                     glActiveTexture(chunkProg->atlasSlot);
                     glBindTexture(GL_TEXTURE_2D_ARRAY, renderer->tileTexArrayHandle);
+                    local_persist f32 bias = -0.1f;
+                    DEBUG_OVERLAY_SLIDER(bias, -1.0f, 1.0f);
+                    glTexParameterf(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_LOD_BIAS, bias);
+
 
                     if (firstChunkMeshShaderInvocation)
                     {
