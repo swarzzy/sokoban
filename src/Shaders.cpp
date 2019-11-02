@@ -1,6 +1,6 @@
 namespace soko
 {
-    static const char* POSTFX_VERTEX_SOURCE = R"(
+    static const char* SS_VERTEX_SOURCE = R"(
 #version 330 core
 vec2 VERTICES[] = vec2[](vec2(-1.0f, -1.0f),
                          vec2(1.0f, -1.0f),
@@ -47,6 +47,25 @@ vec3 D3DX_RGB_to_SRGB(vec3 rgb)
     return rgb;
 }
 
+void main()
+{
+    vec3 sample = D3DX_RGB_to_SRGB(texture(u_ColorSourceLinear, v_UV).xyz);
+    fragColorResult = vec4(sample, 1.0f);
+})";
+
+    static const char* FXAA_FRAG_SOURCE = R"(
+#version 330 core
+in vec2 v_UV;
+out vec4 fragColorResult;
+
+uniform sampler2D u_ColorSourcePerceptual;
+
+// TODO: dFdx() dFdy() ?
+uniform vec2 u_InvScreenSize;
+uniform int ITERATIONS;
+uniform float EDGE_MIN_THRESHOLD;
+uniform float EDGE_MAX_THRESHOLD;
+uniform float SUBPIXEL_QUALITY;
 
 float Luma(vec3 rgb)
 {
@@ -54,43 +73,35 @@ float Luma(vec3 rgb)
     return result;
 }
 
-#define EDGE_MIN_THRESHOLD 0.0312f
-#define EDGE_MAX_THRESHOLD 0.125f
-#define ITERATIONS 12
-#define SUBPIXEL_QUALITY 0.75f
+//#define EDGE_MIN_THRESHOLD 0.0625f//0.0312f
+//#define EDGE_MAX_THRESHOLD 0.0625f//0.125f
+//#define ITERATIONS 32
+//#define SUBPIXEL_QUALITY 0.75f
+
+float STEPS[6] = float[](1.0f, 1.5f, 2.0f, 2.0f, 2.0f, 8.0f);
+#define QUALITY(i) (STEPS[min(0, max(5, i))])
 
 void main()
 {
-    vec2 invScreenSize = 1.0f / vec2(1280.0f, 720.0f);//dFdx(v_UV);
     // STUDY: Dependent texture reads
-    vec3 sampleCenter = D3DX_RGB_to_SRGB(texture(u_ColorSourceLinear, v_UV).xyz);
-    vec3 sampleDown = D3DX_RGB_to_SRGB(textureOffset(u_ColorSourceLinear, v_UV, ivec2(0, -1)).xyz);
-    vec3 sampleUp = D3DX_RGB_to_SRGB(textureOffset(u_ColorSourceLinear, v_UV, ivec2(0, 1)).xyz);
-    vec3 sampleLeft = D3DX_RGB_to_SRGB(textureOffset(u_ColorSourceLinear, v_UV, ivec2(-1, 0)).xyz);
-    vec3 sampleRight = D3DX_RGB_to_SRGB(textureOffset(u_ColorSourceLinear, v_UV, ivec2(1, 0)).xyz);
+    vec3 sampleCenter = texture(u_ColorSourcePerceptual, v_UV).xyz;
 
     float lumaCenter = Luma(sampleCenter);
-    float lumaDown = Luma(sampleDown);
-    float lumaUp = Luma(sampleUp);
-    float lumaLeft = Luma(sampleLeft);
-    float lumaRight = Luma(sampleRight);
+    float lumaDown = Luma(textureOffset(u_ColorSourcePerceptual, v_UV, ivec2(0, -1)).xyz);
+    float lumaUp = Luma(textureOffset(u_ColorSourcePerceptual, v_UV, ivec2(0, 1)).xyz);
+    float lumaLeft = Luma(textureOffset(u_ColorSourcePerceptual, v_UV, ivec2(-1, 0)).xyz);
+    float lumaRight = Luma(textureOffset(u_ColorSourcePerceptual, v_UV, ivec2(1, 0)).xyz);
 
     float lumaMin = min(lumaCenter, min(min(lumaDown, lumaUp), min(lumaLeft, lumaRight)));
     float lumaMax = max(lumaCenter, max(max(lumaDown, lumaUp), max(lumaLeft, lumaRight)));
-
     float lumaRange = lumaMax - lumaMin;
 
     if (lumaRange >= max(EDGE_MIN_THRESHOLD, lumaMax * EDGE_MAX_THRESHOLD))
     {
-        vec3 sampleDownLeft = D3DX_RGB_to_SRGB(textureOffset(u_ColorSourceLinear, v_UV, ivec2(-1, -1)).xyz);
-        vec3 sampleUpRight = D3DX_RGB_to_SRGB(textureOffset(u_ColorSourceLinear, v_UV, ivec2(1, 1)).xyz);
-        vec3 sampleUpLeft = D3DX_RGB_to_SRGB(textureOffset(u_ColorSourceLinear, v_UV, ivec2(-1, 1)).xyz);
-        vec3 sampleDownRight = D3DX_RGB_to_SRGB(textureOffset(u_ColorSourceLinear, v_UV, ivec2(1, -1)).xyz);
-
-        float lumaDownLeft = Luma(sampleDownLeft);
-        float lumaUpRight = Luma(sampleUpRight);
-        float lumaUpLeft = Luma(sampleUpLeft);
-        float lumaDownRight = Luma(sampleDownRight);
+        float lumaDownLeft = Luma(textureOffset(u_ColorSourcePerceptual, v_UV, ivec2(-1, -1)).xyz);
+        float lumaUpRight = Luma(textureOffset(u_ColorSourcePerceptual, v_UV, ivec2(1, 1)).xyz);
+        float lumaUpLeft = Luma(textureOffset(u_ColorSourcePerceptual, v_UV, ivec2(-1, 1)).xyz);
+        float lumaDownRight = Luma(textureOffset(u_ColorSourcePerceptual, v_UV, ivec2(1, -1)).xyz);
 
         float lumaDownUp = lumaDown + lumaUp;
         float lumaLeftRight = lumaLeft + lumaRight;
@@ -99,7 +110,6 @@ void main()
         float lumaRightCorners = lumaDownRight + lumaUpRight;
         float lumaUpCorners = lumaUpRight + lumaUpLeft;
 
-        // TODO: These expressions are weird
         float gradH = abs(-2.0f * lumaLeft + lumaLeftCorners) + abs(-2.0f * lumaCenter + lumaDownUp) * 2.0f + abs(-2.0 * lumaRight + lumaRightCorners);
         float gradV = abs(-2.0f * lumaUp + lumaUpCorners) + abs(-2.0f * lumaCenter + lumaLeftRight) * 2.0f + abs(-2.0f * lumaDown + lumaDownCorners);
         bool isHorizontal = (gradH >= gradV);
@@ -111,8 +121,7 @@ void main()
         bool is1Steepest = grad1 >= grad2;
         float gradScaled = 0.25f * max(grad1, grad2);
 
-        // TODO: grad()????
-        float stepLength = isHorizontal ? invScreenSize.y : invScreenSize.x;
+        float stepLength = isHorizontal ? u_InvScreenSize.y : u_InvScreenSize.x;
         float lumaLocalAvg = 0.0f;
         if (is1Steepest)
         {
@@ -127,12 +136,12 @@ void main()
         vec2 currUV = v_UV;
         isHorizontal ? (currUV.y = currUV.y + stepLength * 0.5f) : (currUV.x = currUV.x + stepLength * 0.5f);
 
-        vec2 offset = isHorizontal ? vec2(invScreenSize.x, 0.0f) : vec2(0.0f, invScreenSize.y);
+        vec2 offset = isHorizontal ? vec2(u_InvScreenSize.x, 0.0f) : vec2(0.0f, u_InvScreenSize.y);
         vec2 uv1 = currUV - offset;
         vec2 uv2 = currUV + offset;
 
-        float lumaEnd1 = Luma(D3DX_RGB_to_SRGB(texture(u_ColorSourceLinear, uv1).xyz));
-        float lumaEnd2 = Luma(D3DX_RGB_to_SRGB(texture(u_ColorSourceLinear, uv2).xyz));
+        float lumaEnd1 = Luma(texture(u_ColorSourcePerceptual, uv1).xyz);
+        float lumaEnd2 = Luma(texture(u_ColorSourcePerceptual, uv2).xyz);
         lumaEnd1 -= lumaLocalAvg;
         lumaEnd2 -= lumaLocalAvg;
         bool reached1 = abs(lumaEnd1) >= gradScaled;
@@ -147,19 +156,19 @@ void main()
             {
                 if (!reached1)
                 {
-                    lumaEnd1 = Luma(D3DX_RGB_to_SRGB(texture(u_ColorSourceLinear, uv1).xyz));
+                    lumaEnd1 = Luma(texture(u_ColorSourcePerceptual, uv1).xyz);
                     lumaEnd1 -= lumaLocalAvg;
                 }
                 if (!reached2)
                 {
-                    lumaEnd2 = Luma(D3DX_RGB_to_SRGB(texture(u_ColorSourceLinear, uv2).xyz));
+                    lumaEnd2 = Luma(texture(u_ColorSourcePerceptual, uv2).xyz);
                     lumaEnd2 -= lumaLocalAvg;
                 }
                 reached1 = abs(lumaEnd1) >= gradScaled;
                 reached2 = abs(lumaEnd2) >= gradScaled;
                 reachedBoth = reached1 && reached2;
-                if (!reached1) uv1 -= offset * i;//QUALITY(i);
-                if (!reached2) uv2 += offset * i;//QUALITY(i);
+                if (!reached1) uv1 -= offset * QUALITY(i);
+                if (!reached2) uv2 += offset * QUALITY(i);
                 if (reachedBoth) break;
             }
         }
@@ -186,16 +195,13 @@ void main()
         float subPixelOffsetResult = subPixelOffset2 * subPixelOffset2 * SUBPIXEL_QUALITY;
         pixelOffset = max(pixelOffset, subPixelOffsetResult);
 
-        fragColorResult = vec4(D3DX_RGB_to_SRGB(texture(u_ColorSourceLinear, resultUV).xyz), 1.0f);
-        //fragColorResult = vec4(stepLength * 100.0f, 0.0f, 0.0f, 1.0f);
+        fragColorResult = vec4(texture(u_ColorSourcePerceptual, resultUV).xyz, 1.0f);
     }
     else
     {
         fragColorResult = vec4(sampleCenter, 1.0f);
-//fragColorResult = vec4(0.0f, 0.0f, 0.0f, 1.0f);
     }
-        //fragColorResult = vec4(sampleCenter, 1.0f);
-
+    //fragColorResult = vec4(sampleCenter, 1.0f);
 })";
 
     static const char* SKYBOX_VERTEX_SOURCE = R"(

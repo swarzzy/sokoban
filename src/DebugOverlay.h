@@ -15,9 +15,12 @@ namespace soko
     internal void DebugOverlayPushVar(const char* title, u32 var);
     internal void DebugOverlayPushVar(const char* title, f32 var);
     internal void DebugOverlayPushSlider(const char* title, f32* var, f32 min, f32 max);
+    internal void DebugOverlayPushSlider(const char* title, i32* var, i32 min, i32 max);
     internal void DebugOverlayPushSlider(const char* title, v3* var, f32 min, f32 max);
     internal void DebugOverlayPushSlider(const char* title, v4* var, f32 min, f32 max);
+    internal void DebugOverlayPushToggle(const char* title, bool* var);
 }
 
 #define DEBUG_OVERLAY_TRACE(var) soko::DebugOverlayPushVar(#var, var)
 #define DEBUG_OVERLAY_SLIDER(var, min, max) soko::DebugOverlayPushSlider(#var, &var, min, max)
+#define DEBUG_OVERLAY_TOGGLE(var) soko::DebugOverlayPushToggle(#var, &var)

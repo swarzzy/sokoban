@@ -212,6 +212,7 @@ inline void* ReallocForSTBI(void* p, uptr oldSize, uptr newSize)
 #define glUniform4fv GL_FUNCTION(glUniform4fv)
 #define glVertexAttribIPointer GL_FUNCTION(glVertexAttribIPointer)
 #define glGetFloatv GL_FUNCTION(glGetFloatv)
+#define glUniform2fv GL_FUNCTION(glUniform2fv)
 
 // NOTE: Functions used by ImGUI
 #define glGetIntegerv GL_FUNCTION(glGetIntegerv)

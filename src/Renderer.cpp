@@ -4,6 +4,21 @@
 
 namespace soko
 {
+    struct FxaaProgram
+    {
+        GLint handle;
+
+        GLint iterationsLoc;
+        GLint edgeMinLoc;
+        GLint edgeMaxLoc;
+        GLint subpixelQualityLoc;
+
+        GLint invScreenSizeLoc;
+        GLint colorSourceLoc;
+        u32 colorSourceSampler;
+        GLenum colorSourceSlot;
+   };
+
     struct PostfxProgram
     {
         GLint handle;
@@ -87,6 +102,7 @@ namespace soko
         ChunkProgram chunkProgram;
         SkyboxProgram skyboxProgram;
         PostfxProgram postfxProgram;
+        FxaaProgram fxaaProgram;
 
         GLuint tileTexArrayHandle;
 
@@ -100,6 +116,9 @@ namespace soko
         GLuint offscreenBufferHandle;
         GLuint offscreenColorTarget;
         GLuint offscreenDepthTarget;
+
+        GLuint srgbBufferHandle;
+        GLuint srgbColorTarget;
 
         GLfloat maxAnisotropy;
     };
@@ -300,12 +319,41 @@ namespace soko
     CreatePostfxProgram()
     {
         PostfxProgram result = {};
-        auto handle = CreateProgram(POSTFX_VERTEX_SOURCE, POSTFX_FRAG_SOURCE);
+        auto handle = CreateProgram(SS_VERTEX_SOURCE, POSTFX_FRAG_SOURCE);
         if (handle)
         {
             result.handle = handle;
             result.gammaLoc = glGetUniformLocation(handle, "u_Gamma");
             result.colorSourceLoc = glGetUniformLocation(handle, "u_ColorSourceLinear");
+
+            result.colorSourceSampler = 0;
+            result.colorSourceSlot = GL_TEXTURE0;
+
+            glUseProgram(handle);
+
+            glUniform1i(result.colorSourceLoc, result.colorSourceSampler);
+
+            glUseProgram(0);
+        }
+        return result;
+    }
+
+    internal FxaaProgram
+    CreateFxaaProgram()
+    {
+        FxaaProgram result = {};
+        auto handle = CreateProgram(SS_VERTEX_SOURCE, FXAA_FRAG_SOURCE);
+        if (handle)
+        {
+            result.handle = handle;
+            result.invScreenSizeLoc = glGetUniformLocation(handle, "u_InvScreenSize");
+
+            result.iterationsLoc = glGetUniformLocation(handle, "ITERATIONS");
+            result.edgeMinLoc = glGetUniformLocation(handle, "EDGE_MIN_THRESHOLD");
+            result.edgeMaxLoc = glGetUniformLocation(handle, "EDGE_MAX_THRESHOLD");
+            result.subpixelQualityLoc = glGetUniformLocation(handle, "SUBPIXEL_QUALITY");
+
+            result.colorSourceLoc = glGetUniformLocation(handle, "u_ColorSourcePerceptual");
 
             result.colorSourceSampler = 0;
             result.colorSourceSlot = GL_TEXTURE0;
@@ -347,6 +395,10 @@ namespace soko
 
         renderer->postfxProgram = CreatePostfxProgram();
         SOKO_ASSERT(renderer->postfxProgram.handle);
+
+        renderer->fxaaProgram = CreateFxaaProgram();
+        SOKO_ASSERT(renderer->fxaaProgram.handle);
+
 
         GLuint lineBufferHandle;
         glGenBuffers(1, &lineBufferHandle);
@@ -444,21 +496,37 @@ namespace soko
 
         glBindTexture(GL_TEXTURE_2D, renderer->offscreenColorTarget);
         glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, renderRes.x, renderRes.y, 0, GL_RGBA, GL_UNSIGNED_BYTE, 0);
-        glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_WRAP_S, GL_REPEAT);
-        glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_WRAP_T, GL_REPEAT);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 
         glBindTexture(GL_TEXTURE_2D, renderer->offscreenDepthTarget);
         glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT32, renderRes.x, renderRes.y, 0, GL_DEPTH_COMPONENT, GL_FLOAT, 0);
-        glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_WRAP_S, GL_REPEAT);
-        glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_WRAP_T, GL_REPEAT);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 
         glBindFramebuffer(GL_FRAMEBUFFER, renderer->offscreenBufferHandle);
         glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, renderer->offscreenColorTarget, 0);
         glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, renderer->offscreenDepthTarget, 0);
+        SOKO_ASSERT(glCheckFramebufferStatus(GL_FRAMEBUFFER) == GL_FRAMEBUFFER_COMPLETE);
+
+        glGenFramebuffers(1, &renderer->srgbBufferHandle);
+        SOKO_ASSERT(renderer->srgbBufferHandle);
+        glGenTextures(1, &renderer->srgbColorTarget);
+        SOKO_ASSERT(renderer->srgbColorTarget);
+
+        glBindTexture(GL_TEXTURE_2D, renderer->srgbColorTarget);
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, renderRes.x, renderRes.y, 0, GL_RGBA, GL_UNSIGNED_BYTE, 0);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+
+        glBindFramebuffer(GL_FRAMEBUFFER, renderer->srgbBufferHandle);
+        glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, renderer->srgbColorTarget, 0);
         SOKO_ASSERT(glCheckFramebufferStatus(GL_FRAMEBUFFER) == GL_FRAMEBUFFER_COMPLETE);
         glBindFramebuffer(GL_FRAMEBUFFER, 0);
 
@@ -665,13 +733,14 @@ namespace soko
     internal void
     RendererEndFrame(Renderer* renderer)
     {
-        glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
+        // NOTE: Gamma-correction pass
+        glBindFramebuffer(GL_DRAW_FRAMEBUFFER, renderer->srgbBufferHandle);
         glClearColor(renderer->clearColor.r,
                      renderer->clearColor.g,
                      renderer->clearColor.b,
                      renderer->clearColor.a);
 
-        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+        glClear(GL_COLOR_BUFFER_BIT);
         auto prog = &renderer->postfxProgram;
         glUseProgram(prog->handle);
         glUniform1f(prog->gammaLoc, renderer->gamma);
@@ -680,6 +749,55 @@ namespace soko
         glBindTexture(GL_TEXTURE_2D, renderer->offscreenColorTarget);
 
         glDrawArrays(GL_TRIANGLES, 0, 6);
+
+        // NOTE: FXAA pass
+        local_persist bool enableFXAA = true;
+        DEBUG_OVERLAY_TOGGLE(enableFXAA);
+        if (enableFXAA)
+        {
+            glBindFramebuffer(GL_READ_FRAMEBUFFER, renderer->srgbBufferHandle);
+            glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
+            glClearColor(renderer->clearColor.r,
+                         renderer->clearColor.g,
+                         renderer->clearColor.b,
+                         renderer->clearColor.a);
+
+            glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+            auto fxaaProg = &renderer->fxaaProgram;
+            glUseProgram(fxaaProg->handle);
+            v2 invScreenSize = V2(1.0f / renderer->renderRes.x, 1.0f / renderer->renderRes.y);
+            glUniform2fv(fxaaProg->invScreenSizeLoc, 1, invScreenSize.data);
+
+            local_persist i32 iterations = 12;
+            local_persist f32 edgeMin = 0.0625f;
+            local_persist f32 edgeMax = 0.0625f;
+            local_persist f32 subpixelQuality = 0.75f;
+            DEBUG_OVERLAY_SLIDER(edgeMin, 0, 0.5f);
+            DEBUG_OVERLAY_SLIDER(edgeMax, 0, 0.5f);
+            DEBUG_OVERLAY_SLIDER(subpixelQuality, 0, 2.0f);
+            DEBUG_OVERLAY_SLIDER(iterations, 0, 64);
+
+            glUniform1i(fxaaProg->iterationsLoc, iterations);
+            glUniform1f(fxaaProg->edgeMinLoc, edgeMin);
+            glUniform1f(fxaaProg->edgeMaxLoc, edgeMax);
+            glUniform1f(fxaaProg->subpixelQualityLoc, subpixelQuality);
+
+            glActiveTexture(fxaaProg->colorSourceSlot);
+            glBindTexture(GL_TEXTURE_2D, renderer->srgbColorTarget);
+
+            glDrawArrays(GL_TRIANGLES, 0, 6);
+        }
+        else
+        {
+            glBindFramebuffer(GL_READ_FRAMEBUFFER, renderer->srgbBufferHandle);
+            glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
+
+            glBlitFramebuffer(0, 0, renderer->renderRes.x, renderer->renderRes.y,
+                              0, 0, renderer->renderRes.x, renderer->renderRes.y,
+                              GL_COLOR_BUFFER_BIT, GL_LINEAR);
+
+        }
     }
 
     internal void
@@ -703,7 +821,6 @@ namespace soko
 
         glDrawArrays(GL_TRIANGLES, 0, 6);
         glDepthMask(GL_TRUE);
-
     }
 
     internal void

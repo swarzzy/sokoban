@@ -230,6 +230,23 @@ namespace soko
         ImGui::End();
     }
 
+    internal void
+    DebugOverlayPushSlider(const char* title, i32* var, i32 min, i32 max)
+    {
+        if (ImGui::Begin("Debug overlay", NULL,
+                         ImGuiWindowFlags_NoMove |
+                         //ImGuiWindowFlags_NoDecoration |
+                         ImGuiWindowFlags_AlwaysAutoResize |
+                         ImGuiWindowFlags_NoSavedSettings |
+                         ImGuiWindowFlags_NoFocusOnAppearing |
+                         ImGuiWindowFlags_NoNav))
+        {
+            ImGui::Separator();
+            ImGui::SliderInt(title, var, min, max);
+        }
+        ImGui::End();
+    }
+
 
     internal void
     DebugOverlayPushSlider(const char* title, v3* var, f32 min, f32 max)
@@ -264,6 +281,25 @@ namespace soko
         }
         ImGui::End();
     }
+
+    internal void
+    DebugOverlayPushToggle(const char* title, bool* var)
+    {
+        if (ImGui::Begin("Debug overlay", NULL,
+                         ImGuiWindowFlags_NoMove |
+                         //ImGuiWindowFlags_NoDecoration |
+                         ImGuiWindowFlags_AlwaysAutoResize |
+                         ImGuiWindowFlags_NoSavedSettings |
+                         ImGuiWindowFlags_NoFocusOnAppearing |
+                         ImGuiWindowFlags_NoNav))
+        {
+            ImGui::Separator();
+            ImGui::Checkbox(title, var);
+        }
+        ImGui::End();
+
+    }
+
 
 
 }
