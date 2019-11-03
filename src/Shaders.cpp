@@ -23,6 +23,8 @@ in vec2 v_UV;
 out vec4 fragColorResult;
 
 uniform float u_Gamma = 2.4f;
+// TODO: Tonemapping
+uniform float u_Exposure = 1.0f;
 
 uniform sampler2D u_ColorSourceLinear;
 
@@ -50,7 +52,9 @@ vec3 D3DX_RGB_to_SRGB(vec3 rgb)
 void main()
 {
     vec3 sample = D3DX_RGB_to_SRGB(texture(u_ColorSourceLinear, v_UV).xyz);
-    fragColorResult = vec4(sample, 1.0f);
+    vec3 hdrSample = sample;
+    vec3 mappedSample = vec3(1.0f) - exp(-hdrSample * u_Exposure);
+    fragColorResult = vec4(mappedSample, 1.0f);
 })";
 
     static const char* FXAA_FRAG_SOURCE = R"(
@@ -59,13 +63,7 @@ in vec2 v_UV;
 out vec4 fragColorResult;
 
 uniform sampler2D u_ColorSourcePerceptual;
-
-// TODO: dFdx() dFdy() ?
 uniform vec2 u_InvScreenSize;
-uniform int ITERATIONS;
-uniform float EDGE_MIN_THRESHOLD;
-uniform float EDGE_MAX_THRESHOLD;
-uniform float SUBPIXEL_QUALITY;
 
 float Luma(vec3 rgb)
 {
@@ -73,10 +71,10 @@ float Luma(vec3 rgb)
     return result;
 }
 
-//#define EDGE_MIN_THRESHOLD 0.0625f//0.0312f
-//#define EDGE_MAX_THRESHOLD 0.0625f//0.125f
-//#define ITERATIONS 32
-//#define SUBPIXEL_QUALITY 0.75f
+#define EDGE_MIN_THRESHOLD 0.0625f  //0.0312f
+#define EDGE_MAX_THRESHOLD 0.0625f  //0.125f
+#define ITERATIONS 12
+#define SUBPIXEL_QUALITY 0.75f
 
 float STEPS[6] = float[](1.0f, 1.5f, 2.0f, 2.0f, 2.0f, 8.0f);
 #define QUALITY(i) (STEPS[min(0, max(5, i))])
@@ -121,6 +119,7 @@ void main()
         bool is1Steepest = grad1 >= grad2;
         float gradScaled = 0.25f * max(grad1, grad2);
 
+        // TODO: dFdx() dFdy() ?
         float stepLength = isHorizontal ? u_InvScreenSize.y : u_InvScreenSize.x;
         float lumaLocalAvg = 0.0f;
         if (is1Steepest)

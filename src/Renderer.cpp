@@ -8,10 +8,10 @@ namespace soko
     {
         GLint handle;
 
-        GLint iterationsLoc;
-        GLint edgeMinLoc;
-        GLint edgeMaxLoc;
-        GLint subpixelQualityLoc;
+        //GLint iterationsLoc;
+        //GLint edgeMinLoc;
+        //GLint edgeMaxLoc;
+        //GLint subpixelQualityLoc;
 
         GLint invScreenSizeLoc;
         GLint colorSourceLoc;
@@ -23,6 +23,7 @@ namespace soko
     {
         GLint handle;
         GLint gammaLoc;
+        GLint expLoc;
         GLint colorSourceLoc;
         u32 colorSourceSampler;
         GLenum colorSourceSlot;
@@ -111,7 +112,8 @@ namespace soko
         v4 clearColor;
 
         uv2 renderRes;
-        float gamma;
+        f32 gamma;
+        f32 exposure;
 
         GLuint offscreenBufferHandle;
         GLuint offscreenColorTarget;
@@ -168,6 +170,7 @@ namespace soko
                             {
                                 i32 logLength;
                                 glGetProgramiv(programHandle, GL_INFO_LOG_LENGTH, &logLength);
+                                // TODO: Stop using alloca
                                 char* message = (char*)alloca(logLength);
                                 SOKO_ASSERT(message, "");
                                 glGetProgramInfoLog(programHandle, logLength, 0, message);
@@ -324,6 +327,7 @@ namespace soko
         {
             result.handle = handle;
             result.gammaLoc = glGetUniformLocation(handle, "u_Gamma");
+            result.expLoc = glGetUniformLocation(handle, "u_Exposure");
             result.colorSourceLoc = glGetUniformLocation(handle, "u_ColorSourceLinear");
 
             result.colorSourceSampler = 0;
@@ -348,10 +352,10 @@ namespace soko
             result.handle = handle;
             result.invScreenSizeLoc = glGetUniformLocation(handle, "u_InvScreenSize");
 
-            result.iterationsLoc = glGetUniformLocation(handle, "ITERATIONS");
-            result.edgeMinLoc = glGetUniformLocation(handle, "EDGE_MIN_THRESHOLD");
-            result.edgeMaxLoc = glGetUniformLocation(handle, "EDGE_MAX_THRESHOLD");
-            result.subpixelQualityLoc = glGetUniformLocation(handle, "SUBPIXEL_QUALITY");
+            //result.iterationsLoc = glGetUniformLocation(handle, "ITERATIONS");
+            //result.edgeMinLoc = glGetUniformLocation(handle, "EDGE_MIN_THRESHOLD");
+            //result.edgeMaxLoc = glGetUniformLocation(handle, "EDGE_MAX_THRESHOLD");
+            //result.subpixelQualityLoc = glGetUniformLocation(handle, "SUBPIXEL_QUALITY");
 
             result.colorSourceLoc = glGetUniformLocation(handle, "u_ColorSourcePerceptual");
 
@@ -378,7 +382,8 @@ namespace soko
         glGetFloatv(GL_MAX_TEXTURE_MAX_ANISOTROPY_EXT, &maxAnisotropy);
         renderer->maxAnisotropy = maxAnisotropy;
 
-        renderer->gamma = 2.4;
+        renderer->gamma = 2.4f;
+        renderer->exposure = 1.0f;
         renderer->renderRes = renderRes;
 
         renderer->lineProgram = CreateLineProgram();
@@ -495,7 +500,7 @@ namespace soko
         SOKO_ASSERT(renderer->offscreenDepthTarget);
 
         glBindTexture(GL_TEXTURE_2D, renderer->offscreenColorTarget);
-        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, renderRes.x, renderRes.y, 0, GL_RGBA, GL_UNSIGNED_BYTE, 0);
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA16F, renderRes.x, renderRes.y, 0, GL_RGBA, GL_FLOAT, 0);
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
@@ -744,6 +749,7 @@ namespace soko
         auto prog = &renderer->postfxProgram;
         glUseProgram(prog->handle);
         glUniform1f(prog->gammaLoc, renderer->gamma);
+        glUniform1f(prog->expLoc, renderer->exposure);
 
         glActiveTexture(prog->colorSourceSlot);
         glBindTexture(GL_TEXTURE_2D, renderer->offscreenColorTarget);
@@ -768,20 +774,6 @@ namespace soko
             glUseProgram(fxaaProg->handle);
             v2 invScreenSize = V2(1.0f / renderer->renderRes.x, 1.0f / renderer->renderRes.y);
             glUniform2fv(fxaaProg->invScreenSizeLoc, 1, invScreenSize.data);
-
-            local_persist i32 iterations = 12;
-            local_persist f32 edgeMin = 0.0625f;
-            local_persist f32 edgeMax = 0.0625f;
-            local_persist f32 subpixelQuality = 0.75f;
-            DEBUG_OVERLAY_SLIDER(edgeMin, 0, 0.5f);
-            DEBUG_OVERLAY_SLIDER(edgeMax, 0, 0.5f);
-            DEBUG_OVERLAY_SLIDER(subpixelQuality, 0, 2.0f);
-            DEBUG_OVERLAY_SLIDER(iterations, 0, 64);
-
-            glUniform1i(fxaaProg->iterationsLoc, iterations);
-            glUniform1f(fxaaProg->edgeMinLoc, edgeMin);
-            glUniform1f(fxaaProg->edgeMaxLoc, edgeMax);
-            glUniform1f(fxaaProg->subpixelQualityLoc, subpixelQuality);
 
             glActiveTexture(fxaaProg->colorSourceSlot);
             glBindTexture(GL_TEXTURE_2D, renderer->srgbColorTarget);

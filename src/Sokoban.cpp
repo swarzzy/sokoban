@@ -970,6 +970,7 @@ namespace soko
             DrawRegion(simRegion, gameState, gameState->session.camera.worldPos);
 
             DEBUG_OVERLAY_SLIDER(gameState->renderer->gamma, 1.0f, 3.0f);
+            DEBUG_OVERLAY_SLIDER(gameState->renderer->exposure, 0.0f, 3.0f);
             RendererBeginFrame(gameState->renderer, V2(PlatformGlobals.windowWidth, PlatformGlobals.windowHeight));
             FlushRenderGroup(gameState->renderer, gameState->renderGroup);
             RendererEndFrame(gameState->renderer);
