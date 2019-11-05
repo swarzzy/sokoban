@@ -423,6 +423,11 @@ namespace soko
                     entity->stored->material = (EntityMaterial)material;
                     ImGui::PopID();
                     ImGui::Separator();
+
+                    ImGui::Text("Material properties");
+                    ImGui::SliderFloat("roughness", &entity->stored->materialRoughness, 0.0f, 1.0f);
+                    ImGui::SliderFloat("metallic", &entity->stored->materialMetallic, 0.0f, 1.0f);
+                    ImGui::SliderFloat("ao", &entity->stored->materialAO, 0.0f, 1.0f);
                 }
             }
         }
@@ -984,12 +989,14 @@ namespace soko
         }
         }
 
+        DEBUG_OVERLAY_SLIDER(gameState->renderer->gamma, 1.0f, 3.0f);
+        DEBUG_OVERLAY_SLIDER(gameState->renderer->exposure, 0.0f, 3.0f);
 
         DirectionalLight light = {};
         light.dir = Normalize(V3(-0.3f, -1.0f, -1.0f));
-        light.ambient = V3(0.3f);
-        light.diffuse = V3(0.8f);
-        light.specular = V3(1.0f);
+        light.ambient = V3(0.6f);
+        light.diffuse = V3(1.2f);
+        light.specular = V3(2.0f);
         RenderCommandSetDirLight lightCommand = {};
         lightCommand.light = light;
         RenderGroupPushCommand(gameState->renderGroup, RENDER_COMMAND_SET_DIR_LIGHT,

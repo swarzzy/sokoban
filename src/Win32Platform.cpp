@@ -842,9 +842,12 @@ namespace AB
         LARGE_INTEGER currentTime = {};
         if (QueryPerformanceCounter(&currentTime))
         {
+            // TODO: Stop querying frequency here
+            LARGE_INTEGER frequency;
+            QueryPerformanceFrequency(&frequency);
             if (currentTime.QuadPart)
             {
-                time = currentTime.QuadPart;
+                time = (currentTime.QuadPart * 1000000) / frequency.QuadPart;
             }
         }
         return time;

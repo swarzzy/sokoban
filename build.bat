@@ -38,6 +38,9 @@ set ConfigCompilerFlags=%DebugCompilerFlags%
 rem echo Building preprocessor...
 rem cl /W3 /Fo%ObjOutDir% /D_CRT_SECURE_NO_WARNINGS /DWIN32_LEAN_AND_MEAN %CommonCompilerFlags% %ConfigCompilerFlags% src/Preprocessor.cpp /link /INCREMENTAL:NO /OPT:REF /MACHINE:X64 /OUT:%BinOutDir%\Prep.exe /PDB:%BinOutDir%\Prep.pdb
 
+rem echo Building cubemap builder...
+rem cl /W3 /Fo%ObjOutDir% /D_CRT_SECURE_NO_WARNINGS  %CommonCompilerFlags% %ConfigCompilerFlags% src/CubemapBuilder.cpp /link /INCREMENTAL:NO /OPT:REF /MACHINE:X64 /OUT:%BinOutDir%\CubemapBuilder.exe /PDB:%BinOutDir%\CubemapBuilder.pdb
+
 echo Generating meta info...
 build\Prep.exe MetaInfo_Generated.h src/MetaInfo_Generated src/Entity.h src/Level.h
 rem src/Entity.h src/Level.h src/Platform.h

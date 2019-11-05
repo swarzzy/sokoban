@@ -145,6 +145,16 @@ namespace hpm
         return tanf(radians);
     }
 
+    inline f32 Acos(f32 v)
+    {
+        return acosf(v);
+    }
+
+    inline f32 Atan2(f32 num, f32 denom)
+    {
+        return atan2f(num, denom);
+    }
+
     inline f32 Sqrt(f32 num)
     {
         return sqrtf(num);

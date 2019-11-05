@@ -23,6 +23,7 @@ InitMetaInfo(AB::MemoryArena* arena)
     AddEntry_EntityMesh(&info->EntityMesh, 2, EntityMesh_Portal, "EntityMesh_Portal");
     AddEntry_EntityMesh(&info->EntityMesh, 3, EntityMesh_Spikes, "EntityMesh_Spikes");
     AddEntry_EntityMesh(&info->EntityMesh, 4, EntityMesh_Button, "EntityMesh_Button");
+    AddEntry_EntityMesh(&info->EntityMesh, 5, EntityMesh_Sphere, "EntityMesh_Sphere");
     AddEntry_EntityMaterial(&info->EntityMaterial, 0, EntityMaterial_Tile, "EntityMaterial_Tile");
     AddEntry_EntityMaterial(&info->EntityMaterial, 1, EntityMaterial_Player, "EntityMaterial_Player");
     AddEntry_EntityMaterial(&info->EntityMaterial, 2, EntityMaterial_Block, "EntityMaterial_Block");
@@ -30,6 +31,7 @@ InitMetaInfo(AB::MemoryArena* arena)
     AddEntry_EntityMaterial(&info->EntityMaterial, 4, EntityMaterial_Portal, "EntityMaterial_Portal");
     AddEntry_EntityMaterial(&info->EntityMaterial, 5, EntityMaterial_Spikes, "EntityMaterial_Spikes");
     AddEntry_EntityMaterial(&info->EntityMaterial, 6, EntityMaterial_Button, "EntityMaterial_Button");
+    AddEntry_EntityMaterial(&info->EntityMaterial, 7, EntityMaterial_PbrMetal, "EntityMaterial_PbrMetal");
     AddEntry_Direction(&info->Direction, 0, Direction_Invalid, "Direction_Invalid");
     AddEntry_Direction(&info->Direction, 1, Direction_North, "Direction_North");
     AddEntry_Direction(&info->Direction, 2, Direction_South, "Direction_South");

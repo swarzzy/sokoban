@@ -108,8 +108,9 @@ namespace soko
 
 #define STB_IMAGE_IMPLEMENTATION
 #define STBI_ONLY_PNG
+#define STBI_ONLY_HDR
 #define STBI_MALLOC(sz) PUSH_SIZE(soko::_GlobalStaticStorage->gameState->tempArena, sz)
-#define STBI_FREE(sz)
+#define STBI_FREE(sz) do{}while(false)
 inline void* ReallocForSTBI(void* p, uptr oldSize, uptr newSize)
 {
     void* newMem = PUSH_SIZE(soko::_GlobalStaticStorage->gameState->tempArena, newSize);
@@ -213,6 +214,7 @@ inline void* ReallocForSTBI(void* p, uptr oldSize, uptr newSize)
 #define glVertexAttribIPointer GL_FUNCTION(glVertexAttribIPointer)
 #define glGetFloatv GL_FUNCTION(glGetFloatv)
 #define glUniform2fv GL_FUNCTION(glUniform2fv)
+#define glFinish GL_FUNCTION(glFinish)
 
 // NOTE: Functions used by ImGUI
 #define glGetIntegerv GL_FUNCTION(glGetIntegerv)
@@ -309,6 +311,7 @@ GameUpdateAndRender(AB::MemoryArena* arena,
     case GUR_REASON_INIT:
     {
         soko::GameInit(arena, platform);
+
     } break;
     case GUR_REASON_RELOAD:
     {
@@ -327,7 +330,154 @@ GameUpdateAndRender(AB::MemoryArena* arena,
 }
 namespace soko
 {
-    void
+    internal CubeTexture
+    LoadCubemap(AB::MemoryArena* tempArena,
+                const char* back, const char* down, const char* front,
+                const char* left, const char* right, const char* up)
+    {
+        CubeTexture texture = {};
+
+        BeginTemporaryMemory(tempArena);
+
+        i32 backWidth, backHeight, backBpp;
+        unsigned char* backData = stbi_load(back, &backWidth, &backHeight, &backBpp, 3);
+
+        i32 downWidth, downHeight, downBpp;
+        unsigned char* downData = stbi_load(down, &downWidth, &downHeight, &downBpp, 3);
+
+        i32 frontWidth, frontHeight, frontBpp;
+        unsigned char* frontData = stbi_load(front, &frontWidth, &frontHeight, &frontBpp, 3);
+
+        i32 leftWidth, leftHeight, leftBpp;
+        unsigned char* leftData = stbi_load(left, &leftWidth, &leftHeight, &leftBpp, 3);
+
+        i32 rightWidth, rightHeight, rightBpp;
+        unsigned char* rightData = stbi_load(right, &rightWidth, &rightHeight, &rightBpp, 3);
+
+        i32 upWidth, upHeight, upBpp;
+        unsigned char* upData = stbi_load(up, &upWidth, &upHeight, &upBpp, 3);
+
+        texture.back.format = GL_SRGB8;
+        texture.back.width = backWidth;
+        texture.back.height = backHeight;
+        texture.back.data = backData;
+
+        texture.down.format = GL_SRGB8;
+        texture.down.width = downWidth;
+        texture.down.height = downHeight;
+        texture.down.data = downData;
+
+        texture.front.format = GL_SRGB8;
+        texture.front.width = frontWidth;
+        texture.front.height = frontHeight;
+        texture.front.data = frontData;
+
+        texture.left.format = GL_SRGB8;
+        texture.left.width = leftWidth;
+        texture.left.height = leftHeight;
+        texture.left.data = leftData;
+
+        texture.right.format = GL_SRGB8;
+        texture.right.width = rightWidth;
+        texture.right.height = rightHeight;
+        texture.right.data = rightData;
+
+        texture.up.format = GL_SRGB8;
+        texture.up.width = upWidth;
+        texture.up.height = upHeight;
+        texture.up.data = upData;
+
+        RendererLoadCubeTexture(&texture);
+        SOKO_ASSERT(texture.gpuHandle);
+
+        EndTemporaryMemory(tempArena);
+
+        return texture;
+    }
+
+    internal CubeTexture
+    MakeEmptyCubemap(int w, int h, GLenum format)
+    {
+        CubeTexture texture = {};
+        for (u32 i = 0; i < 6; i++)
+        {
+            texture.images[i].format = format;
+            texture.images[i].width = w;
+            texture.images[i].height = h;
+            texture.images[i].data = 0;
+        }
+        RendererLoadCubeTexture(&texture);
+        SOKO_ASSERT(texture.gpuHandle);
+        return texture;
+    }
+
+    internal CubeTexture
+    LoadCubemapHDR(AB::MemoryArena* tempArena,
+                   const char* back, const char* down, const char* front,
+                   const char* left, const char* right, const char* up)
+    {
+        CubeTexture texture = {};
+
+        BeginTemporaryMemory(tempArena);
+
+        i32 backWidth, backHeight, backBpp;
+        f32* backData = stbi_loadf(back, &backWidth, &backHeight, &backBpp, 3);
+
+        i32 downWidth, downHeight, downBpp;
+        f32* downData = stbi_loadf(down, &downWidth, &downHeight, &downBpp, 3);
+
+        i32 frontWidth, frontHeight, frontBpp;
+        f32* frontData = stbi_loadf(front, &frontWidth, &frontHeight, &frontBpp, 3);
+
+        i32 leftWidth, leftHeight, leftBpp;
+        f32* leftData = stbi_loadf(left, &leftWidth, &leftHeight, &leftBpp, 3);
+
+        i32 rightWidth, rightHeight, rightBpp;
+        f32* rightData = stbi_loadf(right, &rightWidth, &rightHeight, &rightBpp, 3);
+
+        i32 upWidth, upHeight, upBpp;
+        f32* upData = stbi_loadf(up, &upWidth, &upHeight, &upBpp, 3);
+
+        texture.back.format = GL_RGB16F;
+        texture.back.width = backWidth;
+        texture.back.height = backHeight;
+        texture.back.data = backData;
+
+        texture.down.format = GL_RGB16F;
+        texture.down.width = downWidth;
+        texture.down.height = downHeight;
+        texture.down.data = downData;
+
+        texture.front.format = GL_RGB16F;
+        texture.front.width = frontWidth;
+        texture.front.height = frontHeight;
+        texture.front.data = frontData;
+
+        texture.left.format = GL_RGB16F;
+        texture.left.width = leftWidth;
+        texture.left.height = leftHeight;
+        texture.left.data = leftData;
+
+        texture.right.format = GL_RGB16F;
+        texture.right.width = rightWidth;
+        texture.right.height = rightHeight;
+        texture.right.data = rightData;
+
+        texture.up.format = GL_RGB16F;
+        texture.up.width = upWidth;
+        texture.up.height = upHeight;
+        texture.up.data = upData;
+
+        RendererLoadCubeTexture(&texture);
+        SOKO_ASSERT(texture.gpuHandle);
+
+        EndTemporaryMemory(tempArena);
+
+        return texture;
+    }
+
+
+    internal void
     GameInit(AB::MemoryArena* arena, AB::PlatformState* platform)
     {
         _GlobalStaticStorage = (StaticStorage*)PUSH_STRUCT(arena, StaticStorage);
@@ -367,6 +517,32 @@ namespace soko
         gameState->renderGroup = AllocateRenderGroup(arena, KILOBYTES(1024), 16384);
 
         gameState->renderer->clearColor = V4(0.8f, 0.8f, 0.8f, 1.0f);
+        {
+            u32 fileSize = DebugGetFileSize(L"../res/sphere.aab");
+            void* fileData = PUSH_SIZE(arena, fileSize);
+            u32 result = DebugReadFile(fileData, fileSize, L"../res/sphere.aab");
+            // NOTE: Strict aliasing
+            auto header = (AB::AABMeshHeader*)fileData;
+            SOKO_ASSERT(header->magicValue == AB::AAB_FILE_MAGIC_VALUE, "");
+
+            Mesh mesh = {};
+            mesh.vertexCount = header->verticesCount;
+            mesh.normalCount = header->normalsCount;
+            mesh.uvCount = header->uvsCount;
+            mesh.indexCount = header->indicesCount;
+
+            mesh.vertices = (v3*)((byte*)fileData + header->verticesOffset);
+            mesh.normals = (v3*)((byte*)fileData + header->normalsOffset);
+            mesh.uvs = (v2*)((byte*)fileData + header->uvsOffset);
+            mesh.indices = (u32*)((byte*)fileData + header->indicesOffset);
+
+            RendererLoadMesh(&mesh);
+            SOKO_ASSERT(mesh.gpuVertexBufferHandle, "");
+            SOKO_ASSERT(mesh.gpuIndexBufferHandle, "");
+
+            gameState->meshes[EntityMesh_Sphere] = mesh;
+        }
+
         {
             u32 fileSize = DebugGetFileSize(L"../res/cube.aab");
             void* fileData = PUSH_SIZE(arena, fileSize);
@@ -500,15 +676,35 @@ namespace soko
             i32 height;
             i32 bpp;
             BeginTemporaryMemory(gameState->tempArena);
+            unsigned char* diffBitmap = stbi_load("../res/rust_metal/grimy-metal-albedo.png", &width, &height, &bpp, 3);
+
+            Material material = {};
+            material.type = Material::PBR;
+            material.pbr.albedoMap.format = GL_SRGB8;
+            material.pbr.albedoMap.width = width;
+            material.pbr.albedoMap.height = height;
+            material.pbr.albedoMap.data = diffBitmap;
+            RendererLoadTexture(&material.pbr.albedoMap);
+            SOKO_ASSERT(material.pbr.albedoMap.gpuHandle, "");
+
+            EndTemporaryMemory(gameState->tempArena);
+            gameState->materials[EntityMaterial_PbrMetal] = material;
+        }
+
+        {
+            i32 width;
+            i32 height;
+            i32 bpp;
+            BeginTemporaryMemory(gameState->tempArena);
             unsigned char* diffBitmap = stbi_load("../res/tile.png", &width, &height, &bpp, 3);
 
             Material material = {};
-            material.diffMap.format = GL_SRGB8;
-            material.diffMap.width = width;
-            material.diffMap.height = height;
-            material.diffMap.data = diffBitmap;
-            RendererLoadTexture(&material.diffMap);
-            SOKO_ASSERT(material.diffMap.gpuHandle, "");
+            material.legacy.diffMap.format = GL_SRGB8;
+            material.legacy.diffMap.width = width;
+            material.legacy.diffMap.height = height;
+            material.legacy.diffMap.data = diffBitmap;
+            RendererLoadTexture(&material.legacy.diffMap);
+            SOKO_ASSERT(material.legacy.diffMap.gpuHandle, "");
 
             EndTemporaryMemory(gameState->tempArena);
             gameState->materials[EntityMaterial_Tile] = material;
@@ -521,12 +717,12 @@ namespace soko
             unsigned char* diffBitmap = stbi_load("../res/tile_player.png", &width, &height, &bpp, 3);
 
             Material material = {};
-            material.diffMap.format = GL_SRGB8;
-            material.diffMap.width = width;
-            material.diffMap.height = height;
-            material.diffMap.data = diffBitmap;
-            RendererLoadTexture(&material.diffMap);
-            SOKO_ASSERT(material.diffMap.gpuHandle, "");
+            material.legacy.diffMap.format = GL_SRGB8;
+            material.legacy.diffMap.width = width;
+            material.legacy.diffMap.height = height;
+            material.legacy.diffMap.data = diffBitmap;
+            RendererLoadTexture(&material.legacy.diffMap);
+            SOKO_ASSERT(material.legacy.diffMap.gpuHandle, "");
 
             EndTemporaryMemory(gameState->tempArena);
             gameState->materials[EntityMaterial_Player] = material;
@@ -539,12 +735,12 @@ namespace soko
             unsigned char* diffBitmap = stbi_load("../res/tile_block.png", &width, &height, &bpp, 3);
 
             Material material = {};
-            material.diffMap.format = GL_SRGB8;
-            material.diffMap.width = width;
-            material.diffMap.height = height;
-            material.diffMap.data = diffBitmap;
-            RendererLoadTexture(&material.diffMap);
-            SOKO_ASSERT(material.diffMap.gpuHandle, "");
+            material.legacy.diffMap.format = GL_SRGB8;
+            material.legacy.diffMap.width = width;
+            material.legacy.diffMap.height = height;
+            material.legacy.diffMap.data = diffBitmap;
+            RendererLoadTexture(&material.legacy.diffMap);
+            SOKO_ASSERT(material.legacy.diffMap.gpuHandle, "");
 
             EndTemporaryMemory(gameState->tempArena);
             gameState->materials[EntityMaterial_Block] = material;
@@ -557,12 +753,12 @@ namespace soko
             unsigned char* diffBitmap = stbi_load("../res/plate_palette.png", &width, &height, &bpp, 3);
 
             Material material = {};
-            material.diffMap.format = GL_SRGB8;
-            material.diffMap.width = width;
-            material.diffMap.height = height;
-            material.diffMap.data = diffBitmap;
-            RendererLoadTexture(&material.diffMap);
-            SOKO_ASSERT(material.diffMap.gpuHandle, "");
+            material.legacy.diffMap.format = GL_SRGB8;
+            material.legacy.diffMap.width = width;
+            material.legacy.diffMap.height = height;
+            material.legacy.diffMap.data = diffBitmap;
+            RendererLoadTexture(&material.legacy.diffMap);
+            SOKO_ASSERT(material.legacy.diffMap.gpuHandle, "");
 
             EndTemporaryMemory(gameState->tempArena);
             gameState->materials[EntityMaterial_RedPlate] = material;
@@ -580,19 +776,19 @@ namespace soko
 
 
             Material material = {};
-            material.diffMap.format = GL_SRGB8;
-            material.diffMap.width = widthDiff;
-            material.diffMap.height = heightDiff;
-            material.diffMap.data = diffBitmap;
-            material.specMap.format = GL_SRGB8;
-            material.specMap.width = widthSpec;
-            material.specMap.height = heightSpec;
-            material.specMap.data = specBitmap;
+            material.legacy.diffMap.format = GL_SRGB8;
+            material.legacy.diffMap.width = widthDiff;
+            material.legacy.diffMap.height = heightDiff;
+            material.legacy.diffMap.data = diffBitmap;
+            material.legacy.specMap.format = GL_SRGB8;
+            material.legacy.specMap.width = widthSpec;
+            material.legacy.specMap.height = heightSpec;
+            material.legacy.specMap.data = specBitmap;
 
-            RendererLoadTexture(&material.diffMap);
-            RendererLoadTexture(&material.specMap);
-            SOKO_ASSERT(material.diffMap.gpuHandle, "");
-            SOKO_ASSERT(material.specMap.gpuHandle, "");
+            RendererLoadTexture(&material.legacy.diffMap);
+            RendererLoadTexture(&material.legacy.specMap);
+            SOKO_ASSERT(material.legacy.diffMap.gpuHandle, "");
+            SOKO_ASSERT(material.legacy.specMap.gpuHandle, "");
 
             EndTemporaryMemory(gameState->tempArena);
             gameState->materials[EntityMaterial_Portal] = material;
@@ -609,12 +805,12 @@ namespace soko
             i32 bpp = 3;
 
             Material material = {};
-            material.diffMap.format = GL_SRGB8;
-            material.diffMap.width = width;
-            material.diffMap.height = height;
-            material.diffMap.data = bitmap;
-            RendererLoadTexture(&material.diffMap);
-            SOKO_ASSERT(material.diffMap.gpuHandle, "");
+            material.legacy.diffMap.format = GL_SRGB8;
+            material.legacy.diffMap.width = width;
+            material.legacy.diffMap.height = height;
+            material.legacy.diffMap.data = bitmap;
+            RendererLoadTexture(&material.legacy.diffMap);
+            SOKO_ASSERT(material.legacy.diffMap.gpuHandle, "");
 
             gameState->materials[EntityMaterial_Spikes] = material;
         }
@@ -626,78 +822,51 @@ namespace soko
             unsigned char* diffBitmap = stbi_load("../res/button.png", &width, &height, &bpp, 3);
 
             Material material = {};
-            material.diffMap.format = GL_SRGB8;
-            material.diffMap.width = width;
-            material.diffMap.height = height;
-            material.diffMap.data = diffBitmap;
-            RendererLoadTexture(&material.diffMap);
-            SOKO_ASSERT(material.diffMap.gpuHandle, "");
+            material.legacy.diffMap.format = GL_SRGB8;
+            material.legacy.diffMap.width = width;
+            material.legacy.diffMap.height = height;
+            material.legacy.diffMap.data = diffBitmap;
+            RendererLoadTexture(&material.legacy.diffMap);
+            SOKO_ASSERT(material.legacy.diffMap.gpuHandle, "");
 
             EndTemporaryMemory(gameState->tempArena);
             gameState->materials[EntityMaterial_Button] = material;
         }
 
-        {
-            BeginTemporaryMemory(gameState->tempArena);
+        gameState->skybox = LoadCubemap(gameState->tempArena,
+                                        "../res/skybox/sky_back.png",
+                                        "../res/skybox/sky_down.png",
+                                        "../res/skybox/sky_front.png",
+                                        "../res/skybox/sky_left.png",
+                                        "../res/skybox/sky_right.png",
+                                        "../res/skybox/sky_up.png");
 
-            i32 backWidth, backHeight, backBpp;
-            unsigned char* backData = stbi_load("../res/skybox/sky_back.png", &backWidth, &backHeight, &backBpp, 3);
+        stbi_set_flip_vertically_on_load(0);
 
-            i32 downWidth, downHeight, downBpp;
-            unsigned char* downData = stbi_load("../res/skybox/sky_down.png", &downWidth, &downHeight, &downBpp, 3);
+        gameState->hdrMap = LoadCubemapHDR(gameState->tempArena,
+                                           "../res/milkyway/cubemap_skybox/nz.hdr",
+                                           "../res/milkyway/cubemap_skybox/ny.hdr",
+                                           "../res/milkyway/cubemap_skybox/pz.hdr",
+                                           "../res/milkyway/cubemap_skybox/nx.hdr",
+                                           "../res/milkyway/cubemap_skybox/px.hdr",
+                                           "../res/milkyway/cubemap_skybox/py.hdr");
+#if 0
+        gameState->irradanceMap = LoadCubemapHDR(gameState->tempArena,
+                                                 "../res/milkyway/cubemap_irradance/nz.hdr",
+                                                 "../res/milkyway/cubemap_irradance/ny.hdr",
+                                                 "../res/milkyway/cubemap_irradance/pz.hdr",
+                                                 "../res/milkyway/cubemap_irradance/nx.hdr",
+                                                 "../res/milkyway/cubemap_irradance/px.hdr",
+                                                 "../res/milkyway/cubemap_irradance/py.hdr");
+#endif
 
-            i32 frontWidth, frontHeight, frontBpp;
-            unsigned char* frontData = stbi_load("../res/skybox/sky_front.png", &frontWidth, &frontHeight, &frontBpp, 3);
 
-            i32 leftWidth, leftHeight, leftBpp;
-            unsigned char* leftData = stbi_load("../res/skybox/sky_left.png", &leftWidth, &leftHeight, &leftBpp, 3);
-
-            i32 rightWidth, rightHeight, rightBpp;
-            unsigned char* rightData = stbi_load("../res/skybox/sky_right.png", &rightWidth, &rightHeight, &rightBpp, 3);
-
-            i32 upWidth, upHeight, upBpp;
-            unsigned char* upData = stbi_load("../res/skybox/sky_up.png", &upWidth, &upHeight, &upBpp, 3);
-
-            CubeTexture texture = {};
-            texture.back.format = GL_SRGB8;
-            texture.back.width = backWidth;
-            texture.back.height = backHeight;
-            texture.back.data = backData;
-
-            texture.down.format = GL_SRGB8;
-            texture.down.width = downWidth;
-            texture.down.height = downHeight;
-            texture.down.data = downData;
-
-            texture.front.format = GL_SRGB8;
-            texture.front.width = frontWidth;
-            texture.front.height = frontHeight;
-            texture.front.data = frontData;
-
-            texture.left.format = GL_SRGB8;
-            texture.left.width = leftWidth;
-            texture.left.height = leftHeight;
-            texture.left.data = leftData;
-
-            texture.right.format = GL_SRGB8;
-            texture.right.width = rightWidth;
-            texture.right.height = rightHeight;
-            texture.right.data = rightData;
-
-            texture.up.format = GL_SRGB8;
-            texture.up.width = upWidth;
-            texture.up.height = upHeight;
-            texture.up.data = upData;
-
-            RendererLoadCubeTexture(&texture);
-            SOKO_ASSERT(texture.gpuHandle);
-
-            EndTemporaryMemory(gameState->tempArena);
-            gameState->skybox = texture;
-        }
-
+        gameState->irradanceMap = MakeEmptyCubemap(64, 64, GL_RGB16F);
         gameState->renderGroup->drawSkybox = true;
-        gameState->renderGroup->skyboxHandle = gameState->skybox.gpuHandle;
+        gameState->renderGroup->skyboxHandle = gameState->irradanceMap.gpuHandle;
+        gameState->renderGroup->irradanceMapHandle = gameState->irradanceMap.gpuHandle;
+
+        GenIrradanceMap(gameState->renderer, &gameState->irradanceMap, gameState->hdrMap.gpuHandle);
 
         //auto* level = gameState->level;
         //gameState->port = 9999;

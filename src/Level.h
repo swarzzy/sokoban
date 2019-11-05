@@ -14,7 +14,8 @@ namespace soko
         EntityMesh_Plate,
         EntityMesh_Portal,
         EntityMesh_Spikes,
-        EntityMesh_Button
+        EntityMesh_Button,
+        EntityMesh_Sphere
     };
 
     enum [reflect seq_enum] EntityMaterial
@@ -25,7 +26,8 @@ namespace soko
         EntityMaterial_RedPlate,
         EntityMaterial_Portal,
         EntityMaterial_Spikes,
-        EntityMaterial_Button
+        EntityMaterial_Button,
+        EntityMaterial_PbrMetal
     };
 
     // NOTE: Should fit in one byte

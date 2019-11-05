@@ -38,12 +38,33 @@ namespace soko
 
     struct Mesh;
     struct Material;
+    struct Texture;
+
+    struct MeshMaterial
+    {
+        enum { Legacy = 0, PBR } type;
+        union
+        {
+            struct
+            {
+                Texture* diffMap;
+                Texture* specMap;
+            } legacy;
+            struct
+            {
+                Texture* albedo;
+                f32 roughness;
+                f32 metallic;
+                f32 ao;
+            } pbr;
+        };
+    };
 
     struct RenderCommandDrawMesh
     {
         m4x4 transform;
         Mesh* mesh;
-        Material* material;
+        MeshMaterial material;
         u32 flags;
     };
 
@@ -116,6 +137,7 @@ namespace soko
 
         b32 drawSkybox;
         u32 skyboxHandle;
+        u32 irradanceMapHandle;
     };
 
     RenderGroup* AllocateRenderGroup(AB::MemoryArena* mem,

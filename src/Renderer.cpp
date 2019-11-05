@@ -4,6 +4,39 @@
 
 namespace soko
 {
+    struct IrradanceConvolutionProgram
+    {
+        GLint handle;
+        GLint projLoc;
+        GLint viewLoc;
+        GLint sourceCubemapLoc;
+        u32 sourceCubemapSampler;
+        GLenum sourceCubemapSlot;
+    };
+
+    struct PBRMeshProgram
+    {
+        GLint handle;
+
+        u32 albedoSampler;
+        GLenum albedoSlot;
+        GLint albedoLoc;
+
+        u32 irradanceMapSampler;
+        GLenum irradanceMapSlot;
+        GLint irradanceMapLoc;
+
+        GLint viewPosLoc;
+        GLint viewProjLoc;
+        GLint modelMtxLoc;
+        GLint normalMtxLoc;
+        GLint dirLightDirLoc;
+        GLint dirLightColorLoc;
+        GLint metallicLoc;
+        GLint roughnessLoc;
+        GLint aoLoc;
+    };
+
     struct FxaaProgram
     {
         GLint handle;
@@ -31,6 +64,7 @@ namespace soko
 
     struct SkyboxProgram
     {
+        b32 usesEqurectUV;
         GLint handle;
         GLint viewMatrixLoc;
         GLint projMatrixLoc;
@@ -104,6 +138,8 @@ namespace soko
         SkyboxProgram skyboxProgram;
         PostfxProgram postfxProgram;
         FxaaProgram fxaaProgram;
+        PBRMeshProgram pbrMeshProgram;
+        IrradanceConvolutionProgram irradanceConvProgram;
 
         GLuint tileTexArrayHandle;
 
@@ -123,6 +159,8 @@ namespace soko
         GLuint srgbColorTarget;
 
         GLfloat maxAnisotropy;
+
+        GLuint captureFramebuffer;
     };
 
     internal GLuint
@@ -229,6 +267,69 @@ namespace soko
         return result;
     }
 
+    internal IrradanceConvolutionProgram
+    CreateIrradanceConvolutionProgram()
+    {
+        IrradanceConvolutionProgram result = {};
+        auto handle = CreateProgram(SKYBOX_VERTEX_SOURCE, IRRADANCE_CONVOLUTION_FRAG_SOURCE);
+        if (handle)
+        {
+            result.handle = handle;
+            result.viewLoc = glGetUniformLocation(handle, "u_ViewMatrix");
+            result.projLoc = glGetUniformLocation(handle, "u_ProjMatrix");
+            result.sourceCubemapLoc = glGetUniformLocation(handle, "uSourceCubemap");
+
+            result.sourceCubemapSampler = 0;
+            result.sourceCubemapSlot = GL_TEXTURE0;
+
+            glUseProgram(handle);
+
+            glUniform1i(result.sourceCubemapLoc, result.sourceCubemapSampler);
+
+            glUseProgram(0);
+        }
+        return result;
+    }
+
+
+    internal PBRMeshProgram
+    CreatePBRMeshProgram()
+    {
+        PBRMeshProgram result = {};
+        auto handle = CreateProgram(PBR_MESH_VERTEX_SOURCE, PBR_MESH_FRAG_SOURCE);
+        if (handle)
+        {
+            result.handle = handle;
+            result.viewPosLoc = glGetUniformLocation(handle, "uViewPos");
+            result.viewProjLoc = glGetUniformLocation(handle, "uViewProjMatrix");
+            result.modelMtxLoc = glGetUniformLocation(handle, "uModelMatrix");
+            result.normalMtxLoc = glGetUniformLocation(handle, "uNormalMatrix");
+            result.dirLightDirLoc = glGetUniformLocation(handle, "uDirLight.dir");
+            result.dirLightColorLoc = glGetUniformLocation(handle, "uDirLight.color");
+            result.albedoLoc = glGetUniformLocation(handle, "uAlbedoMap");
+            result.metallicLoc = glGetUniformLocation(handle, "uMetallic");
+            result.roughnessLoc = glGetUniformLocation(handle, "uRoughness");
+            result.aoLoc = glGetUniformLocation(handle, "uAO");
+            result.irradanceMapLoc = glGetUniformLocation(handle, "uIrradanceMap");
+
+
+            result.albedoSampler = 0;
+            result.albedoSlot = GL_TEXTURE0;
+            result.irradanceMapSampler = 1;
+            result.irradanceMapSlot = GL_TEXTURE1;
+
+
+            glUseProgram(handle);
+
+            glUniform1i(result.albedoLoc, result.albedoSampler);
+            glUniform1i(result.irradanceMapLoc, result.irradanceMapSampler);
+
+            glUseProgram(0);
+        }
+        return result;
+    }
+
+
     internal MeshProgram
     CreateMeshProgram()
     {
@@ -295,10 +396,18 @@ namespace soko
     }
 
     internal SkyboxProgram
-    CreateSkyboxProgram()
+    CreateSkyboxProgram(bool useEquirectUV = false)
     {
         SkyboxProgram result = {};
-        auto handle = CreateProgram(SKYBOX_VERTEX_SOURCE, SKYBOX_FRAG_SOURCE);
+        GLuint handle;
+        if (useEquirectUV)
+        {
+            handle = CreateProgram(SKYBOX_EQUIRECT_VERTEX_SOURCE, SKYBOX_EQUIRECT_FRAG_SOURCE);
+        }
+        else
+        {
+            handle = CreateProgram(SKYBOX_VERTEX_SOURCE, SKYBOX_FRAG_SOURCE);
+        }
         if (handle)
         {
             result.handle = handle;
@@ -404,6 +513,11 @@ namespace soko
         renderer->fxaaProgram = CreateFxaaProgram();
         SOKO_ASSERT(renderer->fxaaProgram.handle);
 
+        renderer->pbrMeshProgram = CreatePBRMeshProgram();
+        SOKO_ASSERT(renderer->pbrMeshProgram.handle);
+
+        renderer->irradanceConvProgram = CreateIrradanceConvolutionProgram();
+        SOKO_ASSERT(renderer->irradanceConvProgram.handle);
 
         GLuint lineBufferHandle;
         glGenBuffers(1, &lineBufferHandle);
@@ -535,6 +649,65 @@ namespace soko
         SOKO_ASSERT(glCheckFramebufferStatus(GL_FRAMEBUFFER) == GL_FRAMEBUFFER_COMPLETE);
         glBindFramebuffer(GL_FRAMEBUFFER, 0);
 
+        glGenFramebuffers(1, &renderer->captureFramebuffer);
+        SOKO_ASSERT(renderer->captureFramebuffer);
+
+#if 0
+        // NOTE: Creating normalized cube vertex buffer
+
+        const f32 vertices[] =
+            {
+                // back face
+                -1.0f, -1.0f, -1.0f,
+                1.0f,  1.0f, -1.0f,
+                1.0f, -1.0f, -1.0f,
+                1.0f,  1.0f, -1.0f,
+                -1.0f, -1.0f, -1.0f,
+                -1.0f,  1.0f, -1.0f,
+                // front face
+                -1.0f, -1.0f,  1.0f,
+                1.0f, -1.0f,  1.0f,
+                1.0f,  1.0f,  1.0f,
+                1.0f,  1.0f,  1.0f,
+                -1.0f,  1.0f,  1.0f,
+                -1.0f, -1.0f,  1.0f,
+                // left face
+                -1.0f,  1.0f,  1.0f,
+                -1.0f,  1.0f, -1.0f,
+                -1.0f, -1.0f, -1.0f,
+                -1.0f, -1.0f, -1.0f,
+                -1.0f, -1.0f,  1.0f,
+                -1.0f,  1.0f,  1.0f,
+                // right face
+                1.0f,  1.0f,  1.0f,
+                1.0f, -1.0f, -1.0f,
+                1.0f,  1.0f, -1.0f,
+                1.0f, -1.0f, -1.0f,
+                1.0f,  1.0f,  1.0f,
+                1.0f, -1.0f,  1.0f,
+                // bottom face
+                -1.0f, -1.0f, -1.0f,
+                1.0f, -1.0f, -1.0f,
+                1.0f, -1.0f,  1.0f,
+                1.0f, -1.0f,  1.0f,
+                -1.0f, -1.0f,  1.0f,
+                -1.0f, -1.0f, -1.0f,
+                // top face
+                -1.0f,  1.0f, -1.0f,
+                1.0f,  1.0f , 1.0f,
+                1.0f,  1.0f, -1.0f,
+                1.0f,  1.0f,  1.0f,
+                -1.0f,  1.0f, -1.0f,
+                -1.0f,  1.0f,  1.0f,
+            };
+
+        glGenBuffers(1, &renderer->normalizedCubeVertexBufferHandle);
+        SOKO_ASSERT(renderer->normalizedCubeVertexBufferHandle);
+
+        glBindBuffer(GL_ARRAY_BUFFER, renderer->normalizedCubeVertexBufferHandle);
+        glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
+        glBindBuffer(GL_ARRAY_BUFFER, 0);
+#endif
         return renderer;
     }
 
@@ -550,11 +723,11 @@ namespace soko
             if (vboHandle && iboHandle)
             {
 // NOTE: Using SOA layout of buffer
-                u64 verticesSize = mesh->vertexCount * sizeof(v3);
-                u64 normalsSize= mesh->normalCount * sizeof(v3);
-                u64 uvsSize = mesh->uvCount * sizeof(v2);
-                u64 indexBufferSize = mesh->indexCount * sizeof(u32);
-                u64 vertexBufferSize = verticesSize + normalsSize + uvsSize;
+                uptr verticesSize = mesh->vertexCount * sizeof(v3);
+                uptr normalsSize= mesh->normalCount * sizeof(v3);
+                uptr uvsSize = mesh->uvCount * sizeof(v2);
+                uptr indexBufferSize = mesh->indexCount * sizeof(u32);
+                uptr vertexBufferSize = verticesSize + normalsSize + uvsSize;
 
                 glBindBuffer(GL_ARRAY_BUFFER, vboHandle);
 
@@ -577,10 +750,10 @@ namespace soko
         }
     }
 
-    internal u64 // NOTE: Quad count
+    internal u32 // NOTE: Quad count
     RendererReloadChunkMesh(const ChunkMesh* mesh, u32 handle)
     {
-        u64 result = 0;
+        u32 result = 0;
         glBindBuffer(GL_ARRAY_BUFFER, handle);
         uptr bufferSize = mesh->quadCount * 4 * sizeof(ChunkMeshVertex);
         glBufferData(GL_ARRAY_BUFFER, bufferSize, 0, GL_STATIC_DRAW);
@@ -647,16 +820,18 @@ namespace soko
                 glBindTexture(GL_TEXTURE_2D, handle);
                 //glEnable(GL_TEXTURE_2D);
                 GLenum format;
+                GLenum type;
 
                 switch (texture->format)
                 {
-                case GL_SRGB8_ALPHA8: { format = GL_RGBA; } break;
-                case GL_SRGB8: { format = GL_RGB; } break;
+                case GL_SRGB8_ALPHA8: { format = GL_RGBA; type = GL_UNSIGNED_BYTE; } break;
+                case GL_SRGB8: { format = GL_RGB; type = GL_UNSIGNED_BYTE; } break;
+                case GL_RGB16F: { format = GL_RGB; type = GL_FLOAT; } break;
                     INVALID_DEFAULT_CASE;
                 }
 
                 glTexImage2D(GL_TEXTURE_2D, 0, texture->format, texture->width,
-                             texture->height, 0, format, GL_UNSIGNED_BYTE, texture->data);
+                             texture->height, 0, format, type, texture->data);
 
                 glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
                 glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
@@ -686,17 +861,18 @@ namespace soko
             {
                 glBindTexture(GL_TEXTURE_CUBE_MAP, handle);
 
-                glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_S, GL_REPEAT);
-                glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_T, GL_REPEAT);
-                glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_R, GL_REPEAT);
+                glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+                glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+                glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
 
-                glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-                glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+                glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+                glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
 
                 for (u32 i = 0; i < 6; i++)
                 {
                     GLenum internalFormat = texture->images[i].format;
                     GLenum format;
+                    GLenum type;
 
                     u32 width = texture->images[i].width;
                     u32 height = texture->images[i].height;
@@ -704,14 +880,15 @@ namespace soko
 
                     switch (internalFormat)
                     {
-                    case GL_SRGB8_ALPHA8: { format = GL_RGBA; } break;
-                    case GL_SRGB8: { format = GL_RGB; } break;
+                    case GL_SRGB8_ALPHA8: { format = GL_RGBA; type = GL_UNSIGNED_BYTE; } break;
+                    case GL_SRGB8: { format = GL_RGB; type = GL_UNSIGNED_BYTE; } break;
+                    case GL_RGB16F: {format = GL_RGB; type = GL_FLOAT; } break;
                         INVALID_DEFAULT_CASE;
                     }
 
                     glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, 0,
                                  internalFormat, width, height, 0,
-                                 format, GL_UNSIGNED_BYTE, data);
+                                 format, type, data);
                 }
 
                 glBindTexture(GL_TEXTURE_CUBE_MAP, 0);
@@ -733,6 +910,7 @@ namespace soko
                      renderer->clearColor.a);
 
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+        glEnable(GL_DEPTH_TEST);
     }
 
     internal void
@@ -790,6 +968,57 @@ namespace soko
                               GL_COLOR_BUFFER_BIT, GL_LINEAR);
 
         }
+    }
+
+    internal void
+    GenIrradanceMap(const Renderer* renderer, CubeTexture* t, GLuint sourceHandle)
+    {
+        SOKO_ASSERT(t->gpuHandle);
+#define PROFILE_IRRADANCE_GEN
+#if defined(PROFILE_IRRADANCE_GEN)
+        SOKO_INFO("Generating irradance map...");
+        glFinish();
+        i64 beginTime = GetTimeStamp();
+#endif
+
+        const m4x4 capProj = PerspectiveOpenGLRH(90.0f, 1.0f, 0.1, 10.0f);
+        const m4x4 capViews[] =
+        {
+            LookAtRH(V3(0.0f), V3(1.0f, 0.0f, 0.0f), V3(0.0f, -1.0f, 0.0f)),
+            LookAtRH(V3(0.0f), V3(-1.0f, 0.0f, 0.0f), V3(0.0f, -1.0f, 0.0f)),
+            LookAtRH(V3(0.0f), V3(0.0f, 1.0f, 0.0f), V3(0.0f, 0.0f, 1.0f)),
+            LookAtRH(V3(0.0f), V3(0.0f, -1.0f, 0.0f), V3(0.0f, 0.0f, -1.0f)),
+            LookAtRH(V3(0.0f), V3(0.0f, 0.0f, 1.0f), V3(0.0f, -1.0f, 0.0f)),
+            LookAtRH(V3(0.0f), V3(0.0f, 0.0f, -1.0f), V3(0.0f, -1.0f, 0.0f)),
+        };
+
+        auto prog = &renderer->irradanceConvProgram;
+        glUseProgram(prog->handle);
+        glUniformMatrix4fv(prog->projLoc, 1, GL_FALSE, capProj.data);
+        glDisable(GL_DEPTH_TEST);
+        glBindFramebuffer(GL_DRAW_FRAMEBUFFER, renderer->captureFramebuffer);
+
+        glActiveTexture(prog->sourceCubemapSlot);
+        glBindTexture(GL_TEXTURE_CUBE_MAP, sourceHandle);
+
+        for (u32 i = 0; i < 6; i++)
+        {
+            glViewport(0, 0, t->images[i].width, t->images[i].height);
+            glUniformMatrix4fv(prog->viewLoc, 1, GL_FALSE, capViews[i].data);
+            glFramebufferTexture2D(GL_DRAW_FRAMEBUFFER, GL_COLOR_ATTACHMENT0,
+                                   GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, t->gpuHandle, 0);
+            glClear(GL_COLOR_BUFFER_BIT);
+
+            glDrawArrays(GL_TRIANGLES, 0, 6);
+        }
+        glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
+
+#if defined (PROFILE_IRRADANCE_GEN)
+        glFinish();
+        i64 timeElapsed = GetTimeStamp() - beginTime;
+        SOKO_INFO("Time: %i64 us", timeElapsed);
+#endif
+
     }
 
     internal void
@@ -853,7 +1082,7 @@ namespace soko
                     glUniform3fv(renderer->lineProgram.colorLocation,
                                  1, data->color.data);
 
-                    u64 bufferSize = command->instanceCount * sizeof(RenderCommandPushLineVertex);
+                    uptr bufferSize = command->instanceCount * sizeof(RenderCommandPushLineVertex);
                     void* instanceData = (void*)((byte*)data + sizeof(RenderCommandDrawLineBegin));
 
                     glBindBuffer(GL_ARRAY_BUFFER, renderer->lineBufferHandle);
@@ -878,59 +1107,122 @@ namespace soko
                 case RENDER_COMMAND_DRAW_MESH:
                 {
                     auto* data = (RenderCommandDrawMesh*)(group->renderBuffer + command->rbOffset);
-
-                    auto* meshProg = &renderer->meshProgram;
-                    glUseProgram(meshProg->handle);
-
-                    if (firstMeshShaderInvocation)
+                    if (data->material.type == MeshMaterial::Legacy)
                     {
-                        firstMeshShaderInvocation = false;
-                        glUniformMatrix4fv(meshProg->viewProjLocation,
-                                           1, GL_FALSE, viewProj.data);
-                        glUniform3fv(meshProg->dirLightDirLoc, 1, group->dirLight.dir.data);
-                        glUniform3fv(meshProg->dirLightAmbLoc, 1, group->dirLight.ambient.data);
-                        glUniform3fv(meshProg->dirLightDiffLoc, 1, group->dirLight.diffuse.data);
-                        glUniform3fv(meshProg->dirLightSpecLoc, 1, group->dirLight.specular.data);
-                        glUniform3fv(meshProg->viewPosLocation, 1, group->cameraConfig.position.data);
+                        auto* meshProg = &renderer->meshProgram;
+                        glUseProgram(meshProg->handle);
+
+                        if (firstMeshShaderInvocation)
+                        {
+                            firstMeshShaderInvocation = false;
+                            glUniformMatrix4fv(meshProg->viewProjLocation,
+                                               1, GL_FALSE, viewProj.data);
+                            glUniform3fv(meshProg->dirLightDirLoc, 1, group->dirLight.dir.data);
+                            glUniform3fv(meshProg->dirLightAmbLoc, 1, group->dirLight.ambient.data);
+                            glUniform3fv(meshProg->dirLightDiffLoc, 1, group->dirLight.diffuse.data);
+                            glUniform3fv(meshProg->dirLightSpecLoc, 1, group->dirLight.specular.data);
+                            glUniform3fv(meshProg->viewPosLocation, 1, group->cameraConfig.position.data);
+                        }
+
+                        glUniformMatrix4fv(meshProg->modelMtxLocation,
+                                           1, GL_FALSE, data->transform.data);
+
+                        m4x4 invModel = data->transform;
+                        bool inverted = Inverse(&invModel);
+                        SOKO_ASSERT(inverted, "");
+                        m4x4 transModel = Transpose(&invModel);
+                        m3x3 normalMatrix = M3x3(&transModel);
+
+                        glUniformMatrix3fv(meshProg->normalMtxLocation,
+                                           1, GL_FALSE, normalMatrix.data);
+
+                        auto* mesh = data->mesh;
+
+                        glActiveTexture(meshProg->diffMapSlot);
+                        glBindTexture(GL_TEXTURE_2D, data->material.legacy.diffMap->gpuHandle);
+
+                        glActiveTexture(meshProg->specMapSlot);
+                        glBindTexture(GL_TEXTURE_2D, data->material.legacy.specMap->gpuHandle);
+
+
+                        glBindBuffer(GL_ARRAY_BUFFER, mesh->gpuVertexBufferHandle);
+
+                        glEnableVertexAttribArray(0);
+                        glEnableVertexAttribArray(1);
+                        glEnableVertexAttribArray(2);
+
+                        u64 normalsOffset = mesh->vertexCount * sizeof(v3);
+                        u64 uvsOffset = normalsOffset + mesh->normalCount * sizeof(v3);
+
+                        glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 0, 0);
+                        glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 0, (void*)normalsOffset);
+                        glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, 0, (void*)uvsOffset);
+
+                        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, mesh->gpuIndexBufferHandle);
+
+                        glDrawElements(GL_TRIANGLES, mesh->indexCount, GL_UNSIGNED_INT, 0);
                     }
+                    else if (data->material.type == MeshMaterial::PBR)
+                    {
+                        SOKO_ASSERT(group->irradanceMapHandle);
+                        auto* meshProg = &renderer->pbrMeshProgram;
+                        glUseProgram(meshProg->handle);
 
-                    glUniformMatrix4fv(meshProg->modelMtxLocation,
-                                       1, GL_FALSE, data->transform.data);
+                        //  if (firstMeshShaderInvocation)
+                        {
+                            // firstMeshShaderInvocation = false;
+                            glUniformMatrix4fv(meshProg->viewProjLoc,
+                                               1, GL_FALSE, viewProj.data);
+                            glUniform3fv(meshProg->dirLightDirLoc, 1, group->dirLight.dir.data);
+                            glUniform3fv(meshProg->dirLightColorLoc, 1, group->dirLight.diffuse.data);
+                            glUniform3fv(meshProg->viewPosLoc, 1, group->cameraConfig.position.data);
+                        }
 
-                    m4x4 invModel = data->transform;
-                    bool inverted = Inverse(&invModel);
-                    SOKO_ASSERT(inverted, "");
-                    m4x4 transModel = Transpose(&invModel);
-                    m3x3 normalMatrix = M3x3(&transModel);
+                        glUniform1f(meshProg->metallicLoc, data->material.pbr.metallic);
+                        glUniform1f(meshProg->roughnessLoc, data->material.pbr.roughness);
+                        glUniform1f(meshProg->aoLoc, data->material.pbr.ao);
 
-                    glUniformMatrix3fv(meshProg->normalMtxLocation,
-                                       1, GL_FALSE, normalMatrix.data);
+                        glUniformMatrix4fv(meshProg->modelMtxLoc,
+                                           1, GL_FALSE, data->transform.data);
 
-                    auto* mesh = data->mesh;
+                        m4x4 invModel = data->transform;
+                        bool inverted = Inverse(&invModel);
+                        SOKO_ASSERT(inverted, "");
+                        m4x4 transModel = Transpose(&invModel);
+                        m3x3 normalMatrix = M3x3(&transModel);
 
-                    glActiveTexture(meshProg->diffMapSlot);
-                    glBindTexture(GL_TEXTURE_2D, data->material->diffMap.gpuHandle);
+                        glUniformMatrix3fv(meshProg->normalMtxLoc,
+                                           1, GL_FALSE, normalMatrix.data);
 
-                    glActiveTexture(meshProg->specMapSlot);
-                    glBindTexture(GL_TEXTURE_2D, data->material->specMap.gpuHandle);
+                        auto* mesh = data->mesh;
 
+                        glActiveTexture(meshProg->albedoSlot);
+                        glBindTexture(GL_TEXTURE_2D, data->material.pbr.albedo->gpuHandle);
 
-                    glBindBuffer(GL_ARRAY_BUFFER, mesh->gpuVertexBufferHandle);
+                        glActiveTexture(meshProg->irradanceMapSlot);
+                        glBindTexture(GL_TEXTURE_CUBE_MAP, group->irradanceMapHandle);
 
-                    glEnableVertexAttribArray(0);
-                    glEnableVertexAttribArray(1);
-                    glEnableVertexAttribArray(2);
+                        glBindBuffer(GL_ARRAY_BUFFER, mesh->gpuVertexBufferHandle);
 
-                    u64 normalsOffset = mesh->vertexCount * sizeof(v3);
-                    u64 uvsOffset = normalsOffset + mesh->normalCount * sizeof(v3);
+                        glEnableVertexAttribArray(0);
+                        glEnableVertexAttribArray(1);
+                        glEnableVertexAttribArray(2);
 
-                    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 0, 0);
-                    glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 0, (void*)normalsOffset);
-                    glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, 0, (void*)uvsOffset);
+                        u64 normalsOffset = mesh->vertexCount * sizeof(v3);
+                        u64 uvsOffset = normalsOffset + mesh->normalCount * sizeof(v3);
 
-                    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, mesh->gpuIndexBufferHandle);
+                        glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 0, 0);
+                        glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 0, (void*)normalsOffset);
+                        glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, 0, (void*)uvsOffset);
 
-                    glDrawElements(GL_TRIANGLES, mesh->indexCount, GL_UNSIGNED_INT, 0);
+                        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, mesh->gpuIndexBufferHandle);
+
+                        glDrawElements(GL_TRIANGLES, mesh->indexCount, GL_UNSIGNED_INT, 0);
+                    }
+                    else
+                    {
+                        INVALID_CODE_PATH;
+                    }
                 } break;
 
                 case RENDER_COMMAND_BEGIN_CHUNK_MESH_BATCH:
@@ -997,7 +1289,6 @@ namespace soko
                         glDrawElements(GL_TRIANGLES, numIndices, GL_UNSIGNED_INT, 0);
                     }
                 } break;
-
                 }
             }
             RenderGroupResetQueue(group);

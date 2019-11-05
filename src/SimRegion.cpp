@@ -492,7 +492,21 @@ namespace soko
                 //SOKO_ASSERT(entity->mesh);
                 //SOKO_ASSERT(entity->material);
                 command.mesh = gameState->meshes + e->stored->mesh;
-                command.material = gameState->materials + e->stored->material;
+                Material* em = gameState->materials + e->stored->material;
+                command.material.type = em->type == Material::Legacy ? MeshMaterial::Legacy : MeshMaterial::PBR;
+                if (command.material.type == MeshMaterial::PBR)
+                {
+                    command.material.pbr.albedo = &em->pbr.albedoMap;
+                    command.material.pbr.roughness = e->stored->materialRoughness;
+                    command.material.pbr.metallic = e->stored->materialMetallic;
+                    command.material.pbr.ao = e->stored->materialAO;
+                }
+                else
+                {
+                    command.material.legacy.diffMap = &em->legacy.diffMap;
+                    command.material.legacy.specMap = &em->legacy.specMap;
+                }
+
                 RenderGroupPushCommand(gameState->renderGroup, RENDER_COMMAND_DRAW_MESH,
                                        (void*)&command);
             }

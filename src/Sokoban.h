@@ -41,8 +41,19 @@ namespace soko
 
     struct Material
     {
-        Texture diffMap;
-        Texture specMap;
+        enum { Legacy = 0, PBR } type;
+        union
+        {
+            struct
+            {
+                Texture diffMap;
+                Texture specMap;
+            } legacy;
+            struct
+            {
+                Texture albedoMap;
+            } pbr;
+        };
     };
 
     struct Renderer;
@@ -60,6 +71,8 @@ namespace soko
         Material materials[TypeTraits(EntityMaterial)::MemberCount];
         Mesh meshes[TypeTraits(EntityMesh)::MemberCount];
         CubeTexture skybox;
+        CubeTexture irradanceMap;
+        CubeTexture hdrMap;
         u32 overlayCorner;
         ImFont* notoMonoFont10px;
         ImFont* notoMonoFont14px;

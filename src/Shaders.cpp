@@ -1,5 +1,190 @@
 namespace soko
 {
+    static const char* IRRADANCE_CONVOLUTION_VERTEX_SOURCE = R"(
+#version 330 core
+layout (location = 0) in vec3 aPos;
+out vec3 vFragPos;
+
+uniform mat4 uViewProjection;
+
+void main()
+{
+    fragPos = aPos;
+    glPosition = uViewProjection * vec4(fragPos, 1.0f);
+})";
+
+    static const char* IRRADANCE_CONVOLUTION_FRAG_SOURCE = R"(
+#version 330 core
+
+in vec3 v_UV;
+out vec4 resultColor;
+
+uniform samplerCube uSourceCubemap;
+
+const float PI_32 = 3.14159265358979323846f;
+
+void main()
+{
+    vec3 normal = normalize(v_UV);
+    vec3 irradance = vec3(0.0f);
+
+    vec3 up = vec3(0.0f, 1.0f, 0.0f);
+    vec3 right = cross(up, normal);
+    up = cross(normal, right);
+
+    float sampleDelta = 0.025f;
+    int sampleCount = 0;
+    for (float phi = 0.0f; phi < (2.0f * PI_32); phi += sampleDelta)
+    {
+        for (float theta = 0.0f; theta < (0.5f * PI_32); theta += sampleDelta)
+        {
+            vec3 tgSample = vec3(sin(theta) * cos(phi), sin(theta) * sin(phi), cos(theta));
+            vec3 sampleDir = tgSample.x * right + tgSample.y * up + tgSample.z * normal;
+            irradance += texture(uSourceCubemap, sampleDir).xyz * cos(theta) * sin(theta);
+            sampleCount++;
+        }
+    }
+
+    irradance = PI_32 * irradance * (1.0f / float(sampleCount));
+
+    resultColor = vec4(irradance, 1.0f);
+})";
+
+    static const char* PBR_MESH_VERTEX_SOURCE = R"(
+#version 330 core
+layout (location = 0) in vec3 aPos;
+layout (location = 1) in vec3 aNormal;
+layout (location = 2) in vec2 aUV;
+
+uniform mat4 uViewProjMatrix;
+uniform mat4 uModelMatrix;
+uniform mat3 uNormalMatrix;
+
+out vec3 vFragPos;
+out vec3 vNormal;
+out vec2 vUV;
+
+void main()
+{
+    gl_Position = uViewProjMatrix * uModelMatrix * vec4(aPos, 1.0f);
+    vFragPos = (uModelMatrix * vec4(aPos, 1.0f)).xyz;
+    vUV = aUV;
+    vNormal = uNormalMatrix * aNormal;
+})";
+
+    static const char* PBR_MESH_FRAG_SOURCE = R"(
+#version 330 core
+out vec4 resultColor;
+
+in vec3 vFragPos;
+in vec3 vNormal;
+in vec2 vUV;
+
+struct DirLight
+{
+    vec3 dir;
+    vec3 color;
+};
+
+uniform DirLight uDirLight;
+uniform vec3 uViewPos;
+
+uniform samplerCube uIrradanceMap;
+
+uniform sampler2D uAlbedoMap;
+uniform float uMetallic;
+uniform float uRoughness;
+uniform float uAO;
+
+#define PI (3.14159265359)
+
+vec3 FresnelSchlick(float cosTheta, vec3 F0)
+{
+    return F0 + (vec3(1.0f) - F0) * pow(1.0f - cosTheta, 5.0f);
+}
+
+vec3 FresnelSchlickRoughness(float cosTheta, vec3 F0, float roughness)
+{
+    return F0 + (max(vec3(1.0f - roughness), F0) - F0) * pow(1.0f - cosTheta, 5.0f);
+}
+
+float DistributionGGX(vec3 N, vec3 H, float roughness)
+{
+    float a = roughness * roughness;
+    float aSq = a * a;
+    float NdotH = max(dot(N, H), 0.0f);
+    float NdotHSq = NdotH * NdotH;
+
+    float num = aSq;
+    float denom = (NdotHSq * (aSq - 1.0f) + 1.0f);
+    denom = PI * denom * denom;
+
+    return num / max(denom, 0.001f);
+}
+
+float GeometrySchlickGGX(float NdotV, float roughness)
+{
+    float k = ((roughness + 1.0f) * (roughness + 1.0f)) / 8.0f;
+
+    float num = NdotV;
+    float denom = NdotV * (1.0f - k) + k;
+
+    return num / denom;
+}
+
+float GeometrySmith(vec3 N, vec3 V, vec3 L, float roughness)
+{
+    float NdotV = max(dot(N, V), 0.0f);
+    float NdotL = max(dot(N, L), 0.0f);
+    float ggx1 = GeometrySchlickGGX(NdotV, roughness);
+    float ggx2 = GeometrySchlickGGX(NdotL, roughness);
+
+    return ggx1 * ggx2;
+}
+
+void main()
+{
+    vec3 N = normalize(vNormal);
+    vec3 V = normalize(uViewPos - vFragPos);
+    vec3 albedo = vec3(1.0f, 0.0f, 0.0f);//texture(uAlbedoMap, vUV).xyz;
+    vec3 L0 = vec3(0.0f);
+
+    vec3 Wi = normalize(-uDirLight.dir);
+    vec3 H = normalize(V + Wi);
+
+    // NOTE: Attenuation should be here
+    vec3 radiance = uDirLight.color;
+
+    vec3 F0 = vec3(0.04f);
+    F0 = mix(F0, albedo, uMetallic);
+
+    vec3 F = FresnelSchlick(max(dot(H, V), 0.0f), F0);
+    float NDF = DistributionGGX(N, H, uRoughness);
+    float G = GeometrySmith(N, V, Wi, uRoughness);
+
+    vec3 num = NDF * G * F;
+    float denom = 4.0f * max(dot(N, V), 0.0f) * max(dot(N, Wi), 0.0f) + 0.001f;
+    vec3 specular = num / max(denom, 0.001);
+
+    {
+        vec3 kS = F;
+        vec3 kD = vec3(1.0f) - kS;
+        kD *= 1.0f - uMetallic;
+        float NdotWi = max(dot(N, Wi), 0.0f);
+        L0 += (kD * albedo / PI + specular) * radiance * NdotWi;
+    }
+
+    // ambient irradance
+    vec3 kS = FresnelSchlick(max(dot(N, V), 0.0f), F0);
+    vec3 kD = vec3(1.0f) - kS;
+    kD *= 1.0f - uMetallic;
+    vec3 irradance = texture(uIrradanceMap, N).rgb;
+    vec3 diffuse = irradance * albedo;
+    vec3 ambient = (kD * diffuse) * uAO;
+
+    resultColor = vec4((ambient + L0), 1.0f);
+})";
+
     static const char* SS_VERTEX_SOURCE = R"(
 #version 330 core
 vec2 VERTICES[] = vec2[](vec2(-1.0f, -1.0f),
@@ -51,10 +236,11 @@ vec3 D3DX_RGB_to_SRGB(vec3 rgb)
 
 void main()
 {
-    vec3 sample = D3DX_RGB_to_SRGB(texture(u_ColorSourceLinear, v_UV).xyz);
-    vec3 hdrSample = sample;
-    vec3 mappedSample = vec3(1.0f) - exp(-hdrSample * u_Exposure);
-    fragColorResult = vec4(mappedSample, 1.0f);
+    vec3 hdrSample = texture(u_ColorSourceLinear, v_UV).xyz;
+    //vec3 ldrSample = hdrSample / (hdrSample + vec3(1.0f))
+    vec3 ldrSample = vec3(1.0f) - exp(-hdrSample * u_Exposure);
+    vec3 resultSample = D3DX_RGB_to_SRGB(ldrSample);
+    fragColorResult = vec4(resultSample, 1.0f);
 })";
 
     static const char* FXAA_FRAG_SOURCE = R"(
@@ -238,6 +424,50 @@ void main()
     f_Color = texture(u_CubeTexture, v_UV);
 }
 )";
+
+    static const char* SKYBOX_EQUIRECT_VERTEX_SOURCE = R"(
+#version 330 core
+
+uniform mat4 u_ViewMatrix;
+uniform mat4 u_ProjMatrix;
+
+out vec3 v_UV;
+
+vec2 VERTICES[] = vec2[](vec2(-1.0f, -1.0f),
+                         vec2(1.0f, -1.0f),
+                         vec2(1.0f, 1.0f),
+                         vec2(1.0f, 1.0f),
+                         vec2(-1.0f, 1.0f),
+                         vec2(-1.0f, -1.0f));
+
+void main()
+{
+    vec4 vertexPos = vec4(VERTICES[min(gl_VertexID, 6)], 0.0f, 1.0f);
+    gl_Position = vertexPos;
+    gl_Position = gl_Position.xyww;
+    v_UV = mat3(inverse(u_ViewMatrix)) * (inverse(u_ProjMatrix) * gl_Position).xyz;
+})";
+
+    static const char* SKYBOX_EQUIRECT_FRAG_SOURCE = R"(
+#version 330 core
+in vec3 v_UV;
+
+out vec4 f_Color;
+
+uniform sampler2D u_CubeTexture;
+
+vec2 SphericalToEquirectUV(vec3 uv)
+{
+    vec2 result = vec2(atan(uv.z, uv.x), asin(uv.y));
+    result *= vec2(0.1591f, 0.3183f);
+    result += 0.5f;
+    return result;
+}
+
+void main()
+{
+    f_Color = vec4(texture(u_CubeTexture, SphericalToEquirectUV(normalize(v_UV))).rgb, 1.0f);
+})";
 
     static const char* LINE_VERTEX_SOURCE = R"(
 #version 330 core

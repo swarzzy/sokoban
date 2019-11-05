@@ -45,7 +45,7 @@ namespace AB
         //AB_CORE_ASSERT(aligment, "Aligment is zero.");
         // TODO: IMPORTANT: FIXME: Fix the padding it is not correct.
 #if 1
-        u64 padding = (aligment - offset % aligment) % aligment;
+        uptr padding = (aligment - offset % aligment) % aligment;
         return padding;
 #else
         uptr mul = (offset / aligment) + 1;

@@ -13,6 +13,10 @@ namespace soko
         se->mesh = e->mesh;
         se->material = e->material;
         se->movementSpeed = e->movementSpeed;
+
+        se->materialRoughness = e->materialRoughness;
+        se->materialMetallic = e->materialMetallic;
+        se->materialAO = e->materialAO;
     }
 
     inline void
@@ -28,12 +32,16 @@ namespace soko
         e->mesh = (EntityMesh)se->mesh;
         e->material = (EntityMaterial)se->material;
         e->movementSpeed = se->movementSpeed;
+
+        e->materialRoughness = se->materialRoughness;
+        e->materialMetallic = se->materialMetallic;
+        e->materialAO = se->materialAO;
     }
 
     inline uptr
     CalcSerializedEntitiesSize(const Level* level)
     {
-        u64 result = level->entityCount * sizeof(SerializedEntity);
+        uptr result = level->entityCount * sizeof(SerializedEntity);
         return result;
     }
 

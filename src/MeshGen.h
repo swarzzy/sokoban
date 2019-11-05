@@ -29,8 +29,8 @@ namespace soko
 
     struct ChunkMesh
     {
-        u64 vertexCount;
-        u64 quadCount;
+        u32 vertexCount;
+        u32 quadCount;
         u32 blockCount;
         ChunkMeshVertexBlock* head;
         ChunkMeshVertexBlock* tail;
