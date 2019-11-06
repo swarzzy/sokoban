@@ -72,6 +72,7 @@ namespace soko
         Mesh meshes[TypeTraits(EntityMesh)::MemberCount];
         CubeTexture skybox;
         CubeTexture irradanceMap;
+        CubeTexture enviromentMap;
         CubeTexture hdrMap;
         u32 overlayCorner;
         ImFont* notoMonoFont10px;

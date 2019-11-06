@@ -1335,9 +1335,10 @@ namespace AB
 
             app->state.input.textBufferCount = 0;
 
+            // TODO: This is complete mess. Need better timestep code
             i64 currentTime = GetTimeStamp();
             // TODO: Is that accurate enough
-            app->state.absDeltaTime = (f32)(currentTime - app->runningTime) / (f32)app->performanceFrequency.QuadPart;
+            app->state.absDeltaTime = (f32)(currentTime - app->runningTime) / 1000000.0f;
             app->runningTime = currentTime;
             tickTimer -= app->state.absDeltaTime;
             app->state.fps = (i32)(1.0f / app->state.absDeltaTime);

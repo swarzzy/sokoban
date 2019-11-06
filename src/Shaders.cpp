@@ -1,16 +1,83 @@
 namespace soko
 {
-    static const char* IRRADANCE_CONVOLUTION_VERTEX_SOURCE = R"(
+    static const char* ENV_MAP_PREFILTER_FRAG_SOURCE = R"(
 #version 330 core
-layout (location = 0) in vec3 aPos;
-out vec3 vFragPos;
 
-uniform mat4 uViewProjection;
+in vec3 v_UV;
+out vec4 resultColor;
+
+uniform samplerCube uSourceCubemap;
+uniform float uRoughness;
+
+const float PI_32 = 3.14159265358979323846f;
+
+// NOTE: http://holger.dammertz.org/stuff/notes_HammersleyOnHemisphere.html
+float RadicalInverse_VdC(uint bits)
+{
+    bits = (bits << 16u) | (bits >> 16u);
+    bits = ((bits & 0x55555555u) << 1u) | ((bits & 0xAAAAAAAAu) >> 1u);
+    bits = ((bits & 0x33333333u) << 2u) | ((bits & 0xCCCCCCCCu) >> 2u);
+    bits = ((bits & 0x0F0F0F0Fu) << 4u) | ((bits & 0xF0F0F0F0u) >> 4u);
+    bits = ((bits & 0x00FF00FFu) << 8u) | ((bits & 0xFF00FF00u) >> 8u);
+    return float(bits) * 2.3283064365386963e-10;
+}
+
+vec2 Hammersley(uint i, uint n)
+{
+    return vec2(float(i) / float(n), RadicalInverse_VdC(i));
+}
+
+vec3 ImportanceSampleGGX(vec2 p, vec3 N, float a)
+{
+    // NOTE: Epic Games GGX
+    float aSq = a * a;
+    float phi = 2.0f * PI_32 * p.x;
+    float cosTheta = sqrt((1.0f - p.y) / (1.0f + (aSq * aSq - 1.0f) * p.y));
+    float sinTheta = sqrt(1.0f - cosTheta * cosTheta);
+
+    // NOTE: To cartesian
+    vec3 d;
+    d.x = cos(phi) * sinTheta;
+    d.y = sin(phi) * sinTheta;
+    d.z = cosTheta;
+
+    // NOTE: From tangent space to world
+    vec3 up = abs(N.z) < 0.999f ? vec3(0.0f, 0.0f, 1.0f) : vec3(1.0f, 0.0f, 0.0f); // ?????
+    vec3 right = normalize(cross(up, N));
+    up = cross(N, right);
+
+    vec3 sampleVec = right * d.x + up * d.y + N * d.z;
+    return normalize(sampleVec);
+}
+
+const uint SAMPLES = 2048u;
 
 void main()
 {
-    fragPos = aPos;
-    glPosition = uViewProjection * vec4(fragPos, 1.0f);
+    vec3 N = normalize(v_UV);
+    vec3 R = N;
+    vec3 V = R;
+
+    float totalWeight = 0.0f;
+    vec3 prefColor = vec3(0.0f);
+
+    for (uint i = 0u; i < SAMPLES; i++)
+    {
+        vec2 p = Hammersley(i, SAMPLES);
+        vec3 dir = ImportanceSampleGGX(p, N, uRoughness);
+        vec3 L = normalize(2.0f * dot(V, dir) * dir - V);
+
+        float NdotL = max(dot(N, L), 0.0f);
+        if (NdotL > 0.0f)
+        {
+            prefColor += texture(uSourceCubemap, L).rgb * NdotL;
+            totalWeight += NdotL;
+        }
+    }
+
+    prefColor = prefColor / totalWeight;
+
+    resultColor = vec4(prefColor, 1.0f);
 })";
 
     static const char* IRRADANCE_CONVOLUTION_FRAG_SOURCE = R"(
@@ -417,11 +484,12 @@ void main()
 in vec3 v_UV;
 
 out vec4 f_Color;
+uniform float uLod = 1.0f;
 
 uniform samplerCube u_CubeTexture;
 void main()
 {
-    f_Color = texture(u_CubeTexture, v_UV);
+    f_Color = textureLod(u_CubeTexture, v_UV, uLod);
 }
 )";
 

@@ -2,7 +2,7 @@
 set ExecArg=exec
 if "%1" == "%ExecArg%" (
 pushd build
-start "Sokoban" Soko.exe
+Soko.exe
 popd
 goto end
 )

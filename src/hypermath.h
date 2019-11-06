@@ -74,7 +74,10 @@ namespace hpm
         return v;
     }
 
-
+    inline f32 Pow(f32 base, f32 exp)
+    {
+        return powf(base, exp);
+    }
 
     template<typename T> constexpr T Min(T a, T b)
     {

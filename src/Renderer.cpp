@@ -4,6 +4,17 @@
 
 namespace soko
 {
+    struct EnvMapPrefilterProgram
+    {
+        GLint handle;
+        GLint projLoc;
+        GLint viewLoc;
+        GLint roughnessLoc;
+        GLint sourceCubemapLoc;
+        u32 sourceCubemapSampler;
+        GLenum sourceCubemapSlot;
+    };
+
     struct IrradanceConvolutionProgram
     {
         GLint handle;
@@ -69,6 +80,7 @@ namespace soko
         GLint viewMatrixLoc;
         GLint projMatrixLoc;
         GLint cubeTextureLoc;
+        GLint lodLoc;
         u32 cubeTextureSampler;
         GLenum cubeTextureSlot;
     };
@@ -140,6 +152,7 @@ namespace soko
         FxaaProgram fxaaProgram;
         PBRMeshProgram pbrMeshProgram;
         IrradanceConvolutionProgram irradanceConvProgram;
+        EnvMapPrefilterProgram envMapPrefilterProgram;
 
         GLuint tileTexArrayHandle;
 
@@ -263,6 +276,31 @@ namespace soko
             result.handle = handle;
             result.viewProjLocation = glGetUniformLocation(handle, "u_ViewProjMatrix");
             result.colorLocation = glGetUniformLocation(handle, "u_Color");
+        }
+        return result;
+    }
+
+    internal EnvMapPrefilterProgram
+    CreateEnvMapPrefilterProgram()
+    {
+        EnvMapPrefilterProgram result = {};
+        auto handle = CreateProgram(SKYBOX_VERTEX_SOURCE, ENV_MAP_PREFILTER_FRAG_SOURCE);
+        if (handle)
+        {
+            result.handle = handle;
+            result.viewLoc = glGetUniformLocation(handle, "u_ViewMatrix");
+            result.projLoc = glGetUniformLocation(handle, "u_ProjMatrix");
+            result.sourceCubemapLoc = glGetUniformLocation(handle, "uSourceCubemap");
+            result.roughnessLoc = glGetUniformLocation(handle, "uRoughness");
+
+            result.sourceCubemapSampler = 0;
+            result.sourceCubemapSlot = GL_TEXTURE0;
+
+            glUseProgram(handle);
+
+            glUniform1i(result.sourceCubemapLoc, result.sourceCubemapSampler);
+
+            glUseProgram(0);
         }
         return result;
     }
@@ -414,6 +452,7 @@ namespace soko
             result.viewMatrixLoc = glGetUniformLocation(handle, "u_ViewMatrix");
             result.projMatrixLoc = glGetUniformLocation(handle, "u_ProjMatrix");
             result.cubeTextureLoc = glGetUniformLocation(handle, "u_CubeTexture");
+            result.lodLoc = glGetUniformLocation(handle, "uLod");
 
             result.cubeTextureSampler = 0;
             result.cubeTextureSlot = GL_TEXTURE0;
@@ -518,6 +557,9 @@ namespace soko
 
         renderer->irradanceConvProgram = CreateIrradanceConvolutionProgram();
         SOKO_ASSERT(renderer->irradanceConvProgram.handle);
+
+        renderer->envMapPrefilterProgram = CreateEnvMapPrefilterProgram();
+        SOKO_ASSERT(renderer->envMapPrefilterProgram.handle);
 
         GLuint lineBufferHandle;
         glGenBuffers(1, &lineBufferHandle);
@@ -865,8 +907,19 @@ namespace soko
                 glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
                 glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
 
-                glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-                glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+                auto minFilter = GL_NEAREST;
+                auto magFilter = GL_NEAREST;
+
+                switch (texture->filter)
+                {
+                case TextureFilter_None: {} break;
+                case TextureFilter_Bilinear: { minFilter = GL_LINEAR; magFilter = GL_LINEAR; } break;
+                case TextureFilter_Trilinear: { if (texture->useMips) minFilter = GL_LINEAR_MIPMAP_LINEAR; else minFilter = GL_LINEAR; magFilter = GL_LINEAR; } break;
+                INVALID_DEFAULT_CASE;
+                }
+
+                glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MAG_FILTER, magFilter);
+                glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MIN_FILTER, minFilter);
 
                 for (u32 i = 0; i < 6; i++)
                 {
@@ -889,6 +942,11 @@ namespace soko
                     glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, 0,
                                  internalFormat, width, height, 0,
                                  format, type, data);
+                }
+
+                if (texture->useMips)
+                {
+                    glGenerateMipmap(GL_TEXTURE_CUBE_MAP);
                 }
 
                 glBindTexture(GL_TEXTURE_CUBE_MAP, 0);
@@ -1022,6 +1080,59 @@ namespace soko
     }
 
     internal void
+    GenEnvPrefiliteredMap(const Renderer* renderer, CubeTexture* t, GLuint sourceHandle, u32 mipLevels)
+    {
+        SOKO_ASSERT(t->gpuHandle);
+        SOKO_ASSERT(t->useMips);
+        SOKO_ASSERT(t->filter == TextureFilter_Trilinear);
+
+        const m4x4 capProj = PerspectiveOpenGLRH(90.0f, 1.0f, 0.1, 10.0f);
+        const m4x4 capViews[] =
+            {
+                LookAtRH(V3(0.0f), V3(1.0f, 0.0f, 0.0f), V3(0.0f, -1.0f, 0.0f)),
+                LookAtRH(V3(0.0f), V3(-1.0f, 0.0f, 0.0f), V3(0.0f, -1.0f, 0.0f)),
+                LookAtRH(V3(0.0f), V3(0.0f, 1.0f, 0.0f), V3(0.0f, 0.0f, 1.0f)),
+                LookAtRH(V3(0.0f), V3(0.0f, -1.0f, 0.0f), V3(0.0f, 0.0f, -1.0f)),
+                LookAtRH(V3(0.0f), V3(0.0f, 0.0f, 1.0f), V3(0.0f, -1.0f, 0.0f)),
+                LookAtRH(V3(0.0f), V3(0.0f, 0.0f, -1.0f), V3(0.0f, -1.0f, 0.0f)),
+            };
+
+        auto prog = &renderer->envMapPrefilterProgram;
+        glUseProgram(prog->handle);
+        glUniformMatrix4fv(prog->projLoc, 1, GL_FALSE, capProj.data);
+        glDisable(GL_DEPTH_TEST);
+        glBindFramebuffer(GL_DRAW_FRAMEBUFFER, renderer->captureFramebuffer);
+
+        glActiveTexture(prog->sourceCubemapSlot);
+        glBindTexture(GL_TEXTURE_CUBE_MAP, sourceHandle);
+
+        // TODO: There are still visible seams on low mip levels
+
+        for (u32 mipLevel = 0; mipLevel < mipLevels; mipLevel++)
+        {
+            // TODO: Pull texture size out of imges and put to a cubemap itself
+            // all sides should havethe same size
+            u32 w = (u32)(t->images[0].width * Pow(0.5f, (f32)mipLevel));
+            u32 h = (u32)(t->images[0].height * Pow(0.5f, (f32)mipLevel));
+
+            glViewport(0, 0, w, h);
+            f32 roughness = (f32)mipLevel / (f32)(mipLevels - 1);
+            glUniform1f(prog->roughnessLoc, roughness);
+
+            for (u32 i = 0; i < 6; i++)
+            {
+                glUniformMatrix4fv(prog->viewLoc, 1, GL_FALSE, capViews[i].data);
+                glFramebufferTexture2D(GL_DRAW_FRAMEBUFFER, GL_COLOR_ATTACHMENT0,
+                                       GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, t->gpuHandle, mipLevel);
+                glClear(GL_COLOR_BUFFER_BIT);
+                glDrawArrays(GL_TRIANGLES, 0, 6);
+            }
+
+        }
+        glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
+    }
+
+    internal void
     DrawSkybox(Renderer* renderer, RenderGroup* group,
                const m4x4* view, const m4x4* proj)
     {
@@ -1036,7 +1147,10 @@ namespace soko
                            1, GL_FALSE, view->data);
         glUniformMatrix4fv(prog->projMatrixLoc,
                            1, GL_FALSE, proj->data);
+        local_persist f32 lod = 1.0f;
+        DEBUG_OVERLAY_SLIDER(lod, 0.0f, 5.0f);
 
+        glUniform1f(prog->lodLoc, lod);
         glActiveTexture(prog->cubeTextureSlot);
         glBindTexture(GL_TEXTURE_CUBE_MAP, group->skyboxHandle);
 

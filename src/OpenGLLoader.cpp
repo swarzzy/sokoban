@@ -512,5 +512,6 @@ namespace AB
         funcTable->_glEnable(GL_CULL_FACE);
         funcTable->_glCullFace(GL_BACK);
         funcTable->_glFrontFace(GL_CCW);
+        funcTable->_glEnable(GL_TEXTURE_CUBE_MAP_SEAMLESS);
     }
 }

@@ -9,6 +9,13 @@ namespace soko
         u64 quadCount;
     };
 
+    enum TextureFilter
+    {
+        TextureFilter_None,
+        TextureFilter_Bilinear,
+        TextureFilter_Trilinear
+    };
+
     struct Texture
     {
         GLuint gpuHandle;
@@ -29,6 +36,9 @@ namespace soko
         };
 
         GLuint gpuHandle;
+        b32 useMips;
+        TextureFilter filter;
+
         union
         {
             struct

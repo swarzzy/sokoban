@@ -396,9 +396,11 @@ namespace soko
     }
 
     internal CubeTexture
-    MakeEmptyCubemap(int w, int h, GLenum format)
+    MakeEmptyCubemap(int w, int h, GLenum format, TextureFilter filter = TextureFilter_Bilinear, bool useMips = false)
     {
         CubeTexture texture = {};
+        texture.useMips = useMips;
+        texture.filter = filter;
         for (u32 i = 0; i < 6; i++)
         {
             texture.images[i].format = format;
@@ -862,11 +864,14 @@ namespace soko
 
 
         gameState->irradanceMap = MakeEmptyCubemap(64, 64, GL_RGB16F);
+        gameState->enviromentMap = MakeEmptyCubemap(256, 256, GL_RGB16F, TextureFilter_Trilinear, true);
+
         gameState->renderGroup->drawSkybox = true;
-        gameState->renderGroup->skyboxHandle = gameState->irradanceMap.gpuHandle;
+        gameState->renderGroup->skyboxHandle = gameState->enviromentMap.gpuHandle;
         gameState->renderGroup->irradanceMapHandle = gameState->irradanceMap.gpuHandle;
 
         GenIrradanceMap(gameState->renderer, &gameState->irradanceMap, gameState->hdrMap.gpuHandle);
+        GenEnvPrefiliteredMap(gameState->renderer, &gameState->enviromentMap, gameState->hdrMap.gpuHandle, 6);
 
         //auto* level = gameState->level;
         //gameState->port = 9999;
