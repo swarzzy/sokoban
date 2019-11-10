@@ -478,6 +478,107 @@ namespace soko
         return texture;
     }
 
+    internal Texture
+    LoadTexture(AB::MemoryArena* tempArena, const char* filename,
+                GLenum format = GL_SRGB8,
+                GLenum wrapMode = GL_REPEAT,
+                TextureFilter filter = TextureFilter_Bilinear)
+    {
+        Texture t = {};
+        BeginTemporaryMemory(tempArena);
+        i32 width;
+        i32 height;
+        i32 bpp;
+        unsigned char* diffBitmap = stbi_load(filename, &width, &height, &bpp, 0);
+
+        t.format = format;
+        t.width = width;
+        t.height = height;
+        t.wrapMode = wrapMode;
+        t.filter = filter;
+
+        t.data = diffBitmap;
+        RendererLoadTexture(&t);
+        SOKO_ASSERT(t.gpuHandle);
+
+        EndTemporaryMemory(tempArena);
+
+        return t;
+    }
+
+    internal Material
+    LoadMaterialLegacy(AB::MemoryArena* tempArena,
+                             const char* diffusePath,
+                             const char* specularPath = 0)
+    {
+        Texture diffMap = LoadTexture(tempArena, diffusePath, GL_SRGB8, GL_REPEAT, TextureFilter_Anisotropic);
+        Texture specMap = {};
+        if (specularPath)
+        {
+            Texture specMap = LoadTexture(tempArena, specularPath, GL_SRGB8, GL_REPEAT, TextureFilter_Anisotropic);
+        }
+
+        Material material = {};
+        material.type = Material::Legacy;
+        material.legacy.diffMap = diffMap;
+        material.legacy.specMap = specMap;
+
+        return material;
+    }
+
+    internal Material
+    LoadMaterialPBR(AB::MemoryArena* tempArena,
+                    const char* albedoPath,
+                    const char* roughnessPath,
+                    const char* metalnessPath)
+    {
+        Texture albedo = LoadTexture(tempArena, albedoPath, GL_SRGB8, GL_REPEAT, TextureFilter_Anisotropic);
+        Texture roughness = LoadTexture(tempArena, roughnessPath, GL_RGB8, GL_REPEAT, TextureFilter_Anisotropic);
+        Texture metalness = LoadTexture(tempArena, metalnessPath, GL_RGB8, GL_REPEAT, TextureFilter_Anisotropic);
+
+        Material material = {};
+        material.type = Material::PBR;
+        material.pbr.albedo = albedo;
+        material.pbr.roughness = roughness;
+        material.pbr.metalness = metalness;
+
+
+        return material;
+    }
+
+    internal Texture
+    LoadTexture(i32 width, i32 height, void* data = 0,
+                GLenum format = GL_SRGB8,
+                GLenum wrapMode = GL_REPEAT,
+                TextureFilter filter = TextureFilter_Bilinear)
+    {
+        Texture t = {};
+
+        t.format = format;
+        t.width = width;
+        t.height = height;
+        t.filter = filter;
+        t.wrapMode = wrapMode;
+        t.data = data;
+
+        RendererLoadTexture(&t);
+        SOKO_ASSERT(t.gpuHandle);
+
+        return t;
+    }
+
+    // NOTE: Diffise only
+    internal Material
+    LoadMaterialLegacy(i32 width, i32 height, void* bitmap)
+    {
+        Texture diffMap = LoadTexture(width, height, bitmap, GL_SRGB8, GL_REPEAT, TextureFilter_Anisotropic);
+
+        Material material = {};
+        material.type = Material::Legacy;
+        material.legacy.diffMap = diffMap;
+
+        return material;
+    }
 
     internal void
     GameInit(AB::MemoryArena* arena, AB::PlatformState* platform)
@@ -673,167 +774,26 @@ namespace soko
 
         stbi_set_flip_vertically_on_load(1);
 
-        {
-            i32 width;
-            i32 height;
-            i32 bpp;
-            BeginTemporaryMemory(gameState->tempArena);
-            unsigned char* diffBitmap = stbi_load("../res/rust_metal/grimy-metal-albedo.png", &width, &height, &bpp, 3);
-
-            Material material = {};
-            material.type = Material::PBR;
-            material.pbr.albedoMap.format = GL_SRGB8;
-            material.pbr.albedoMap.width = width;
-            material.pbr.albedoMap.height = height;
-            material.pbr.albedoMap.data = diffBitmap;
-            RendererLoadTexture(&material.pbr.albedoMap);
-            SOKO_ASSERT(material.pbr.albedoMap.gpuHandle, "");
-
-            EndTemporaryMemory(gameState->tempArena);
-            gameState->materials[EntityMaterial_PbrMetal] = material;
-        }
-
-        {
-            i32 width;
-            i32 height;
-            i32 bpp;
-            BeginTemporaryMemory(gameState->tempArena);
-            unsigned char* diffBitmap = stbi_load("../res/tile.png", &width, &height, &bpp, 3);
-
-            Material material = {};
-            material.legacy.diffMap.format = GL_SRGB8;
-            material.legacy.diffMap.width = width;
-            material.legacy.diffMap.height = height;
-            material.legacy.diffMap.data = diffBitmap;
-            RendererLoadTexture(&material.legacy.diffMap);
-            SOKO_ASSERT(material.legacy.diffMap.gpuHandle, "");
-
-            EndTemporaryMemory(gameState->tempArena);
-            gameState->materials[EntityMaterial_Tile] = material;
-        }
-        {
-            i32 width;
-            i32 height;
-            i32 bpp;
-            BeginTemporaryMemory(gameState->tempArena);
-            unsigned char* diffBitmap = stbi_load("../res/tile_player.png", &width, &height, &bpp, 3);
-
-            Material material = {};
-            material.legacy.diffMap.format = GL_SRGB8;
-            material.legacy.diffMap.width = width;
-            material.legacy.diffMap.height = height;
-            material.legacy.diffMap.data = diffBitmap;
-            RendererLoadTexture(&material.legacy.diffMap);
-            SOKO_ASSERT(material.legacy.diffMap.gpuHandle, "");
-
-            EndTemporaryMemory(gameState->tempArena);
-            gameState->materials[EntityMaterial_Player] = material;
-        }
-        {
-            i32 width;
-            i32 height;
-            i32 bpp;
-            BeginTemporaryMemory(gameState->tempArena);
-            unsigned char* diffBitmap = stbi_load("../res/tile_block.png", &width, &height, &bpp, 3);
-
-            Material material = {};
-            material.legacy.diffMap.format = GL_SRGB8;
-            material.legacy.diffMap.width = width;
-            material.legacy.diffMap.height = height;
-            material.legacy.diffMap.data = diffBitmap;
-            RendererLoadTexture(&material.legacy.diffMap);
-            SOKO_ASSERT(material.legacy.diffMap.gpuHandle, "");
-
-            EndTemporaryMemory(gameState->tempArena);
-            gameState->materials[EntityMaterial_Block] = material;
-        }
-        {
-            i32 width;
-            i32 height;
-            i32 bpp;
-            BeginTemporaryMemory(gameState->tempArena);
-            unsigned char* diffBitmap = stbi_load("../res/plate_palette.png", &width, &height, &bpp, 3);
-
-            Material material = {};
-            material.legacy.diffMap.format = GL_SRGB8;
-            material.legacy.diffMap.width = width;
-            material.legacy.diffMap.height = height;
-            material.legacy.diffMap.data = diffBitmap;
-            RendererLoadTexture(&material.legacy.diffMap);
-            SOKO_ASSERT(material.legacy.diffMap.gpuHandle, "");
-
-            EndTemporaryMemory(gameState->tempArena);
-            gameState->materials[EntityMaterial_RedPlate] = material;
-        }
-        {
-            i32 widthDiff;
-            i32 heightDiff;
-            i32 bppDiff;
-            BeginTemporaryMemory(gameState->tempArena);
-            unsigned char* diffBitmap = stbi_load("../res/portal_diff.png", &widthDiff, &heightDiff, &bppDiff, 3);
-            i32 widthSpec;
-            i32 heightSpec;
-            i32 bppSpec;
-            unsigned char* specBitmap = stbi_load("../res/portal_spec.png", &widthSpec, &heightSpec, &bppSpec, 3);
+        gameState->materials[EntityMaterial_PbrMetal] = LoadMaterialPBR(gameState->tempArena, "../res/rust_metal/grimy-metal-albedo.png", "../res/rust_metal/grimy-metal-roughness.png", "../res/rust_metal/grimy-metal-metalness.png");
+        gameState->materials[EntityMaterial_Rock] = LoadMaterialPBR(gameState->tempArena, "../res/rock/layered-rock1-albedo.png", "../res/rock/layered-rock1-rough.png", "../res/rock/layered-rock1-Metalness.png");
+        gameState->materials[EntityMaterial_Metal] = LoadMaterialPBR(gameState->tempArena, "../res/rustediron/rustediron-streaks_basecolor.png", "../res/rustediron/rustediron-streaks_roughness.png", "../res/rustediron/rustediron-streaks_metallic.png");
+        gameState->materials[EntityMaterial_OldMetal] = LoadMaterialPBR(gameState->tempArena, "../res/oldmetal/greasy-metal-pan1-albedo.png", "../res/oldmetal/greasy-metal-pan1-roughness.png", "../res/oldmetal/greasy-metal-pan1-metal.png");
+        gameState->materials[EntityMaterial_Burlap] = LoadMaterialPBR(gameState->tempArena, "../res/burlap/worn-blue-burlap-albedo.png", "../res/burlap/worn-blue-burlap-Roughness.png", "../res/burlap/worn-blue-burlap-Metallic.png");
 
 
-            Material material = {};
-            material.legacy.diffMap.format = GL_SRGB8;
-            material.legacy.diffMap.width = widthDiff;
-            material.legacy.diffMap.height = heightDiff;
-            material.legacy.diffMap.data = diffBitmap;
-            material.legacy.specMap.format = GL_SRGB8;
-            material.legacy.specMap.width = widthSpec;
-            material.legacy.specMap.height = heightSpec;
-            material.legacy.specMap.data = specBitmap;
+        gameState->materials[EntityMaterial_Tile] = LoadMaterialLegacy(gameState->tempArena, "../res/tile.png");
+        gameState->materials[EntityMaterial_Player] = LoadMaterialLegacy(gameState->tempArena, "../res/tile_player.png");
+        gameState->materials[EntityMaterial_Block] = LoadMaterialLegacy(gameState->tempArena, "../res/tile_block.png");
+        gameState->materials[EntityMaterial_RedPlate] = LoadMaterialLegacy(gameState->tempArena, "../res/plate_palette.png");
+        gameState->materials[EntityMaterial_Portal] = LoadMaterialLegacy(gameState->tempArena, "../res/portal_diff.png", "../res/portal_spec.png");
+        gameState->materials[EntityMaterial_Button] = LoadMaterialLegacy(gameState->tempArena, "../res/button.png");
 
-            RendererLoadTexture(&material.legacy.diffMap);
-            RendererLoadTexture(&material.legacy.specMap);
-            SOKO_ASSERT(material.legacy.diffMap.gpuHandle, "");
-            SOKO_ASSERT(material.legacy.specMap.gpuHandle, "");
 
-            EndTemporaryMemory(gameState->tempArena);
-            gameState->materials[EntityMaterial_Portal] = material;
-        }
-
-        {
-            byte bitmap[3];
-            bitmap[0] = 128;
-            bitmap[0] = 128;
-            bitmap[0] = 128;
-
-            i32 width = 1;
-            i32 height = 1;
-            i32 bpp = 3;
-
-            Material material = {};
-            material.legacy.diffMap.format = GL_SRGB8;
-            material.legacy.diffMap.width = width;
-            material.legacy.diffMap.height = height;
-            material.legacy.diffMap.data = bitmap;
-            RendererLoadTexture(&material.legacy.diffMap);
-            SOKO_ASSERT(material.legacy.diffMap.gpuHandle, "");
-
-            gameState->materials[EntityMaterial_Spikes] = material;
-        }
-        {
-            i32 width;
-            i32 height;
-            i32 bpp;
-            BeginTemporaryMemory(gameState->tempArena);
-            unsigned char* diffBitmap = stbi_load("../res/button.png", &width, &height, &bpp, 3);
-
-            Material material = {};
-            material.legacy.diffMap.format = GL_SRGB8;
-            material.legacy.diffMap.width = width;
-            material.legacy.diffMap.height = height;
-            material.legacy.diffMap.data = diffBitmap;
-            RendererLoadTexture(&material.legacy.diffMap);
-            SOKO_ASSERT(material.legacy.diffMap.gpuHandle, "");
-
-            EndTemporaryMemory(gameState->tempArena);
-            gameState->materials[EntityMaterial_Button] = material;
-        }
+        byte bitmap[3];
+        bitmap[0] = 128;
+        bitmap[1] = 128;
+        bitmap[2] = 128;
+        gameState->materials[EntityMaterial_Spikes] = LoadMaterialLegacy(1, 1, bitmap);
 
         gameState->skybox = LoadCubemap(gameState->tempArena,
                                         "../res/skybox/sky_back.png",
@@ -865,13 +825,18 @@ namespace soko
 
         gameState->irradanceMap = MakeEmptyCubemap(64, 64, GL_RGB16F);
         gameState->enviromentMap = MakeEmptyCubemap(256, 256, GL_RGB16F, TextureFilter_Trilinear, true);
+        gameState->BRDFLut = LoadTexture(512, 512, 0, GL_RG16F, GL_CLAMP_TO_EDGE, TextureFilter_Bilinear);
 
         gameState->renderGroup->drawSkybox = true;
         gameState->renderGroup->skyboxHandle = gameState->enviromentMap.gpuHandle;
         gameState->renderGroup->irradanceMapHandle = gameState->irradanceMap.gpuHandle;
+        gameState->renderGroup->envMapHandle = gameState->enviromentMap.gpuHandle;
 
         GenIrradanceMap(gameState->renderer, &gameState->irradanceMap, gameState->hdrMap.gpuHandle);
         GenEnvPrefiliteredMap(gameState->renderer, &gameState->enviromentMap, gameState->hdrMap.gpuHandle, 6);
+        GenBRDFLut(gameState->renderer, &gameState->BRDFLut);
+
+        gameState->renderer->BRDFLutHandle = gameState->BRDFLut.gpuHandle;
 
         //auto* level = gameState->level;
         //gameState->port = 9999;

@@ -27,7 +27,11 @@ namespace soko
         EntityMaterial_Portal,
         EntityMaterial_Spikes,
         EntityMaterial_Button,
-        EntityMaterial_PbrMetal
+        EntityMaterial_PbrMetal,
+        EntityMaterial_Rock,
+        EntityMaterial_Metal,
+        EntityMaterial_OldMetal,
+        EntityMaterial_Burlap
     };
 
     // NOTE: Should fit in one byte

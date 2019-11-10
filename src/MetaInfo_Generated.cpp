@@ -32,6 +32,10 @@ InitMetaInfo(AB::MemoryArena* arena)
     AddEntry_EntityMaterial(&info->EntityMaterial, 5, EntityMaterial_Spikes, "EntityMaterial_Spikes");
     AddEntry_EntityMaterial(&info->EntityMaterial, 6, EntityMaterial_Button, "EntityMaterial_Button");
     AddEntry_EntityMaterial(&info->EntityMaterial, 7, EntityMaterial_PbrMetal, "EntityMaterial_PbrMetal");
+    AddEntry_EntityMaterial(&info->EntityMaterial, 8, EntityMaterial_Rock, "EntityMaterial_Rock");
+    AddEntry_EntityMaterial(&info->EntityMaterial, 9, EntityMaterial_Metal, "EntityMaterial_Metal");
+    AddEntry_EntityMaterial(&info->EntityMaterial, 10, EntityMaterial_OldMetal, "EntityMaterial_OldMetal");
+    AddEntry_EntityMaterial(&info->EntityMaterial, 11, EntityMaterial_Burlap, "EntityMaterial_Burlap");
     AddEntry_Direction(&info->Direction, 0, Direction_Invalid, "Direction_Invalid");
     AddEntry_Direction(&info->Direction, 1, Direction_North, "Direction_North");
     AddEntry_Direction(&info->Direction, 2, Direction_South, "Direction_South");

@@ -139,6 +139,43 @@ namespace AB
 {
     const i32 RAW_TIME_SECOND = 1000000;
 
+    constexpr u32 StrLength(const char* string)
+    {
+        u32 result = 0;
+        while (*string)
+        {
+            result++;
+            string++;
+        }
+        return result;
+    }
+
+    constexpr u32 StrSize(const char* string)
+    {
+        u32 result = 0;
+        while (*string)
+        {
+            result++;
+            string++;
+        }
+        result++;
+        result *= sizeof(char);
+        return result;
+    }
+
+    constexpr u32 StrSize(const wchar_t* string)
+    {
+        u32 result = 0;
+        while (*string)
+        {
+            result++;
+            string++;
+        }
+        result++;
+        result *= sizeof(wchar_t);
+        return result;
+    }
+
     inline u32 SafeCastU64U32(u64 val)
     {
         if (val > 0xffffffff)

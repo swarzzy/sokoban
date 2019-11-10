@@ -53,6 +53,9 @@ namespace soko
         if (flags & MenuCleanup_Common)
         {
             ZERO_FROM_MEMBER(GameMenu, levelPathBuffer, menu);
+            COPY_BYTES(StrSize(DEFAULT_LEVEL_NAME), menu->levelPathBuffer, DEFAULT_LEVEL_NAME);
+            COPY_BYTES(StrSize(DEFAULT_LEVEL_NAME_W), menu->wLevelPathBuffer, DEFAULT_LEVEL_NAME_W);
+
         }
 
         menu->state = nextState;

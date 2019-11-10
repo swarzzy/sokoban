@@ -13,16 +13,38 @@ namespace soko
     {
         TextureFilter_None,
         TextureFilter_Bilinear,
-        TextureFilter_Trilinear
+        TextureFilter_Trilinear,
+        TextureFilter_Anisotropic
     };
 
     struct Texture
     {
         GLuint gpuHandle;
+        TextureFilter filter;
         GLenum format;
+        GLenum wrapMode;
         u32 width;
         u32 height;
         void* data;
+    };
+
+    struct Material
+    {
+        enum { Legacy = 0, PBR } type;
+        union
+        {
+            struct
+            {
+                Texture diffMap;
+                Texture specMap;
+            } legacy;
+            struct
+            {
+                Texture albedo;
+                Texture roughness;
+                Texture metalness;
+            } pbr;
+        };
     };
 
     struct CubeTexture

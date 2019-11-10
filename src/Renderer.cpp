@@ -4,6 +4,11 @@
 
 namespace soko
 {
+    struct BRDFIntegrationProgram
+    {
+        GLint handle;
+    };
+
     struct EnvMapPrefilterProgram
     {
         GLint handle;
@@ -33,9 +38,25 @@ namespace soko
         GLenum albedoSlot;
         GLint albedoLoc;
 
+        u32 roughnessSampler;
+        GLenum roughnessSlot;
+        GLint roughnessLoc;
+
+        u32 metalnessSampler;
+        GLenum metalnessSlot;
+        GLint metalnessLoc;
+
         u32 irradanceMapSampler;
         GLenum irradanceMapSlot;
         GLint irradanceMapLoc;
+
+        u32 envMapSampler;
+        GLenum envMapSlot;
+        GLint envMapLoc;
+
+        u32 BRDFLutSampler;
+        GLenum BRDFLutSlot;
+        GLint BRDFLutLoc;
 
         GLint viewPosLoc;
         GLint viewProjLoc;
@@ -43,8 +64,6 @@ namespace soko
         GLint normalMtxLoc;
         GLint dirLightDirLoc;
         GLint dirLightColorLoc;
-        GLint metallicLoc;
-        GLint roughnessLoc;
         GLint aoLoc;
     };
 
@@ -153,6 +172,7 @@ namespace soko
         PBRMeshProgram pbrMeshProgram;
         IrradanceConvolutionProgram irradanceConvProgram;
         EnvMapPrefilterProgram envMapPrefilterProgram;
+        BRDFIntegrationProgram brdfIntegrationProgram;
 
         GLuint tileTexArrayHandle;
 
@@ -174,6 +194,8 @@ namespace soko
         GLfloat maxAnisotropy;
 
         GLuint captureFramebuffer;
+
+        GLuint BRDFLutHandle;
     };
 
     internal GLuint
@@ -280,6 +302,18 @@ namespace soko
         return result;
     }
 
+    internal BRDFIntegrationProgram
+    CreateBRDFIntegrationProgram()
+    {
+        BRDFIntegrationProgram result = {};
+        auto handle = CreateProgram(SS_VERTEX_SOURCE, BRDF_INTERGATION_SHADER);
+        if (handle)
+        {
+            result.handle = handle;
+        }
+        return result;
+    }
+
     internal EnvMapPrefilterProgram
     CreateEnvMapPrefilterProgram()
     {
@@ -344,23 +378,43 @@ namespace soko
             result.normalMtxLoc = glGetUniformLocation(handle, "uNormalMatrix");
             result.dirLightDirLoc = glGetUniformLocation(handle, "uDirLight.dir");
             result.dirLightColorLoc = glGetUniformLocation(handle, "uDirLight.color");
-            result.albedoLoc = glGetUniformLocation(handle, "uAlbedoMap");
-            result.metallicLoc = glGetUniformLocation(handle, "uMetallic");
-            result.roughnessLoc = glGetUniformLocation(handle, "uRoughness");
             result.aoLoc = glGetUniformLocation(handle, "uAO");
             result.irradanceMapLoc = glGetUniformLocation(handle, "uIrradanceMap");
+            result.envMapLoc = glGetUniformLocation(handle, "uEnviromentMap");
+            result.BRDFLutLoc = glGetUniformLocation(handle, "uBRDFLut");
+
+            result.albedoLoc = glGetUniformLocation(handle, "uAlbedoMap");
+            result.roughnessLoc = glGetUniformLocation(handle, "uRoughnessMap");
+            result.metalnessLoc = glGetUniformLocation(handle, "uMetalnessMap");
 
 
             result.albedoSampler = 0;
             result.albedoSlot = GL_TEXTURE0;
+
             result.irradanceMapSampler = 1;
             result.irradanceMapSlot = GL_TEXTURE1;
 
+            result.envMapSampler = 2;
+            result.envMapSlot = GL_TEXTURE2;
+
+            result.BRDFLutSampler = 3;
+            result.BRDFLutSlot = GL_TEXTURE3;
+
+            result.roughnessSampler = 4;
+            result.roughnessSlot = GL_TEXTURE4;
+
+            result.metalnessSampler = 5;
+            result.metalnessSlot = GL_TEXTURE5;
 
             glUseProgram(handle);
 
             glUniform1i(result.albedoLoc, result.albedoSampler);
+            glUniform1i(result.roughnessLoc, result.roughnessSampler);
+            glUniform1i(result.metalnessLoc, result.metalnessSampler);
+
             glUniform1i(result.irradanceMapLoc, result.irradanceMapSampler);
+            glUniform1i(result.envMapLoc, result.envMapSampler);
+            glUniform1i(result.BRDFLutLoc, result.BRDFLutSampler);
 
             glUseProgram(0);
         }
@@ -560,6 +614,9 @@ namespace soko
 
         renderer->envMapPrefilterProgram = CreateEnvMapPrefilterProgram();
         SOKO_ASSERT(renderer->envMapPrefilterProgram.handle);
+
+        renderer->brdfIntegrationProgram = CreateBRDFIntegrationProgram();
+        SOKO_ASSERT(renderer->brdfIntegrationProgram.handle);
 
         GLuint lineBufferHandle;
         glGenBuffers(1, &lineBufferHandle);
@@ -863,27 +920,44 @@ namespace soko
                 //glEnable(GL_TEXTURE_2D);
                 GLenum format;
                 GLenum type;
+                GLenum minFilter = GL_NEAREST;
+                GLenum magFilter = GL_NEAREST;
+                bool anisotropic = false;
+                GLenum wrapMode = texture->wrapMode;
 
                 switch (texture->format)
                 {
                 case GL_SRGB8_ALPHA8: { format = GL_RGBA; type = GL_UNSIGNED_BYTE; } break;
                 case GL_SRGB8: { format = GL_RGB; type = GL_UNSIGNED_BYTE; } break;
+                case GL_RGB8: { format = GL_RGB; type = GL_UNSIGNED_BYTE; } break;
                 case GL_RGB16F: { format = GL_RGB; type = GL_FLOAT; } break;
+                case GL_RG16F: { format = GL_RG, type = GL_FLOAT; } break;
+                case GL_R8: {format = GL_RED, type = GL_UNSIGNED_BYTE; } break;
                     INVALID_DEFAULT_CASE;
+                }
+
+                switch (texture->filter)
+                {
+                case TextureFilter_Bilinear: { minFilter = GL_LINEAR; magFilter = GL_LINEAR; } break;
+                case TextureFilter_Trilinear: { minFilter = GL_LINEAR_MIPMAP_LINEAR; magFilter = GL_LINEAR; } break;
+                case TextureFilter_Anisotropic: {minFilter = GL_LINEAR_MIPMAP_LINEAR; magFilter = GL_LINEAR; anisotropic = true; } break;
+                INVALID_DEFAULT_CASE;
                 }
 
                 glTexImage2D(GL_TEXTURE_2D, 0, texture->format, texture->width,
                              texture->height, 0, format, type, texture->data);
 
-                glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
-                glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
-                glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-                glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
-                // TODO: Anisotropy value
-                glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAX_ANISOTROPY_EXT, 8.0f);
+                glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, wrapMode);
+                glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, wrapMode);
+                glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, magFilter);
+                glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, minFilter);
+                if (anisotropic)
+                {
+                    // TODO: Anisotropy value
+                    glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAX_ANISOTROPY_EXT, 8.0f);
+                }
 
                 glGenerateMipmap(GL_TEXTURE_2D);
-
 
                 glBindTexture(GL_TEXTURE_2D, 0);
 
@@ -1133,6 +1207,30 @@ namespace soko
     }
 
     internal void
+    GenBRDFLut(const Renderer* renderer, Texture* t)
+    {
+        SOKO_ASSERT(t->gpuHandle);
+        SOKO_ASSERT(t->wrapMode == GL_CLAMP_TO_EDGE);
+        SOKO_ASSERT(t->filter == TextureFilter_Bilinear);
+        SOKO_ASSERT(t->format = GL_RGB16F);
+
+        auto prog = &renderer->brdfIntegrationProgram;
+        glUseProgram(prog->handle);
+
+        glViewport(0, 0, t->width, t->height);
+
+        glDisable(GL_DEPTH_TEST);
+        glBindFramebuffer(GL_DRAW_FRAMEBUFFER, renderer->captureFramebuffer);
+
+        glFramebufferTexture2D(GL_DRAW_FRAMEBUFFER, GL_COLOR_ATTACHMENT0,
+                               GL_TEXTURE_2D, t->gpuHandle, 0);
+        glClear(GL_COLOR_BUFFER_BIT);
+        glDrawArrays(GL_TRIANGLES, 0, 6);
+
+        glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
+    }
+
+    internal void
     DrawSkybox(Renderer* renderer, RenderGroup* group,
                const m4x4* view, const m4x4* proj)
     {
@@ -1221,7 +1319,7 @@ namespace soko
                 case RENDER_COMMAND_DRAW_MESH:
                 {
                     auto* data = (RenderCommandDrawMesh*)(group->renderBuffer + command->rbOffset);
-                    if (data->material.type == MeshMaterial::Legacy)
+                    if (data->material.type == Material::Legacy)
                     {
                         auto* meshProg = &renderer->meshProgram;
                         glUseProgram(meshProg->handle);
@@ -1253,10 +1351,10 @@ namespace soko
                         auto* mesh = data->mesh;
 
                         glActiveTexture(meshProg->diffMapSlot);
-                        glBindTexture(GL_TEXTURE_2D, data->material.legacy.diffMap->gpuHandle);
+                        glBindTexture(GL_TEXTURE_2D, data->material.legacy.diffMap.gpuHandle);
 
                         glActiveTexture(meshProg->specMapSlot);
-                        glBindTexture(GL_TEXTURE_2D, data->material.legacy.specMap->gpuHandle);
+                        glBindTexture(GL_TEXTURE_2D, data->material.legacy.specMap.gpuHandle);
 
 
                         glBindBuffer(GL_ARRAY_BUFFER, mesh->gpuVertexBufferHandle);
@@ -1276,7 +1374,7 @@ namespace soko
 
                         glDrawElements(GL_TRIANGLES, mesh->indexCount, GL_UNSIGNED_INT, 0);
                     }
-                    else if (data->material.type == MeshMaterial::PBR)
+                    else if (data->material.type == Material::PBR)
                     {
                         SOKO_ASSERT(group->irradanceMapHandle);
                         auto* meshProg = &renderer->pbrMeshProgram;
@@ -1292,9 +1390,7 @@ namespace soko
                             glUniform3fv(meshProg->viewPosLoc, 1, group->cameraConfig.position.data);
                         }
 
-                        glUniform1f(meshProg->metallicLoc, data->material.pbr.metallic);
-                        glUniform1f(meshProg->roughnessLoc, data->material.pbr.roughness);
-                        glUniform1f(meshProg->aoLoc, data->material.pbr.ao);
+                        //glUniform1f(meshProg->aoLoc, data->material.pbr.ao);
 
                         glUniformMatrix4fv(meshProg->modelMtxLoc,
                                            1, GL_FALSE, data->transform.data);
@@ -1311,10 +1407,22 @@ namespace soko
                         auto* mesh = data->mesh;
 
                         glActiveTexture(meshProg->albedoSlot);
-                        glBindTexture(GL_TEXTURE_2D, data->material.pbr.albedo->gpuHandle);
+                        glBindTexture(GL_TEXTURE_2D, data->material.pbr.albedo.gpuHandle);
+
+                        glActiveTexture(meshProg->roughnessSlot);
+                        glBindTexture(GL_TEXTURE_2D, data->material.pbr.roughness.gpuHandle);
+
+                        glActiveTexture(meshProg->metalnessSlot);
+                        glBindTexture(GL_TEXTURE_2D, data->material.pbr.metalness.gpuHandle);
 
                         glActiveTexture(meshProg->irradanceMapSlot);
                         glBindTexture(GL_TEXTURE_CUBE_MAP, group->irradanceMapHandle);
+
+                        glActiveTexture(meshProg->envMapSlot);
+                        glBindTexture(GL_TEXTURE_CUBE_MAP, group->envMapHandle);
+
+                        glActiveTexture(meshProg->BRDFLutSlot);
+                        glBindTexture(GL_TEXTURE_2D, renderer->BRDFLutHandle);
 
                         glBindBuffer(GL_ARRAY_BUFFER, mesh->gpuVertexBufferHandle);
 

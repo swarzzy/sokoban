@@ -39,23 +39,6 @@ namespace soko
         u32 gpuIndexBufferHandle;
     };
 
-    struct Material
-    {
-        enum { Legacy = 0, PBR } type;
-        union
-        {
-            struct
-            {
-                Texture diffMap;
-                Texture specMap;
-            } legacy;
-            struct
-            {
-                Texture albedoMap;
-            } pbr;
-        };
-    };
-
     struct Renderer;
     struct GameState
     {
@@ -74,8 +57,7 @@ namespace soko
         CubeTexture irradanceMap;
         CubeTexture enviromentMap;
         CubeTexture hdrMap;
+        Texture BRDFLut;
         u32 overlayCorner;
-        ImFont* notoMonoFont10px;
-        ImFont* notoMonoFont14px;
     };
 }

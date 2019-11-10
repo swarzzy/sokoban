@@ -5,6 +5,10 @@
 
 namespace soko
 {
+    constant char* DEFAULT_LEVEL_NAME = "pbrTest04.aab";
+    constant wchar_t* DEFAULT_LEVEL_NAME_W = L"pbrTest04.aab";
+
+
     constant i32 CHUNK_BIT_SHIFT = 5;
     constant i32 CHUNK_BIT_MASK = (1 << CHUNK_BIT_SHIFT) - 1;
     constant i32 CHUNK_DIM = 1 << CHUNK_BIT_SHIFT;
@@ -24,5 +28,4 @@ namespace soko
     constant u32 LEVEL_CHUNK_TABLE_SIZE = NextPowerOfTwo(LEVEL_FULL_DIM_CHUNKS * LEVEL_FULL_DIM_CHUNKS * LEVEL_FULL_DIM_CHUNKS);
 
     SOKO_STATIC_ASSERT(IsPowerOfTwo(LEVEL_CHUNK_TABLE_SIZE));
-
 }
