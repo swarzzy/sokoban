@@ -802,7 +802,7 @@ namespace soko
         {
             auto header = (AB::AABLevelHeader*)buffer;
             header->magicValue = AB::AAB_FILE_MAGIC_VALUE;
-            header->version = AB::AAB_FILE_VERSION;
+            header->version = AB::AAB_LEVEL_FILE_VERSION;
             // TODO: Is that should be size of data placed after header?
             header->assetSize = bufferSize - sizeof(AB::AABLevelHeader);
             header->assetType = AB::AAB_FILE_TYPE_LEVEL;
@@ -857,7 +857,7 @@ namespace soko
             u32 headerResult = DebugReadFile(&header, sizeof(AABLevelHeader), filename);
             if (headerResult == sizeof(AABLevelHeader) &&
                 header.magicValue == AAB_FILE_MAGIC_VALUE &&
-                header.version == AAB_FILE_VERSION &&
+                header.version == AAB_LEVEL_FILE_VERSION &&
                 header.assetType == AAB_FILE_TYPE_LEVEL &&
                 header.chunkCount &&
                 header.chunkMeshBlockCount)
@@ -962,7 +962,7 @@ namespace soko
             u32 headerResult = DebugReadFile(&header, sizeof(AB::AABLevelHeader), filename);
             if (headerResult == sizeof(AB::AABLevelHeader) &&
                 header.magicValue == AB::AAB_FILE_MAGIC_VALUE &&
-                header.version == AB::AAB_FILE_VERSION &&
+                header.version == AB::AAB_LEVEL_FILE_VERSION &&
                 header.assetType == AB::AAB_FILE_TYPE_LEVEL)
             {
                 void* fileBuffer = PUSH_SIZE(tempArena, fileSize);

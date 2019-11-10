@@ -8,6 +8,7 @@
 
 #define AB_PLATFORM_WINDOWS
 #include "Platform.h"
+#include "OfflineUtils.cpp"
 using namespace AB;
 #include <Windows.h>
 #include <stdlib.h>
@@ -39,42 +40,6 @@ struct EnumMetaInfo
     MetaEnumHint hint;
     std::vector<EnumMember> members;
 };
-
-internal char*
-ReadEntireFileAsText(const char* filename, u32* bytesRead)
-{
-    char* result = 0;
-    *bytesRead = 0;
-    LARGE_INTEGER fileSize = {};
-    HANDLE fileHandle = CreateFile(filename, GENERIC_READ, FILE_SHARE_READ, 0, OPEN_EXISTING, 0, 0);
-
-    if (fileHandle != INVALID_HANDLE_VALUE)
-    {
-        if (GetFileSizeEx(fileHandle, &fileSize))
-        {
-            if (fileSize.QuadPart < 0xffffffff)
-            {
-                void* data = malloc(fileSize.QuadPart + 1);
-                if (data)
-                {
-                    DWORD read;
-                    if (ReadFile(fileHandle, data, (DWORD)fileSize.QuadPart, &read, 0) && (read == (DWORD)fileSize.QuadPart))
-                    {
-                        result = (char*)data;
-                        ((byte*)data)[fileSize.QuadPart] = 0;
-                        *bytesRead = (u32)fileSize.QuadPart + 1;
-                    }
-                    else
-                    {
-                        free(data);
-                    }
-                }
-            }
-        }
-        CloseHandle(fileHandle);
-    }
-    return  result;
-}
 
 struct Tokenizer
 {

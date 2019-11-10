@@ -34,6 +34,7 @@ namespace soko
         v3* vertices;
         v3* normals;
         v2* uvs;
+        v3* tangents;
         u32* indices;
         u32 gpuVertexBufferHandle;
         u32 gpuIndexBufferHandle;

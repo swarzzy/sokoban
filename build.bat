@@ -27,16 +27,25 @@ set PlatformLinkerFlags=/INCREMENTAL:NO /OPT:REF /MACHINE:X64 Ws2_32.lib user32.
 set GameLinkerFlags=/INCREMENTAL:NO /OPT:REF /MACHINE:X64 /DLL /OUT:%BinOutDir%\SokoGame.dll /PDB:%BinOutDir%\SokoGame_%PdbMangleVal%.pdb
 rem set RendererLinkerFlags=/INCREMENTAL:NO /OPT:REF /MACHINE:X64 /DLL /OUT:%BinOutDir%\SokoRenderer.dll /PDB:%BinOutDir%\SokoRenderer_%PdbMangleVal%.pdb
 
+set ConfigCompilerFlags=%DebugCompilerFlags%
+
 set PrepBuildArg=prepbuild
 if "%1" == "%PrepBuildArg%" (
 cl /W3 /Fo%ObjOutDir% /D_CRT_SECURE_NO_WARNINGS /DWIN32_LEAN_AND_MEAN %ReleaseCompilerFlags% %ConfigCompilerFlags% src/Preprocessor.cpp /link /INCREMENTAL:NO /OPT:REF /MACHINE:X64 /OUT:%BinOutDir%\Prep.exe /PDB:%BinOutDir%\Prep.pdb
 goto end
 )
 
-set ConfigCompilerFlags=%DebugCompilerFlags%
+set AssetBuildArg=assetbuild
+if "%1" == "%PrepBuildArg%" (
+cl /W3 /Fo%ObjOutDir% /D_CRT_SECURE_NO_WARNINGS /DWIN32_LEAN_AND_MEAN %CommonCompilerFlags% %ConfigCompilerFlags% src/Preprocessor.cpp /link /INCREMENTAL:NO /OPT:REF /MACHINE:X64 /OUT:%BinOutDir%\AssetBuilder.exe /PDB:%BinOutDir%\AssetBuilder.pdb
+goto end
+)
 
-rem echo Building preprocessor...
-rem cl /W3 /Fo%ObjOutDir% /D_CRT_SECURE_NO_WARNINGS /DWIN32_LEAN_AND_MEAN %CommonCompilerFlags% %ConfigCompilerFlags% src/Preprocessor.cpp /link /INCREMENTAL:NO /OPT:REF /MACHINE:X64 /OUT:%BinOutDir%\Prep.exe /PDB:%BinOutDir%\Prep.pdb
+echo Building preprocessor...
+cl /W3 /Fo%ObjOutDir% /D_CRT_SECURE_NO_WARNINGS /DWIN32_LEAN_AND_MEAN %CommonCompilerFlags% %ConfigCompilerFlags% src/Preprocessor.cpp /link /INCREMENTAL:NO /OPT:REF /MACHINE:X64 /OUT:%BinOutDir%\Prep.exe /PDB:%BinOutDir%\Prep.pdb
+
+echo Building asset builder...
+cl /W3 /Fo%ObjOutDir% /D_CRT_SECURE_NO_WARNINGS /DWIN32_LEAN_AND_MEAN %CommonCompilerFlags% %ConfigCompilerFlags% src/AssetBuilder.cpp /link /INCREMENTAL:NO /OPT:REF /MACHINE:X64 /OUT:%BinOutDir%\AssetBuilder.exe /PDB:%BinOutDir%\AssetBuilder.pdb
 
 rem echo Building cubemap builder...
 rem cl /W3 /Fo%ObjOutDir% /D_CRT_SECURE_NO_WARNINGS  %CommonCompilerFlags% %ConfigCompilerFlags% src/CubemapBuilder.cpp /link /INCREMENTAL:NO /OPT:REF /MACHINE:X64 /OUT:%BinOutDir%\CubemapBuilder.exe /PDB:%BinOutDir%\CubemapBuilder.pdb

@@ -11,7 +11,8 @@ namespace AB
     };
 
     const u32 AAB_FILE_MAGIC_VALUE = 0xaabaabaa;
-    const u32 AAB_FILE_VERSION = 0;
+    const u32 AAB_MESH_FILE_VERSION = 2;
+    const u32 AAB_LEVEL_FILE_VERSION = 0;
 
 #pragma pack(push, 1)
     struct AABMeshMaterialProperties
@@ -23,13 +24,14 @@ namespace AB
         f32 shininess;
     };
 
-    struct AABMeshHeader
+    struct _AABMeshHeader
     {
         u32 magicValue;
-        u32 version;
+        u32 version = 1;
         u64 assetSize;
         u32 assetType;
         u32 verticesCount;
+        // TODO: These counts are redundant
         u32 normalsCount;
         u32 uvsCount;
         u32 indicesCount;
@@ -41,6 +43,21 @@ namespace AB
         u64 materialDiffBitmapNameOffset;
         u64 materialSpecBitmapNameOffset;
         u64 materialPropertiesOffset;
+    };
+
+    struct AABMeshHeaderV2
+    {
+        u32 magicValue;
+        u32 version = 2;
+        u64 assetSize;
+        u32 assetType;
+        u32 vertexCount;
+        u32 indexCount;
+        u64 vertexOffset;
+        u64 normalsOffset;
+        u64 uvOffset;
+        u64 indicesOffset;
+        u64 tangentsOffset;
     };
 
     struct AABLevelHeader

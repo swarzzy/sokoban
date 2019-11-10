@@ -530,18 +530,21 @@ namespace soko
     LoadMaterialPBR(AB::MemoryArena* tempArena,
                     const char* albedoPath,
                     const char* roughnessPath,
-                    const char* metalnessPath)
+                    const char* metalnessPath,
+                    const char* normalsPath)
     {
         Texture albedo = LoadTexture(tempArena, albedoPath, GL_SRGB8, GL_REPEAT, TextureFilter_Anisotropic);
         Texture roughness = LoadTexture(tempArena, roughnessPath, GL_RGB8, GL_REPEAT, TextureFilter_Anisotropic);
         Texture metalness = LoadTexture(tempArena, metalnessPath, GL_RGB8, GL_REPEAT, TextureFilter_Anisotropic);
+        Texture normals = LoadTexture(tempArena, normalsPath, GL_RGB8, GL_REPEAT, TextureFilter_Anisotropic);
+
 
         Material material = {};
         material.type = Material::PBR;
         material.pbr.albedo = albedo;
         material.pbr.roughness = roughness;
         material.pbr.metalness = metalness;
-
+        material.pbr.normals = normals;
 
         return material;
     }
@@ -578,6 +581,80 @@ namespace soko
         material.legacy.diffMap = diffMap;
 
         return material;
+    }
+
+    internal void
+    GenMeshTangents(Mesh* mesh, AB::MemoryArena* arena)
+    {
+        u32 triCount = mesh->indexCount / 3;
+        mesh->tangents = PUSH_ARRAY(arena, v3, mesh->vertexCount);
+        SOKO_ASSERT(mesh->tangents);
+
+        for (u32 index = 0; index < mesh->indexCount; index += 3)
+        {
+            SOKO_ASSERT((index + 2) < mesh->indexCount);
+            v3 vt0 = mesh->vertices[mesh->indices[index]];
+            v3 vt1 = mesh->vertices[mesh->indices[index + 1]];
+            v3 vt2 = mesh->vertices[mesh->indices[index + 2]];
+
+            v2 uv0 = mesh->uvs[mesh->indices[index]];
+            v2 uv1 = mesh->uvs[mesh->indices[index + 1]];
+            v2 uv2 = mesh->uvs[mesh->indices[index + 2]];
+
+            v3 e0 = vt1 - vt0;
+            v3 e1 = vt2 - vt0;
+
+            v2 dUV0 = uv1 - uv0;
+            v2 dUV1 = uv2 - uv0;
+
+            f32 f = 1.0f / (dUV0.u * dUV1.v - dUV1.u * dUV0.v);
+
+            v3 tangent;
+            tangent.x = f * (dUV1.v * e0.x - dUV0.v * e1.x);
+            tangent.y = f * (dUV1.v * e0.y - dUV0.v * e1.y);
+            tangent.z = f * (dUV1.v * e0.z - dUV0.v * e1.z);
+
+            tangent = Normalize(tangent);
+
+            mesh->tangents[index] = tangent;
+            mesh->tangents[index + 1] = tangent;
+            mesh->tangents[index + 2] = tangent;
+        }
+    }
+
+    internal Mesh
+    LoadMesh(AB::MemoryArena* tempArena, const wchar_t* filepath)
+    {
+        Mesh mesh = {};
+        u32 fileSize = DebugGetFileSize(filepath);
+        if (fileSize)
+        {
+            void* fileData = PUSH_SIZE(tempArena, fileSize);
+            u32 result = DebugReadFile(fileData, fileSize, filepath);
+            if (result)
+            {
+                // NOTE: Strict aliasing
+                auto header = (AB::AABMeshHeaderV2*)fileData;
+                SOKO_ASSERT(header->magicValue == AB::AAB_FILE_MAGIC_VALUE);
+
+                mesh.vertexCount = header->vertexCount;
+                mesh.normalCount = header->vertexCount;
+                mesh.uvCount = header->vertexCount;
+                mesh.indexCount = header->indexCount;
+
+                mesh.vertices = (v3*)((byte*)fileData + header->vertexOffset);
+                mesh.normals = (v3*)((byte*)fileData + header->normalsOffset);
+                mesh.uvs = (v2*)((byte*)fileData + header->uvOffset);
+                mesh.indices = (u32*)((byte*)fileData + header->indicesOffset);
+                mesh.tangents = (v3*)((byte*)fileData + header->tangentsOffset);
+
+                RendererLoadMesh(&mesh);
+                SOKO_ASSERT(mesh.gpuVertexBufferHandle);
+                SOKO_ASSERT(mesh.gpuIndexBufferHandle);
+            }
+        }
+
+        return mesh;
     }
 
     internal void
@@ -620,165 +697,29 @@ namespace soko
         gameState->renderGroup = AllocateRenderGroup(arena, KILOBYTES(1024), 16384);
 
         gameState->renderer->clearColor = V4(0.8f, 0.8f, 0.8f, 1.0f);
-        {
-            u32 fileSize = DebugGetFileSize(L"../res/sphere.aab");
-            void* fileData = PUSH_SIZE(arena, fileSize);
-            u32 result = DebugReadFile(fileData, fileSize, L"../res/sphere.aab");
-            // NOTE: Strict aliasing
-            auto header = (AB::AABMeshHeader*)fileData;
-            SOKO_ASSERT(header->magicValue == AB::AAB_FILE_MAGIC_VALUE, "");
 
-            Mesh mesh = {};
-            mesh.vertexCount = header->verticesCount;
-            mesh.normalCount = header->normalsCount;
-            mesh.uvCount = header->uvsCount;
-            mesh.indexCount = header->indicesCount;
-
-            mesh.vertices = (v3*)((byte*)fileData + header->verticesOffset);
-            mesh.normals = (v3*)((byte*)fileData + header->normalsOffset);
-            mesh.uvs = (v2*)((byte*)fileData + header->uvsOffset);
-            mesh.indices = (u32*)((byte*)fileData + header->indicesOffset);
-
-            RendererLoadMesh(&mesh);
-            SOKO_ASSERT(mesh.gpuVertexBufferHandle, "");
-            SOKO_ASSERT(mesh.gpuIndexBufferHandle, "");
-
-            gameState->meshes[EntityMesh_Sphere] = mesh;
-        }
-
-        {
-            u32 fileSize = DebugGetFileSize(L"../res/cube.aab");
-            void* fileData = PUSH_SIZE(arena, fileSize);
-            u32 result = DebugReadFile(fileData, fileSize, L"../res/cube.aab");
-            // NOTE: Strict aliasing
-            auto header = (AB::AABMeshHeader*)fileData;
-            SOKO_ASSERT(header->magicValue == AB::AAB_FILE_MAGIC_VALUE, "");
-
-            Mesh mesh = {};
-            mesh.vertexCount = header->verticesCount;
-            mesh.normalCount = header->normalsCount;
-            mesh.uvCount = header->uvsCount;
-            mesh.indexCount = header->indicesCount;
-
-            mesh.vertices = (v3*)((byte*)fileData + header->verticesOffset);
-            mesh.normals = (v3*)((byte*)fileData + header->normalsOffset);
-            mesh.uvs = (v2*)((byte*)fileData + header->uvsOffset);
-            mesh.indices = (u32*)((byte*)fileData + header->indicesOffset);
-
-            RendererLoadMesh(&mesh);
-            SOKO_ASSERT(mesh.gpuVertexBufferHandle, "");
-            SOKO_ASSERT(mesh.gpuIndexBufferHandle, "");
-
-            gameState->meshes[EntityMesh_Cube] = mesh;
-        }
-        {
-            u32 fileSize = DebugGetFileSize(L"../res/plate.aab");
-            void* fileData = PUSH_SIZE(arena, fileSize);
-            u32 result = DebugReadFile(fileData, fileSize, L"../res/plate.aab");
-            // NOTE: Strict aliasing
-            auto header = (AB::AABMeshHeader*)fileData;
-            SOKO_ASSERT(header->magicValue == AB::AAB_FILE_MAGIC_VALUE, "");
-
-            Mesh mesh = {};
-            mesh.vertexCount = header->verticesCount;
-            mesh.normalCount = header->normalsCount;
-            mesh.uvCount = header->uvsCount;
-            mesh.indexCount = header->indicesCount;
-
-            mesh.vertices = (v3*)((byte*)fileData + header->verticesOffset);
-            mesh.normals = (v3*)((byte*)fileData + header->normalsOffset);
-            mesh.uvs = (v2*)((byte*)fileData + header->uvsOffset);
-            mesh.indices = (u32*)((byte*)fileData + header->indicesOffset);
-
-            RendererLoadMesh(&mesh);
-            SOKO_ASSERT(mesh.gpuVertexBufferHandle, "");
-            SOKO_ASSERT(mesh.gpuIndexBufferHandle, "");
-
-            gameState->meshes[EntityMesh_Plate] = mesh;
-        }
-        {
-            u32 fileSize = DebugGetFileSize(L"../res/portal.aab");
-            void* fileData = PUSH_SIZE(arena, fileSize);
-            u32 result = DebugReadFile(fileData, fileSize, L"../res/portal.aab");
-            // NOTE: Strict aliasing
-            auto header = (AB::AABMeshHeader*)fileData;
-            SOKO_ASSERT(header->magicValue == AB::AAB_FILE_MAGIC_VALUE, "");
-
-            Mesh mesh = {};
-            mesh.vertexCount = header->verticesCount;
-            mesh.normalCount = header->normalsCount;
-            mesh.uvCount = header->uvsCount;
-            mesh.indexCount = header->indicesCount;
-
-            mesh.vertices = (v3*)((byte*)fileData + header->verticesOffset);
-            mesh.normals = (v3*)((byte*)fileData + header->normalsOffset);
-            mesh.uvs = (v2*)((byte*)fileData + header->uvsOffset);
-            mesh.indices = (u32*)((byte*)fileData + header->indicesOffset);
-
-            RendererLoadMesh(&mesh);
-            SOKO_ASSERT(mesh.gpuVertexBufferHandle, "");
-            SOKO_ASSERT(mesh.gpuIndexBufferHandle, "");
-
-            gameState->meshes[EntityMesh_Portal] = mesh;
-        }
-        {
-            u32 fileSize = DebugGetFileSize(L"../res/spikes.aab");
-            void* fileData = PUSH_SIZE(arena, fileSize);
-            u32 result = DebugReadFile(fileData, fileSize, L"../res/spikes.aab");
-            // NOTE: Strict aliasing
-            auto header = (AB::AABMeshHeader*)fileData;
-            SOKO_ASSERT(header->magicValue == AB::AAB_FILE_MAGIC_VALUE, "");
-
-            Mesh mesh = {};
-            mesh.vertexCount = header->verticesCount;
-            mesh.normalCount = header->normalsCount;
-            mesh.uvCount = header->uvsCount;
-            mesh.indexCount = header->indicesCount;
-
-            mesh.vertices = (v3*)((byte*)fileData + header->verticesOffset);
-            mesh.normals = (v3*)((byte*)fileData + header->normalsOffset);
-            mesh.uvs = (v2*)((byte*)fileData + header->uvsOffset);
-            mesh.indices = (u32*)((byte*)fileData + header->indicesOffset);
-
-            RendererLoadMesh(&mesh);
-            SOKO_ASSERT(mesh.gpuVertexBufferHandle, "");
-            SOKO_ASSERT(mesh.gpuIndexBufferHandle, "");
-
-            gameState->meshes[EntityMesh_Spikes] = mesh;
-        }
-        {
-            u32 fileSize = DebugGetFileSize(L"../res/button.aab");
-            void* fileData = PUSH_SIZE(arena, fileSize);
-            u32 result = DebugReadFile(fileData, fileSize, L"../res/button.aab");
-            // NOTE: Strict aliasing
-            auto header = (AB::AABMeshHeader*)fileData;
-            SOKO_ASSERT(header->magicValue == AB::AAB_FILE_MAGIC_VALUE, "");
-
-            Mesh mesh = {};
-            mesh.vertexCount = header->verticesCount;
-            mesh.normalCount = header->normalsCount;
-            mesh.uvCount = header->uvsCount;
-            mesh.indexCount = header->indicesCount;
-
-            mesh.vertices = (v3*)((byte*)fileData + header->verticesOffset);
-            mesh.normals = (v3*)((byte*)fileData + header->normalsOffset);
-            mesh.uvs = (v2*)((byte*)fileData + header->uvsOffset);
-            mesh.indices = (u32*)((byte*)fileData + header->indicesOffset);
-
-            RendererLoadMesh(&mesh);
-            SOKO_ASSERT(mesh.gpuVertexBufferHandle, "");
-            SOKO_ASSERT(mesh.gpuIndexBufferHandle, "");
-
-            gameState->meshes[EntityMesh_Button] = mesh;
-        }
+        BeginTemporaryMemory(gameState->tempArena);
+        gameState->meshes[EntityMesh_Sphere] = LoadMesh(gameState->tempArena, L"../res/mesh/sphere.aab");
+        gameState->meshes[EntityMesh_Gun] = LoadMesh(gameState->tempArena, L"../res/mesh/gun.aab");
+        gameState->meshes[EntityMesh_PreviewSphere] = LoadMesh(gameState->tempArena, L"../res/mesh/sphere.aab");
+        gameState->meshes[EntityMesh_Cube] = LoadMesh(gameState->tempArena, L"../res/mesh/cube.aab");
+        gameState->meshes[EntityMesh_Plate] = LoadMesh(gameState->tempArena, L"../res/mesh/plate.aab");
+        gameState->meshes[EntityMesh_Portal] = LoadMesh(gameState->tempArena, L"../res/mesh/portal.aab");
+        gameState->meshes[EntityMesh_Spikes] = LoadMesh(gameState->tempArena, L"../res/mesh/spikes.aab");
+        gameState->meshes[EntityMesh_Button] = LoadMesh(gameState->tempArena, L"../res/mesh/button.aab");
+        EndTemporaryMemory(gameState->tempArena);
 
         stbi_set_flip_vertically_on_load(1);
 
-        gameState->materials[EntityMaterial_PbrMetal] = LoadMaterialPBR(gameState->tempArena, "../res/rust_metal/grimy-metal-albedo.png", "../res/rust_metal/grimy-metal-roughness.png", "../res/rust_metal/grimy-metal-metalness.png");
-        gameState->materials[EntityMaterial_Rock] = LoadMaterialPBR(gameState->tempArena, "../res/rock/layered-rock1-albedo.png", "../res/rock/layered-rock1-rough.png", "../res/rock/layered-rock1-Metalness.png");
-        gameState->materials[EntityMaterial_Metal] = LoadMaterialPBR(gameState->tempArena, "../res/rustediron/rustediron-streaks_basecolor.png", "../res/rustediron/rustediron-streaks_roughness.png", "../res/rustediron/rustediron-streaks_metallic.png");
-        gameState->materials[EntityMaterial_OldMetal] = LoadMaterialPBR(gameState->tempArena, "../res/oldmetal/greasy-metal-pan1-albedo.png", "../res/oldmetal/greasy-metal-pan1-roughness.png", "../res/oldmetal/greasy-metal-pan1-metal.png");
-        gameState->materials[EntityMaterial_Burlap] = LoadMaterialPBR(gameState->tempArena, "../res/burlap/worn-blue-burlap-albedo.png", "../res/burlap/worn-blue-burlap-Roughness.png", "../res/burlap/worn-blue-burlap-Metallic.png");
+        gameState->materials[EntityMaterial_PbrMetal] = LoadMaterialPBR(gameState->tempArena, "../res/rust_metal/grimy-metal-albedo.png", "../res/rust_metal/grimy-metal-roughness.png", "../res/rust_metal/grimy-metal-metalness.png", "../res/rust_metal/grimy-metal-normal-dx.png");
+        gameState->materials[EntityMaterial_Rock] = LoadMaterialPBR(gameState->tempArena, "../res/rock/layered-rock1-albedo.png", "../res/rock/layered-rock1-rough.png", "../res/rock/layered-rock1-Metalness.png", "../res/rock/layered-rock1-normal-dx.png");
+        gameState->materials[EntityMaterial_Metal] = LoadMaterialPBR(gameState->tempArena, "../res/rustediron/rustediron-streaks_basecolor.png", "../res/rustediron/rustediron-streaks_roughness.png", "../res/rustediron/rustediron-streaks_metallic.png", "../res/rustediron/rustediron-streaks_normal.png");
+        gameState->materials[EntityMaterial_OldMetal] = LoadMaterialPBR(gameState->tempArena, "../res/oldmetal/greasy-metal-pan1-albedo.png", "../res/oldmetal/greasy-metal-pan1-roughness.png", "../res/oldmetal/greasy-metal-pan1-metal.png", "../res/oldmetal/greasy-metal-pan1-normal.png");
+        gameState->materials[EntityMaterial_Burlap] = LoadMaterialPBR(gameState->tempArena, "../res/burlap/worn-blue-burlap-albedo.png", "../res/burlap/worn-blue-burlap-Roughness.png", "../res/burlap/worn-blue-burlap-Metallic.png", "../res/burlap/worn-blue-burlap-Normal-dx.png");
+        gameState->materials[EntityMaterial_Gold] = LoadMaterialPBR(gameState->tempArena, "../res/gold/PreviewSphere_Sphere_Albebo.png", "../res/gold/PreviewSphere_Sphere_Roughness.png", "../res/gold/PreviewSphere_Sphere_Metallic.png", "../res/gold/PreviewSphere_Sphere_Normal.png");
+        gameState->materials[EntityMaterial_Gun] = LoadMaterialPBR(gameState->tempArena, "../res/gun/Cerberus_A.png", "../res/gun/Cerberus_R.png", "../res/gun/Cerberus_M.png", "../res/gun/Cerberus_N.png");
+
+
 
 
         gameState->materials[EntityMaterial_Tile] = LoadMaterialLegacy(gameState->tempArena, "../res/tile.png");

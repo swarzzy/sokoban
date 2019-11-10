@@ -46,6 +46,10 @@ namespace soko
         GLenum metalnessSlot;
         GLint metalnessLoc;
 
+        u32 normalSampler;
+        GLenum normalSlot;
+        GLint normalLoc;
+
         u32 irradanceMapSampler;
         GLenum irradanceMapSlot;
         GLint irradanceMapLoc;
@@ -386,7 +390,7 @@ namespace soko
             result.albedoLoc = glGetUniformLocation(handle, "uAlbedoMap");
             result.roughnessLoc = glGetUniformLocation(handle, "uRoughnessMap");
             result.metalnessLoc = glGetUniformLocation(handle, "uMetalnessMap");
-
+            result.normalLoc = glGetUniformLocation(handle, "uNormalMap");
 
             result.albedoSampler = 0;
             result.albedoSlot = GL_TEXTURE0;
@@ -406,11 +410,15 @@ namespace soko
             result.metalnessSampler = 5;
             result.metalnessSlot = GL_TEXTURE5;
 
+            result.normalSampler = 6;
+            result.normalSlot = GL_TEXTURE6;
+
             glUseProgram(handle);
 
             glUniform1i(result.albedoLoc, result.albedoSampler);
             glUniform1i(result.roughnessLoc, result.roughnessSampler);
             glUniform1i(result.metalnessLoc, result.metalnessSampler);
+            glUniform1i(result.normalLoc, result.normalSampler);
 
             glUniform1i(result.irradanceMapLoc, result.irradanceMapSampler);
             glUniform1i(result.envMapLoc, result.envMapSampler);
@@ -823,10 +831,12 @@ namespace soko
             {
 // NOTE: Using SOA layout of buffer
                 uptr verticesSize = mesh->vertexCount * sizeof(v3);
+                // TODO: this is redundant. Use only vertexCount
                 uptr normalsSize= mesh->normalCount * sizeof(v3);
                 uptr uvsSize = mesh->uvCount * sizeof(v2);
+                uptr tangentsSize = mesh->vertexCount * sizeof(v3);
                 uptr indexBufferSize = mesh->indexCount * sizeof(u32);
-                uptr vertexBufferSize = verticesSize + normalsSize + uvsSize;
+                uptr vertexBufferSize = verticesSize + normalsSize + uvsSize + tangentsSize;
 
                 glBindBuffer(GL_ARRAY_BUFFER, vboHandle);
 
@@ -834,6 +844,7 @@ namespace soko
                 glBufferSubData(GL_ARRAY_BUFFER, 0, verticesSize, (void*)mesh->vertices);
                 glBufferSubData(GL_ARRAY_BUFFER, verticesSize, normalsSize, (void*)mesh->normals);
                 glBufferSubData(GL_ARRAY_BUFFER, verticesSize + normalsSize, uvsSize, (void*)mesh->uvs);
+                glBufferSubData(GL_ARRAY_BUFFER, verticesSize + normalsSize + uvsSize, tangentsSize, (void*)mesh->tangents);
 
                 glBindBuffer(GL_ARRAY_BUFFER, 0);
 
@@ -1415,6 +1426,9 @@ namespace soko
                         glActiveTexture(meshProg->metalnessSlot);
                         glBindTexture(GL_TEXTURE_2D, data->material.pbr.metalness.gpuHandle);
 
+                        glActiveTexture(meshProg->normalSlot);
+                        glBindTexture(GL_TEXTURE_2D, data->material.pbr.normals.gpuHandle);
+
                         glActiveTexture(meshProg->irradanceMapSlot);
                         glBindTexture(GL_TEXTURE_CUBE_MAP, group->irradanceMapHandle);
 
@@ -1429,13 +1443,16 @@ namespace soko
                         glEnableVertexAttribArray(0);
                         glEnableVertexAttribArray(1);
                         glEnableVertexAttribArray(2);
+                        glEnableVertexAttribArray(3);
 
                         u64 normalsOffset = mesh->vertexCount * sizeof(v3);
                         u64 uvsOffset = normalsOffset + mesh->normalCount * sizeof(v3);
+                        u64 tangentsOffset = uvsOffset + mesh->uvCount * sizeof(v2);
 
                         glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 0, 0);
                         glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 0, (void*)normalsOffset);
                         glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, 0, (void*)uvsOffset);
+                        glVertexAttribPointer(3, 3, GL_FLOAT, GL_FALSE, 0, (void*)tangentsOffset);
 
                         glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, mesh->gpuIndexBufferHandle);
 

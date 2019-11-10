@@ -15,7 +15,9 @@ namespace soko
         EntityMesh_Portal,
         EntityMesh_Spikes,
         EntityMesh_Button,
-        EntityMesh_Sphere
+        EntityMesh_Sphere,
+        EntityMesh_PreviewSphere,
+        EntityMesh_Gun
     };
 
     enum [reflect seq_enum] EntityMaterial
@@ -31,7 +33,9 @@ namespace soko
         EntityMaterial_Rock,
         EntityMaterial_Metal,
         EntityMaterial_OldMetal,
-        EntityMaterial_Burlap
+        EntityMaterial_Burlap,
+        EntityMaterial_Gold,
+        EntityMaterial_Gun
     };
 
     // NOTE: Should fit in one byte

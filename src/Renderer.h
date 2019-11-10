@@ -43,6 +43,7 @@ namespace soko
                 Texture albedo;
                 Texture roughness;
                 Texture metalness;
+                Texture normals;
             } pbr;
         };
     };

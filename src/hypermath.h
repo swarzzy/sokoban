@@ -233,6 +233,11 @@ namespace hpm
             f32 r;
             f32 g;
         };
+        struct
+        {
+            f32 u;
+            f32 v;
+        };
         f32 data[2];
     };
 

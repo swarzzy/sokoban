@@ -231,6 +231,7 @@ void main()
 layout (location = 0) in vec3 aPos;
 layout (location = 1) in vec3 aNormal;
 layout (location = 2) in vec2 aUV;
+layout (location = 3) in vec3 aTangent;
 
 uniform mat4 uViewProjMatrix;
 uniform mat4 uModelMatrix;
@@ -239,13 +240,21 @@ uniform mat3 uNormalMatrix;
 out vec3 vFragPos;
 out vec3 vNormal;
 out vec2 vUV;
+out mat3 vTBN;
 
 void main()
 {
+    vec3 n = normalize(uNormalMatrix * aNormal);
+    vec3 t = normalize(uNormalMatrix * aTangent);
+    t = normalize(t - dot(t, n) * n);
+    vec3 b = normalize(cross(n, t));
+    mat3 tbn = mat3(t, b, n);
+
     gl_Position = uViewProjMatrix * uModelMatrix * vec4(aPos, 1.0f);
     vFragPos = (uModelMatrix * vec4(aPos, 1.0f)).xyz;
     vUV = aUV;
-    vNormal = uNormalMatrix * aNormal;
+    vNormal = n;
+    vTBN = tbn;
 })";
 
     static const char* PBR_MESH_FRAG_SOURCE = R"(
@@ -255,6 +264,7 @@ out vec4 resultColor;
 in vec3 vFragPos;
 in vec3 vNormal;
 in vec2 vUV;
+in mat3 vTBN;
 
 struct DirLight
 {
@@ -272,6 +282,7 @@ uniform sampler2D uBRDFLut;
 uniform sampler2D uAlbedoMap;
 uniform sampler2D uRoughnessMap;
 uniform sampler2D uMetalnessMap;
+uniform sampler2D uNormalMap;
 //uniform sampler2D uAOMap;
 
 uniform float uAO = 1.0f;
@@ -326,7 +337,11 @@ float GeometrySmith(vec3 N, vec3 V, vec3 L, float roughness)
 
 void main()
 {
-    vec3 N = normalize(vNormal);
+    vec3 N = normalize(texture(uNormalMap, vUV).xyz * 2.0f - 1.0f);
+    // NOTE: Flipping y because engine uses LH normal maps (UE4)
+    // but OpenGL does it's job in RH space
+    N.y = -N.y;
+    N = normalize(vTBN * N);
     vec3 V = normalize(uViewPos - vFragPos);
     vec3 albedo = texture(uAlbedoMap, vUV).xyz;
     float roughness = texture(uRoughnessMap, vUV).r;
@@ -376,7 +391,7 @@ void main()
     vec3 ambient = (kD * diffuse + envSpecular) * uAO;
 
     resultColor = vec4((ambient + L0), 1.0f);
-    //resultColor = vec4(irradance,  1.0f);
+    //resultColor = vec4(N,  1.0f);
 })";
 
     static const char* SS_VERTEX_SOURCE = R"(
