@@ -29,6 +29,7 @@ namespace soko
         EntityMaterial_Portal,
         EntityMaterial_Spikes,
         EntityMaterial_Button,
+        EntityMaterial_BRDFCustom,
         EntityMaterial_PbrMetal,
         EntityMaterial_Rock,
         EntityMaterial_Metal,

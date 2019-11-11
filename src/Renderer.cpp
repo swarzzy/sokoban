@@ -62,6 +62,11 @@ namespace soko
         GLenum BRDFLutSlot;
         GLint BRDFLutLoc;
 
+        GLint uCustomMaterial;
+        GLint uCustomAlbedo;
+        GLint uCustomRoughness;
+        GLint uCustomMetalness;
+
         GLint viewPosLoc;
         GLint viewProjLoc;
         GLint modelMtxLoc;
@@ -391,6 +396,11 @@ namespace soko
             result.roughnessLoc = glGetUniformLocation(handle, "uRoughnessMap");
             result.metalnessLoc = glGetUniformLocation(handle, "uMetalnessMap");
             result.normalLoc = glGetUniformLocation(handle, "uNormalMap");
+
+            result.uCustomMaterial = glGetUniformLocation(handle, "uCustomMaterial");
+            result.uCustomAlbedo = glGetUniformLocation(handle, "uCustomAlbedo");
+            result.uCustomRoughness = glGetUniformLocation(handle, "uCustomRoughness");
+            result.uCustomMetalness = glGetUniformLocation(handle, "uCustomMetalness");
 
             result.albedoSampler = 0;
             result.albedoSlot = GL_TEXTURE0;
@@ -1417,17 +1427,31 @@ namespace soko
 
                         auto* mesh = data->mesh;
 
-                        glActiveTexture(meshProg->albedoSlot);
-                        glBindTexture(GL_TEXTURE_2D, data->material.pbr.albedo.gpuHandle);
+                        auto* m = &data->material;
 
-                        glActiveTexture(meshProg->roughnessSlot);
-                        glBindTexture(GL_TEXTURE_2D, data->material.pbr.roughness.gpuHandle);
+                        if (!m->pbr.isCustom)
+                        {
+                            glUniform1i(meshProg->uCustomMaterial, 0);
 
-                        glActiveTexture(meshProg->metalnessSlot);
-                        glBindTexture(GL_TEXTURE_2D, data->material.pbr.metalness.gpuHandle);
+                            glActiveTexture(meshProg->albedoSlot);
+                            glBindTexture(GL_TEXTURE_2D, m->pbr.map.albedo.gpuHandle);
 
-                        glActiveTexture(meshProg->normalSlot);
-                        glBindTexture(GL_TEXTURE_2D, data->material.pbr.normals.gpuHandle);
+                            glActiveTexture(meshProg->roughnessSlot);
+                            glBindTexture(GL_TEXTURE_2D, m->pbr.map.roughness.gpuHandle);
+
+                            glActiveTexture(meshProg->metalnessSlot);
+                            glBindTexture(GL_TEXTURE_2D, m->pbr.map.metalness.gpuHandle);
+
+                            glActiveTexture(meshProg->normalSlot);
+                            glBindTexture(GL_TEXTURE_2D, m->pbr.map.normals.gpuHandle);
+                        }
+                        else
+                        {
+                            glUniform1i(meshProg->uCustomMaterial, 1);
+                            glUniform3fv(meshProg->uCustomAlbedo, 1, m->pbr.custom.albedo.data);
+                            glUniform1f(meshProg->uCustomRoughness, m->pbr.custom.roughness);
+                            glUniform1f(meshProg->uCustomMetalness, m->pbr.custom.metalness);
+                        }
 
                         glActiveTexture(meshProg->irradanceMapSlot);
                         glBindTexture(GL_TEXTURE_CUBE_MAP, group->irradanceMapHandle);

@@ -40,10 +40,23 @@ namespace soko
             } legacy;
             struct
             {
-                Texture albedo;
-                Texture roughness;
-                Texture metalness;
-                Texture normals;
+                b32 isCustom;
+                union
+                {
+                    struct
+                    {
+                        v3 albedo;
+                        f32 roughness;
+                        f32 metalness;
+                    } custom;
+                    struct
+                    {
+                        Texture albedo;
+                        Texture roughness;
+                        Texture metalness;
+                        Texture normals;
+                    } map;
+                };
             } pbr;
         };
     };

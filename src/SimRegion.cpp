@@ -492,7 +492,22 @@ namespace soko
                 //SOKO_ASSERT(entity->mesh);
                 //SOKO_ASSERT(entity->material);
                 command.mesh = gameState->meshes + e->stored->mesh;
-                command.material = gameState->materials[e->stored->material];
+                auto material = gameState->materials + e->stored->material;
+                if (material->type == Material::PBR && material->pbr.isCustom)
+                {
+                    Material m = {};
+                    m.type = Material::PBR;
+                    m.pbr.isCustom = true;
+                    m.pbr.custom.albedo = e->stored->materialAlbedo;
+                    m.pbr.custom.roughness = e->stored->materialRoughness;
+                    m.pbr.custom.metalness = e->stored->materialMetallic;
+
+                    command.material = m;
+                }
+                else
+                {
+                    command.material = *material;
+                }
 
                 RenderGroupPushCommand(gameState->renderGroup, RENDER_COMMAND_DRAW_MESH,
                                        (void*)&command);

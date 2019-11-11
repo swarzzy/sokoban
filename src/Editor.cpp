@@ -425,9 +425,9 @@ namespace soko
                     ImGui::Separator();
 
                     ImGui::Text("Material properties");
+                    ImGui::ColorEdit3("albedo", entity->stored->materialAlbedo.data);
                     ImGui::SliderFloat("roughness", &entity->stored->materialRoughness, 0.0f, 1.0f);
                     ImGui::SliderFloat("metallic", &entity->stored->materialMetallic, 0.0f, 1.0f);
-                    ImGui::SliderFloat("ao", &entity->stored->materialAO, 0.0f, 1.0f);
                 }
             }
         }
@@ -611,8 +611,8 @@ namespace soko
     internal void
     EditorDrawUI(Editor* editor)
     {
-        //local_persist bool show = false;
-        //ImGui::ShowDemoWindow(&show);
+        local_persist bool show = false;
+        ImGui::ShowDemoWindow(&show);
 
         ImGui::BeginMainMenuBar();
         if (ImGui::BeginMenu("Level"))
@@ -755,6 +755,7 @@ namespace soko
                     Entity* entity = GetEntity(level, raycast.entity.id);
                     SOKO_ASSERT(entity);
                     DeleteEntity(level, entity);
+                    editor->selectedEntityID = 0;
                 }
             }
             else
@@ -995,7 +996,9 @@ namespace soko
         DirectionalLight light = {};
         light.dir = Normalize(V3(-0.3f, -1.0f, -1.0f));
         light.ambient = V3(0.6f);
-        light.diffuse = V3(1.2f);
+        local_persist v3 diffuse = V3(1.0f);
+        DEBUG_OVERLAY_SLIDER(diffuse, 0.0f, 100.0f);
+        light.diffuse = diffuse;
         light.specular = V3(2.0f);
         RenderCommandSetDirLight lightCommand = {};
         lightCommand.light = light;

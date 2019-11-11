@@ -541,10 +541,11 @@ namespace soko
 
         Material material = {};
         material.type = Material::PBR;
-        material.pbr.albedo = albedo;
-        material.pbr.roughness = roughness;
-        material.pbr.metalness = metalness;
-        material.pbr.normals = normals;
+        material.pbr.isCustom = false;
+        material.pbr.map.albedo = albedo;
+        material.pbr.map.roughness = roughness;
+        material.pbr.map.metalness = metalness;
+        material.pbr.map.normals = normals;
 
         return material;
     }
@@ -719,8 +720,9 @@ namespace soko
         gameState->materials[EntityMaterial_Gold] = LoadMaterialPBR(gameState->tempArena, "../res/gold/PreviewSphere_Sphere_Albebo.png", "../res/gold/PreviewSphere_Sphere_Roughness.png", "../res/gold/PreviewSphere_Sphere_Metallic.png", "../res/gold/PreviewSphere_Sphere_Normal.png");
         gameState->materials[EntityMaterial_Gun] = LoadMaterialPBR(gameState->tempArena, "../res/gun/Cerberus_A.png", "../res/gun/Cerberus_R.png", "../res/gun/Cerberus_M.png", "../res/gun/Cerberus_N.png");
 
-
-
+        gameState->materials[EntityMaterial_BRDFCustom] = {};
+        gameState->materials[EntityMaterial_BRDFCustom].type = Material::PBR;
+        gameState->materials[EntityMaterial_BRDFCustom].pbr.isCustom = 1;
 
         gameState->materials[EntityMaterial_Tile] = LoadMaterialLegacy(gameState->tempArena, "../res/tile.png");
         gameState->materials[EntityMaterial_Player] = LoadMaterialLegacy(gameState->tempArena, "../res/tile_player.png");
@@ -815,7 +817,7 @@ namespace soko
     DoOtherStuff(GameState* gameState)
     {
         AB::MemoryArena* arena = gameState->memoryArena;
-        bool show = false;
+        //bool show = true;
 
         DrawOverlay(gameState);
         //ImGui::ShowDemoWindow(&show);

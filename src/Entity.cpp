@@ -16,7 +16,7 @@ namespace soko
 
         se->materialRoughness = e->materialRoughness;
         se->materialMetallic = e->materialMetallic;
-        se->materialAO = e->materialAO;
+        se->materialAlbedo = e->materialAlbedo;
     }
 
     inline void
@@ -35,7 +35,7 @@ namespace soko
 
         e->materialRoughness = se->materialRoughness;
         e->materialMetallic = se->materialMetallic;
-        e->materialAO = se->materialAO;
+        e->materialAlbedo = se->materialAlbedo;
     }
 
     inline uptr

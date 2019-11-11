@@ -285,6 +285,11 @@ uniform sampler2D uMetalnessMap;
 uniform sampler2D uNormalMap;
 //uniform sampler2D uAOMap;
 
+uniform int uCustomMaterial;
+uniform vec3 uCustomAlbedo;
+uniform float uCustomRoughness;
+uniform float uCustomMetalness;
+
 uniform float uAO = 1.0f;
 
 const float MAX_REFLECTION_LOD = 5.0f;
@@ -337,15 +342,30 @@ float GeometrySmith(vec3 N, vec3 V, vec3 L, float roughness)
 
 void main()
 {
-    vec3 N = normalize(texture(uNormalMap, vUV).xyz * 2.0f - 1.0f);
-    // NOTE: Flipping y because engine uses LH normal maps (UE4)
-    // but OpenGL does it's job in RH space
-    N.y = -N.y;
-    N = normalize(vTBN * N);
+    vec3 N;
+    vec3 albedo;
+    float roughness;
+    float metalness;
+
+    if (uCustomMaterial == 1)
+    {
+        N = normalize(vNormal);
+        albedo = uCustomAlbedo;
+        roughness = uCustomRoughness;
+        metalness = uCustomMetalness;
+    }
+    else
+    {
+         N = normalize(texture(uNormalMap, vUV).xyz * 2.0f - 1.0f);
+         // NOTE: Flipping y because engine uses LH normal maps (UE4) but OpenGL does it's job in RH space
+         N.y = -N.y;
+         N = normalize(vTBN * N);
+         albedo = texture(uAlbedoMap, vUV).xyz;
+         roughness = texture(uRoughnessMap, vUV).r;
+         metalness = texture(uMetalnessMap, vUV).r;
+    }
+
     vec3 V = normalize(uViewPos - vFragPos);
-    vec3 albedo = texture(uAlbedoMap, vUV).xyz;
-    float roughness = texture(uRoughnessMap, vUV).r;
-    float metalness = texture(uMetalnessMap, vUV).r;
     vec3 L0 = vec3(0.0f);
 
     vec3 Wi = normalize(-uDirLight.dir);

@@ -56,9 +56,9 @@ namespace soko
 
         f32 movementSpeed;
 
+        v3 materialAlbedo;
         f32 materialRoughness;
         f32 materialMetallic;
-        f32 materialAO;
 
         Entity* nextEntity;
     };
@@ -77,9 +77,9 @@ namespace soko
         u32 material;
         f32 movementSpeed;
 
+        v3 materialAlbedo;
         f32 materialRoughness;
         f32 materialMetallic;
-        f32 materialAO;
     };
 #pragma pack(pop)
 
