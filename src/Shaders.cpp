@@ -411,7 +411,7 @@ void main()
     vec3 ambient = (kD * diffuse + envSpecular) * uAO;
 
     resultColor = vec4((ambient + L0), 1.0f);
-    //resultColor = vec4(N,  1.0f);
+    resultColor = vec4(N,  1.0f);
 })";
 
     static const char* SS_VERTEX_SOURCE = R"(

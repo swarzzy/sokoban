@@ -1277,7 +1277,7 @@ namespace hpm
         };
     };
 
-    inline uv3 V3U(u32 x, u32 y, u32 z)
+    inline uv3 UV3(u32 x, u32 y, u32 z)
     {
         uv3 result;
         result.x = x;
@@ -1286,7 +1286,7 @@ namespace hpm
         return result;
     }
 
-    inline uv3 V3U(u32 a)
+    inline uv3 UV3(u32 a)
     {
         uv3 result;
         result.x = a;
@@ -1313,7 +1313,7 @@ namespace hpm
 
     inline uv3 operator+(uv3 l, uv3 r)
     {
-        return V3U(l.x + r.x, l.y + r.y, l.z + r.z);
+        return UV3(l.x + r.x, l.y + r.y, l.z + r.z);
     }
 
     //

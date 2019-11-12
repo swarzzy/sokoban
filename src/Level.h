@@ -17,7 +17,9 @@ namespace soko
         EntityMesh_Button,
         EntityMesh_Sphere,
         EntityMesh_PreviewSphere,
-        EntityMesh_Gun
+        EntityMesh_Gun,
+        EntityMesh_Box,
+        EntityMesh_Altar
     };
 
     enum [reflect seq_enum] EntityMaterial
@@ -36,7 +38,9 @@ namespace soko
         EntityMaterial_OldMetal,
         EntityMaterial_Burlap,
         EntityMaterial_Gold,
-        EntityMaterial_Gun
+        EntityMaterial_Gun,
+        EntityMaterial_Box,
+        EntityMaterial_Altar,
     };
 
     // NOTE: Should fit in one byte
@@ -102,8 +106,9 @@ namespace soko
     struct Chunk
     {
         Level* level;
-        bool dirty;
+        b32 dirty;
         iv3 coord;
+        u32 filledTileCount;
         Tile tiles[CHUNK_TILE_COUNT];
         LoadedChunkMesh loadedMesh;
         ChunkMesh mesh;

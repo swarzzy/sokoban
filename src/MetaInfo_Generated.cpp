@@ -26,6 +26,8 @@ InitMetaInfo(AB::MemoryArena* arena)
     AddEntry_EntityMesh(&info->EntityMesh, 5, EntityMesh_Sphere, "EntityMesh_Sphere");
     AddEntry_EntityMesh(&info->EntityMesh, 6, EntityMesh_PreviewSphere, "EntityMesh_PreviewSphere");
     AddEntry_EntityMesh(&info->EntityMesh, 7, EntityMesh_Gun, "EntityMesh_Gun");
+    AddEntry_EntityMesh(&info->EntityMesh, 8, EntityMesh_Box, "EntityMesh_Box");
+    AddEntry_EntityMesh(&info->EntityMesh, 9, EntityMesh_Altar, "EntityMesh_Altar");
     AddEntry_EntityMaterial(&info->EntityMaterial, 0, EntityMaterial_Tile, "EntityMaterial_Tile");
     AddEntry_EntityMaterial(&info->EntityMaterial, 1, EntityMaterial_Player, "EntityMaterial_Player");
     AddEntry_EntityMaterial(&info->EntityMaterial, 2, EntityMaterial_Block, "EntityMaterial_Block");
@@ -41,6 +43,8 @@ InitMetaInfo(AB::MemoryArena* arena)
     AddEntry_EntityMaterial(&info->EntityMaterial, 12, EntityMaterial_Burlap, "EntityMaterial_Burlap");
     AddEntry_EntityMaterial(&info->EntityMaterial, 13, EntityMaterial_Gold, "EntityMaterial_Gold");
     AddEntry_EntityMaterial(&info->EntityMaterial, 14, EntityMaterial_Gun, "EntityMaterial_Gun");
+    AddEntry_EntityMaterial(&info->EntityMaterial, 15, EntityMaterial_Box, "EntityMaterial_Box");
+    AddEntry_EntityMaterial(&info->EntityMaterial, 16, EntityMaterial_Altar, "EntityMaterial_Altar");
     AddEntry_Direction(&info->Direction, 0, Direction_Invalid, "Direction_Invalid");
     AddEntry_Direction(&info->Direction, 1, Direction_North, "Direction_North");
     AddEntry_Direction(&info->Direction, 2, Direction_South, "Direction_South");

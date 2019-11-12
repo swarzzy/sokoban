@@ -5,8 +5,8 @@
 
 namespace soko
 {
-    constant char* DEFAULT_LEVEL_NAME = "pbrTest04.aab";
-    constant wchar_t* DEFAULT_LEVEL_NAME_W = L"pbrTest04.aab";
+    constant char* DEFAULT_LEVEL_NAME = "pbr02.aab";
+    constant wchar_t* DEFAULT_LEVEL_NAME_W = L"pbr02.aab";
 
 
     constant i32 CHUNK_BIT_SHIFT = 5;

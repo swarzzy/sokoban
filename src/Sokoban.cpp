@@ -708,6 +708,9 @@ namespace soko
         gameState->meshes[EntityMesh_Portal] = LoadMesh(gameState->tempArena, L"../res/mesh/portal.aab");
         gameState->meshes[EntityMesh_Spikes] = LoadMesh(gameState->tempArena, L"../res/mesh/spikes.aab");
         gameState->meshes[EntityMesh_Button] = LoadMesh(gameState->tempArena, L"../res/mesh/button.aab");
+        gameState->meshes[EntityMesh_Box] = LoadMesh(gameState->tempArena, L"../res/mesh/box.aab");
+        gameState->meshes[EntityMesh_Altar] = LoadMesh(gameState->tempArena, L"../res/mesh/altar.aab");
+
         EndTemporaryMemory(gameState->tempArena);
 
         stbi_set_flip_vertically_on_load(1);
@@ -719,6 +722,8 @@ namespace soko
         gameState->materials[EntityMaterial_Burlap] = LoadMaterialPBR(gameState->tempArena, "../res/burlap/worn-blue-burlap-albedo.png", "../res/burlap/worn-blue-burlap-Roughness.png", "../res/burlap/worn-blue-burlap-Metallic.png", "../res/burlap/worn-blue-burlap-Normal-dx.png");
         gameState->materials[EntityMaterial_Gold] = LoadMaterialPBR(gameState->tempArena, "../res/gold/PreviewSphere_Sphere_Albebo.png", "../res/gold/PreviewSphere_Sphere_Roughness.png", "../res/gold/PreviewSphere_Sphere_Metallic.png", "../res/gold/PreviewSphere_Sphere_Normal.png");
         gameState->materials[EntityMaterial_Gun] = LoadMaterialPBR(gameState->tempArena, "../res/gun/Cerberus_A.png", "../res/gun/Cerberus_R.png", "../res/gun/Cerberus_M.png", "../res/gun/Cerberus_N.png");
+        gameState->materials[EntityMaterial_Box] = LoadMaterialPBR(gameState->tempArena, "../res/material/box/Box_albedo.png", "../res/material/box/Box_roughness.png", "../res/material/box/Box_metallic.png", "../res/material/box/Box_normal.png");
+        gameState->materials[EntityMaterial_Altar] = LoadMaterialPBR(gameState->tempArena, "../res/material/altar/DefaultMaterial_Base_Color.png", "../res/material/altar/DefaultMaterial_Roughness.png", "../res/material/altar/DefaultMaterial_Metallic.png", "../res/material/altar/DefaultMaterial_Normal_DirectX.png");
 
         gameState->materials[EntityMaterial_BRDFCustom] = {};
         gameState->materials[EntityMaterial_BRDFCustom].type = Material::PBR;

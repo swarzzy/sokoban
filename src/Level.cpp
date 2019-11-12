@@ -1,4 +1,3 @@
-
 #include "Level.h"
 #include "Memory.h"
 #include "Entity.h"
@@ -493,7 +492,7 @@ namespace soko
     SetTileInChunkInternal(Chunk* chunk, u32 x, u32 y, u32 z, TileValue value);
 
     inline Chunk*
-    AddChunk(Level* level, i32 x, i32 y, i32 z, bool anchor = false)
+    AddChunk(Level* level, i32 x, i32 y, i32 z)
     {
         Chunk* result = 0;
 
@@ -515,22 +514,37 @@ namespace soko
                 Chunk* newChunk = PUSH_STRUCT(level->sessionArena, Chunk);
                 if (newChunk)
                 {
-                    level->chunkTable[index] = newChunk;
+
                     newChunk->level = level;
                     newChunk->coord = IV3(x, y, z);
-                    result = newChunk;
-                    level->loadedChunksCount++;
                     SET_ARRAY(Tile, CHUNK_TILE_COUNT, newChunk->tiles, (i32)TileValue_Empty);
-                    //ZERO_ARRAY(ChunkEntityMapResidentBlock, CHUNK_ENTITY_MAP_SIZE, chunk->entityMap);
-                    if (anchor)
+
+                    ChunkMesh mesh = {};
+                    if (GenChunkMesh(level, newChunk, &mesh))
                     {
-                        iv3 center = IV3(CHUNK_DIM / 2);
-                        SetTileInChunkInternal(newChunk, center.x, center.y, 0, TileValue_Wall);
+                        // NOTE: Empty chunk should not allocate any memory for mesh
+                        SOKO_ASSERT(!mesh.blockCount);
+                        LoadedChunkMesh loadedMesh = RendererLoadChunkMesh(&mesh);
+                        if (loadedMesh.gpuHandle)
+                        {
+                            newChunk->loadedMesh = loadedMesh;
+                            newChunk->mesh = mesh;
+                            level->chunkTable[index] = newChunk;
+                            level->loadedChunksCount++;
+                            result = newChunk;
+                            break;
+                        }
                     }
-                    break;
+                    if (!result)
+                    {
+                        INVALID_CODE_PATH;
+                        // TODO: Free chunk memory in editor
+                        // In game this never should happen!!!
+                    }
                 }
             }
         }
+
         return result;
     }
 
@@ -623,63 +637,6 @@ namespace soko
         return result;
     }
 
-    inline void
-    SetTileInChunkInternal(Chunk* chunk, u32 x, u32 y, u32 z, TileValue value)
-    {
-        SOKO_ASSERT(x < CHUNK_DIM);
-        SOKO_ASSERT(y < CHUNK_DIM);
-        SOKO_ASSERT(z < CHUNK_DIM);
-
-        Tile* tile = chunk->tiles + (z * CHUNK_DIM * CHUNK_DIM + y * CHUNK_DIM + x);
-        if (tile->value != value)
-        {
-            tile->value = value;
-            chunk->dirty = true;
-        }
-    }
-
-    inline void
-    SetTileInChunk(Chunk* chunk, u32 x, u32 y, u32 z, TileValue value)
-    {
-        if (x < CHUNK_DIM &&
-            y < CHUNK_DIM &&
-            z < CHUNK_DIM)
-        {
-            SetTileInChunkInternal(chunk, x, y, z, value);
-        }
-    }
-
-    inline void
-    SetTileInChunk(Chunk* chunk, uv3 tile, TileValue value)
-    {
-        SetTileInChunkInternal(chunk, tile.x, tile.y, tile.z, value);
-    }
-
-    inline void
-    SetTile(Level* level, i32 x, i32 y, i32 z, TileValue value)
-    {
-        // TODO: Real check instead of asserts
-        SOKO_ASSERT(x >= LEVEL_MIN_DIM && x <= LEVEL_MAX_DIM);
-        SOKO_ASSERT(y >= LEVEL_MIN_DIM && y <= LEVEL_MAX_DIM);
-        SOKO_ASSERT(z >= LEVEL_MIN_DIM && z <= LEVEL_MAX_DIM);
-
-        iv3 c = GetChunkCoord(x, y, z);
-        uv3 t = GetTileCoordInChunk(x, y, z);
-
-        Chunk* chunk = GetChunk(level, c.x, c.y, c.z);
-
-        if (chunk)
-        {
-            SetTileInChunkInternal(chunk, t.x, t.y, t.z, value);
-        }
-    }
-
-    inline void
-    SetTile(Level* level, iv3 tile, TileValue value)
-    {
-        SetTile(level, tile.x, tile.y, tile.z, value);
-    }
-
     // NOTE: Checks if it is allowed to place entity on tile
     // NOT if tile is EMPTY!!!!
     inline bool
@@ -769,6 +726,72 @@ namespace soko
         return IsTileFree(chunk, t, flags);
     }
 
+    inline void
+    SetTileInChunkInternal(Chunk* chunk, u32 x, u32 y, u32 z, TileValue value)
+    {
+        SOKO_ASSERT(x < CHUNK_DIM);
+        SOKO_ASSERT(y < CHUNK_DIM);
+        SOKO_ASSERT(z < CHUNK_DIM);
+
+        Tile* tile = chunk->tiles + (z * CHUNK_DIM * CHUNK_DIM + y * CHUNK_DIM + x);
+        if (tile->value != value)
+        {
+            if (!TileIsTerrain(*tile) && TileIsTerrain({value}))
+            {
+                chunk->filledTileCount++;
+            }
+            else if (TileIsTerrain(*tile) && !TileIsTerrain({value}))
+            {
+                SOKO_ASSERT(chunk->filledTileCount > 0);
+                chunk->filledTileCount--;
+            }
+
+            tile->value = value;
+            chunk->dirty = true;
+        }
+    }
+
+    inline void
+    SetTileInChunk(Chunk* chunk, u32 x, u32 y, u32 z, TileValue value)
+    {
+        if (x < CHUNK_DIM &&
+            y < CHUNK_DIM &&
+            z < CHUNK_DIM)
+        {
+            SetTileInChunkInternal(chunk, x, y, z, value);
+        }
+    }
+
+    inline void
+    SetTileInChunk(Chunk* chunk, uv3 tile, TileValue value)
+    {
+        SetTileInChunkInternal(chunk, tile.x, tile.y, tile.z, value);
+    }
+
+    inline void
+    SetTile(Level* level, i32 x, i32 y, i32 z, TileValue value)
+    {
+        // TODO: Real check instead of asserts
+        SOKO_ASSERT(x >= LEVEL_MIN_DIM && x <= LEVEL_MAX_DIM);
+        SOKO_ASSERT(y >= LEVEL_MIN_DIM && y <= LEVEL_MAX_DIM);
+        SOKO_ASSERT(z >= LEVEL_MIN_DIM && z <= LEVEL_MAX_DIM);
+
+        iv3 c = GetChunkCoord(x, y, z);
+        uv3 t = GetTileCoordInChunk(x, y, z);
+
+        Chunk* chunk = GetChunk(level, c.x, c.y, c.z);
+
+        if (chunk)
+        {
+            SetTileInChunkInternal(chunk, t.x, t.y, t.z, value);
+        }
+    }
+
+    inline void
+    SetTile(Level* level, iv3 tile, TileValue value)
+    {
+        SetTile(level, tile.x, tile.y, tile.z, value);
+    }
 
 #pragma pack(push, 1)
 
@@ -781,6 +804,7 @@ namespace soko
     {
         iv3 coord;
         SerializedTile tiles[CHUNK_DIM * CHUNK_DIM * CHUNK_DIM];
+        u32 filledTileCount;
     };
 
 #pragma pack(pop)
@@ -825,6 +849,7 @@ namespace soko
                     chunksWritten++;
                     SOKO_ASSERT(chunksWritten <= header->chunkCount);
                     chunks[chunksWritten - 1].coord = chunk->coord;
+                    chunks[chunksWritten - 1].filledTileCount = chunk->filledTileCount;
                     for (u32 tileInd = 0;
                          tileInd < (CHUNK_DIM * CHUNK_DIM * CHUNK_DIM);
                          tileInd++)
@@ -887,6 +912,15 @@ namespace soko
         return result;
     }
 
+    inline void
+    RemeshChunk(Level* level, Chunk* chunk)
+    {
+        bool result = GenChunkMesh(level, chunk, &chunk->mesh);
+        SOKO_ASSERT(result);
+        chunk->loadedMesh.quadCount = RendererReloadChunkMesh(&chunk->mesh, chunk->loadedMesh.gpuHandle);
+        chunk->dirty = false;
+    }
+
     inline bool
     LoadChunks(AB::MemoryArena* levelArena, Level* loadedLevel,
                SerializedChunk* chunks, u32 chunkCount)
@@ -896,6 +930,7 @@ namespace soko
         {
             SerializedChunk* sChunk = chunks + chunkIdx;
             Chunk* newChunk = AddChunk(loadedLevel, sChunk->coord);
+            newChunk->filledTileCount = sChunk->filledTileCount;
             if (newChunk)
             {
                 for (u32 z = 0; z < CHUNK_DIM; z++)
@@ -913,22 +948,8 @@ namespace soko
                     }
                 }
                 // TODO: Store meshes on the cpu and load on the gpu only when necessary
-                ChunkMesh mesh = {};
-                if (GenChunkMesh(loadedLevel, newChunk, &mesh))
-                {
-                    // TODO: Check if loading failed
-                    LoadedChunkMesh loadedMesh = RendererLoadChunkMesh(&mesh);
-                    newChunk->loadedMesh = loadedMesh;
-                    newChunk->mesh = mesh;
-                    //loadedLevel->globalChunkMeshBlockCount += mesh.blockCount;
-                    result = true;
-                }
-                else
-                {
-                    // TODO: Decide what to do when chunk mesh loading failed
-                    result = false;
-                    break;
-                }
+                RemeshChunk(loadedLevel, newChunk);
+                result = true;
             }
         }
         return result;

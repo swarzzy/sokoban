@@ -8,7 +8,6 @@ namespace soko
         Tool_TileEraser,
         Tool_EntityPicker,
         Tool_EntityPlacer,
-        Tool_ChunkTool,
     };
 
     constant u32 EDITOR_UI_LEVEL_NAME_SIZE = 256;
@@ -43,7 +42,9 @@ namespace soko
         b32 entityPickerHolding;
         iv3 entityPickerTile;
         TileValue placerTile;
+        b32 tilePlacerDeleteMode;
         i32 selectedEntityID;
+        b32 showChunkBounds;
         // NOTE: Changes every frame
         SimRegion* region;
     };
@@ -123,7 +124,7 @@ namespace soko
 
         camera->frameAcceleration = RHToWorld(camera->frameAcceleration);
 
-        if (GlobalInput.mouseButtons[AB::MBUTTON_RIGHT].pressedNow)
+        if (GlobalInput.mouseButtons[AB::MBUTTON_MIDDLE].pressedNow)
         {
             v2 mousePos;
             f32 speed = camera->rotSpeed;
@@ -244,12 +245,33 @@ namespace soko
         return result;
     }
 
-    internal void
-    EditorInit(Editor* editor, GameSession* session, GameState* gameState)
+    inline void
+    EditorAddAnchorIfChunkEmpty(Chunk* chunk)
     {
+        // TODO: Add anchor only if the whole world is empty
+        if (!chunk->filledTileCount)
+        {
+            uv3 center = UV3(CHUNK_DIM / 2, CHUNK_DIM / 2, 0);
+            SetTileInChunk(chunk, center, TileValue_Wall);
+        }
+    }
+
+    internal void
+    EditorInit(GameState* gameState)
+    {
+        GameSession* session = &gameState->session;
+        Editor* editor = session->editor;
+
         editor->session = session;
         editor->gameState = gameState;
         editor->placerTile = TileValue_Wall;
+
+        Chunk* chunk = GetChunk(session->level, 0, 0, 0);
+        if (!chunk)
+        {
+            chunk = AddChunk(session->level, 0, 0, 0);
+            SOKO_ASSERT(chunk);
+        }
     }
 
     inline void
@@ -291,7 +313,6 @@ namespace soko
                 if (ImGui::Selectable("Tile eraser", editor->tool == Tool_TileEraser))editor->tool = Tool_TileEraser;
                 if (ImGui::Selectable("Entity picker", editor->tool == Tool_EntityPicker))editor->tool = Tool_EntityPicker;
                 if (ImGui::Selectable("Entity placer", editor->tool == Tool_EntityPlacer))editor->tool = Tool_EntityPlacer;
-                if (ImGui::Selectable("Chunk tool", editor->tool == Tool_ChunkTool))editor->tool = Tool_ChunkTool;
             }
         }
         ImGui::End();
@@ -493,7 +514,7 @@ namespace soko
                             ImGui::PushID(buffer);
                             if (ImGui::Button("Add"))
                             {
-                                Chunk* chunk = AddChunk(editor->session->level, x, y, z, true);
+                                Chunk* chunk = AddChunk(editor->session->level, x, y, z);
                                 SOKO_ASSERT(chunk);
                                 // TODO: Store meshes on the cpu and load on the gpu only when necessary
                                 ChunkMesh mesh = {};
@@ -607,12 +628,11 @@ namespace soko
         }
     }
 
-
     internal void
     EditorDrawUI(Editor* editor)
     {
-        local_persist bool show = false;
-        ImGui::ShowDemoWindow(&show);
+        //local_persist bool show = false;
+        //ImGui::ShowDemoWindow(&show);
 
         ImGui::BeginMainMenuBar();
         if (ImGui::BeginMenu("Level"))
@@ -649,10 +669,18 @@ namespace soko
             {
                 editor->ui.levelSettingsOpened = !editor->ui.levelSettingsOpened;
             }
-
-
             ImGui::EndMenu();
         }
+
+        if (ImGui::BeginMenu("Debug"))
+        {
+            if (ImGui::MenuItem("Show chunk bounds", 0, editor->showChunkBounds))
+            {
+                editor->showChunkBounds = !editor->showChunkBounds;
+            }
+            ImGui::EndMenu();
+        }
+
         ImGui::EndMainMenuBar();
 
         DrawToolBox(editor);
@@ -692,12 +720,19 @@ namespace soko
 
         DEBUG_OVERLAY_TRACE((u32)IsKeyboradCapturedByUI());
         DEBUG_OVERLAY_TRACE((u32)IsMouseCapturedByUI());
+        DEBUG_OVERLAY_TRACE(editor->tilePlacerDeleteMode);
+        DEBUG_OVERLAY_TRACE(GlobalInput.mouseButtons[MBUTTON_LEFT].pressedNow);
+        DEBUG_OVERLAY_TRACE(GlobalInput.mouseButtons[MBUTTON_RIGHT].pressedNow);
+
         // TODO: Not here
         if (!IsKeyboradCapturedByUI())
         {
             EditorCameraGatherInput(camera);
             EditorCameraUpdate(camera);
         }
+
+        Chunk* zeroChunk = GetChunk(level, 0, 0, 0);
+        EditorAddAnchorIfChunkEmpty(zeroChunk);
 
         BeginTemporaryMemory(gameState->tempArena, true);
         SimRegion* simRegion = BeginSim(gameState->tempArena,
@@ -721,11 +756,7 @@ namespace soko
                     {
                         if (chunk->dirty)
                         {
-                            // TODO: Dynamically growing arenas for editor?
-                            bool result = GenChunkMesh(level, chunk, &chunk->mesh);
-                            SOKO_ASSERT(result);
-                            chunk->loadedMesh.quadCount = RendererReloadChunkMesh(&chunk->mesh, chunk->loadedMesh.gpuHandle);
-                            chunk->dirty = false;
+                            RemeshChunk(level, chunk);
                         }
                     }
                 }
@@ -740,9 +771,6 @@ namespace soko
 
         switch (editor->tool)
         {
-        case Tool_ChunkTool:
-        {
-        } break;
         case Tool_EntityPlacer:
         {
             if (JustPressed(MBUTTON_RIGHT) && !IsMouseCapturedByUI())
@@ -804,32 +832,77 @@ namespace soko
 
             if (raycast.hit == RaycastResult::Tile)
             {
-                iv3 hoveredTile = raycast.tile.coord + DirToUnitOffset(raycast.tile.normalDir);
-                if (JustPressed(MBUTTON_LEFT) && !IsMouseCapturedByUI())
+                if (!IsMouseCapturedByUI() && !editor->selectorHolding)
                 {
-                    editor->mouseUsed = true;
-                    editor->selectorHolding = true;
-                    editor->selectorBegin = hoveredTile;
+                    if (JustPressed(MBUTTON_LEFT))
+                    {
+                        editor->mouseUsed = true;
+                        editor->tilePlacerDeleteMode = false;
+                        editor->selectorHolding = true;
+                        editor->selectorBegin = raycast.tile.coord + DirToUnitOffset(raycast.tile.normalDir);
+                    }
+                    else if (JustPressed(MBUTTON_RIGHT))
+                    {
+                        editor->mouseUsed = true;
+                        editor->tilePlacerDeleteMode = true;
+                        editor->selectorHolding = true;
+                        editor->selectorBegin = raycast.tile.coord;
+                    }
                 }
 
                 if (editor->selectorHolding)
                 {
-                    editor->selectorEnd = hoveredTile;
+                    editor->selectorEnd = editor->tilePlacerDeleteMode ? raycast.tile.coord : raycast.tile.coord + DirToUnitOffset(raycast.tile.normalDir);
                 }
             }
-            if (JustReleased(MBUTTON_LEFT) && editor->selectorHolding)
+            if (editor->selectorHolding)
             {
-                editor->selectorHolding = false;
-
-                TileBox box = TileBoxFromTwoPoints(editor->selectorBegin, editor->selectorEnd);
-
-                for (i32 z = box.min.z; z <= box.max.z; z++)
+                if (JustPressed(MBUTTON_LEFT) && editor->tilePlacerDeleteMode)
                 {
-                    for (i32 y = box.min.y; y <= box.max.y; y++)
+                    editor->selectorHolding = false;
+                    editor->tilePlacerDeleteMode = false;
+                }
+                if (JustPressed(MBUTTON_RIGHT) && !editor->tilePlacerDeleteMode)
+                {
+                    editor->selectorHolding = false;
+                    editor->tilePlacerDeleteMode = false;
+                }
+
+                if ((JustReleased(MBUTTON_LEFT) || JustReleased(MBUTTON_RIGHT)))
+                {
+                    editor->selectorHolding = false;
+
+                    TileBox box = TileBoxFromTwoPoints(editor->selectorBegin, editor->selectorEnd);
+                    TileValue value = editor->tilePlacerDeleteMode ? TileValue_Empty : editor->placerTile;
+
+                    editor->tilePlacerDeleteMode = false;
+
+                    for (i32 z = box.min.z; z <= box.max.z; z++)
                     {
-                        for (i32 x = box.min.x; x <= box.max.x; x++)
+                        for (i32 y = box.min.y; y <= box.max.y; y++)
                         {
-                            SetTile(level, x, y, z, editor->placerTile);
+                            for (i32 x = box.min.x; x <= box.max.x; x++)
+                            {
+                                iv3 c = GetChunkCoord(x, y, z);
+                                uv3 t = GetTileCoordInChunk(x, y, z);
+                                Chunk* chunk = GetChunk(level, c);
+                                if (chunk)
+                                {
+                                    SetTileInChunk(chunk, t, value);
+                                }
+                                else
+                                {
+                                    Chunk* newChunk = AddChunk(level, c);
+                                    if (newChunk)
+                                    {
+                                        SetTileInChunk(newChunk, t, value);
+                                    }
+                                    else
+                                    {
+                                        // TODO: This will leak memory for now
+                                    }
+                                }
+                            }
                         }
                     }
                 }
@@ -900,9 +973,7 @@ namespace soko
         RenderGroupSetCamera(gameState->renderGroup, &gameState->session.editorCamera->conf);
         EditorDrawUI(editor);
 
-        switch (editor->tool)
-        {
-        case Tool_ChunkTool:
+        if (editor->showChunkBounds)
         {
             for (i32 z = minBound.z; z <= maxBound.z; z++)
             {
@@ -929,8 +1000,10 @@ namespace soko
                     }
                 }
             }
+        }
 
-        } break;
+        switch (editor->tool)
+        {
         case Tool_EntityPlacer:
         {
             v3 selTileRelPos = GetRelPos(camera->targetWorldPos, editor->selectorBegin);

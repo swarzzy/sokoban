@@ -710,6 +710,10 @@ namespace soko
                 {
                     v3 chunkSimPos = GetRelPos(region->origin, IV3(chunkX, chunkY, chunkZ) * CHUNK_DIM);
                     BBoxAligned chunkBBox = GetChunkAABB(chunkSimPos);
+                    v3 tileOff = V3(LEVEL_TILE_RADIUS, LEVEL_TILE_RADIUS, LEVEL_TILE_RADIUS);
+                    // NOTE: Subtract tile radius because tile (0, 0, 0) coord is aligned to tile center in camera space
+                    chunkBBox.min -= tileOff;
+                    chunkBBox.max -= tileOff;
                     auto chunkIntersection = RayAABBIntersectionSlow(from, ray, &chunkBBox);
 
                     if (chunkIntersection.intersects)
