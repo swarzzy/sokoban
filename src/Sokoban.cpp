@@ -215,6 +215,8 @@ inline void* ReallocForSTBI(void* p, uptr oldSize, uptr newSize)
 #define glGetFloatv GL_FUNCTION(glGetFloatv)
 #define glUniform2fv GL_FUNCTION(glUniform2fv)
 #define glFinish GL_FUNCTION(glFinish)
+#define glGetTexImage GL_FUNCTION(glGetTexImage)
+#define glFlush GL_FUNCTION(glFlush)
 
 // NOTE: Functions used by ImGUI
 #define glGetIntegerv GL_FUNCTION(glGetIntegerv)
@@ -330,260 +332,6 @@ GameUpdateAndRender(AB::MemoryArena* arena,
 }
 namespace soko
 {
-    internal CubeTexture
-    LoadCubemap(AB::MemoryArena* tempArena,
-                const char* back, const char* down, const char* front,
-                const char* left, const char* right, const char* up)
-    {
-        CubeTexture texture = {};
-
-        BeginTemporaryMemory(tempArena);
-
-        i32 backWidth, backHeight, backBpp;
-        unsigned char* backData = stbi_load(back, &backWidth, &backHeight, &backBpp, 3);
-
-        i32 downWidth, downHeight, downBpp;
-        unsigned char* downData = stbi_load(down, &downWidth, &downHeight, &downBpp, 3);
-
-        i32 frontWidth, frontHeight, frontBpp;
-        unsigned char* frontData = stbi_load(front, &frontWidth, &frontHeight, &frontBpp, 3);
-
-        i32 leftWidth, leftHeight, leftBpp;
-        unsigned char* leftData = stbi_load(left, &leftWidth, &leftHeight, &leftBpp, 3);
-
-        i32 rightWidth, rightHeight, rightBpp;
-        unsigned char* rightData = stbi_load(right, &rightWidth, &rightHeight, &rightBpp, 3);
-
-        i32 upWidth, upHeight, upBpp;
-        unsigned char* upData = stbi_load(up, &upWidth, &upHeight, &upBpp, 3);
-
-        texture.back.format = GL_SRGB8;
-        texture.back.width = backWidth;
-        texture.back.height = backHeight;
-        texture.back.data = backData;
-
-        texture.down.format = GL_SRGB8;
-        texture.down.width = downWidth;
-        texture.down.height = downHeight;
-        texture.down.data = downData;
-
-        texture.front.format = GL_SRGB8;
-        texture.front.width = frontWidth;
-        texture.front.height = frontHeight;
-        texture.front.data = frontData;
-
-        texture.left.format = GL_SRGB8;
-        texture.left.width = leftWidth;
-        texture.left.height = leftHeight;
-        texture.left.data = leftData;
-
-        texture.right.format = GL_SRGB8;
-        texture.right.width = rightWidth;
-        texture.right.height = rightHeight;
-        texture.right.data = rightData;
-
-        texture.up.format = GL_SRGB8;
-        texture.up.width = upWidth;
-        texture.up.height = upHeight;
-        texture.up.data = upData;
-
-        RendererLoadCubeTexture(&texture);
-        SOKO_ASSERT(texture.gpuHandle);
-
-        EndTemporaryMemory(tempArena);
-
-        return texture;
-    }
-
-    internal CubeTexture
-    MakeEmptyCubemap(int w, int h, GLenum format, TextureFilter filter = TextureFilter_Bilinear, bool useMips = false)
-    {
-        CubeTexture texture = {};
-        texture.useMips = useMips;
-        texture.filter = filter;
-        for (u32 i = 0; i < 6; i++)
-        {
-            texture.images[i].format = format;
-            texture.images[i].width = w;
-            texture.images[i].height = h;
-            texture.images[i].data = 0;
-        }
-        RendererLoadCubeTexture(&texture);
-        SOKO_ASSERT(texture.gpuHandle);
-        return texture;
-    }
-
-    internal CubeTexture
-    LoadCubemapHDR(AB::MemoryArena* tempArena,
-                   const char* back, const char* down, const char* front,
-                   const char* left, const char* right, const char* up)
-    {
-        CubeTexture texture = {};
-
-        BeginTemporaryMemory(tempArena);
-
-        i32 backWidth, backHeight, backBpp;
-        f32* backData = stbi_loadf(back, &backWidth, &backHeight, &backBpp, 3);
-
-        i32 downWidth, downHeight, downBpp;
-        f32* downData = stbi_loadf(down, &downWidth, &downHeight, &downBpp, 3);
-
-        i32 frontWidth, frontHeight, frontBpp;
-        f32* frontData = stbi_loadf(front, &frontWidth, &frontHeight, &frontBpp, 3);
-
-        i32 leftWidth, leftHeight, leftBpp;
-        f32* leftData = stbi_loadf(left, &leftWidth, &leftHeight, &leftBpp, 3);
-
-        i32 rightWidth, rightHeight, rightBpp;
-        f32* rightData = stbi_loadf(right, &rightWidth, &rightHeight, &rightBpp, 3);
-
-        i32 upWidth, upHeight, upBpp;
-        f32* upData = stbi_loadf(up, &upWidth, &upHeight, &upBpp, 3);
-
-        texture.back.format = GL_RGB16F;
-        texture.back.width = backWidth;
-        texture.back.height = backHeight;
-        texture.back.data = backData;
-
-        texture.down.format = GL_RGB16F;
-        texture.down.width = downWidth;
-        texture.down.height = downHeight;
-        texture.down.data = downData;
-
-        texture.front.format = GL_RGB16F;
-        texture.front.width = frontWidth;
-        texture.front.height = frontHeight;
-        texture.front.data = frontData;
-
-        texture.left.format = GL_RGB16F;
-        texture.left.width = leftWidth;
-        texture.left.height = leftHeight;
-        texture.left.data = leftData;
-
-        texture.right.format = GL_RGB16F;
-        texture.right.width = rightWidth;
-        texture.right.height = rightHeight;
-        texture.right.data = rightData;
-
-        texture.up.format = GL_RGB16F;
-        texture.up.width = upWidth;
-        texture.up.height = upHeight;
-        texture.up.data = upData;
-
-        RendererLoadCubeTexture(&texture);
-        SOKO_ASSERT(texture.gpuHandle);
-
-        EndTemporaryMemory(tempArena);
-
-        return texture;
-    }
-
-    internal Texture
-    LoadTexture(AB::MemoryArena* tempArena, const char* filename,
-                GLenum format = GL_SRGB8,
-                GLenum wrapMode = GL_REPEAT,
-                TextureFilter filter = TextureFilter_Bilinear)
-    {
-        Texture t = {};
-        BeginTemporaryMemory(tempArena);
-        i32 width;
-        i32 height;
-        i32 bpp;
-        unsigned char* diffBitmap = stbi_load(filename, &width, &height, &bpp, 0);
-
-        t.format = format;
-        t.width = width;
-        t.height = height;
-        t.wrapMode = wrapMode;
-        t.filter = filter;
-
-        t.data = diffBitmap;
-        RendererLoadTexture(&t);
-        SOKO_ASSERT(t.gpuHandle);
-
-        EndTemporaryMemory(tempArena);
-
-        return t;
-    }
-
-    internal Material
-    LoadMaterialLegacy(AB::MemoryArena* tempArena,
-                             const char* diffusePath,
-                             const char* specularPath = 0)
-    {
-        Texture diffMap = LoadTexture(tempArena, diffusePath, GL_SRGB8, GL_REPEAT, TextureFilter_Anisotropic);
-        Texture specMap = {};
-        if (specularPath)
-        {
-            Texture specMap = LoadTexture(tempArena, specularPath, GL_SRGB8, GL_REPEAT, TextureFilter_Anisotropic);
-        }
-
-        Material material = {};
-        material.type = Material::Legacy;
-        material.legacy.diffMap = diffMap;
-        material.legacy.specMap = specMap;
-
-        return material;
-    }
-
-    internal Material
-    LoadMaterialPBR(AB::MemoryArena* tempArena,
-                    const char* albedoPath,
-                    const char* roughnessPath,
-                    const char* metalnessPath,
-                    const char* normalsPath)
-    {
-        Texture albedo = LoadTexture(tempArena, albedoPath, GL_SRGB8, GL_REPEAT, TextureFilter_Anisotropic);
-        Texture roughness = LoadTexture(tempArena, roughnessPath, GL_RGB8, GL_REPEAT, TextureFilter_Anisotropic);
-        Texture metalness = LoadTexture(tempArena, metalnessPath, GL_RGB8, GL_REPEAT, TextureFilter_Anisotropic);
-        Texture normals = LoadTexture(tempArena, normalsPath, GL_RGB8, GL_REPEAT, TextureFilter_Anisotropic);
-
-
-        Material material = {};
-        material.type = Material::PBR;
-        material.pbr.isCustom = false;
-        material.pbr.map.albedo = albedo;
-        material.pbr.map.roughness = roughness;
-        material.pbr.map.metalness = metalness;
-        material.pbr.map.normals = normals;
-
-        return material;
-    }
-
-    internal Texture
-    LoadTexture(i32 width, i32 height, void* data = 0,
-                GLenum format = GL_SRGB8,
-                GLenum wrapMode = GL_REPEAT,
-                TextureFilter filter = TextureFilter_Bilinear)
-    {
-        Texture t = {};
-
-        t.format = format;
-        t.width = width;
-        t.height = height;
-        t.filter = filter;
-        t.wrapMode = wrapMode;
-        t.data = data;
-
-        RendererLoadTexture(&t);
-        SOKO_ASSERT(t.gpuHandle);
-
-        return t;
-    }
-
-    // NOTE: Diffise only
-    internal Material
-    LoadMaterialLegacy(i32 width, i32 height, void* bitmap)
-    {
-        Texture diffMap = LoadTexture(width, height, bitmap, GL_SRGB8, GL_REPEAT, TextureFilter_Anisotropic);
-
-        Material material = {};
-        material.type = Material::Legacy;
-        material.legacy.diffMap = diffMap;
-
-        return material;
-    }
-
     internal void
     GenMeshTangents(Mesh* mesh, AB::MemoryArena* arena)
     {
@@ -623,40 +371,6 @@ namespace soko
         }
     }
 
-    internal Mesh
-    LoadMesh(AB::MemoryArena* tempArena, const wchar_t* filepath)
-    {
-        Mesh mesh = {};
-        u32 fileSize = DebugGetFileSize(filepath);
-        if (fileSize)
-        {
-            void* fileData = PUSH_SIZE(tempArena, fileSize);
-            u32 result = DebugReadFile(fileData, fileSize, filepath);
-            if (result)
-            {
-                // NOTE: Strict aliasing
-                auto header = (AB::AABMeshHeaderV2*)fileData;
-                SOKO_ASSERT(header->magicValue == AB::AAB_FILE_MAGIC_VALUE);
-
-                mesh.vertexCount = header->vertexCount;
-                mesh.normalCount = header->vertexCount;
-                mesh.uvCount = header->vertexCount;
-                mesh.indexCount = header->indexCount;
-
-                mesh.vertices = (v3*)((byte*)fileData + header->vertexOffset);
-                mesh.normals = (v3*)((byte*)fileData + header->normalsOffset);
-                mesh.uvs = (v2*)((byte*)fileData + header->uvOffset);
-                mesh.indices = (u32*)((byte*)fileData + header->indicesOffset);
-                mesh.tangents = (v3*)((byte*)fileData + header->tangentsOffset);
-
-                RendererLoadMesh(&mesh);
-                SOKO_ASSERT(mesh.gpuVertexBufferHandle);
-                SOKO_ASSERT(mesh.gpuIndexBufferHandle);
-            }
-        }
-
-        return mesh;
-    }
 
     internal void
     GameInit(AB::MemoryArena* arena, AB::PlatformState* platform)
@@ -702,7 +416,6 @@ namespace soko
         BeginTemporaryMemory(gameState->tempArena);
         gameState->meshes[EntityMesh_Sphere] = LoadMesh(gameState->tempArena, L"../res/mesh/sphere.aab");
         gameState->meshes[EntityMesh_Gun] = LoadMesh(gameState->tempArena, L"../res/mesh/gun.aab");
-        gameState->meshes[EntityMesh_PreviewSphere] = LoadMesh(gameState->tempArena, L"../res/mesh/sphere.aab");
         gameState->meshes[EntityMesh_Cube] = LoadMesh(gameState->tempArena, L"../res/mesh/cube.aab");
         gameState->meshes[EntityMesh_Plate] = LoadMesh(gameState->tempArena, L"../res/mesh/plate.aab");
         gameState->meshes[EntityMesh_Portal] = LoadMesh(gameState->tempArena, L"../res/mesh/portal.aab");
@@ -717,10 +430,7 @@ namespace soko
 
         gameState->materials[EntityMaterial_PbrMetal] = LoadMaterialPBR(gameState->tempArena, "../res/rust_metal/grimy-metal-albedo.png", "../res/rust_metal/grimy-metal-roughness.png", "../res/rust_metal/grimy-metal-metalness.png", "../res/rust_metal/grimy-metal-normal-dx.png");
         gameState->materials[EntityMaterial_Rock] = LoadMaterialPBR(gameState->tempArena, "../res/rock/layered-rock1-albedo.png", "../res/rock/layered-rock1-rough.png", "../res/rock/layered-rock1-Metalness.png", "../res/rock/layered-rock1-normal-dx.png");
-        gameState->materials[EntityMaterial_Metal] = LoadMaterialPBR(gameState->tempArena, "../res/rustediron/rustediron-streaks_basecolor.png", "../res/rustediron/rustediron-streaks_roughness.png", "../res/rustediron/rustediron-streaks_metallic.png", "../res/rustediron/rustediron-streaks_normal.png");
         gameState->materials[EntityMaterial_OldMetal] = LoadMaterialPBR(gameState->tempArena, "../res/oldmetal/greasy-metal-pan1-albedo.png", "../res/oldmetal/greasy-metal-pan1-roughness.png", "../res/oldmetal/greasy-metal-pan1-metal.png", "../res/oldmetal/greasy-metal-pan1-normal.png");
-        gameState->materials[EntityMaterial_Burlap] = LoadMaterialPBR(gameState->tempArena, "../res/burlap/worn-blue-burlap-albedo.png", "../res/burlap/worn-blue-burlap-Roughness.png", "../res/burlap/worn-blue-burlap-Metallic.png", "../res/burlap/worn-blue-burlap-Normal-dx.png");
-        gameState->materials[EntityMaterial_Gold] = LoadMaterialPBR(gameState->tempArena, "../res/gold/PreviewSphere_Sphere_Albebo.png", "../res/gold/PreviewSphere_Sphere_Roughness.png", "../res/gold/PreviewSphere_Sphere_Metallic.png", "../res/gold/PreviewSphere_Sphere_Normal.png");
         gameState->materials[EntityMaterial_Gun] = LoadMaterialPBR(gameState->tempArena, "../res/gun/Cerberus_A.png", "../res/gun/Cerberus_R.png", "../res/gun/Cerberus_M.png", "../res/gun/Cerberus_N.png");
         gameState->materials[EntityMaterial_Box] = LoadMaterialPBR(gameState->tempArena, "../res/material/box/Box_albedo.png", "../res/material/box/Box_roughness.png", "../res/material/box/Box_metallic.png", "../res/material/box/Box_normal.png");
         gameState->materials[EntityMaterial_Altar] = LoadMaterialPBR(gameState->tempArena, "../res/material/altar/DefaultMaterial_Base_Color.png", "../res/material/altar/DefaultMaterial_Roughness.png", "../res/material/altar/DefaultMaterial_Metallic.png", "../res/material/altar/DefaultMaterial_Normal_DirectX.png");
@@ -754,26 +464,17 @@ namespace soko
         stbi_set_flip_vertically_on_load(0);
 
         gameState->hdrMap = LoadCubemapHDR(gameState->tempArena,
-                                           "../res/milkyway/cubemap_skybox/nz.hdr",
-                                           "../res/milkyway/cubemap_skybox/ny.hdr",
-                                           "../res/milkyway/cubemap_skybox/pz.hdr",
-                                           "../res/milkyway/cubemap_skybox/nx.hdr",
-                                           "../res/milkyway/cubemap_skybox/px.hdr",
-                                           "../res/milkyway/cubemap_skybox/py.hdr");
-#if 0
-        gameState->irradanceMap = LoadCubemapHDR(gameState->tempArena,
-                                                 "../res/milkyway/cubemap_irradance/nz.hdr",
-                                                 "../res/milkyway/cubemap_irradance/ny.hdr",
-                                                 "../res/milkyway/cubemap_irradance/pz.hdr",
-                                                 "../res/milkyway/cubemap_irradance/nx.hdr",
-                                                 "../res/milkyway/cubemap_irradance/px.hdr",
-                                                 "../res/milkyway/cubemap_irradance/py.hdr");
-#endif
+                                           "../res/desert_sky/nz.hdr",
+                                           "../res/desert_sky/ny.hdr",
+                                           "../res/desert_sky/pz.hdr",
+                                           "../res/desert_sky/nx.hdr",
+                                           "../res/desert_sky/px.hdr",
+                                           "../res/desert_sky/py.hdr");
 
 
         gameState->irradanceMap = MakeEmptyCubemap(64, 64, GL_RGB16F);
         gameState->enviromentMap = MakeEmptyCubemap(256, 256, GL_RGB16F, TextureFilter_Trilinear, true);
-        gameState->BRDFLut = LoadTexture(512, 512, 0, GL_RG16F, GL_CLAMP_TO_EDGE, TextureFilter_Bilinear);
+        //gameState->BRDFLut = LoadTexture(512, 512, 0, GL_RG16F, GL_CLAMP_TO_EDGE, TextureFilter_Bilinear);
 
         gameState->renderGroup->drawSkybox = true;
         gameState->renderGroup->skyboxHandle = gameState->enviromentMap.gpuHandle;
@@ -782,9 +483,9 @@ namespace soko
 
         GenIrradanceMap(gameState->renderer, &gameState->irradanceMap, gameState->hdrMap.gpuHandle);
         GenEnvPrefiliteredMap(gameState->renderer, &gameState->enviromentMap, gameState->hdrMap.gpuHandle, 6);
-        GenBRDFLut(gameState->renderer, &gameState->BRDFLut);
+        //GenBRDFLut(gameState->renderer, &gameState->BRDFLut);
 
-        gameState->renderer->BRDFLutHandle = gameState->BRDFLut.gpuHandle;
+        //gameState->renderer->BRDFLutHandle = gameState->BRDFLut.gpuHandle;
 
         //auto* level = gameState->level;
         //gameState->port = 9999;
@@ -803,7 +504,7 @@ namespace soko
                                      _GlobalPlatform->functions.FreeForImGui,
                                      _GlobalPlatform->imGuiAllocatorData);
         ImGui::SetCurrentContext(_GlobalPlatform->imGuiContext);
-
+        RendererRecompileShaders(_GlobalStaticStorage->gameState->renderer);
     }
 
     void

@@ -117,6 +117,7 @@ out vec4 resultColor;
 
 uniform samplerCube uSourceCubemap;
 uniform float uRoughness;
+uniform int uResolution;
 
 const float PI_32 = 3.14159265358979323846f;
 
@@ -159,7 +160,20 @@ vec3 ImportanceSampleGGX(vec2 p, vec3 N, float a)
     return normalize(sampleVec);
 }
 
-const uint SAMPLES = 2048u;
+float DistributionGGX(vec3 N, vec3 H, float a)
+{
+    float a4 = a * a * a * a;
+    float NdotH = max(dot(N, H), 0.0f);
+    float NdotHSq = NdotH * NdotH;
+
+    float num = a4;
+    float denom = (NdotHSq * (a4 - 1.0f) + 1.0f);
+    denom = PI_32 * denom * denom;
+
+    return num / max(denom, 0.001f);
+}
+
+const uint SAMPLES = 4096u;
 
 void main()
 {
@@ -173,13 +187,20 @@ void main()
     for (uint i = 0u; i < SAMPLES; i++)
     {
         vec2 p = Hammersley(i, SAMPLES);
-        vec3 dir = ImportanceSampleGGX(p, N, uRoughness);
-        vec3 L = normalize(2.0f * dot(V, dir) * dir - V);
+        vec3 H = ImportanceSampleGGX(p, N, uRoughness);
+        vec3 L = normalize(2.0f * dot(V, H) * H - V);
 
         float NdotL = max(dot(N, L), 0.0f);
         if (NdotL > 0.0f)
         {
-            prefColor += texture(uSourceCubemap, L).rgb * NdotL;
+            float D = DistributionGGX(N, H, uRoughness);
+            float NdotH = max(dot(N, H), 0.0f);
+            float HdotV = max(dot(H, V), 0.0f);
+            float PDF = D * NdotH / (4.0f * HdotV) + 0.0001;
+            float saTexel = 4.0f * PI_32 / (6.0f * uResolution * uResolution);
+            float saSample = 1.0f / (float(SAMPLES) * PDF + 0.0001f);
+            float mipLevel = uRoughness == 0.0f ? 0.0f : 0.5f * log2(saSample / saTexel);
+            prefColor += textureLod(uSourceCubemap, L, mipLevel).rgb * NdotL;
             totalWeight += NdotL;
         }
     }
@@ -290,6 +311,11 @@ uniform vec3 uCustomAlbedo;
 uniform float uCustomRoughness;
 uniform float uCustomMetalness;
 
+uniform int uDebugF;
+uniform int uDebugG;
+uniform int uDebugD;
+uniform int uDebugNormals;
+
 uniform float uAO = 1.0f;
 
 const float MAX_REFLECTION_LOD = 5.0f;
@@ -306,23 +332,22 @@ vec3 FresnelSchlickRoughness(float cosTheta, vec3 F0, float roughness)
     return F0 + (max(vec3(1.0f - roughness), F0) - F0) * pow(1.0f - cosTheta, 5.0f);
 }
 
-float DistributionGGX(vec3 N, vec3 H, float roughness)
+float DistributionGGX(vec3 N, vec3 H, float a)
 {
-    float a = roughness * roughness;
-    float aSq = a * a;
+    float a4 = a * a * a * a;
     float NdotH = max(dot(N, H), 0.0f);
     float NdotHSq = NdotH * NdotH;
 
-    float num = aSq;
-    float denom = (NdotHSq * (aSq - 1.0f) + 1.0f);
+    float num = a4;
+    float denom = (NdotHSq * (a4 - 1.0f) + 1.0f);
     denom = PI * denom * denom;
 
     return num / max(denom, 0.001f);
 }
 
-float GeometrySchlickGGX(float NdotV, float roughness)
+float GeometrySchlickGGX(float NdotV, float a)
 {
-    float k = ((roughness + 1.0f) * (roughness + 1.0f)) / 8.0f;
+    float k = ((a + 1.0f) * (a + 1.0f)) / 8.0f;
 
     float num = NdotV;
     float denom = NdotV * (1.0f - k) + k;
@@ -330,14 +355,32 @@ float GeometrySchlickGGX(float NdotV, float roughness)
     return num / denom;
 }
 
-float GeometrySmith(vec3 N, vec3 V, vec3 L, float roughness)
+float GeometrySmith(float NdotV, float NdotL, float a)
 {
-    float NdotV = max(dot(N, V), 0.0f);
-    float NdotL = max(dot(N, L), 0.0f);
-    float ggx1 = GeometrySchlickGGX(NdotV, roughness);
-    float ggx2 = GeometrySchlickGGX(NdotL, roughness);
+    float ggx1 = GeometrySchlickGGX(NdotV, a);
+    float ggx2 = GeometrySchlickGGX(NdotL, a);
 
     return ggx1 * ggx2;
+}
+
+vec3 IBLIrradance(vec3 Vo, vec3 N, float NdotV, float a, vec3 F0, float metallic, vec3 albedo)
+{
+    // NOTE: Specular irradance
+    vec3 R = reflect(-Vo, N);
+    vec3 envIrradance = textureLod(uEnviromentMap, R, a * MAX_REFLECTION_LOD).rgb;
+    vec3 Fenv = FresnelSchlickRoughness(NdotV, F0, a);
+    vec2 envBRDF = texture(uBRDFLut, vec2(NdotV, a)).rg;
+    vec3 envSpecular = envIrradance * (Fenv * envBRDF.r + envBRDF.g);
+
+    // NOTE: Diffuse irradance
+    vec3 kS = FresnelSchlick(NdotV, F0);
+    vec3 kD = vec3(1.0f) - kS;
+    kD *= 1.0f - metallic;
+    vec3 diffIrradance = texture(uIrradanceMap, N).rgb;
+    vec3 diffuse = diffIrradance * albedo;
+
+    vec3 irradance = (kD * diffuse + envSpecular) * uAO;
+    return irradance;
 }
 
 void main()
@@ -368,8 +411,13 @@ void main()
     vec3 V = normalize(uViewPos - vFragPos);
     vec3 L0 = vec3(0.0f);
 
-    vec3 Wi = normalize(-uDirLight.dir);
-    vec3 H = normalize(V + Wi);
+    vec3 L = normalize(-uDirLight.dir);
+    vec3 H = normalize(V + L);
+
+    // TODO: Adding this to avoid artifacts on edges
+    // Why thuis value so big?
+    float NdotV = max(dot(N, V), 0.0f) + 0.1f;
+    float NdotL = max(dot(N, L), 0.0f);
 
     // NOTE: Attenuation should be here
     vec3 radiance = uDirLight.color;
@@ -377,41 +425,32 @@ void main()
     vec3 F0 = vec3(0.04f);
     F0 = mix(F0, albedo, metalness);
 
+    // NOTE: Seems like it prodices visually incorrect result with H vector
+    // and N gives more Fresnel-look-like result
+    // but in papers people usually use H
     vec3 F = FresnelSchlick(max(dot(H, V), 0.0f), F0);
-    float NDF = DistributionGGX(N, H, roughness);
-    float G = GeometrySmith(N, V, Wi, roughness);
+    float D = DistributionGGX(N, H, roughness);
+    float G = GeometrySmith(NdotV, NdotL, roughness);
 
-    vec3 num = NDF * G * F;
-    float denom = 4.0f * max(dot(N, V), 0.0f) * max(dot(N, Wi), 0.0f) + 0.001f;
-    vec3 specular = num / max(denom, 0.001);
+    vec3 num = D * G * F;
+    float denom = 4.0f * NdotV * NdotL;;
+    vec3 specular = num / max(denom, 0.001f);
 
     {
         vec3 kS = F;
         vec3 kD = vec3(1.0f) - kS;
         kD *= 1.0f - metalness;
-        float NdotWi = max(dot(N, Wi), 0.0f);
-        L0 += (kD * albedo / PI + specular) * radiance * NdotWi;
+        L0 += (kD * albedo / PI + specular) * radiance * NdotL;
     }
 
-    // NOTE: specular irradance
-    vec3 R = reflect(-V, N);
-    vec3 envIrradance = textureLod(uEnviromentMap, R, roughness * MAX_REFLECTION_LOD).rgb;
-    vec3 Fenv = FresnelSchlickRoughness(max(dot(N, V), 0.0f), F0, roughness);
-    vec2 envBRDF = texture(uBRDFLut, vec2(max(dot(N, V), 0.0f), roughness)).rg;
-    vec3 envSpecular = envIrradance * (Fenv * envBRDF.x + envBRDF.y);
+    vec3 envIrradance = IBLIrradance(V, N, NdotV, roughness, F0, metalness, albedo);
 
+    resultColor = vec4((envIrradance + L0), 1.0f);
 
-    // ambient irradance
-    vec3 kS = FresnelSchlick(max(dot(N, V), 0.0f), F0);
-    vec3 kD = vec3(1.0f) - kS;
-    kD *= 1.0f - metalness;
-    vec3 irradance = texture(uIrradanceMap, N).rgb;
-    vec3 diffuse = irradance * albedo;
-
-    vec3 ambient = (kD * diffuse + envSpecular) * uAO;
-
-    resultColor = vec4((ambient + L0), 1.0f);
-    resultColor = vec4(N,  1.0f);
+    if (uDebugF == 1) resultColor = vec4(F,  1.0f);
+    else if (uDebugG == 1) resultColor = vec4(G, G, G, 1.0f);
+    else if (uDebugD == 1) resultColor = vec4(D, D, D, 1.0f);
+    else if (uDebugNormals == 1) resultColor = vec4(N, 1.0f);
 })";
 
     static const char* SS_VERTEX_SOURCE = R"(

@@ -47,6 +47,11 @@ namespace soko
         b32 showChunkBounds;
         // NOTE: Changes every frame
         SimRegion* region;
+
+        b32 debugF;
+        b32 debugG;
+        b32 debugD;
+        b32 debugNormals;
     };
 
     struct EditorCamera
@@ -674,10 +679,12 @@ namespace soko
 
         if (ImGui::BeginMenu("Debug"))
         {
-            if (ImGui::MenuItem("Show chunk bounds", 0, editor->showChunkBounds))
-            {
-                editor->showChunkBounds = !editor->showChunkBounds;
-            }
+            if (ImGui::MenuItem("Show chunk bounds", 0, editor->showChunkBounds)) editor->showChunkBounds = !editor->showChunkBounds;
+            ImGui::Separator();
+            if (ImGui::MenuItem("Show BRDF F", 0, editor->debugF)) editor->debugF = !editor->debugF;
+            if (ImGui::MenuItem("Show BRDF G", 0, editor->debugG)) editor->debugG = !editor->debugG;
+            if (ImGui::MenuItem("Show BRDF D", 0, editor->debugD)) editor->debugD = !editor->debugD;
+            if (ImGui::MenuItem("Show normals", 0, editor->debugNormals)) editor->debugNormals = !editor->debugNormals;
             ImGui::EndMenu();
         }
 
@@ -1079,6 +1086,10 @@ namespace soko
                                (void*)&lightCommand);
 
         DrawRegion(simRegion, gameState, camera->targetWorldPos);
+        gameState->renderer->debugF = editor->debugF;
+        gameState->renderer->debugG = editor->debugG;
+        gameState->renderer->debugD = editor->debugD;
+        gameState->renderer->debugNormals = editor->debugNormals;
         RendererBeginFrame(gameState->renderer, V2(PlatformGlobals.windowWidth, PlatformGlobals.windowHeight));
         FlushRenderGroup(gameState->renderer, gameState->renderGroup);
         RendererEndFrame(gameState->renderer);

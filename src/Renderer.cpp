@@ -16,6 +16,7 @@ namespace soko
         GLint viewLoc;
         GLint roughnessLoc;
         GLint sourceCubemapLoc;
+        GLint uResolution;
         u32 sourceCubemapSampler;
         GLenum sourceCubemapSlot;
     };
@@ -67,6 +68,11 @@ namespace soko
         GLint uCustomRoughness;
         GLint uCustomMetalness;
 
+        GLint uDebugF;
+        GLint uDebugG;
+        GLint uDebugD;
+        GLint uDebugNormals;
+
         GLint viewPosLoc;
         GLint viewProjLoc;
         GLint modelMtxLoc;
@@ -89,7 +95,7 @@ namespace soko
         GLint colorSourceLoc;
         u32 colorSourceSampler;
         GLenum colorSourceSlot;
-   };
+    };
 
     struct PostfxProgram
     {
@@ -205,7 +211,497 @@ namespace soko
         GLuint captureFramebuffer;
 
         GLuint BRDFLutHandle;
+
+        b32 debugF;
+        b32 debugD;
+        b32 debugG;
+        b32 debugNormals;
     };
+
+    internal void
+    RendererLoadTexture(Texture* texture)
+    {
+        if (!texture->gpuHandle)
+        {
+            GLuint handle;
+            glGenTextures(1, &handle);
+            if (handle)
+            {
+                glBindTexture(GL_TEXTURE_2D, handle);
+                //glEnable(GL_TEXTURE_2D);
+                GLenum format;
+                GLenum type;
+                GLenum minFilter = GL_NEAREST;
+                GLenum magFilter = GL_NEAREST;
+                bool anisotropic = false;
+                GLenum wrapMode = texture->wrapMode;
+
+                switch (texture->format)
+                {
+                case GL_SRGB8_ALPHA8: { format = GL_RGBA; type = GL_UNSIGNED_BYTE; } break;
+                case GL_SRGB8: { format = GL_RGB; type = GL_UNSIGNED_BYTE; } break;
+                case GL_RGB8: { format = GL_RGB; type = GL_UNSIGNED_BYTE; } break;
+                case GL_RGB16F: { format = GL_RGB; type = GL_FLOAT; } break;
+                case GL_RG16F: { format = GL_RG, type = GL_FLOAT; } break;
+                case GL_R8: {format = GL_RED, type = GL_UNSIGNED_BYTE; } break;
+                    INVALID_DEFAULT_CASE;
+                }
+
+                switch (texture->filter)
+                {
+                case TextureFilter_Bilinear: { minFilter = GL_LINEAR; magFilter = GL_LINEAR; } break;
+                case TextureFilter_Trilinear: { minFilter = GL_LINEAR_MIPMAP_LINEAR; magFilter = GL_LINEAR; } break;
+                case TextureFilter_Anisotropic: {minFilter = GL_LINEAR_MIPMAP_LINEAR; magFilter = GL_LINEAR; anisotropic = true; } break;
+                    INVALID_DEFAULT_CASE;
+                }
+
+                glTexImage2D(GL_TEXTURE_2D, 0, texture->format, texture->width,
+                             texture->height, 0, format, type, texture->data);
+
+                glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, wrapMode);
+                glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, wrapMode);
+                glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, magFilter);
+                glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, minFilter);
+                if (anisotropic)
+                {
+                    // TODO: Anisotropy value
+                    glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAX_ANISOTROPY_EXT, 8.0f);
+                }
+
+                glGenerateMipmap(GL_TEXTURE_2D);
+
+                glBindTexture(GL_TEXTURE_2D, 0);
+
+                texture->gpuHandle = handle;
+            }
+        }
+    }
+
+    internal void
+    RendererLoadCubeTexture(CubeTexture* texture)
+    {
+        if (!texture->gpuHandle)
+        {
+            GLuint handle;
+            glGenTextures(1, &handle);
+            if (handle)
+            {
+                glBindTexture(GL_TEXTURE_CUBE_MAP, handle);
+
+                glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+                glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+                glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
+
+                auto minFilter = GL_NEAREST;
+                auto magFilter = GL_NEAREST;
+
+                switch (texture->filter)
+                {
+                case TextureFilter_None: {} break;
+                case TextureFilter_Bilinear: { minFilter = GL_LINEAR; magFilter = GL_LINEAR; } break;
+                case TextureFilter_Trilinear: { if (texture->useMips) minFilter = GL_LINEAR_MIPMAP_LINEAR; else minFilter = GL_LINEAR; magFilter = GL_LINEAR; } break;
+                    INVALID_DEFAULT_CASE;
+                }
+
+                glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MAG_FILTER, magFilter);
+                glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MIN_FILTER, minFilter);
+
+                for (u32 i = 0; i < 6; i++)
+                {
+                    GLenum internalFormat = texture->images[i].format;
+                    GLenum format;
+                    GLenum type;
+
+                    u32 width = texture->images[i].width;
+                    u32 height = texture->images[i].height;
+                    void* data = texture->images[i].data;
+
+                    switch (internalFormat)
+                    {
+                    case GL_SRGB8_ALPHA8: { format = GL_RGBA; type = GL_UNSIGNED_BYTE; } break;
+                    case GL_SRGB8: { format = GL_RGB; type = GL_UNSIGNED_BYTE; } break;
+                    case GL_RGB16F: {format = GL_RGB; type = GL_FLOAT; } break;
+                        INVALID_DEFAULT_CASE;
+                    }
+
+                    glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, 0,
+                                 internalFormat, width, height, 0,
+                                 format, type, data);
+                }
+
+                if (texture->useMips)
+                {
+                    glGenerateMipmap(GL_TEXTURE_CUBE_MAP);
+                }
+
+                glBindTexture(GL_TEXTURE_CUBE_MAP, 0);
+
+                texture->gpuHandle = handle;
+            }
+        }
+    }
+
+    internal void
+    RendererLoadMesh(Mesh* mesh)
+    {
+        if (!mesh->gpuVertexBufferHandle && !mesh->gpuIndexBufferHandle)
+        {
+            GLuint vboHandle;
+            GLuint iboHandle;
+            glGenBuffers(1, &vboHandle);
+            glGenBuffers(1, &iboHandle);
+            if (vboHandle && iboHandle)
+            {
+                // NOTE: Using SOA layout of buffer
+                uptr verticesSize = mesh->vertexCount * sizeof(v3);
+                // TODO: this is redundant. Use only vertexCount
+                uptr normalsSize= mesh->normalCount * sizeof(v3);
+                uptr uvsSize = mesh->uvCount * sizeof(v2);
+                uptr tangentsSize = mesh->vertexCount * sizeof(v3);
+                uptr indexBufferSize = mesh->indexCount * sizeof(u32);
+                uptr vertexBufferSize = verticesSize + normalsSize + uvsSize + tangentsSize;
+
+                glBindBuffer(GL_ARRAY_BUFFER, vboHandle);
+
+                glBufferData(GL_ARRAY_BUFFER, vertexBufferSize, 0, GL_STATIC_DRAW);
+                glBufferSubData(GL_ARRAY_BUFFER, 0, verticesSize, (void*)mesh->vertices);
+                glBufferSubData(GL_ARRAY_BUFFER, verticesSize, normalsSize, (void*)mesh->normals);
+                glBufferSubData(GL_ARRAY_BUFFER, verticesSize + normalsSize, uvsSize, (void*)mesh->uvs);
+                glBufferSubData(GL_ARRAY_BUFFER, verticesSize + normalsSize + uvsSize, tangentsSize, (void*)mesh->tangents);
+
+                glBindBuffer(GL_ARRAY_BUFFER, 0);
+
+                glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, iboHandle);
+
+                glBufferData(GL_ELEMENT_ARRAY_BUFFER, indexBufferSize, (void*)mesh->indices, GL_STATIC_DRAW);
+
+                glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
+
+                mesh->gpuVertexBufferHandle = vboHandle;
+                mesh->gpuIndexBufferHandle = iboHandle;
+            }
+        }
+    }
+
+    internal CubeTexture
+    LoadCubemap(AB::MemoryArena* tempArena,
+                const char* back, const char* down, const char* front,
+                const char* left, const char* right, const char* up)
+    {
+        CubeTexture texture = {};
+
+        BeginTemporaryMemory(tempArena);
+
+        i32 backWidth, backHeight, backBpp;
+        unsigned char* backData = stbi_load(back, &backWidth, &backHeight, &backBpp, 3);
+
+        i32 downWidth, downHeight, downBpp;
+        unsigned char* downData = stbi_load(down, &downWidth, &downHeight, &downBpp, 3);
+
+        i32 frontWidth, frontHeight, frontBpp;
+        unsigned char* frontData = stbi_load(front, &frontWidth, &frontHeight, &frontBpp, 3);
+
+        i32 leftWidth, leftHeight, leftBpp;
+        unsigned char* leftData = stbi_load(left, &leftWidth, &leftHeight, &leftBpp, 3);
+
+        i32 rightWidth, rightHeight, rightBpp;
+        unsigned char* rightData = stbi_load(right, &rightWidth, &rightHeight, &rightBpp, 3);
+
+        i32 upWidth, upHeight, upBpp;
+        unsigned char* upData = stbi_load(up, &upWidth, &upHeight, &upBpp, 3);
+
+        texture.back.format = GL_SRGB8;
+        texture.back.width = backWidth;
+        texture.back.height = backHeight;
+        texture.back.data = backData;
+
+        texture.down.format = GL_SRGB8;
+        texture.down.width = downWidth;
+        texture.down.height = downHeight;
+        texture.down.data = downData;
+
+        texture.front.format = GL_SRGB8;
+        texture.front.width = frontWidth;
+        texture.front.height = frontHeight;
+        texture.front.data = frontData;
+
+        texture.left.format = GL_SRGB8;
+        texture.left.width = leftWidth;
+        texture.left.height = leftHeight;
+        texture.left.data = leftData;
+
+        texture.right.format = GL_SRGB8;
+        texture.right.width = rightWidth;
+        texture.right.height = rightHeight;
+        texture.right.data = rightData;
+
+        texture.up.format = GL_SRGB8;
+        texture.up.width = upWidth;
+        texture.up.height = upHeight;
+        texture.up.data = upData;
+
+        RendererLoadCubeTexture(&texture);
+        SOKO_ASSERT(texture.gpuHandle);
+
+        EndTemporaryMemory(tempArena);
+
+        return texture;
+    }
+
+    internal CubeTexture
+    MakeEmptyCubemap(int w, int h, GLenum format, TextureFilter filter = TextureFilter_Bilinear, bool useMips = false)
+    {
+        CubeTexture texture = {};
+        texture.useMips = useMips;
+        texture.filter = filter;
+        for (u32 i = 0; i < 6; i++)
+        {
+            texture.images[i].format = format;
+            texture.images[i].width = w;
+            texture.images[i].height = h;
+            texture.images[i].data = 0;
+        }
+        RendererLoadCubeTexture(&texture);
+        SOKO_ASSERT(texture.gpuHandle);
+        return texture;
+    }
+
+    internal CubeTexture
+    LoadCubemapHDR(AB::MemoryArena* tempArena,
+                   const char* back, const char* down, const char* front,
+                   const char* left, const char* right, const char* up)
+    {
+        CubeTexture texture = {};
+
+        BeginTemporaryMemory(tempArena);
+
+        i32 backWidth, backHeight, backBpp;
+        f32* backData = stbi_loadf(back, &backWidth, &backHeight, &backBpp, 3);
+
+        i32 downWidth, downHeight, downBpp;
+        f32* downData = stbi_loadf(down, &downWidth, &downHeight, &downBpp, 3);
+
+        i32 frontWidth, frontHeight, frontBpp;
+        f32* frontData = stbi_loadf(front, &frontWidth, &frontHeight, &frontBpp, 3);
+
+        i32 leftWidth, leftHeight, leftBpp;
+        f32* leftData = stbi_loadf(left, &leftWidth, &leftHeight, &leftBpp, 3);
+
+        i32 rightWidth, rightHeight, rightBpp;
+        f32* rightData = stbi_loadf(right, &rightWidth, &rightHeight, &rightBpp, 3);
+
+        i32 upWidth, upHeight, upBpp;
+        f32* upData = stbi_loadf(up, &upWidth, &upHeight, &upBpp, 3);
+
+        texture.useMips = true;
+        texture.filter = TextureFilter_Trilinear;
+
+        texture.back.format = GL_RGB16F;
+        texture.back.width = backWidth;
+        texture.back.height = backHeight;
+        texture.back.data = backData;
+
+        texture.down.format = GL_RGB16F;
+        texture.down.width = downWidth;
+        texture.down.height = downHeight;
+        texture.down.data = downData;
+
+        texture.front.format = GL_RGB16F;
+        texture.front.width = frontWidth;
+        texture.front.height = frontHeight;
+        texture.front.data = frontData;
+
+        texture.left.format = GL_RGB16F;
+        texture.left.width = leftWidth;
+        texture.left.height = leftHeight;
+        texture.left.data = leftData;
+
+        texture.right.format = GL_RGB16F;
+        texture.right.width = rightWidth;
+        texture.right.height = rightHeight;
+        texture.right.data = rightData;
+
+        texture.up.format = GL_RGB16F;
+        texture.up.width = upWidth;
+        texture.up.height = upHeight;
+        texture.up.data = upData;
+
+        RendererLoadCubeTexture(&texture);
+        SOKO_ASSERT(texture.gpuHandle);
+
+        EndTemporaryMemory(tempArena);
+
+        return texture;
+    }
+
+    internal Texture
+    LoadTexture(AB::MemoryArena* tempArena, const char* filename,
+                GLenum format = 0,
+                GLenum wrapMode = GL_REPEAT,
+                TextureFilter filter = TextureFilter_Bilinear)
+    {
+        Texture t = {};
+        BeginTemporaryMemory(tempArena);
+        i32 width;
+        i32 height;
+        i32 bpp;
+        i32 desiredBpp = 0;
+
+        if (format)
+        {
+            switch (format)
+            {
+            case GL_SRGB8_ALPHA8:
+            case GL_RGBA: { desiredBpp = 4; } break;
+            case GL_SRGB8:
+            case GL_RGB8:
+            case GL_RGB16F: { desiredBpp = 3; } break;
+            case GL_RG16F: { desiredBpp = 2; } break;
+            case GL_R8: { desiredBpp = 1; } break;
+            }
+        }
+
+        unsigned char* diffBitmap = stbi_load(filename, &width, &height, &bpp, desiredBpp);
+
+        if (!format)
+        {
+            switch (bpp)
+            {
+            case 1: { format = GL_R8; } break;
+            case 2: { format = GL_RG8; } break; // TODO: Implement in renderer
+            case 3: { format = GL_RGB8; } break;
+            case 4: { format = GL_SRGB8_ALPHA8; } break;
+                INVALID_DEFAULT_CASE;
+            }
+        }
+
+        t.format = format;
+        t.width = width;
+        t.height = height;
+        t.wrapMode = wrapMode;
+        t.filter = filter;
+
+        t.data = diffBitmap;
+        RendererLoadTexture(&t);
+        SOKO_ASSERT(t.gpuHandle);
+
+        EndTemporaryMemory(tempArena);
+
+        return t;
+    }
+
+    internal Material
+    LoadMaterialLegacy(AB::MemoryArena* tempArena,
+                       const char* diffusePath,
+                       const char* specularPath = 0)
+    {
+        Texture diffMap = LoadTexture(tempArena, diffusePath, GL_SRGB8, GL_REPEAT, TextureFilter_Anisotropic);
+        Texture specMap = {};
+        if (specularPath)
+        {
+            Texture specMap = LoadTexture(tempArena, specularPath, GL_SRGB8, GL_REPEAT, TextureFilter_Anisotropic);
+        }
+
+        Material material = {};
+        material.type = Material::Legacy;
+        material.legacy.diffMap = diffMap;
+        material.legacy.specMap = specMap;
+
+        return material;
+    }
+
+    internal Material
+    LoadMaterialPBR(AB::MemoryArena* tempArena,
+                    const char* albedoPath,
+                    const char* roughnessPath,
+                    const char* metalnessPath,
+                    const char* normalsPath)
+    {
+        Texture albedo = LoadTexture(tempArena, albedoPath, GL_SRGB8, GL_REPEAT, TextureFilter_Anisotropic);
+        Texture roughness = LoadTexture(tempArena, roughnessPath, 0, GL_REPEAT, TextureFilter_Anisotropic);
+        Texture metalness = LoadTexture(tempArena, metalnessPath, 0, GL_REPEAT, TextureFilter_Anisotropic);
+        Texture normals = LoadTexture(tempArena, normalsPath, GL_RGB8, GL_REPEAT, TextureFilter_Anisotropic);
+
+
+        Material material = {};
+        material.type = Material::PBR;
+        material.pbr.isCustom = false;
+        material.pbr.map.albedo = albedo;
+        material.pbr.map.roughness = roughness;
+        material.pbr.map.metalness = metalness;
+        material.pbr.map.normals = normals;
+
+        return material;
+    }
+
+    internal Texture
+    LoadTexture(i32 width, i32 height, void* data = 0,
+                GLenum format = GL_SRGB8,
+                GLenum wrapMode = GL_REPEAT,
+                TextureFilter filter = TextureFilter_Bilinear)
+    {
+        Texture t = {};
+
+        t.format = format;
+        t.width = width;
+        t.height = height;
+        t.filter = filter;
+        t.wrapMode = wrapMode;
+        t.data = data;
+
+        RendererLoadTexture(&t);
+        SOKO_ASSERT(t.gpuHandle);
+
+        return t;
+    }
+
+        internal Mesh
+    LoadMesh(AB::MemoryArena* tempArena, const wchar_t* filepath)
+    {
+        Mesh mesh = {};
+        u32 fileSize = DebugGetFileSize(filepath);
+        if (fileSize)
+        {
+            void* fileData = PUSH_SIZE(tempArena, fileSize);
+            u32 result = DebugReadFile(fileData, fileSize, filepath);
+            if (result)
+            {
+                // NOTE: Strict aliasing
+                auto header = (AB::AABMeshHeaderV2*)fileData;
+                SOKO_ASSERT(header->magicValue == AB::AAB_FILE_MAGIC_VALUE);
+
+                mesh.vertexCount = header->vertexCount;
+                mesh.normalCount = header->vertexCount;
+                mesh.uvCount = header->vertexCount;
+                mesh.indexCount = header->indexCount;
+
+                mesh.vertices = (v3*)((byte*)fileData + header->vertexOffset);
+                mesh.normals = (v3*)((byte*)fileData + header->normalsOffset);
+                mesh.uvs = (v2*)((byte*)fileData + header->uvOffset);
+                mesh.indices = (u32*)((byte*)fileData + header->indicesOffset);
+                mesh.tangents = (v3*)((byte*)fileData + header->tangentsOffset);
+
+                RendererLoadMesh(&mesh);
+                SOKO_ASSERT(mesh.gpuVertexBufferHandle);
+                SOKO_ASSERT(mesh.gpuIndexBufferHandle);
+            }
+        }
+
+        return mesh;
+    }
+
+    // NOTE: Diffise only
+    internal Material
+    LoadMaterialLegacy(i32 width, i32 height, void* bitmap)
+    {
+        Texture diffMap = LoadTexture(width, height, bitmap, GL_SRGB8, GL_REPEAT, TextureFilter_Anisotropic);
+
+        Material material = {};
+        material.type = Material::Legacy;
+        material.legacy.diffMap = diffMap;
+
+        return material;
+    }
 
     internal GLuint
     CreateProgram(const char* vertexSource, const char* fragmentSource)
@@ -256,7 +752,7 @@ namespace soko
                                 char* message = (char*)alloca(logLength);
                                 SOKO_ASSERT(message, "");
                                 glGetProgramInfoLog(programHandle, logLength, 0, message);
-                                SOKO_ASSERT(false, "Shader program linking error:\n%s", message);
+                                SOKO_WARN("Failed to compile shader!\n%s", message);
                             }
                         }
                         else
@@ -271,7 +767,7 @@ namespace soko
                         GLchar* message = (GLchar*)alloca(logLength);
                         SOKO_ASSERT(message, "");
                         glGetShaderInfoLog(fragmentHandle, logLength, nullptr, message);
-                        SOKO_ASSERT(false, "Frgament shader compilation error:\n%s", message);
+                        SOKO_WARN("Failed to compile shader!\n%s", message);
                     }
                 }
                 else
@@ -286,7 +782,7 @@ namespace soko
                 GLchar* message = (GLchar*)alloca(logLength);
                 SOKO_ASSERT(message, "");
                 glGetShaderInfoLog(vertexHandle, logLength, nullptr, message);
-                SOKO_ASSERT(false, "Vertex shader compilation error:\n%s", message);
+                SOKO_WARN("Failed to compile shader!\n%s", message);
             }
         }
         else
@@ -335,6 +831,7 @@ namespace soko
             result.projLoc = glGetUniformLocation(handle, "u_ProjMatrix");
             result.sourceCubemapLoc = glGetUniformLocation(handle, "uSourceCubemap");
             result.roughnessLoc = glGetUniformLocation(handle, "uRoughness");
+            result.uResolution = glGetUniformLocation(handle, "uResolution");
 
             result.sourceCubemapSampler = 0;
             result.sourceCubemapSlot = GL_TEXTURE0;
@@ -401,6 +898,11 @@ namespace soko
             result.uCustomAlbedo = glGetUniformLocation(handle, "uCustomAlbedo");
             result.uCustomRoughness = glGetUniformLocation(handle, "uCustomRoughness");
             result.uCustomMetalness = glGetUniformLocation(handle, "uCustomMetalness");
+
+            result.uDebugF = glGetUniformLocation(handle, "uDebugF");
+            result.uDebugG = glGetUniformLocation(handle, "uDebugG");
+            result.uDebugD = glGetUniformLocation(handle, "uDebugD");
+            result.uDebugNormals = glGetUniformLocation(handle, "uDebugNormals");
 
             result.albedoSampler = 0;
             result.albedoSlot = GL_TEXTURE0;
@@ -591,6 +1093,149 @@ namespace soko
         return result;
     }
 
+    internal void
+    RendererRecompileShaders(Renderer* renderer)
+    {
+        // TODO: Is this makes any sence?
+        glFinish();
+
+        {
+            auto prog = CreateLineProgram();
+            if (prog.handle)
+            {
+                if (renderer->lineProgram.handle)
+                {
+                    glDeleteProgram(renderer->lineProgram.handle);
+                }
+                renderer->lineProgram = prog;
+            }
+        }
+        {
+            auto prog = CreateMeshProgram();
+            if (prog.handle)
+            {
+                if (renderer->meshProgram.handle)
+                {
+                    glDeleteProgram(renderer->meshProgram.handle);
+                }
+                renderer->meshProgram = prog;
+            }
+        }
+        {
+            auto prog = CreateChunkProgram();
+            if (prog.handle)
+            {
+                if (renderer->chunkProgram.handle)
+                {
+                    glDeleteProgram(renderer->chunkProgram.handle);
+                }
+                renderer->chunkProgram = prog;
+            }
+        }
+        {
+            auto prog = CreateSkyboxProgram();
+            if (prog.handle)
+            {
+                if (renderer->skyboxProgram.handle)
+                {
+                    glDeleteProgram(renderer->skyboxProgram.handle);
+                }
+                renderer->skyboxProgram = prog;
+            }
+        }
+        {
+            auto prog = CreatePostfxProgram();
+            if (prog.handle)
+            {
+                if (renderer->postfxProgram.handle)
+                {
+                    glDeleteProgram(renderer->postfxProgram.handle);
+                }
+                renderer->postfxProgram = prog;
+            }
+        }
+        {
+            auto prog = CreateFxaaProgram();
+            if (prog.handle)
+            {
+                if (renderer->fxaaProgram.handle)
+                {
+                    glDeleteProgram(renderer->fxaaProgram.handle);
+                }
+                renderer->fxaaProgram = prog;
+            }
+        }
+        {
+            auto prog = CreatePBRMeshProgram();
+            if (prog.handle)
+            {
+                if (renderer->pbrMeshProgram.handle)
+                {
+                    glDeleteProgram(renderer->pbrMeshProgram.handle);
+                }
+                renderer->pbrMeshProgram = prog;
+            }
+        }
+        {
+            auto prog = CreateIrradanceConvolutionProgram();
+            if (prog.handle)
+            {
+                if (renderer->irradanceConvProgram.handle)
+                {
+                    glDeleteProgram(renderer->irradanceConvProgram.handle);
+                }
+                renderer->irradanceConvProgram = prog;
+            }
+        }
+        {
+            auto prog = CreateEnvMapPrefilterProgram();
+            if (prog.handle)
+            {
+                if (renderer->envMapPrefilterProgram.handle)
+                {
+                    glDeleteProgram(renderer->envMapPrefilterProgram.handle);
+                }
+                renderer->envMapPrefilterProgram = prog;
+            }
+        }
+        {
+            auto prog = CreateBRDFIntegrationProgram();
+            if (prog.handle)
+            {
+                if (renderer->brdfIntegrationProgram.handle)
+                {
+                    glDeleteProgram(renderer->brdfIntegrationProgram.handle);
+                }
+                renderer->brdfIntegrationProgram = prog;
+            }
+        }
+    }
+
+    internal void
+    GenBRDFLut(const Renderer* renderer, Texture* t)
+    {
+        SOKO_ASSERT(t->gpuHandle);
+        SOKO_ASSERT(t->wrapMode == GL_CLAMP_TO_EDGE);
+        SOKO_ASSERT(t->filter == TextureFilter_Bilinear);
+        SOKO_ASSERT(t->format = GL_RGB16F);
+
+        auto prog = &renderer->brdfIntegrationProgram;
+        glUseProgram(prog->handle);
+
+        glViewport(0, 0, t->width, t->height);
+
+        glDisable(GL_DEPTH_TEST);
+        glBindFramebuffer(GL_DRAW_FRAMEBUFFER, renderer->captureFramebuffer);
+
+        glFramebufferTexture2D(GL_DRAW_FRAMEBUFFER, GL_COLOR_ATTACHMENT0,
+                               GL_TEXTURE_2D, t->gpuHandle, 0);
+        glClear(GL_COLOR_BUFFER_BIT);
+        glDrawArrays(GL_TRIANGLES, 0, 6);
+
+        glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
+        glFlush();
+    }
+
     internal Renderer*
     AllocAndInitRenderer(AB::MemoryArena* arena, AB::MemoryArena* tempArena, uv2 renderRes)
     {
@@ -606,34 +1251,16 @@ namespace soko
         renderer->exposure = 1.0f;
         renderer->renderRes = renderRes;
 
-        renderer->lineProgram = CreateLineProgram();
+        RendererRecompileShaders(renderer);
         SOKO_ASSERT(renderer->lineProgram.handle);
-
-        renderer->meshProgram = CreateMeshProgram();
         SOKO_ASSERT(renderer->meshProgram.handle);
-
-        renderer->chunkProgram = CreateChunkProgram();
         SOKO_ASSERT(renderer->chunkProgram.handle);
-
-        renderer->skyboxProgram = CreateSkyboxProgram();
         SOKO_ASSERT(renderer->skyboxProgram.handle);
-
-        renderer->postfxProgram = CreatePostfxProgram();
         SOKO_ASSERT(renderer->postfxProgram.handle);
-
-        renderer->fxaaProgram = CreateFxaaProgram();
         SOKO_ASSERT(renderer->fxaaProgram.handle);
-
-        renderer->pbrMeshProgram = CreatePBRMeshProgram();
         SOKO_ASSERT(renderer->pbrMeshProgram.handle);
-
-        renderer->irradanceConvProgram = CreateIrradanceConvolutionProgram();
         SOKO_ASSERT(renderer->irradanceConvProgram.handle);
-
-        renderer->envMapPrefilterProgram = CreateEnvMapPrefilterProgram();
         SOKO_ASSERT(renderer->envMapPrefilterProgram.handle);
-
-        renderer->brdfIntegrationProgram = CreateBRDFIntegrationProgram();
         SOKO_ASSERT(renderer->brdfIntegrationProgram.handle);
 
         GLuint lineBufferHandle;
@@ -769,105 +1396,38 @@ namespace soko
         glGenFramebuffers(1, &renderer->captureFramebuffer);
         SOKO_ASSERT(renderer->captureFramebuffer);
 
-#if 0
-        // NOTE: Creating normalized cube vertex buffer
-
-        const f32 vertices[] =
-            {
-                // back face
-                -1.0f, -1.0f, -1.0f,
-                1.0f,  1.0f, -1.0f,
-                1.0f, -1.0f, -1.0f,
-                1.0f,  1.0f, -1.0f,
-                -1.0f, -1.0f, -1.0f,
-                -1.0f,  1.0f, -1.0f,
-                // front face
-                -1.0f, -1.0f,  1.0f,
-                1.0f, -1.0f,  1.0f,
-                1.0f,  1.0f,  1.0f,
-                1.0f,  1.0f,  1.0f,
-                -1.0f,  1.0f,  1.0f,
-                -1.0f, -1.0f,  1.0f,
-                // left face
-                -1.0f,  1.0f,  1.0f,
-                -1.0f,  1.0f, -1.0f,
-                -1.0f, -1.0f, -1.0f,
-                -1.0f, -1.0f, -1.0f,
-                -1.0f, -1.0f,  1.0f,
-                -1.0f,  1.0f,  1.0f,
-                // right face
-                1.0f,  1.0f,  1.0f,
-                1.0f, -1.0f, -1.0f,
-                1.0f,  1.0f, -1.0f,
-                1.0f, -1.0f, -1.0f,
-                1.0f,  1.0f,  1.0f,
-                1.0f, -1.0f,  1.0f,
-                // bottom face
-                -1.0f, -1.0f, -1.0f,
-                1.0f, -1.0f, -1.0f,
-                1.0f, -1.0f,  1.0f,
-                1.0f, -1.0f,  1.0f,
-                -1.0f, -1.0f,  1.0f,
-                -1.0f, -1.0f, -1.0f,
-                // top face
-                -1.0f,  1.0f, -1.0f,
-                1.0f,  1.0f , 1.0f,
-                1.0f,  1.0f, -1.0f,
-                1.0f,  1.0f,  1.0f,
-                -1.0f,  1.0f, -1.0f,
-                -1.0f,  1.0f,  1.0f,
-            };
-
-        glGenBuffers(1, &renderer->normalizedCubeVertexBufferHandle);
-        SOKO_ASSERT(renderer->normalizedCubeVertexBufferHandle);
-
-        glBindBuffer(GL_ARRAY_BUFFER, renderer->normalizedCubeVertexBufferHandle);
-        glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
-        glBindBuffer(GL_ARRAY_BUFFER, 0);
-#endif
-        return renderer;
-    }
-
-    internal void
-    RendererLoadMesh(Mesh* mesh)
-    {
-        if (!mesh->gpuVertexBufferHandle && !mesh->gpuIndexBufferHandle)
+        u32 brdfLUTSize = DebugGetFileSize(L"brdf_lut.aab");
+        if (brdfLUTSize)
         {
-            GLuint vboHandle;
-            GLuint iboHandle;
-            glGenBuffers(1, &vboHandle);
-            glGenBuffers(1, &iboHandle);
-            if (vboHandle && iboHandle)
+            SOKO_ASSERT(brdfLUTSize == sizeof(f32) * 2 * 512 * 512);
+            BeginTemporaryMemory(tempArena);
+            void* brdfBitmap = PUSH_SIZE(tempArena, brdfLUTSize);
+            auto loadedSize = DebugReadFile(brdfBitmap, brdfLUTSize, L"brdf_lut.aab");
+            if (loadedSize == brdfLUTSize)
             {
-// NOTE: Using SOA layout of buffer
-                uptr verticesSize = mesh->vertexCount * sizeof(v3);
-                // TODO: this is redundant. Use only vertexCount
-                uptr normalsSize= mesh->normalCount * sizeof(v3);
-                uptr uvsSize = mesh->uvCount * sizeof(v2);
-                uptr tangentsSize = mesh->vertexCount * sizeof(v3);
-                uptr indexBufferSize = mesh->indexCount * sizeof(u32);
-                uptr vertexBufferSize = verticesSize + normalsSize + uvsSize + tangentsSize;
-
-                glBindBuffer(GL_ARRAY_BUFFER, vboHandle);
-
-                glBufferData(GL_ARRAY_BUFFER, vertexBufferSize, 0, GL_STATIC_DRAW);
-                glBufferSubData(GL_ARRAY_BUFFER, 0, verticesSize, (void*)mesh->vertices);
-                glBufferSubData(GL_ARRAY_BUFFER, verticesSize, normalsSize, (void*)mesh->normals);
-                glBufferSubData(GL_ARRAY_BUFFER, verticesSize + normalsSize, uvsSize, (void*)mesh->uvs);
-                glBufferSubData(GL_ARRAY_BUFFER, verticesSize + normalsSize + uvsSize, tangentsSize, (void*)mesh->tangents);
-
-                glBindBuffer(GL_ARRAY_BUFFER, 0);
-
-                glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, iboHandle);
-
-                glBufferData(GL_ELEMENT_ARRAY_BUFFER, indexBufferSize, (void*)mesh->indices, GL_STATIC_DRAW);
-
-                glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
-
-                mesh->gpuVertexBufferHandle = vboHandle;
-                mesh->gpuIndexBufferHandle = iboHandle;
+                Texture t = LoadTexture(512, 512, brdfBitmap, GL_RG16F, GL_CLAMP_TO_EDGE, TextureFilter_Bilinear);
+                if (t.gpuHandle)
+                {
+                    renderer->BRDFLutHandle = t.gpuHandle;
+                }
             }
+            EndTemporaryMemory(tempArena);
         }
+        if (!renderer->BRDFLutHandle)
+        {
+            Texture t = LoadTexture(512, 512, 0, GL_RG16F, GL_CLAMP_TO_EDGE, TextureFilter_Bilinear);
+            SOKO_ASSERT(t.gpuHandle);
+            GenBRDFLut(renderer, &t);
+            renderer->BRDFLutHandle = t.gpuHandle;
+            BeginTemporaryMemory(tempArena);
+            void* bitmap = PUSH_SIZE(tempArena, sizeof(f32) * 2 * 512 * 512);
+            glBindTexture(GL_TEXTURE_2D, renderer->BRDFLutHandle);
+            glGetTexImage(GL_TEXTURE_2D, 0, GL_RG, GL_FLOAT, bitmap);
+            DebugWriteFile(L"brdf_lut.aab", bitmap, sizeof(f32) * 2 * 512 * 512);
+            EndTemporaryMemory(tempArena);
+        }
+
+        return renderer;
     }
 
     internal u32 // NOTE: Quad count
@@ -926,129 +1486,6 @@ namespace soko
             result.gpuHandle = handle;
         }
         return result;
-    }
-
-    internal void
-    RendererLoadTexture(Texture* texture)
-    {
-        if (!texture->gpuHandle)
-        {
-            GLuint handle;
-            glGenTextures(1, &handle);
-            if (handle)
-            {
-                glBindTexture(GL_TEXTURE_2D, handle);
-                //glEnable(GL_TEXTURE_2D);
-                GLenum format;
-                GLenum type;
-                GLenum minFilter = GL_NEAREST;
-                GLenum magFilter = GL_NEAREST;
-                bool anisotropic = false;
-                GLenum wrapMode = texture->wrapMode;
-
-                switch (texture->format)
-                {
-                case GL_SRGB8_ALPHA8: { format = GL_RGBA; type = GL_UNSIGNED_BYTE; } break;
-                case GL_SRGB8: { format = GL_RGB; type = GL_UNSIGNED_BYTE; } break;
-                case GL_RGB8: { format = GL_RGB; type = GL_UNSIGNED_BYTE; } break;
-                case GL_RGB16F: { format = GL_RGB; type = GL_FLOAT; } break;
-                case GL_RG16F: { format = GL_RG, type = GL_FLOAT; } break;
-                case GL_R8: {format = GL_RED, type = GL_UNSIGNED_BYTE; } break;
-                    INVALID_DEFAULT_CASE;
-                }
-
-                switch (texture->filter)
-                {
-                case TextureFilter_Bilinear: { minFilter = GL_LINEAR; magFilter = GL_LINEAR; } break;
-                case TextureFilter_Trilinear: { minFilter = GL_LINEAR_MIPMAP_LINEAR; magFilter = GL_LINEAR; } break;
-                case TextureFilter_Anisotropic: {minFilter = GL_LINEAR_MIPMAP_LINEAR; magFilter = GL_LINEAR; anisotropic = true; } break;
-                INVALID_DEFAULT_CASE;
-                }
-
-                glTexImage2D(GL_TEXTURE_2D, 0, texture->format, texture->width,
-                             texture->height, 0, format, type, texture->data);
-
-                glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, wrapMode);
-                glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, wrapMode);
-                glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, magFilter);
-                glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, minFilter);
-                if (anisotropic)
-                {
-                    // TODO: Anisotropy value
-                    glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAX_ANISOTROPY_EXT, 8.0f);
-                }
-
-                glGenerateMipmap(GL_TEXTURE_2D);
-
-                glBindTexture(GL_TEXTURE_2D, 0);
-
-                texture->gpuHandle = handle;
-            }
-        }
-    }
-
-    internal void
-    RendererLoadCubeTexture(CubeTexture* texture)
-    {
-        if (!texture->gpuHandle)
-        {
-            GLuint handle;
-            glGenTextures(1, &handle);
-            if (handle)
-            {
-                glBindTexture(GL_TEXTURE_CUBE_MAP, handle);
-
-                glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-                glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-                glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
-
-                auto minFilter = GL_NEAREST;
-                auto magFilter = GL_NEAREST;
-
-                switch (texture->filter)
-                {
-                case TextureFilter_None: {} break;
-                case TextureFilter_Bilinear: { minFilter = GL_LINEAR; magFilter = GL_LINEAR; } break;
-                case TextureFilter_Trilinear: { if (texture->useMips) minFilter = GL_LINEAR_MIPMAP_LINEAR; else minFilter = GL_LINEAR; magFilter = GL_LINEAR; } break;
-                INVALID_DEFAULT_CASE;
-                }
-
-                glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MAG_FILTER, magFilter);
-                glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MIN_FILTER, minFilter);
-
-                for (u32 i = 0; i < 6; i++)
-                {
-                    GLenum internalFormat = texture->images[i].format;
-                    GLenum format;
-                    GLenum type;
-
-                    u32 width = texture->images[i].width;
-                    u32 height = texture->images[i].height;
-                    void* data = texture->images[i].data;
-
-                    switch (internalFormat)
-                    {
-                    case GL_SRGB8_ALPHA8: { format = GL_RGBA; type = GL_UNSIGNED_BYTE; } break;
-                    case GL_SRGB8: { format = GL_RGB; type = GL_UNSIGNED_BYTE; } break;
-                    case GL_RGB16F: {format = GL_RGB; type = GL_FLOAT; } break;
-                        INVALID_DEFAULT_CASE;
-                    }
-
-                    glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, 0,
-                                 internalFormat, width, height, 0,
-                                 format, type, data);
-                }
-
-                if (texture->useMips)
-                {
-                    glGenerateMipmap(GL_TEXTURE_CUBE_MAP);
-                }
-
-                glBindTexture(GL_TEXTURE_CUBE_MAP, 0);
-
-                texture->gpuHandle = handle;
-            }
-        }
     }
 
     internal void
@@ -1127,7 +1564,6 @@ namespace soko
     GenIrradanceMap(const Renderer* renderer, CubeTexture* t, GLuint sourceHandle)
     {
         SOKO_ASSERT(t->gpuHandle);
-#define PROFILE_IRRADANCE_GEN
 #if defined(PROFILE_IRRADANCE_GEN)
         SOKO_INFO("Generating irradance map...");
         glFinish();
@@ -1165,7 +1601,7 @@ namespace soko
             glDrawArrays(GL_TRIANGLES, 0, 6);
         }
         glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
-
+        glFlush();
 #if defined (PROFILE_IRRADANCE_GEN)
         glFinish();
         i64 timeElapsed = GetTimeStamp() - beginTime;
@@ -1198,6 +1634,9 @@ namespace soko
         glDisable(GL_DEPTH_TEST);
         glBindFramebuffer(GL_DRAW_FRAMEBUFFER, renderer->captureFramebuffer);
 
+        SOKO_ASSERT(t->images[0].width == t->images[0].height);
+        glUniform1i(prog->uResolution, t->images[0].width);
+
         glActiveTexture(prog->sourceCubemapSlot);
         glBindTexture(GL_TEXTURE_CUBE_MAP, sourceHandle);
 
@@ -1224,30 +1663,7 @@ namespace soko
             }
 
         }
-        glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
-    }
-
-    internal void
-    GenBRDFLut(const Renderer* renderer, Texture* t)
-    {
-        SOKO_ASSERT(t->gpuHandle);
-        SOKO_ASSERT(t->wrapMode == GL_CLAMP_TO_EDGE);
-        SOKO_ASSERT(t->filter == TextureFilter_Bilinear);
-        SOKO_ASSERT(t->format = GL_RGB16F);
-
-        auto prog = &renderer->brdfIntegrationProgram;
-        glUseProgram(prog->handle);
-
-        glViewport(0, 0, t->width, t->height);
-
-        glDisable(GL_DEPTH_TEST);
-        glBindFramebuffer(GL_DRAW_FRAMEBUFFER, renderer->captureFramebuffer);
-
-        glFramebufferTexture2D(GL_DRAW_FRAMEBUFFER, GL_COLOR_ATTACHMENT0,
-                               GL_TEXTURE_2D, t->gpuHandle, 0);
-        glClear(GL_COLOR_BUFFER_BIT);
-        glDrawArrays(GL_TRIANGLES, 0, 6);
-
+        glFlush();
         glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
     }
 
@@ -1292,6 +1708,12 @@ namespace soko
             bool firstLineShaderInvocation = true;
             bool firstMeshShaderInvocation = true;
             bool firstChunkMeshShaderInvocation = true;
+
+            glUseProgram(renderer->pbrMeshProgram.handle);
+            glUniform1i(renderer->pbrMeshProgram.uDebugF, (i32)renderer->debugF);
+            glUniform1i(renderer->pbrMeshProgram.uDebugG, (i32)renderer->debugG);
+            glUniform1i(renderer->pbrMeshProgram.uDebugD, (i32)renderer->debugD);
+            glUniform1i(renderer->pbrMeshProgram.uDebugNormals, (i32)renderer->debugNormals);
 
             for (u32 i = 0; i < group->commandQueueAt; i++)
             {
@@ -1566,5 +1988,4 @@ namespace soko
         }
 
     }
-
 }
