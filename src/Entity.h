@@ -1,4 +1,5 @@
 #pragma once
+#include "EntityBehavior.h"
 namespace soko
 {
     enum [reflect] EntityType
@@ -9,7 +10,8 @@ namespace soko
         EntityType_Portal,
         EntityType_Spikes,
         EntityType_Button,
-        EntityType_Spawner
+        EntityType_Spawner,
+        EntityType_Custom
     };
 
     enum [reflect flag_enum] EntityFlags : u32
@@ -34,6 +36,7 @@ namespace soko
         SimEntity* sim;
         EntityType type;
         u32 flags;
+        EntityBehavior behavior;
         WorldPos coord;
         EntityMesh mesh;
         EntityMaterial material;
@@ -64,7 +67,7 @@ namespace soko
     };
 
 #pragma pack(push, 1)
-    struct SerializedEntity
+    struct SerializedEntityV1
     {
         u32 id;
         u32 type;
@@ -83,12 +86,36 @@ namespace soko
     };
 #pragma pack(pop)
 
+#pragma pack(push, 1)
+    struct SerializedEntityV2
+    {
+        u32 id;
+        u32 type;
+        u32 flags;
+        iv3 tile;
+        v3 offset;
+        u32 boundPortalID;
+        u32 portalDirection;
+        u32 mesh;
+        u32 material;
+        f32 movementSpeed;
+
+        u32 behaviorType;
+        SerializedEntityBehaviorData behaviorData;
+
+        v3 materialAlbedo;
+        f32 materialRoughness;
+        f32 materialMetallic;
+    };
+#pragma pack(pop)
+
+
     internal u32 SerializeEntititiesToBuffer(const Level* level, void* buffer, uptr bufferSize);
     inline uptr CalcSerializedEntitiesSize(const Level* level);
     inline Entity* GetEntity(Level* level, u32 id);
     internal u32 AddEntity(Level* level, Entity entity);
     inline u32 AddEntity(Level* level, EntityType type, iv3 coord, f32 movementSpeed, EntityMesh mesh, EntityMaterial material);
-    internal u32 AddSerializedEntity(Level* level, const SerializedEntity* sEntity);
+    internal u32 AddSerializedEntity(Level* level, const SerializedEntityV2* sEntity);
 
     inline bool IsSet(const Entity* entity, u32 flag)
     {

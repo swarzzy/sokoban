@@ -14,6 +14,7 @@ InitMetaInfo(AB::MemoryArena* arena)
     AddEntry_EntityType(&info->EntityType, 4, EntityType_Spikes, "EntityType_Spikes");
     AddEntry_EntityType(&info->EntityType, 5, EntityType_Button, "EntityType_Button");
     AddEntry_EntityType(&info->EntityType, 6, EntityType_Spawner, "EntityType_Spawner");
+    AddEntry_EntityType(&info->EntityType, 7, EntityType_Custom, "EntityType_Custom");
     AddEntry_EntityFlags(&info->EntityFlags, 0, EntityFlag_Collides, "EntityFlag_Collides");
     AddEntry_EntityFlags(&info->EntityFlags, 1, EntityFlag_Movable, "EntityFlag_Movable");
     AddEntry_EntityFlags(&info->EntityFlags, 2, EntityFlag_JustTeleported, "EntityFlag_JustTeleported");
@@ -27,6 +28,7 @@ InitMetaInfo(AB::MemoryArena* arena)
     AddEntry_EntityMesh(&info->EntityMesh, 6, EntityMesh_Gun, "EntityMesh_Gun");
     AddEntry_EntityMesh(&info->EntityMesh, 7, EntityMesh_Box, "EntityMesh_Box");
     AddEntry_EntityMesh(&info->EntityMesh, 8, EntityMesh_Altar, "EntityMesh_Altar");
+    AddEntry_EntityMesh(&info->EntityMesh, 9, EntityMesh_Crystal, "EntityMesh_Crystal");
     AddEntry_EntityMaterial(&info->EntityMaterial, 0, EntityMaterial_Tile, "EntityMaterial_Tile");
     AddEntry_EntityMaterial(&info->EntityMaterial, 1, EntityMaterial_Player, "EntityMaterial_Player");
     AddEntry_EntityMaterial(&info->EntityMaterial, 2, EntityMaterial_Block, "EntityMaterial_Block");
@@ -53,6 +55,10 @@ InitMetaInfo(AB::MemoryArena* arena)
     AddEntry_TileValue(&info->TileValue, 2, TileValue_Wall, "TileValue_Wall");
     AddEntry_TileValue(&info->TileValue, 3, TileValue_Stone, "TileValue_Stone");
     AddEntry_TileValue(&info->TileValue, 4, TileValue_Grass, "TileValue_Grass");
+    AddEntry_EntityBehaviorType(&info->EntityBehaviorType, 0, EntityBehavior_None, "EntityBehavior_None");
+    AddEntry_EntityBehaviorType(&info->EntityBehaviorType, 1, EntityBehavior_Spawner, "EntityBehavior_Spawner");
+    AddEntry_EntityBehaviorType(&info->EntityBehaviorType, 2, EntityBehavior_Button, "EntityBehavior_Button");
+    AddEntry_EntityBehaviorType(&info->EntityBehaviorType, 3, EntityBehavior_Portal, "EntityBehavior_Portal");
 
     return info;
 }

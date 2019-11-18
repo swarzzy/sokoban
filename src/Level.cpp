@@ -21,6 +21,18 @@ namespace soko
         return result;
     }
 
+    inline bool
+    IsValid(WorldPos p)
+    {
+        bool result = (p.tile.x >= LEVEL_MIN_DIM && p.tile.x <= LEVEL_MAX_DIM &&
+                       p.tile.y >= LEVEL_MIN_DIM && p.tile.y <= LEVEL_MAX_DIM &&
+                       p.tile.z >= LEVEL_MIN_DIM && p.tile.z <= LEVEL_MAX_DIM);
+        result = result && (p.offset.x >= -LEVEL_TILE_RADIUS && p.offset.x <= LEVEL_TILE_RADIUS &&
+                            p.offset.y >= -LEVEL_TILE_RADIUS && p.offset.y <= LEVEL_TILE_RADIUS &&
+                            p.offset.z >= -LEVEL_TILE_RADIUS && p.offset.z <= LEVEL_TILE_RADIUS);
+        return result;
+    }
+
     inline v3
     WorldToRH(v3 v)
     {
@@ -218,7 +230,7 @@ namespace soko
     };
 
     inline Entity*
-    YieldEntityIdFromTile(Chunk* chunk, uv3 tileInChunk, EntityMapIterator* it)
+    YieldEntityFromTile(Chunk* chunk, uv3 tileInChunk, EntityMapIterator* it)
     {
         Entity* result = 0;
 
@@ -278,12 +290,12 @@ namespace soko
     }
 
     inline Entity*
-    YieldEntityIdFromTile(Level* level, iv3 tile, EntityMapIterator* at)
+    YieldEntityFromTile(Level* level, iv3 tile, EntityMapIterator* at)
     {
         iv3 c = GetChunkCoord(tile);
         uv3 t = GetTileCoordInChunk(tile);
         Chunk* chunk = GetChunk(level, c);
-        return YieldEntityIdFromTile(chunk, t, at);
+        return YieldEntityFromTile(chunk, t, at);
     }
 
     inline ChunkEntityMapBlock*
@@ -691,7 +703,7 @@ namespace soko
             EntityMapIterator it = {};
             while (true)
             {
-                Entity* e = YieldEntityIdFromTile(chunk, tileInChunk, &it);
+                Entity* e = YieldEntityFromTile(chunk, tileInChunk, &it);
                 if (!e) break;
                 if (IsSet(e, EntityFlag_Collides))
                 {
@@ -956,12 +968,12 @@ namespace soko
     }
 
     inline bool
-    LoadEntities(Level* loadedLevel, SerializedEntity* entities, u32 entityCount)
+    LoadEntities(Level* loadedLevel, SerializedEntityV2* entities, u32 entityCount)
     {
         bool result = true;
         for (u32 idx = 0; idx < entityCount; idx++)
         {
-            SerializedEntity* sEntity = entities + idx;
+            SerializedEntityV2* sEntity = entities + idx;
             u32 id = AddSerializedEntity(loadedLevel, sEntity);
             if (id != sEntity->id)
             {
@@ -1000,7 +1012,7 @@ namespace soko
                             auto chunks = (SerializedChunk*)((byte*)fileBuffer + header.firstChunkOffset);
                             if (LoadChunks(levelArena, loadedLevel, chunks, header.chunkCount))
                             {
-                                auto entities = (SerializedEntity*)((byte*)fileBuffer + header.firstEntityOffset);
+                                auto entities = (SerializedEntityV2*)((byte*)fileBuffer + header.firstEntityOffset);
                                 if (LoadEntities(loadedLevel, entities, header.entityCount))
                                 {
                                     SOKO_ASSERT(loadedLevel->loadedChunksCount == header.chunkCount);

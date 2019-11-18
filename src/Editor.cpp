@@ -434,6 +434,46 @@ namespace soko
                     }
                     ImGui::Separator();
 
+                    ImGui::Text("Behavior");
+                    i32 behType = entity->stored->behavior.type;
+                    ImGui::PushID("Entity behavior combo");
+                    ImGui::Combo("", &behType, TypeInfo(EntityBehaviorType).names, TypeTraits(EntityBehaviorType)::MemberCount);
+                    entity->stored->behavior.type = (EntityBehaviorType)behType;
+                    ImGui::PopID();
+                    switch (behType)
+                    {
+                    case EntityBehavior_Spawner:
+                    {
+                        SpawnerBehaviorData* data = &entity->stored->behavior.data.spawner;
+                        ImGui::InputInt("Spawn x", &data->spawnP.x);
+                        ImGui::InputInt("Spawn y", &data->spawnP.y);
+                        ImGui::InputInt("Spawn z", &data->spawnP.z);
+                        ImGui::PushID("Entity behavior combo");
+                        i32 spType = data->entityType;
+                        ImGui::Combo("", &spType, TypeInfo(EntityType).names, TypeTraits(EntityType)::MemberCount);
+                        data->entityType = (EntityType)spType;
+                        ImGui::PopID();
+
+                    } break;
+                    case EntityBehavior_Button:
+                    {
+                        ButtonBehaviorData* data = &entity->stored->behavior.data.button;
+                        ImGui::InputScalar("Bound entity id", ImGuiDataType_U32, &data->boundEntityID);
+                    } break;
+                    case EntityBehavior_Portal:
+                    {
+                        PortalBehaviorData* data = &entity->stored->behavior.data.portal;
+                        ImGui::InputInt("Teleport x", &data->teleportP.x);
+                        ImGui::InputInt("Teleport y", &data->teleportP.y);
+                        ImGui::InputInt("Teleport z", &data->teleportP.z);
+                        ImGui::InputScalar("Dest portal id", ImGuiDataType_U32, &data->destPortalID);
+
+                    } break;
+                    }
+
+
+                    ImGui::Separator();
+
                     ImGui::Text("Mesh");
                     i32 mesh = entity->stored->mesh;
                     ImGui::PushID("Entity mesh listbox");
@@ -976,6 +1016,8 @@ namespace soko
             //editor->selectedTile = {};
         } break;
         }
+
+        UpdateSim(simRegion);
 
         RenderGroupSetCamera(gameState->renderGroup, &gameState->session.editorCamera->conf);
         EditorDrawUI(editor);

@@ -200,12 +200,40 @@ namespace soko
         return region;
     }
 
+    inline bool
+    ChangeEntityLocation(SimRegion* region, SimEntity* _entity, const WorldPos* desiredCoord, bool transient = false)
+    {
+        Entity* entity = _entity->stored;
+        bool result = false;
+        iv3 oldCoord = entity->coord.tile;
+
+        Tile desiredTile = GetTile(region->level, desiredCoord->tile);
+        if (IsTileFree(region->level, desiredCoord->tile))
+        {
+            bool allowedToLeave = ProcessEntityTileOverlap(region, oldCoord, 0);
+            //SOKO_ASSERT(allowedToLeave);
+            bool allowedToPlace = ProcessEntityTileOverlap(region, desiredCoord->tile, _entity);
+            if (allowedToPlace)
+            {
+                if (!transient)
+                {
+                    UnregisterEntityInTile(region->level, entity);
+                }
+                entity->coord = *desiredCoord;
+                bool registered = RegisterEntityInTile(region->level, entity);
+                SOKO_ASSERT(registered);
+                result = true;
+            }
+        }
+        return result;
+    }
+
     inline void
     EndTileTransition(SimRegion* region, SimEntity* entity)
     {
         auto tile = GetTile(region->level, entity->stored->transitionOrigin);
         UnregisterEntityInTile(region->level, entity->stored->transitionOrigin, entity->stored);
-        UpdateEntitiesInTile(region->level, entity->stored->coord.tile);
+        ProcessEntityTileOverlap(region, entity->stored->coord.tile, entity);
     }
 
     // TODO: More data oriented architecture
@@ -237,7 +265,7 @@ namespace soko
     }
 
     internal void
-    EndSim(Level* level, SimRegion* region)
+    UpdateSim(SimRegion* region)
     {
         for (u32 index = 0; index < SIM_REGION_MAX_ENTITIES; index++)
         {
@@ -255,7 +283,7 @@ namespace soko
                     WorldPos newPos = GetWorldPos(region->origin, e->pos);
                     if ((oldTile != newPos.tile))
                     {
-                        if (!ChangeEntityLocation(level, e->stored, &newPos))
+                        if (!ChangeEntityLocation(region, e, &newPos))
                         {
                             // TODO: clear offset
                         }
@@ -265,6 +293,18 @@ namespace soko
                         e->stored->coord = newPos;
                     }
                 }
+            }
+        }
+    }
+
+    internal void
+    EndSim(Level* level, SimRegion* region)
+    {
+        for (u32 index = 0; index < SIM_REGION_MAX_ENTITIES; index++)
+        {
+            SimEntity* e = region->entities + index;
+            if (e->id)
+            {
                 e->stored->sim = 0;
             }
         }
@@ -295,7 +335,7 @@ namespace soko
             EntityMapIterator it = {};
             while (true)
             {
-                Entity* e = YieldEntityIdFromTile(level, pushTilePos, &it);
+                Entity* e = YieldEntityFromTile(level, pushTilePos, &it);
                 if (!e) break;
 
                 if (!IsSet(e, EntityFlag_Movable) &&
@@ -312,7 +352,7 @@ namespace soko
                     EntityMapIterator it = {};
                     while (true)
                     {
-                        Entity* e = YieldEntityIdFromTile(level, pushTilePos, &it);
+                        Entity* e = YieldEntityFromTile(level, pushTilePos, &it);
                         if (!e) break;
 
                         if (e != stored &&
@@ -357,7 +397,7 @@ namespace soko
                     EntityMapIterator it = {};
                     while (true)
                     {
-                        Entity* e = YieldEntityIdFromTile(level, pushTilePos, &it);
+                        Entity* e = YieldEntityFromTile(level, pushTilePos, &it);
                         if (!e) break;
 
                         if (e != stored &&
@@ -430,7 +470,7 @@ namespace soko
                     Tile oldTile = GetTile(level, stored->coord.tile);
                     SOKO_ASSERT(oldTile.value);
 
-                    RegisterEntityInTile(level, entity->stored, desiredPos);
+                    pushTileFree = pushTileFree && ChangeEntityLocation(region, entity, &MakeWorldPos(desiredPos), true);
                 }
             }
         }

@@ -1,5 +1,5 @@
 @echo off
-set ExecArg=exec
+set ExecArg=run
 if "%1" == "%ExecArg%" (
 pushd build
 Soko.exe
@@ -51,7 +51,7 @@ rem echo Building cubemap builder...
 rem cl /W3 /Fo%ObjOutDir% /D_CRT_SECURE_NO_WARNINGS  %CommonCompilerFlags% %ConfigCompilerFlags% src/CubemapBuilder.cpp /link /INCREMENTAL:NO /OPT:REF /MACHINE:X64 /OUT:%BinOutDir%\CubemapBuilder.exe /PDB:%BinOutDir%\CubemapBuilder.pdb
 
 echo Generating meta info...
-build\Prep.exe MetaInfo_Generated.h src/MetaInfo_Generated src/Entity.h src/Level.h src/Renderer.cpp
+build\Prep.exe MetaInfo_Generated.h src/MetaInfo_Generated src/Entity.h src/Level.h src/Renderer.cpp src/EntityBehavior.h
 rem src/Entity.h src/Level.h src/Platform.h
 
 echo Building platform...
@@ -62,16 +62,5 @@ echo Building game...
 start /b /wait "__soko_compilation__" cmd /c cl /W3 /FS /Fo%ObjOutDir% %CommonDefines% %CommonCompilerFlags% %ConfigCompilerFlags% src/Sokoban.cpp /link %GameLinkerFlags%
 rem cl /MP /W3 /FS /Fo%ObjOutDir% %CommonDefines% %CommonCompilerFlags% %ConfigCompilerFlags% src/Sokoban.cpp /link %GameLinkerFlags%
 
-rem echo Building renderer...
-rem cl /MP /W3 /Fo%ObjOutDir% %CommonDefines% %CommonCompilerFlags% %ConfigCompilerFlags% src/Renderer.cpp /link %RendererLinkerFlags%
-rem set RendererResult=%ERRORLEVEL%
-
-set BuildArg=run
-
-if "%1" == "%BuildArg%" (
-pushd build
-start "Sokoban" Soko.exe
-popd
-)
 ctime -end ctime.ctm
 :end

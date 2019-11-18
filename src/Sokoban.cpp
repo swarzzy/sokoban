@@ -294,6 +294,7 @@ inline void* ReallocForSTBI(void* p, uptr oldSize, uptr newSize)
 #include "Network.cpp"
 #include "MeshGen.cpp"
 #include "SimRegion.cpp"
+#include "EntityBehavior.cpp"
 
 #include "Editor.cpp"
 
@@ -423,6 +424,7 @@ namespace soko
         gameState->meshes[EntityMesh_Button] = LoadMesh(gameState->tempArena, L"../res/mesh/button.aab");
         gameState->meshes[EntityMesh_Box] = LoadMesh(gameState->tempArena, L"../res/mesh/box.aab");
         gameState->meshes[EntityMesh_Altar] = LoadMesh(gameState->tempArena, L"../res/mesh/altar.aab");
+        gameState->meshes[EntityMesh_Crystal] = LoadMesh(gameState->tempArena, L"../res/mesh/crystal.aab");
 
         EndTemporaryMemory(gameState->tempArena);
 
@@ -736,6 +738,8 @@ namespace soko
                 UpdateCamera(&gameState->session.camera, &player->e->coord);
                 camConf = &gameState->session.camera.conf;
             }
+
+            UpdateSim(simRegion);
 
             RenderGroupSetCamera(gameState->renderGroup, camConf);
 
