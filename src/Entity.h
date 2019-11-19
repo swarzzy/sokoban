@@ -33,13 +33,17 @@ namespace soko
     struct Entity
     {
         u32 id;
-        SimEntity* sim;
         EntityType type;
         u32 flags;
-        EntityBehavior behavior;
         WorldPos coord;
+        //iv3 pos;
+        //v3 offset;
+        EntityBehavior behavior;
+
         EntityMesh mesh;
         EntityMaterial material;
+
+        SimRegion* region;
 
         u32 bindedPortalID;
         Direction portalDirection;
@@ -51,11 +55,15 @@ namespace soko
         // TODO: Stop storing transition vriables in all entities
         // even if the entity never does transitions
         b32 inTransition;
+        u32 transitionCount;
+        Direction transitionDir;
+        u32 transitionPushCount;
         v3 transitionFullPath;
         v3 transitionTraveledPath;
         f32 transitionSpeed;
         iv3 transitionOrigin;
         iv3 transitionDest;
+        v3 transitionOffset;
 
         f32 movementSpeed;
 

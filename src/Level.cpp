@@ -140,6 +140,16 @@ namespace soko
         return GetTileCoordInChunk(tile.x, tile.y, tile.z);
     }
 
+    inline ChunkPos
+    GetChunkPos(iv3 tile)
+    {
+        ChunkPos result;
+        iv3 c = GetChunkCoord(tile);
+        uv3 t = GetTileCoordInChunk(tile);
+        result = {c, t};
+        return result;
+    }
+
     inline iv3
     WorldTileFromChunkTile(iv3 chunk, uv3 chunkTile)
     {
@@ -707,6 +717,7 @@ namespace soko
                 if (!e) break;
                 if (IsSet(e, EntityFlag_Collides))
                 {
+                    // TODO: IsMovable
                     occupiedByEntities = true;
                     break;
                 }
@@ -736,6 +747,22 @@ namespace soko
         uv3 t = GetTileCoordInChunk(tile);
         Chunk* chunk = GetChunk(level, c);
         return IsTileFree(chunk, t, flags);
+    }
+
+    inline bool
+    CanMove(Level* level,  iv3 tile)
+    {
+        iv3 groundTile = tile + DirToUnitOffset(Direction_Down);
+        bool result = IsTileFree(level, tile) && TileIsTerrain(level, groundTile);
+        return result;
+    }
+
+    inline bool
+    TerrainIsSuitableForMovement(Level* level,  iv3 tile)
+    {
+        iv3 groundTile = tile + DirToUnitOffset(Direction_Down);
+        bool result = !TileIsTerrain(level, tile) && TileIsTerrain(level, groundTile);
+        return result;
     }
 
     inline void

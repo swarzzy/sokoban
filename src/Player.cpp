@@ -22,7 +22,7 @@ namespace soko
         {
 
             u32 playerId = AddEntity(level, EntityType_Player, coord, 8.0f,
-                                     EntityMesh_Cube, EntityMaterial_Player);
+                                     EntityMesh_Cat, EntityMaterial_Cat);
             if (playerId)
             {
                 p = session->players + freePlayerIndex;

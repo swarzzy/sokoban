@@ -424,7 +424,7 @@ namespace soko
         gameState->meshes[EntityMesh_Button] = LoadMesh(gameState->tempArena, L"../res/mesh/button.aab");
         gameState->meshes[EntityMesh_Box] = LoadMesh(gameState->tempArena, L"../res/mesh/box.aab");
         gameState->meshes[EntityMesh_Altar] = LoadMesh(gameState->tempArena, L"../res/mesh/altar.aab");
-        gameState->meshes[EntityMesh_Crystal] = LoadMesh(gameState->tempArena, L"../res/mesh/crystal.aab");
+        gameState->meshes[EntityMesh_Cat] = LoadMesh(gameState->tempArena, L"../res/mesh/cat.aab");
 
         EndTemporaryMemory(gameState->tempArena);
 
@@ -436,6 +436,7 @@ namespace soko
         gameState->materials[EntityMaterial_Gun] = LoadMaterialPBR(gameState->tempArena, "../res/gun/Cerberus_A.png", "../res/gun/Cerberus_R.png", "../res/gun/Cerberus_M.png", "../res/gun/Cerberus_N.png");
         gameState->materials[EntityMaterial_Box] = LoadMaterialPBR(gameState->tempArena, "../res/material/box/Box_albedo.png", "../res/material/box/Box_roughness.png", "../res/material/box/Box_metallic.png", "../res/material/box/Box_normal.png");
         gameState->materials[EntityMaterial_Altar] = LoadMaterialPBR(gameState->tempArena, "../res/material/altar/DefaultMaterial_Base_Color.png", "../res/material/altar/DefaultMaterial_Roughness.png", "../res/material/altar/DefaultMaterial_Metallic.png", "../res/material/altar/DefaultMaterial_Normal_DirectX.png");
+        gameState->materials[EntityMaterial_Cat] = LoadMaterialPBR(gameState->tempArena, "../res/material/cat/DefaultMaterial_albedo.png", "../res/material/cat/DefaultMaterial_roughness.png", "../res/material/cat/DefaultMaterial_metallic.png", "../res/material/cat/DefaultMaterial_normal.png");
 
         gameState->materials[EntityMaterial_BRDFCustom] = {};
         gameState->materials[EntityMaterial_BRDFCustom].type = Material::PBR;
@@ -697,6 +698,7 @@ namespace soko
                                             player->e->coord,
                                             2);
             //player->e->sim->pos += V3(GlobalInput.mouseFrameOffsetX, GlobalInput.mouseFrameOffsetY, 0.0f) * 7.0f;
+            u32 steps = 1;
             if (JustPressed(AB::KEY_SPACE))
             {
                 player->reversed = !player->reversed;
@@ -704,22 +706,30 @@ namespace soko
 
             if (JustPressed(AB::KEY_UP))
             {
-                MoveEntity(gameState->session.level, simRegion, player->e->sim, Direction_North, player->e->movementSpeed, player->reversed);
+                BeginEntityTransition(simRegion, player->e, Direction_North, steps, player->e->movementSpeed, player->reversed ? -2 : 2);
+                //ChangeEntityLocation(simRegion, player->e, &MakeWorldPos(player->e->coord.tile + DirToUnitOffset(Direction_North)));
+                //MoveEntity(gameState->session.level, simSimRegion, player->e->sim, Direction_North, player->e->movementSpeed, player->reversed);
             }
 
             if (JustPressed(AB::KEY_DOWN))
             {
-                MoveEntity(gameState->session.level, simRegion, player->e->sim, Direction_South, player->e->movementSpeed, player->reversed);
+                BeginEntityTransition(simRegion, player->e, Direction_South, steps, player->e->movementSpeed, player->reversed ? -2 : 2);
+                //ChangeEntityLocation(simRegion, player->e, &MakeWorldPos(player->e->coord.tile + DirToUnitOffset(Direction_South)));
+                //MoveEntity(gameState->session.level, simSimRegion, player->e->sim, Direction_South, player->e->movementSpeed, player->reversed);
             }
 
             if (JustPressed(AB::KEY_RIGHT))
             {
-                MoveEntity(gameState->session.level, simRegion, player->e->sim, Direction_East, player->e->movementSpeed, player->reversed);
+                BeginEntityTransition(simRegion, player->e, Direction_East, steps, player->e->movementSpeed, player->reversed ? -2 : 2);
+                //ChangeEntityLocation(simRegion, player->e, &MakeWorldPos(player->e->coord.tile + DirToUnitOffset(Direction_East)));
+                //MoveEntity(gameState->session.level, simSimRegion, player->e->sim, Direction_East, player->e->movementSpeed, player->reversed);
             }
 
             if (JustPressed(AB::KEY_LEFT))
             {
-                MoveEntity(gameState->session.level, simRegion, player->e->sim, Direction_West, player->e->movementSpeed, player->reversed);
+                BeginEntityTransition(simRegion, player->e, Direction_West, steps, player->e->movementSpeed, player->reversed ? -2 : 2);
+                //ChangeEntityLocation(simRegion, player->e, &MakeWorldPos(player->e->coord.tile + DirToUnitOffset(Direction_West)));
+                //MoveEntity(gameState->session.level, simSimRegion, player->e->sim, Direction_West, player->e->movementSpeed, player->reversed);
             }
 
             if (JustPressed(AB::KEY_F1))
@@ -739,7 +749,7 @@ namespace soko
                 camConf = &gameState->session.camera.conf;
             }
 
-            UpdateSim(simRegion);
+            //UpdateSim(simRegion);
 
             RenderGroupSetCamera(gameState->renderGroup, camConf);
 

@@ -377,7 +377,7 @@ namespace soko
             }
             else
             {
-                SimEntity* entity = GetEntity(editor->region, editor->selectedEntityID);
+                Entity* entity = GetEntity(editor->region, editor->selectedEntityID);
 
                 char buffer[16];
                 FormatString(buffer, 16, "%i32", editor->selectedEntityID);
@@ -386,14 +386,14 @@ namespace soko
                 if (ImGui::Button("Delete"))
                 {
                     editor->selectedEntityID = 0;
-                    DeleteEntity(editor->session->level, entity->stored);
+                    DeleteEntity(editor->session->level, entity);
                 }
                 else
                 {
                     ImGui::Separator();
 
                     ImGui::Text("Position");
-                    WorldPos pos = GetWorldPos(editor->region->origin, entity->pos);
+                    WorldPos pos = entity->coord;
                     //ImGui::SameLine();
                     ImGui::PushID("Entity position drag");
                     // TODO: Bounds of sim region
@@ -402,16 +402,15 @@ namespace soko
                     ImGui::InputInt("z", &pos.tile.z);
 
 
-                    v3 newPos = GetRelPos(editor->region->origin, pos);
-                    entity->pos = newPos;
+                    entity->coord = pos;
                     ImGui::PopID();
                     ImGui::Separator();
 
                     ImGui::Text("Type\t ");
-                    i32 type = entity->stored->type;
+                    i32 type = entity->type;
                     ImGui::PushID("Entity type listbox");
                     ImGui::Combo("", &type, TypeInfo(EntityType).names, TypeTraits(EntityType)::MemberCount);
-                    entity->stored->type = (EntityType)type;
+                    entity->type = (EntityType)type;
                     ImGui::PopID();
                     ImGui::Separator();
 
@@ -420,31 +419,31 @@ namespace soko
                     {
                         for (u32 i = 0; i < TypeTraits(EntityFlags)::MemberCount; i++)
                         {
-                            bool isSet = IsSet(entity->stored, TypeInfo(EntityFlags).values[i]);
+                            bool isSet = IsSet(entity, TypeInfo(EntityFlags).values[i]);
                             ImGui::Checkbox(TypeInfo(EntityFlags).names[i], &isSet);
                             if (isSet)
                             {
-                                SetFlag(entity->stored, TypeInfo(EntityFlags).values[i]);
+                                SetFlag(entity, TypeInfo(EntityFlags).values[i]);
                             }
                             else
                             {
-                                UnsetFlag(entity->stored, TypeInfo(EntityFlags).values[i]);
+                                UnsetFlag(entity, TypeInfo(EntityFlags).values[i]);
                             }
                         }
                     }
                     ImGui::Separator();
 
                     ImGui::Text("Behavior");
-                    i32 behType = entity->stored->behavior.type;
+                    i32 behType = entity->behavior.type;
                     ImGui::PushID("Entity behavior combo");
                     ImGui::Combo("", &behType, TypeInfo(EntityBehaviorType).names, TypeTraits(EntityBehaviorType)::MemberCount);
-                    entity->stored->behavior.type = (EntityBehaviorType)behType;
+                    entity->behavior.type = (EntityBehaviorType)behType;
                     ImGui::PopID();
                     switch (behType)
                     {
                     case EntityBehavior_Spawner:
                     {
-                        SpawnerBehaviorData* data = &entity->stored->behavior.data.spawner;
+                        SpawnerBehaviorData* data = &entity->behavior.data.spawner;
                         ImGui::InputInt("Spawn x", &data->spawnP.x);
                         ImGui::InputInt("Spawn y", &data->spawnP.y);
                         ImGui::InputInt("Spawn z", &data->spawnP.z);
@@ -457,12 +456,12 @@ namespace soko
                     } break;
                     case EntityBehavior_Button:
                     {
-                        ButtonBehaviorData* data = &entity->stored->behavior.data.button;
+                        ButtonBehaviorData* data = &entity->behavior.data.button;
                         ImGui::InputScalar("Bound entity id", ImGuiDataType_U32, &data->boundEntityID);
                     } break;
                     case EntityBehavior_Portal:
                     {
-                        PortalBehaviorData* data = &entity->stored->behavior.data.portal;
+                        PortalBehaviorData* data = &entity->behavior.data.portal;
                         ImGui::InputInt("Teleport x", &data->teleportP.x);
                         ImGui::InputInt("Teleport y", &data->teleportP.y);
                         ImGui::InputInt("Teleport z", &data->teleportP.z);
@@ -475,25 +474,25 @@ namespace soko
                     ImGui::Separator();
 
                     ImGui::Text("Mesh");
-                    i32 mesh = entity->stored->mesh;
+                    i32 mesh = entity->mesh;
                     ImGui::PushID("Entity mesh listbox");
                     ImGui::Combo("", &mesh, TypeInfo(EntityMesh).names, TypeTraits(EntityMesh)::MemberCount);
-                    entity->stored->mesh = (EntityMesh)mesh;
+                    entity->mesh = (EntityMesh)mesh;
                     ImGui::PopID();
                     ImGui::Separator();
 
                     ImGui::Text("Material");
-                    i32 material = entity->stored->material;
+                    i32 material = entity->material;
                     ImGui::PushID("Entity material listbox");
                     ImGui::Combo("", &material, TypeInfo(EntityMaterial).names, TypeTraits(EntityMaterial)::MemberCount);
-                    entity->stored->material = (EntityMaterial)material;
+                    entity->material = (EntityMaterial)material;
                     ImGui::PopID();
                     ImGui::Separator();
 
                     ImGui::Text("Material properties");
-                    ImGui::ColorEdit3("albedo", entity->stored->materialAlbedo.data);
-                    ImGui::SliderFloat("roughness", &entity->stored->materialRoughness, 0.0f, 1.0f);
-                    ImGui::SliderFloat("metallic", &entity->stored->materialMetallic, 0.0f, 1.0f);
+                    ImGui::ColorEdit3("albedo", entity->materialAlbedo.data);
+                    ImGui::SliderFloat("roughness", &entity->materialRoughness, 0.0f, 1.0f);
+                    ImGui::SliderFloat("metallic", &entity->materialMetallic, 0.0f, 1.0f);
                 }
             }
         }
@@ -849,8 +848,8 @@ namespace soko
                                            EntityMesh_Cube, EntityMaterial_Block);
                         if (id)
                         {
-                            SimEntity* entity = AddEntityToRegion(simRegion, GetEntity(level, id));
-                            SOKO_ASSERT(entity);
+                            bool added = AddEntityToRegion(simRegion, GetEntity(level, id));
+                            SOKO_ASSERT(added);
                             editor->selectedEntityID = id;
                         }
                     }
@@ -1017,7 +1016,7 @@ namespace soko
         } break;
         }
 
-        UpdateSim(simRegion);
+        //UpdateSim(simRegion);
 
         RenderGroupSetCamera(gameState->renderGroup, &gameState->session.editorCamera->conf);
         EditorDrawUI(editor);
@@ -1101,12 +1100,13 @@ namespace soko
         {
             if (editor->selectedEntityID)
             {
-                SimEntity* entity = GetEntity(simRegion, editor->selectedEntityID);
+                Entity* entity = GetEntity(simRegion, editor->selectedEntityID);
                 // TODO: This is correct only while region
                 // origin and camera origin are the same value
+                v3 relP = GetRelPos(camera->targetWorldPos, entity->coord);
                 DrawAlignedBoxOutline(gameState->renderGroup,
-                                      WorldToRH(entity->pos - V3(LEVEL_TILE_RADIUS)),
-                                      WorldToRH(entity->pos + V3(LEVEL_TILE_RADIUS)),
+                                      WorldToRH(relP - V3(LEVEL_TILE_RADIUS)),
+                                      WorldToRH(relP + V3(LEVEL_TILE_RADIUS)),
                                       V3(1.0f, 0.0f, 0.0f), 2.0f);
             }
         }

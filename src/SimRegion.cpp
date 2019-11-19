@@ -1,18 +1,5 @@
 namespace soko
 {
-    struct SimEntity
-    {
-        u32 id;
-        // NOTE: Changing this coord not affects on entity position
-        // when entity is in a transition
-        v3 pos;
-        v3 _transitionPos;
-        Entity* stored;
-#if defined (SOKO_DEBUG)
-        iv3 mappedTile;
-#endif
-    };
-
     constant u32 SIM_REGION_MAX_ENTITIES = 256;
 
     struct SimRegion
@@ -26,7 +13,7 @@ namespace soko
         u32 radius;
         // TODO: Pick size based on entitiesInChunk counter
         u32 entityCount;
-        SimEntity entities[SIM_REGION_MAX_ENTITIES];
+        Entity* entities[SIM_REGION_MAX_ENTITIES];
     };
 
     enum RaycastFlags : u32
@@ -56,11 +43,11 @@ namespace soko
         };
     };
 
-    inline SimEntity*
+    inline Entity**
     GetRegionEntityHashMapEntry(SimRegion* region, u32 id)
     {
         SOKO_STATIC_ASSERT(IsPowerOfTwo(SIM_REGION_MAX_ENTITIES));
-        SimEntity* result = 0;
+        Entity** result = 0;
         // TODO: Better hash
         u32 hashMask = SIM_REGION_MAX_ENTITIES - 1;
         u32 hash = id & hashMask;
@@ -68,63 +55,46 @@ namespace soko
         for (u32 offset = 0; offset < SIM_REGION_MAX_ENTITIES; offset++)
         {
             u32 index = (hash + offset) & hashMask;
-            SimEntity* entry = region->entities + index;
-            if (entry->id == id || entry->id == 0)
+            Entity* entry = region->entities[index];
+            if ((entry && entry->id == id) || !entry)
             {
-                result = entry;
+                result = region->entities + index;
                 break;
             }
         }
         return result;
     }
 
-    inline SimEntity*
+    inline Entity*
     AddEntityToRegion(SimRegion* region, Entity* e)
     {
         // NOTE: Since entity itself is a bucket of tile table
         // Double mapped entitiles also double map all entities
-        SOKO_ASSERT(!(e->sim && !e->inTransition), "Multiple entity entries allowed only for transitioning entities!");
-        SimEntity* result = 0;
-        SimEntity* entry = GetRegionEntityHashMapEntry(region, e->id);
+        SOKO_ASSERT(!(e->region && !e->inTransition), "Multiple entity entries allowed only for transitioning entities!");
+        Entity* result = 0;
+        Entity** entry = GetRegionEntityHashMapEntry(region, e->id);
         if (entry)
         {
-            if (!(e->sim && e->inTransition))
+            if (!(e->region && e->inTransition))
             {
-                SOKO_ASSERT(entry->id == 0, "Cloned entities are not allowed!");
-                entry->id = e->id;
-                entry->stored = e;
-                entry->pos = GetRelPos(region->origin, e->coord);
-                if (!e->inTransition)
-                {
-                    WorldPos alignedPos = e->coord;
-                    alignedPos.offset = {};
-                    entry->_transitionPos = GetRelPos(region->origin, alignedPos);
-                }
-                else
-                {
-                    entry->_transitionPos = entry->pos;
-                }
-
-#if defined(SOKO_DEBUG)
-                entry->mappedTile = e->coord.tile;
-#endif
+                //SOKO_ASSERT((*entry)->id == 0, "Cloned entities are not allowed!");
+                *entry = e;
+                e->region = region;
                 region->entityCount++;
-
-                e->sim = entry;
             }
-            result = entry;
+            result = e;
         }
         return result;
     }
 
-    inline SimEntity*
+    inline Entity*
     GetEntity(SimRegion* region, u32 id)
     {
-        SimEntity* result = 0;
-        SimEntity* entry = GetRegionEntityHashMapEntry(region, id);
-        if (entry && entry->id)
+        Entity* result = 0;
+        Entity** entry = GetRegionEntityHashMapEntry(region, id);
+        if (entry && *entry && (*entry)->id)
         {
-            result = entry;
+            result = *entry;
         }
         return result;
     }
@@ -174,8 +144,8 @@ namespace soko
                                      headEntityIndex++)
                                 {
                                     Entity* entity = head->entities[headEntityIndex];
-                                    SimEntity* e = AddEntityToRegion(region, entity);
-                                    SOKO_ASSERT(e);
+                                    bool added = AddEntityToRegion(region, entity);
+                                    SOKO_ASSERT(added);
                                 }
 
                                 auto block = head->next;
@@ -186,8 +156,8 @@ namespace soko
                                          entityIndex++)
                                     {
                                         Entity* entity = block->entities[entityIndex];
-                                        SimEntity* e = AddEntityToRegion(region, entity);
-                                        SOKO_ASSERT(e);
+                                        bool added = AddEntityToRegion(region, entity);
+                                        SOKO_ASSERT(added);
                                     }
                                     block = block->next;
                                 }
@@ -201,35 +171,125 @@ namespace soko
     }
 
     inline bool
-    ChangeEntityLocation(SimRegion* region, SimEntity* _entity, const WorldPos* desiredCoord, bool transient = false)
+    ChangeEntityLocation(SimRegion* region, Entity* entity, iv3 desiredCoord)
     {
-        Entity* entity = _entity->stored;
         bool result = false;
         iv3 oldCoord = entity->coord.tile;
 
-        Tile desiredTile = GetTile(region->level, desiredCoord->tile);
-        if (IsTileFree(region->level, desiredCoord->tile))
+        Tile desiredTile = GetTile(region->level, desiredCoord);
+        if (IsTileFree(region->level, desiredCoord))
         {
+#if 0
             bool allowedToLeave = ProcessEntityTileOverlap(region, oldCoord, 0);
             //SOKO_ASSERT(allowedToLeave);
-            bool allowedToPlace = ProcessEntityTileOverlap(region, desiredCoord->tile, _entity);
+            bool allowedToPlace = ProcessEntityTileOverlap(region, desiredCoord, _entity);
             if (allowedToPlace)
+                // {
+#endif
+                UnregisterEntityInTile(region->level, entity);
+            entity->coord = MakeWorldPos(desiredCoord);
+            bool registered = RegisterEntityInTile(region->level, entity);
+            SOKO_ASSERT(registered);
+            result = true;
+        }
+        return result;
+    }
+
+    inline bool
+    BeginEntityTransition(SimRegion* region, Entity* e, Direction dir, u32 length, f32 speed, i32 push)
+    {
+        bool result = false;
+        if (!e->inTransition)
+        {
+            iv3 beginP = e->coord.tile;
+            iv3 targetP = e->coord.tile + DirToUnitOffset(dir);
+
+            if (push > 0)
             {
-                if (!transient)
+                EntityMapIterator it = {};
+                while (true)
                 {
-                    UnregisterEntityInTile(region->level, entity);
+                    Entity* pe = YieldEntityFromTile(region->level, targetP, &it);
+                    if (!pe) break;
+                    SOKO_ASSERT(pe != e);
+                    if (IsSet(pe, EntityFlag_Collides) && IsSet(pe, EntityFlag_Movable))
+                    {
+                        BeginEntityTransition(region, pe, dir, length, speed, push - 1);
+                    }
                 }
-                entity->coord = *desiredCoord;
-                bool registered = RegisterEntityInTile(region->level, entity);
-                SOKO_ASSERT(registered);
-                result = true;
             }
+
+            if (CanMove(region->level, targetP))
+            {
+                if (ChangeEntityLocation(region, e, targetP))
+                {
+                    e->inTransition = true;
+                    e->transitionCount = length;
+                    e->transitionPushCount = push;
+                    e->transitionDir = dir;
+                    e->transitionSpeed = speed;
+                    e->transitionFullPath = (v3)DirToUnitOffset(dir) * LEVEL_TILE_SIZE;
+                    e->transitionTraveledPath = {};
+                    e->transitionOrigin = beginP;
+                    e->transitionDest = targetP;
+                    //e->transitionOffset = {};
+                    e->transitionSpeed = speed;
+                    result = true;
+                }
+            }
+
+            if (push < 0)
+            {
+                iv3 grabP = beginP - DirToUnitOffset(dir);
+                EntityMapIterator it = {};
+                while (true)
+                {
+                    Entity* pe = YieldEntityFromTile(region->level, grabP, &it);
+                    if (!pe) break;
+                    SOKO_ASSERT(pe != e);
+                    if (IsSet(pe, EntityFlag_Collides) && IsSet(pe, EntityFlag_Movable))
+                    {
+                        BeginEntityTransition(region, pe, dir, length, speed, push + 1);
+                    }
+                }
+            }
+
         }
         return result;
     }
 
     inline void
-    EndTileTransition(SimRegion* region, SimEntity* entity)
+    UpdateEntityTransition(SimRegion* region, Entity* e)
+    {
+        if (e->inTransition)
+        {
+            v3 delta = Normalize(e->transitionFullPath) * e->transitionSpeed * GlobalGameDeltaTime * LEVEL_TILE_SIZE;
+            e->transitionTraveledPath += delta;
+            e->transitionOffset += delta;
+
+            if (LengthSq(e->transitionTraveledPath) > LengthSq(e->transitionFullPath))
+            {
+                v3 pathRemainder = e->transitionFullPath - e->transitionTraveledPath;
+                e->transitionOffset += pathRemainder;
+                e->inTransition = false;
+
+                if (e->transitionCount) e->transitionCount--;
+            }
+
+            if (!e->inTransition)
+            {
+                SOKO_ASSERT(e->transitionDest == e->coord.tile);
+                if (e->transitionCount)
+                {
+                    BeginEntityTransition(region, e, e->transitionDir, e->transitionCount, e->transitionSpeed, e->transitionPushCount);
+                }
+            }
+        }
+    }
+
+# if 0
+    inline void
+    EndTileTransition(SimRegion* region, Entity* entity)
     {
         auto tile = GetTile(region->level, entity->stored->transitionOrigin);
         UnregisterEntityInTile(region->level, entity->stored->transitionOrigin, entity->stored);
@@ -238,7 +298,7 @@ namespace soko
 
     // TODO: More data oriented architecture
     internal void
-    UpdateTileTransition(SimRegion* region, SimEntity* e)
+    UpdateTileTransition(SimRegion* region, Entity* e)
     {
         Entity* stored = e->stored;
         if (stored->inTransition)
@@ -269,7 +329,7 @@ namespace soko
     {
         for (u32 index = 0; index < SIM_REGION_MAX_ENTITIES; index++)
         {
-            SimEntity* e = region->entities + index;
+            Entity* e = region->entities + index;
             if (e->id)
             {
                 Entity* stored = e->stored;
@@ -296,16 +356,20 @@ namespace soko
             }
         }
     }
-
+#endif
     internal void
     EndSim(Level* level, SimRegion* region)
     {
         for (u32 index = 0; index < SIM_REGION_MAX_ENTITIES; index++)
         {
-            SimEntity* e = region->entities + index;
-            if (e->id)
+            Entity* e = region->entities[index];
+            if (e)
             {
-                e->stored->sim = 0;
+                if (e->inTransition)
+                {
+                    UpdateEntityTransition(region, e);
+                }
+                e->region = 0;
             }
         }
     }
@@ -317,9 +381,9 @@ namespace soko
     // It might be not necessary to fix that since we always do regions with
     // safe margin so player cannot go out of region
     //
-
+#if 0
     internal bool
-    MoveEntity(Level* level, SimRegion* region, SimEntity* entity, Direction dir, f32 speed, bool reverse, u32 depth);
+    MoveEntity(Level* level, SimRegion* region, Entity* entity, Direction dir, f32 speed, bool reverse, u32 depth);
 
     internal bool
     PushTileNonReverse(SimRegion* region, Entity* stored, iv3 pushTilePos, Direction dir, f32 speed, u32 depth)
@@ -421,7 +485,7 @@ namespace soko
 
 
     internal bool
-    MoveEntity(Level* level, SimRegion* region, SimEntity* entity, Direction dir, f32 speed, bool reverse = false, u32 depth = 3)
+    MoveEntity(Level* level, SimRegion* region, Entity* entity, Direction dir, f32 speed, bool reverse = false, u32 depth = 3)
     {
         bool pushTileFree = false;
 
@@ -476,7 +540,7 @@ namespace soko
         }
         return pushTileFree;
     }
-
+#endif
     internal void
     DrawRegion(const SimRegion* region, GameState* gameState, WorldPos camOrigin)
     {
@@ -516,31 +580,34 @@ namespace soko
 
         for (u32 index = 0; index < SIM_REGION_MAX_ENTITIES; index++)
         {
-            const SimEntity* e = region->entities + index;
-            if (e->id)
+            Entity* e = region->entities[index];
+            if (e)
             {
-                WorldPos wp = e->stored->coord;
-                if (!e->stored->inTransition)
+                v3 wp;
+                if (e->inTransition)
                 {
-                    wp.offset = {};
+                    wp = GetRelPos(camOrigin, e->transitionOrigin) + e->transitionOffset;
                 }
-
-                v3 pos = WorldToRH(GetRelPos(camOrigin, wp));
+                else
+                {
+                    wp = GetRelPos(camOrigin, MakeWorldPos(e->coord.tile));
+                }
+                v3 pos = WorldToRH(wp);
 
                 RenderCommandDrawMesh command = {};
                 command.transform = Translation(pos);
                 //SOKO_ASSERT(entity->mesh);
                 //SOKO_ASSERT(entity->material);
-                command.mesh = gameState->meshes + e->stored->mesh;
-                auto material = gameState->materials + e->stored->material;
+                command.mesh = gameState->meshes + e->mesh;
+                auto material = gameState->materials + e->material;
                 if (material->type == Material::PBR && material->pbr.isCustom)
                 {
                     Material m = {};
                     m.type = Material::PBR;
                     m.pbr.isCustom = true;
-                    m.pbr.custom.albedo = e->stored->materialAlbedo;
-                    m.pbr.custom.roughness = e->stored->materialRoughness;
-                    m.pbr.custom.metalness = e->stored->materialMetallic;
+                    m.pbr.custom.albedo = e->materialAlbedo;
+                    m.pbr.custom.roughness = e->materialRoughness;
+                    m.pbr.custom.metalness = e->materialMetallic;
 
                     command.material = m;
                 }
@@ -821,10 +888,10 @@ namespace soko
 
         for (u32 index = 0; index < SIM_REGION_MAX_ENTITIES; index++)
         {
-            SimEntity* entity = region->entities + index;
-            if (entity->id)
+            Entity* entity = region->entities[index];
+            if (entity)
             {
-                v3 simPos = entity->pos;
+                v3 simPos = GetRelPos(region->origin, entity->coord);
                 BBoxAligned aabb;
                 aabb.min = simPos - LEVEL_TILE_RADIUS;
                 aabb.max = simPos + LEVEL_TILE_RADIUS;
@@ -835,9 +902,9 @@ namespace soko
                     result.hit = RaycastResult::Entity;
                     result.tMin = intersection.tMin;
                     result.entity.normal = intersection.normal;
-                    result.entity.id = entity->stored->id;
+                    result.entity.id = entity->id;
                     // TODO: Is using stored position during the simulation allowed?
-                    result.entity.tile = entity->stored->coord.tile;
+                    result.entity.tile = entity->coord.tile;
                 }
             }
         }

@@ -19,7 +19,7 @@ namespace soko
         EntityMesh_Gun,
         EntityMesh_Box,
         EntityMesh_Altar,
-        EntityMesh_Crystal
+        EntityMesh_Cat,
     };
 
     enum [reflect seq_enum] EntityMaterial
@@ -37,7 +37,8 @@ namespace soko
         EntityMaterial_OldMetal,
         EntityMaterial_Gun,
         EntityMaterial_Box,
-        EntityMaterial_Altar
+        EntityMaterial_Altar,
+        EntityMaterial_Cat
     };
 
     // NOTE: Should fit in one byte
@@ -71,6 +72,12 @@ namespace soko
     {
         iv3 tile;
         v3 offset;
+    };
+
+    struct ChunkPos
+    {
+        iv3 chunk;
+        uv3 tile;
     };
 
     inline WorldPos MakeWorldPos(iv3 tile) { return {tile, {}}; }
