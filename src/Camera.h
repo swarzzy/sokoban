@@ -4,6 +4,16 @@
 
 namespace soko
 {
+    // NOTE: This is now used only in camera and sim regions
+    struct WorldPos
+    {
+        iv3 tile;
+        v3 offset;
+    };
+
+    inline WorldPos MakeWorldPos(iv3 tile) { return {tile, {}}; }
+    inline WorldPos MakeWorldPos(i32 x, i32 y, i32 z) { return {{x, y, z}, {}}; }
+
     struct FPCamera
     {
         CameraConfig conf;
@@ -27,12 +37,8 @@ namespace soko
         f32 distance;
         v2 targetOrbit;
         f32 targetDistance;
-        //v3 targetPos;
         f32 rotSpeed;
         f32 zoomSpeed;
-        //f32 moveSpeed;
-        //f32 moveFriction;
-        //v3 velocity;
         f32 latSmooth;
         f32 longSmooth;
         f32 distSmooth;
@@ -41,6 +47,29 @@ namespace soko
         f32 followSpeed;
     };
 
-    internal void UpdateCamera(GameCamera* camera, const WorldPos* target);
-    internal void UpdateCamera(FPCamera* camera);
+    struct EditorCamera
+    {
+        CameraConfig conf;
+        f32 longitude;
+        f32 latitude;
+        f32 distance;
+        v2 targetOrbit;
+        f32 targetDistance;
+        f32 rotSpeed;
+        f32 zoomSpeed;
+        f32 latSmooth;
+        f32 longSmooth;
+        f32 distSmooth;
+        f32 moveSpeed;
+        f32 moveFriction;
+        v3 velocity;
+        // NOTE: Position of actual camera
+        WorldPos worldPos;
+        // NOTE: Position of a point on camera looks
+        WorldPos targetWorldPos;
+        v3 frameAcceleration;
+        i32 frameScrollOffset;
+
+        v3 mouseRayRH;
+    };
 }

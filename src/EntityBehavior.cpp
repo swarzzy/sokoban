@@ -1,40 +1,112 @@
 #include "EntityBehavior.h"
 namespace soko
 {
-    typedef bool(EntityBehaviorFn)(SimRegion* region, Entity* e, Entity* caller);
+    // TODO: Put this to GameState?
+    typedef bool(EntityOverlapBehaviorFn)(SimRegion* region, Entity* e, Entity* caller);
+    // NOTE: Returns true if caller entity was moved
+    internal bool EmptyOverlapBehavior(SimRegion* region, Entity* e, Entity* caller) { return false; }
+    internal bool ButtonOverlapBehavior(SimRegion* region, Entity* e, Entity* caller);
+    internal bool SpawnerOverlapBehavior(SimRegion* region, Entity* e, Entity* caller);
+    internal bool PortalOverlapBehavior(SimRegion* region, Entity* e, Entity* caller);
+    internal bool SpikesOverlapBehavior(SimRegion* region, Entity* e, Entity* caller);
 
-    // NOTE: Return value tells is entity allowed to move on entity's tile
-    internal bool EmptyBehavior(SimRegion* region, Entity* e, Entity* caller) { return true; }
-    internal bool ButtonBehavior(SimRegion* region, Entity* e, Entity* caller);
-    internal bool SpawnerBehavior(SimRegion* region, Entity* e, Entity* caller);
-    internal bool PortalBehavior(SimRegion* region, Entity* e, Entity* caller);
-
-
-    constant EntityBehaviorFn* EntityActions[TypeTraits(EntityBehaviorType)::MemberCount] =
+    constant EntityOverlapBehaviorFn* EntityOverlapActions[TypeTraits(EntityBehaviorType)::MemberCount] =
     {
-        EmptyBehavior,
-        SpawnerBehavior,
-        ButtonBehavior,
-        PortalBehavior
+        EmptyOverlapBehavior,
+        SpawnerOverlapBehavior,
+        ButtonOverlapBehavior,
+        PortalOverlapBehavior,
+        SpikesOverlapBehavior,
+        SpikesOverlapBehavior
     };
 
+    typedef void(EntityBehaviorUpdateFn)(SimRegion* region, Entity* e);
+
+    internal void DefaultBehaviorUpdate(SimRegion* region, Entity* e) {};
+//    internal void EnemyUpdate(SimRegion* region, Entity* e);
+
+    constant EntityBehaviorUpdateFn* EntityUpdateActions[TypeTraits(EntityBehaviorType)::MemberCount] =
+    {
+        DefaultBehaviorUpdate,
+        DefaultBehaviorUpdate,
+        DefaultBehaviorUpdate,
+        DefaultBehaviorUpdate,
+        DefaultBehaviorUpdate,
+        //EnemyUpdate,
+    };
+#if 0
+    internal void
+    EnemyUpdate(SimRegion* region, Entity* e)
+    {
+        SOKO_ASSERT(e->behavior.type == EntityBehavior_Enemy);
+        if (!e->inTransition)
+        {
+            if (e->behavior.enemy.atDest)
+            {
+                BeginEntityTransition(region, e, e->behavior.enemy.dir)
+            }
+        }
+    }
+#endif
+
+    // NOTE: Returns true if COLLIDES
     internal bool
-    PortalBehavior(SimRegion* region, Entity* e, Entity* caller)
+    DefaultEntityCollisionCheck(Level* level, Entity* e)
+    {
+        return IsSet(e, EntityFlag_Collides);
+    }
+
+    internal bool
+    PortalCollisionCheck(Level* level, Entity* e)
+    {
+        bool result = true;
+        SOKO_ASSERT(e->behavior.type == EntityBehavior_Portal);
+        auto data = &e->behavior.data.portal;
+        if (data->destPortalID)
+        {
+            Entity* destPortal = GetEntity(level, data->destPortalID);
+            if (destPortal)
+            {
+                SOKO_ASSERT(destPortal->behavior.type == EntityBehavior_Portal);
+                if (CheckTile(level, destPortal->behavior.data.portal.teleportP))
+                {
+                    result = false;
+                }
+            }
+        }
+        return result;
+    }
+
+    internal bool
+    SpikesOverlapBehavior(SimRegion* region, Entity* e, Entity* caller)
+    {
+        bool deleted = false;
+        SOKO_ASSERT(e->behavior.type == EntityBehavior_Spikes);
+        if (caller && caller->type != EntityType_Player)
+        {
+            // TODO: Delete from sim region
+            DeleteEntity(region->level, caller);
+            deleted = true;
+        }
+        return deleted;
+    }
+
+    internal bool
+    PortalOverlapBehavior(SimRegion* region, Entity* e, Entity* caller)
     {
         bool result = false;
-# if 0
-        auto data = &e->stored->behavior.data.portal;
-        if (caller && IsSet(caller->stored, EntityFlag_Movable))
+        auto data = &e->behavior.data.portal;
+        if (caller && IsSet(caller, EntityFlag_Movable))
         {
             if (data->destPortalID)
             {
                 Entity* destPortal = GetEntity(region, data->destPortalID);
-                if (destPortal && destPortal->stored->behavior.type == EntityBehavior_Portal)
+                if (destPortal && destPortal->behavior.type == EntityBehavior_Portal)
                 {
-                    iv3 destPos = destPortal->stored->behavior.data.portal.teleportP;
-                    if (IsTileFree(region->level, destPos))
+                    iv3 destPos = destPortal->behavior.data.portal.teleportP;
+                    if (CheckTile(region->level, destPos))
                     {
-                        if (ChangeEntityLocation(region, caller, &MakeWorldPos(destPos)))
+                        if (ChangeEntityLocation(region, caller, destPos))
                         {
                             result = true;
                         }
@@ -42,39 +114,33 @@ namespace soko
                 }
             }
         }
-#endif
         return result;
     }
 
     internal bool
-    ButtonBehavior(SimRegion* region, Entity* e, Entity* caller)
+    ButtonOverlapBehavior(SimRegion* region, Entity* e, Entity* caller)
     {
-#if 0
-        bool result = true;
-        if (caller && IsSet(caller->stored, EntityFlag_Collides))
+        if (caller && IsSet(caller, EntityFlag_Collides))
         {
-            auto data = &e->stored->behavior.data.button;
+            auto data = &e->behavior.data.button;
             if (data->boundEntityID)
             {
                 Entity* boundE = GetEntity(region, data->boundEntityID);
                 if (boundE)
                 {
-                    EntityActions[boundE->stored->behavior.type](region, boundE, e);
+                    EntityOverlapActions[boundE->behavior.type](region, boundE, e);
                 }
             }
         }
-#endif
-        return true;
+        return false;
     }
 
     internal bool
-    SpawnerBehavior(SimRegion* region, Entity* e, Entity* caller)
+    SpawnerOverlapBehavior(SimRegion* region, Entity* e, Entity* caller)
     {
-        bool result = true;
-#if 0
         // TODO: Check is p valid?
-        auto data = &e->stored->behavior.data.spawner;
-        if (IsTileFree(region->level, data->spawnP))
+        auto data = &e->behavior.data.spawner;
+        if (CheckTile(region->level, data->spawnP))
         {
             u32 id = AddEntity(region->level, data->entityType, data->spawnP, 2.0f, EntityMesh_Box, EntityMaterial_Box);
             if (id)
@@ -83,8 +149,7 @@ namespace soko
                 AddEntityToRegion(region, GetEntity(region->level, id));
             }
         }
-#endif
-        return result;
+        return false;
     }
 
     // TODO: Clean the sim and stored entity concept up
@@ -92,7 +157,7 @@ namespace soko
     internal bool
     ProcessEntityTileOverlap(SimRegion* region, iv3 tile, Entity* overlappingEntity)
     {
-        bool result = true;
+        bool result = false;
         EntityMapIterator it = {};
         while (true)
         {
@@ -100,7 +165,7 @@ namespace soko
             if (!entity) break;
             if (!overlappingEntity || entity->id != overlappingEntity->id)
             {
-                result = result && EntityActions[entity->behavior.type](region, entity, overlappingEntity);
+                result = result || EntityOverlapActions[entity->behavior.type](region, entity, overlappingEntity);
             }
         }
         return result;

@@ -29,15 +29,13 @@ namespace soko
         /* plate */  // all zeros
     };
 
-    struct SimEntity;
     struct Entity
     {
         u32 id;
         EntityType type;
         u32 flags;
-        WorldPos coord;
-        //iv3 pos;
-        //v3 offset;
+        iv3 pos;
+        v3 offset;
         EntityBehavior behavior;
 
         EntityMesh mesh;

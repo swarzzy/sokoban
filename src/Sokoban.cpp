@@ -695,7 +695,7 @@ namespace soko
             BeginTemporaryMemory(gameState->tempArena, true);
             SimRegion* simRegion = BeginSim(gameState->tempArena,
                                             gameState->session.level,
-                                            player->e->coord,
+                                            MakeWorldPos(player->e->pos),
                                             2);
             //player->e->sim->pos += V3(GlobalInput.mouseFrameOffsetX, GlobalInput.mouseFrameOffsetY, 0.0f) * 7.0f;
             u32 steps = 1;
@@ -745,7 +745,7 @@ namespace soko
             }
             else
             {
-                UpdateCamera(&gameState->session.camera, &player->e->coord);
+                UpdateCamera(&gameState->session.camera, &MakeWorldPos(player->e->pos));
                 camConf = &gameState->session.camera.conf;
             }
 
@@ -813,6 +813,21 @@ namespace soko
         } break;
         }
     }
+
+#if 0
+    inline bool
+    IsValid(WorldPos p)
+    {
+        bool result = (p.tile.x >= LEVEL_MIN_DIM && p.tile.x <= LEVEL_MAX_DIM &&
+                       p.tile.y >= LEVEL_MIN_DIM && p.tile.y <= LEVEL_MAX_DIM &&
+                       p.tile.z >= LEVEL_MIN_DIM && p.tile.z <= LEVEL_MAX_DIM);
+        result = result && (p.offset.x >= -LEVEL_TILE_RADIUS && p.offset.x <= LEVEL_TILE_RADIUS &&
+                            p.offset.y >= -LEVEL_TILE_RADIUS && p.offset.y <= LEVEL_TILE_RADIUS &&
+                            p.offset.z >= -LEVEL_TILE_RADIUS && p.offset.z <= LEVEL_TILE_RADIUS);
+        return result;
+    }
+#endif
+
 }
 
 #include "RenderGroup.cpp"

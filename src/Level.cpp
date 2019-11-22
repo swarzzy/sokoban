@@ -20,19 +20,6 @@ namespace soko
         }
         return result;
     }
-
-    inline bool
-    IsValid(WorldPos p)
-    {
-        bool result = (p.tile.x >= LEVEL_MIN_DIM && p.tile.x <= LEVEL_MAX_DIM &&
-                       p.tile.y >= LEVEL_MIN_DIM && p.tile.y <= LEVEL_MAX_DIM &&
-                       p.tile.z >= LEVEL_MIN_DIM && p.tile.z <= LEVEL_MAX_DIM);
-        result = result && (p.offset.x >= -LEVEL_TILE_RADIUS && p.offset.x <= LEVEL_TILE_RADIUS &&
-                            p.offset.y >= -LEVEL_TILE_RADIUS && p.offset.y <= LEVEL_TILE_RADIUS &&
-                            p.offset.z >= -LEVEL_TILE_RADIUS && p.offset.z <= LEVEL_TILE_RADIUS);
-        return result;
-    }
-
     inline v3
     WorldToRH(v3 v)
     {
@@ -51,61 +38,6 @@ namespace soko
         result.y = -v.z;
         result.z = v.y;
         return result;
-    }
-
-    inline v3
-    GetRelPos(WorldPos origin, WorldPos target)
-    {
-        v3 result = {};
-        iv3 tileDiff = target.tile - origin.tile;
-        v3 offsetDiff = target.offset - origin.offset;
-        result = V3(tileDiff.x * LEVEL_TILE_SIZE, tileDiff.y * LEVEL_TILE_SIZE, tileDiff.z * LEVEL_TILE_SIZE);
-        result += offsetDiff;
-        return result;
-    }
-
-    inline v3
-    GetRelPos(WorldPos origin, iv3 tile)
-    {
-        v3 result = {};
-        iv3 tileDiff = tile - origin.tile;
-        v3 offsetDiff = -origin.offset;
-        result = V3(tileDiff.x * LEVEL_TILE_SIZE, tileDiff.y * LEVEL_TILE_SIZE, tileDiff.z * LEVEL_TILE_SIZE);
-        result += offsetDiff;
-        return result;
-    }
-
-
-    inline void
-    NormalizeWorldPos(WorldPos* p)
-    {
-        i32 tileOffX = Floor((p->offset.x + LEVEL_TILE_RADIUS) / LEVEL_TILE_SIZE);
-        i32 tileOffY = Floor((p->offset.y + LEVEL_TILE_RADIUS) / LEVEL_TILE_SIZE);
-        i32 tileOffZ = Floor((p->offset.z + LEVEL_TILE_RADIUS) / LEVEL_TILE_SIZE);
-
-        p->offset.x -= tileOffX * LEVEL_TILE_SIZE;
-        p->offset.y -= tileOffY * LEVEL_TILE_SIZE;
-        p->offset.z -= tileOffZ * LEVEL_TILE_SIZE;
-
-        p->tile += IV3(tileOffX, tileOffY, tileOffZ);
-
-        p->tile.x = Clamp(p->tile.x, LEVEL_MIN_DIM, LEVEL_MAX_DIM);
-        p->tile.y = Clamp(p->tile.y, LEVEL_MIN_DIM, LEVEL_MAX_DIM);
-        p->tile.z = Clamp(p->tile.z, LEVEL_MIN_DIM, LEVEL_MAX_DIM);
-    }
-
-    inline WorldPos
-    GetWorldPos(WorldPos origin, v3 offset)
-    {
-        origin.offset += offset;
-        NormalizeWorldPos(&origin);
-        return origin;
-    }
-
-    inline WorldPos
-    OffsetWorldPos(WorldPos p, v3 offset)
-    {
-        return GetWorldPos(p, offset);
     }
 
     inline iv3
@@ -174,7 +106,6 @@ namespace soko
         }
         return result;
     }
-
 
     inline Chunk*
     GetChunk(Level* level, i32 x, i32 y, i32 z)
@@ -396,7 +327,7 @@ namespace soko
     inline bool
     RegisterEntityInTile(Chunk* chunk, Entity* entity)
     {
-        uv3 t = GetTileCoordInChunk(entity->coord.tile);
+        uv3 t = GetTileCoordInChunk(entity->pos);
         return RegisterEntityInTile(chunk, entity, t);
     }
 
@@ -412,7 +343,7 @@ namespace soko
     inline bool
     RegisterEntityInTile(Level* level, Entity* e)
     {
-        iv3 c = GetChunkCoord(e->coord.tile);
+        iv3 c = GetChunkCoord(e->pos);
         Chunk* chunk = GetChunk(level, c);
         return RegisterEntityInTile(chunk, e);
     }
@@ -497,7 +428,7 @@ namespace soko
     internal void
     UnregisterEntityInTile(Chunk* chunk, Entity* entity)
     {
-        uv3 t = GetTileCoordInChunk(entity->coord.tile);
+        uv3 t = GetTileCoordInChunk(entity->pos);
         bool result = UnregisterEntityInTile(chunk, t, entity);
         SOKO_ASSERT(result);
     }
@@ -505,7 +436,7 @@ namespace soko
     inline void
     UnregisterEntityInTile(Level* level, Entity* e)
     {
-        iv3 c = GetChunkCoord(e->coord.tile);
+        iv3 c = GetChunkCoord(e->pos);
         Chunk* chunk = GetChunk(level, c);
         UnregisterEntityInTile(chunk, e);
     }
@@ -577,7 +508,7 @@ namespace soko
         return result;
     }
 
-    inline Tile*
+    inline const Tile*
     GetTilePointerInChunkInternal(Chunk* chunk, u32 x, u32 y, u32 z)
     {
         // TODO: Actial check?
@@ -591,34 +522,34 @@ namespace soko
         return tile;
     }
 
-    inline Tile
+    inline const Tile*
     GetTileInChunk(Chunk* chunk, u32 x, u32 y, u32 z)
     {
-        Tile result = { TileValue_TileNotExist };
+        const Tile* result = 0;
         if (chunk &&
             x < CHUNK_DIM &&
             y < CHUNK_DIM &&
             z < CHUNK_DIM)
         {
-            Tile* tile = GetTilePointerInChunkInternal(chunk, x, y, z);
+            const Tile* tile = GetTilePointerInChunkInternal(chunk, x, y, z);
             if (tile)
             {
-                result = *tile;
+                result = tile;
             }
         }
         return result;
     }
 
-    inline Tile
+    inline const Tile*
     GetTileInChunk(Chunk* chunk, uv3 tileInChunk)
     {
         return GetTileInChunk(chunk, tileInChunk.x, tileInChunk.y, tileInChunk.z);
     }
 
-    inline Tile*
+    inline const Tile*
     GetTilePointerInternal(Level* level, i32 x, i32 y, i32 z)
     {
-        Tile* result = 0;
+        const Tile* result = 0;
 
 #if 0
         if ((x >= LEVEL_MIN_DIM && x <= LEVEL_MAX_DIM) &&
@@ -638,48 +569,47 @@ namespace soko
         return result;
     }
 
-    inline Tile
+    inline const Tile*
     GetTile(Level* level, i32 x, i32 y, i32 z)
     {
-        Tile result = { TileValue_TileNotExist };
+        const Tile* result = 0;
         // TODO: @Speed: Stop returninig pointers and dereferencing them here
         // This code needs cleanup
-        Tile* tile = GetTilePointerInternal(level, x, y, z);
+        const Tile* tile = GetTilePointerInternal(level, x, y, z);
         if (tile)
         {
-            result = *tile;
+            result = tile;
         }
         return result;
     }
 
-    inline Tile
+    inline const Tile*
     GetTile(Level* level, iv3 coord)
     {
-        Tile result = GetTile(level, coord.x, coord.y, coord.z);
-        return result;
-    }
-
-    // NOTE: Checks if it is allowed to place entity on tile
-    // NOT if tile is EMPTY!!!!
-    inline bool
-    IsTileExists(Tile tile)
-    {
-        bool result = (tile.value != TileValue_TileNotExist);
+        const Tile* result = GetTile(level, coord.x, coord.y, coord.z);
         return result;
     }
 
     inline bool
     TileIsTerrain(Tile tile)
     {
-        bool result = ((tile.value != TileValue_Empty) && IsTileExists(tile));
+        bool result = (tile.value != TileValue_Empty);
+        return result;
+    }
+
+    inline bool
+    TileIsTerrain(const Tile* t)
+    {
+        bool result = !t || TileIsTerrain(*t);
         return result;
     }
 
     inline bool
     TileIsTerrain(Chunk* chunk, uv3 tileInChunk)
     {
-        Tile tile = GetTileInChunk(chunk, tileInChunk);
-        bool result = TileIsTerrain(tile);
+        bool result = true;
+        const Tile* tile = GetTileInChunk(chunk, tileInChunk);
+        result = TileIsTerrain(tile);
         return result;
     }
 
@@ -693,46 +623,45 @@ namespace soko
         return result;
     }
 
-    enum TileOccupancyCheckFlag : u32
+    enum TileCheckFlag : u32
     {
-        TileOccupancy_Terrain = (1 << 0),
-        TileOccupancy_Entities = (1 << 1)
+        TileCheck_Terrain = (1 << 0),
+        TileCheck_Entities = (1 << 1)
     };
 
     inline bool
-    IsTileFree(Chunk* chunk, uv3 tileInChunk, u32 flags = TileOccupancy_Terrain | TileOccupancy_Entities)
+    CheckTile(Chunk* chunk, uv3 tileInChunk, u32 flags = TileCheck_Terrain | TileCheck_Entities)
     {
         bool result = true;
-        Tile tile = GetTileInChunk(chunk, tileInChunk);
+        const Tile* tile = GetTileInChunk(chunk, tileInChunk);
 
         bool occupiedByTerrain = TileIsTerrain(tile);
         bool occupiedByEntities = false;
 
-        if (flags & TileOccupancy_Entities)
+        if (flags & TileCheck_Entities)
         {
             EntityMapIterator it = {};
             while (true)
             {
                 Entity* e = YieldEntityFromTile(chunk, tileInChunk, &it);
                 if (!e) break;
-                if (IsSet(e, EntityFlag_Collides))
+                if (EntityCollisionChecks[e->behavior.type](chunk->level, e))
                 {
-                    // TODO: IsMovable
                     occupiedByEntities = true;
                     break;
                 }
             }
         }
 
-        if (flags == TileOccupancy_Terrain)
+        if (flags == TileCheck_Terrain)
         {
             result = !occupiedByTerrain;
         }
-        else if (flags == TileOccupancy_Entities)
+        else if (flags == TileCheck_Entities)
         {
             result = !occupiedByEntities;
         }
-        else if (flags == (TileOccupancy_Entities | TileOccupancy_Terrain))
+        else if (flags == (TileCheck_Entities | TileCheck_Terrain))
         {
             result = !occupiedByTerrain && !occupiedByEntities;
         }
@@ -741,19 +670,19 @@ namespace soko
     }
 
     inline bool
-    IsTileFree(Level* level, iv3 tile, u32 flags = TileOccupancy_Terrain | TileOccupancy_Entities)
+    CheckTile(Level* level, iv3 tile, u32 flags = TileCheck_Terrain | TileCheck_Entities)
     {
         iv3 c = GetChunkCoord(tile);
         uv3 t = GetTileCoordInChunk(tile);
         Chunk* chunk = GetChunk(level, c);
-        return IsTileFree(chunk, t, flags);
+        return CheckTile(chunk, t, flags);
     }
 
     inline bool
     CanMove(Level* level,  iv3 tile)
     {
         iv3 groundTile = tile + DirToUnitOffset(Direction_Down);
-        bool result = IsTileFree(level, tile) && TileIsTerrain(level, groundTile);
+        bool result = CheckTile(level, tile) && TileIsTerrain(level, groundTile);
         return result;
     }
 
@@ -775,11 +704,11 @@ namespace soko
         Tile* tile = chunk->tiles + (z * CHUNK_DIM * CHUNK_DIM + y * CHUNK_DIM + x);
         if (tile->value != value)
         {
-            if (!TileIsTerrain(*tile) && TileIsTerrain({value}))
+            if (!TileIsTerrain(*tile) && TileIsTerrain(Tile{value}))
             {
                 chunk->filledTileCount++;
             }
-            else if (TileIsTerrain(*tile) && !TileIsTerrain({value}))
+            else if (TileIsTerrain(*tile) && !TileIsTerrain(Tile{value}))
             {
                 SOKO_ASSERT(chunk->filledTileCount > 0);
                 chunk->filledTileCount--;
@@ -1072,9 +1001,7 @@ namespace soko
                 {
                     for (u32 y = 0; y < CHUNK_DIM; y++)
                     {
-                        Tile* tile = GetTilePointerInChunkInternal(chunk, x, y, 0);
-                        SOKO_ASSERT(tile);
-                        tile->value = TileValue_Wall;
+                        SetTileInChunkInternal(chunk, x, y, 0, TileValue_Wall);
 
                         //if (chunkX == 0 && chunkY == 0)
                         {
@@ -1091,15 +1018,13 @@ namespace soko
                                 {
                                     z = 2;
                                 }
-                                Tile* tile1 = GetTilePointerInChunkInternal(chunk, x, y, z);
-                                SOKO_ASSERT(tile1);
                                 if (y == 15 || x == 15)
                                 {
-                                    tile1->value = TileValue_Empty;
+                                    SetTileInChunkInternal(chunk, x, y, z, TileValue_Empty);
                                 }
                                 else
                                 {
-                                    tile1->value = TileValue_Wall;
+                                    SetTileInChunkInternal(chunk, x, y, z, TileValue_Wall);
                                 }
                             }
                         }
@@ -1116,7 +1041,7 @@ namespace soko
         Entity entity1 = {};
         entity1.type = EntityType_Block;
         entity1.flags = EntityFlag_Collides | EntityFlag_Movable;
-        entity1.coord = MakeWorldPos(5, 7, 1);
+        entity1.pos = IV3(5, 7, 1);
         entity1.movementSpeed = 5.0f;
         entity1.mesh = EntityMesh_Cube;
         entity1.material = EntityMaterial_Block;
@@ -1127,7 +1052,7 @@ namespace soko
         Entity spawner = {};
         spawner.type = EntityType_Spawner;
         spawner.flags = 0;
-        spawner.coord = MakeWorldPos(10, 10, 1);
+        spawner.pos = IV3(10, 10, 1);
         spawner.movementSpeed = 0.0f;
         spawner.mesh = EntityMesh_Plate;
         spawner.material = EntityMaterial_RedPlate;
@@ -1141,7 +1066,7 @@ namespace soko
         Entity entity2 = {};
         entity2.type = EntityType_Block;
         entity2.flags = EntityFlag_Collides | EntityFlag_Movable;
-        entity2.coord = MakeWorldPos(5, 8, 1);
+        entity2.pos = IV3(5, 8, 1);
         entity2.mesh = EntityMesh_Cube;
         entity2.movementSpeed = 5.0f;
         entity2.material = EntityMaterial_Block;
@@ -1151,7 +1076,7 @@ namespace soko
         Entity entity3 = {};
         entity3.type = EntityType_Block;
         entity3.flags = EntityFlag_Collides | EntityFlag_Movable;
-        entity3.coord = MakeWorldPos(5, 9, 1);
+        entity3.pos = IV3(5, 9, 1);
         entity3.mesh = EntityMesh_Cube;
         entity3.material = EntityMaterial_Block;
         entity3.movementSpeed = 5.0f;
@@ -1161,7 +1086,7 @@ namespace soko
         Entity plate = {};
         plate.type = EntityType_Plate;
         plate.flags = 0;
-        plate.coord = MakeWorldPos(10, 9, 1);
+        plate.pos = IV3(10, 9, 1);
         plate.mesh = EntityMesh_Plate;
         plate.material = EntityMaterial_RedPlate;
 
@@ -1171,7 +1096,7 @@ namespace soko
         Entity portal1 = {};
         portal1.type = EntityType_Portal;
         portal1.flags = 0;
-        portal1.coord = MakeWorldPos(12, 12, 1);
+        portal1.pos = IV3(12, 12, 1);
         portal1.mesh = EntityMesh_Portal;
         portal1.material = EntityMaterial_Portal;
         portal1.portalDirection = Direction_North;
@@ -1181,7 +1106,7 @@ namespace soko
         Entity portal2 = {};
         portal2.type = EntityType_Portal;
         portal2.flags = 0;
-        portal2.coord = MakeWorldPos(17, 17, 1);
+        portal2.pos = IV3(17, 17, 1);
         portal2.mesh = EntityMesh_Portal;
         portal2.material = EntityMaterial_Portal;
         portal2.portalDirection = Direction_West;

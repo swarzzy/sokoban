@@ -229,9 +229,9 @@ namespace soko::net
 
                                             // TODO: Deal with offsets?
                                             data->slot = otherSlot;
-                                            data->x = s->player->e->coord.tile.x;
-                                            data->y = s->player->e->coord.tile.y;
-                                            data->z = s->player->e->coord.tile.z;
+                                            data->x = s->player->e->pos.x;
+                                            data->y = s->player->e->pos.y;
+                                            data->z = s->player->e->pos.z;
                                             msg->otherPlayersCount++;
                                         }
                                     }
@@ -262,7 +262,7 @@ namespace soko::net
                         outHeader->type = ServerMsg_AddPlayer;
                         auto msg = (ServerAddPlayerMsg*)(buffer + bufferAt);
                         bufferAt += sizeof(ServerAddPlayerMsg);
-                        msg->newPlayer = {freeSlot, player->e->coord.tile.x, player->e->coord.tile.y, player->e->coord.tile.z};
+                        msg->newPlayer = {freeSlot, player->e->pos.x, player->e->pos.y, player->e->pos.z};
 
                         for (u32 i = 0; i < SERVER_SLOTS_NUM; i++)
                         {

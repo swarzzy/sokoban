@@ -118,30 +118,31 @@ namespace soko
     {
         bool result = false;
 
-        Tile testTile = GetTileInChunk(chunk, p.x, p.y, p.z);
+       const Tile* testTile = GetTileInChunk(chunk, p.x, p.y, p.z);
+       SOKO_ASSERT(testTile);
 
-        Tile c0Tile = GetTileInChunk(chunk, p.x - 1, p.y - 1, p.z - 1);
-        Tile fdnTile = GetTileInChunk(chunk, p.x, p.y - 1, p.z - 1);
-        Tile c1Tile = GetTileInChunk(chunk, p.x + 1, p.y - 1, p.z - 1);
-        Tile flTile = GetTileInChunk(chunk, p.x - 1, p.y - 1, p.z);
-        Tile frTile = GetTileInChunk(chunk, p.x + 1, p.y - 1, p.z);
-        Tile c3Tile = GetTileInChunk(chunk, p.x - 1, p.y - 1, p.z + 1);
-        Tile fupTile = GetTileInChunk(chunk, p.x, p.y - 1, p.z + 1);
-        Tile c2Tile = GetTileInChunk(chunk, p.x + 1, p.y - 1, p.z + 1);
+       const Tile* c0Tile = GetTileInChunk(chunk, p.x - 1, p.y - 1, p.z - 1);
+       const Tile* fdnTile = GetTileInChunk(chunk, p.x, p.y - 1, p.z - 1);
+       const Tile* c1Tile = GetTileInChunk(chunk, p.x + 1, p.y - 1, p.z - 1);
+       const Tile* flTile = GetTileInChunk(chunk, p.x - 1, p.y - 1, p.z);
+       const Tile* frTile = GetTileInChunk(chunk, p.x + 1, p.y - 1, p.z);
+       const Tile* c3Tile = GetTileInChunk(chunk, p.x - 1, p.y - 1, p.z + 1);
+       const Tile* fupTile = GetTileInChunk(chunk, p.x, p.y - 1, p.z + 1);
+       const Tile* c2Tile = GetTileInChunk(chunk, p.x + 1, p.y - 1, p.z + 1);
 
-        Tile ldnTile = GetTileInChunk(chunk, p.x - 1, p.y, p.z - 1);
-        Tile rdnTile = GetTileInChunk(chunk, p.x + 1, p.y, p.z - 1);
-        Tile lupTile = GetTileInChunk(chunk, p.x - 1, p.y, p.z + 1);
-        Tile rupTile = GetTileInChunk(chunk, p.x + 1, p.y, p.z + 1);
+       const Tile* ldnTile = GetTileInChunk(chunk, p.x - 1, p.y, p.z - 1);
+       const Tile* rdnTile = GetTileInChunk(chunk, p.x + 1, p.y, p.z - 1);
+       const Tile* lupTile = GetTileInChunk(chunk, p.x - 1, p.y, p.z + 1);
+       const Tile* rupTile = GetTileInChunk(chunk, p.x + 1, p.y, p.z + 1);
 
-        Tile c4Tile = GetTileInChunk(chunk, p.x - 1, p.y + 1, p.z - 1);
-        Tile bdnTile = GetTileInChunk(chunk, p.x, p.y + 1, p.z - 1);
-        Tile c5Tile = GetTileInChunk(chunk, p.x + 1, p.y + 1, p.z - 1);
-        Tile blTile = GetTileInChunk(chunk, p.x - 1, p.y + 1, p.z);
-        Tile brTile = GetTileInChunk(chunk, p.x + 1, p.y + 1, p.z);
-        Tile c7Tile = GetTileInChunk(chunk, p.x - 1, p.y + 1, p.z + 1);
-        Tile bupTile = GetTileInChunk(chunk, p.x, p.y + 1, p.z + 1);
-        Tile c6Tile = GetTileInChunk(chunk, p.x + 1, p.y + 1, p.z + 1);
+       const Tile* c4Tile = GetTileInChunk(chunk, p.x - 1, p.y + 1, p.z - 1);
+       const Tile* bdnTile = GetTileInChunk(chunk, p.x, p.y + 1, p.z - 1);
+       const Tile* c5Tile = GetTileInChunk(chunk, p.x + 1, p.y + 1, p.z - 1);
+       const Tile* blTile = GetTileInChunk(chunk, p.x - 1, p.y + 1, p.z);
+       const Tile* brTile = GetTileInChunk(chunk, p.x + 1, p.y + 1, p.z);
+       const Tile* c7Tile = GetTileInChunk(chunk, p.x - 1, p.y + 1, p.z + 1);
+       const Tile* bupTile = GetTileInChunk(chunk, p.x, p.y + 1, p.z + 1);
+       const Tile* c6Tile = GetTileInChunk(chunk, p.x + 1, p.y + 1, p.z + 1);
 
         // NOTE: This stage works in left-handed coord system
         // and will be converted to right-handed in push vertex call
@@ -154,7 +155,7 @@ namespace soko
         v3 max = offset + 0.5f * V3(LEVEL_TILE_SIZE);
         max.z = offset.z - 0.5f * LEVEL_TILE_SIZE;
 
-        TileValue val = testTile.value;
+        TileValue val = testTile->value;
 
         v3 vtx0 = V3(min.x, min.y, max.z);
         v3 vtx1 = V3(max.x, min.y, max.z);
@@ -268,16 +269,16 @@ namespace soko
             {
                 for (u32 tileX = 0; tileX < CHUNK_DIM; tileX++)
                 {
-                    Tile testTile = GetTileInChunk(chunk, tileX, tileY, tileZ);
+                    const Tile* testTile = GetTileInChunk(chunk, tileX, tileY, tileZ);
 
                     if (TileIsTerrain(testTile))
                     {
-                        Tile upTile = GetTileInChunk(chunk, tileX, tileY, tileZ + 1);
-                        Tile dnTile = GetTileInChunk(chunk, tileX, tileY, tileZ - 1);
-                        Tile lTile = GetTileInChunk(chunk, tileX - 1, tileY, tileZ);
-                        Tile rTile = GetTileInChunk(chunk, tileX + 1, tileY, tileZ);
-                        Tile fTile = GetTileInChunk(chunk, tileX, tileY - 1, tileZ);
-                        Tile bTile = GetTileInChunk(chunk, tileX, tileY + 1, tileZ);
+                        const Tile* upTile = GetTileInChunk(chunk, tileX, tileY, tileZ + 1);
+                        const Tile* dnTile = GetTileInChunk(chunk, tileX, tileY, tileZ - 1);
+                        const Tile* lTile = GetTileInChunk(chunk, tileX - 1, tileY, tileZ);
+                        const Tile* rTile = GetTileInChunk(chunk, tileX + 1, tileY, tileZ);
+                        const Tile* fTile = GetTileInChunk(chunk, tileX, tileY - 1, tileZ);
+                        const Tile* bTile = GetTileInChunk(chunk, tileX, tileY + 1, tileZ);
 
                         bool dnEmpty = (tileZ == 0) ? true : !TileIsTerrain(dnTile);
                         bool lEmpty  = (tileX == 0) ? true : !TileIsTerrain(lTile);

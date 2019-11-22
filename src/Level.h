@@ -57,8 +57,9 @@ namespace soko
 
     enum [reflect seq_enum] TileValue : u8
     {
-        TileValue_TileNotExist = 0,
-        TileValue_Empty,
+        //TileValue_TileNotExist = 0,
+        // TODO: Set this to zero (it will destroy all saved levels)
+        TileValue_Empty = 1,
         TileValue_Wall,
         TileValue_Stone,
         TileValue_Grass
@@ -68,20 +69,11 @@ namespace soko
     struct Entity;
     typedef void(UpdateProcFn)(Level* level, Entity* entity, void* data);
 
-    struct WorldPos
-    {
-        iv3 tile;
-        v3 offset;
-    };
-
     struct ChunkPos
     {
         iv3 chunk;
         uv3 tile;
     };
-
-    inline WorldPos MakeWorldPos(iv3 tile) { return {tile, {}}; }
-    inline WorldPos MakeWorldPos(i32 x, i32 y, i32 z) { return {{x, y, z}, {}}; }
 
     struct Tile
     {

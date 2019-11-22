@@ -6,8 +6,8 @@ namespace soko
         se->id = e->id;
         se->type = e->type;
         se->flags = e->flags;
-        se->tile = e->coord.tile;
-        se->offset = e->coord.offset;
+        se->tile = e->pos;
+        se->offset = e->offset;
         se->boundPortalID = e->bindedPortalID;
         se->portalDirection = e->portalDirection;
         se->mesh = e->mesh;
@@ -25,8 +25,8 @@ namespace soko
         e->id = se->id;
         e->type = (EntityType)se->type;
         e->flags = se->flags;
-        e->coord.tile = se->tile;
-        e->coord.offset = se->offset;
+        e->pos = se->tile;
+        e->offset = se->offset;
         e->bindedPortalID = se->boundPortalID;
         e->portalDirection = (Direction)se->portalDirection;
         e->mesh = (EntityMesh)se->mesh;
@@ -44,8 +44,8 @@ namespace soko
         se->id = e->id;
         se->type = e->type;
         se->flags = e->flags;
-        se->tile = e->coord.tile;
-        se->offset = e->coord.offset;
+        se->tile = e->pos;
+        se->offset = e->offset;
         se->boundPortalID = e->bindedPortalID;
         se->portalDirection = e->portalDirection;
         se->mesh = e->mesh;
@@ -55,6 +55,7 @@ namespace soko
 
         switch (e->behavior.type)
         {
+        case EntityBehavior_Spikes:
         case EntityBehavior_None: {} break;
         case EntityBehavior_Button: { se->behaviorData.button.boundEntityID = e->behavior.data.button.boundEntityID; } break;
         case EntityBehavior_Spawner: { se->behaviorData.spawner.spawnP = e->behavior.data.spawner.spawnP; se->behaviorData.spawner.entityType = e->behavior.data.spawner.entityType; } break;
@@ -73,8 +74,8 @@ namespace soko
         e->id = se->id;
         e->type = (EntityType)se->type;
         e->flags = se->flags;
-        e->coord.tile = se->tile;
-        e->coord.offset = se->offset;
+        e->pos = se->tile;
+        e->offset = se->offset;
         e->bindedPortalID = se->boundPortalID;
         e->portalDirection = (Direction)se->portalDirection;
         e->mesh = (EntityMesh)se->mesh;
@@ -85,6 +86,7 @@ namespace soko
 
         switch (e->behavior.type)
         {
+        case EntityBehavior_Spikes:
         case EntityBehavior_None: {} break;
         case EntityBehavior_Button: { e->behavior.data.button.boundEntityID = se->behaviorData.button.boundEntityID; } break;
         case EntityBehavior_Spawner: { e->behavior.data.spawner.spawnP = se->behaviorData.spawner.spawnP; e->behavior.data.spawner.entityType = (EntityType)se->behaviorData.spawner.entityType; } break;
@@ -201,8 +203,7 @@ namespace soko
     AddSerializedEntity(Level* level, const SerializedEntityV2* sEntity)
     {
         u32 result = 0;
-        Tile tile = GetTile(level, sEntity->tile);
-        if (IsTileFree(level, sEntity->tile))
+        if (CheckTile(level, sEntity->tile))
         {
             // TODO: Better hash
             u32 entityHash = sEntity->id % LEVEL_ENTITY_TABLE_SIZE;
@@ -255,7 +256,7 @@ namespace soko
     AddEntity(Level* level, Entity entity)
     {
         u32 result = 0;
-        if (IsTileFree(level, entity.coord.tile))
+        if (CheckTile(level, entity.pos))
         {
             // TODO: Better hash
             u32 entityId = level->entitySerialNumber + 1;
@@ -288,7 +289,7 @@ namespace soko
         u32 result = 0;
         Entity entity = {};
         entity.type = type;
-        entity.coord.tile = coord;
+        entity.pos = coord;
         entity.mesh = mesh;
         entity.material = material;
         entity.movementSpeed = movementSpeed;

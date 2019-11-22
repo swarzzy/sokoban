@@ -51,15 +51,17 @@ InitMetaInfo(AB::MemoryArena* arena)
     AddEntry_Direction(&info->Direction, 4, Direction_East, "Direction_East");
     AddEntry_Direction(&info->Direction, 5, Direction_Up, "Direction_Up");
     AddEntry_Direction(&info->Direction, 6, Direction_Down, "Direction_Down");
-    AddEntry_TileValue(&info->TileValue, 0, TileValue_TileNotExist, "TileValue_TileNotExist");
-    AddEntry_TileValue(&info->TileValue, 1, TileValue_Empty, "TileValue_Empty");
-    AddEntry_TileValue(&info->TileValue, 2, TileValue_Wall, "TileValue_Wall");
-    AddEntry_TileValue(&info->TileValue, 3, TileValue_Stone, "TileValue_Stone");
-    AddEntry_TileValue(&info->TileValue, 4, TileValue_Grass, "TileValue_Grass");
+    AddEntry_TileValue(&info->TileValue, 0, TileValue_Empty, "TileValue_Empty");
+    AddEntry_TileValue(&info->TileValue, 1, TileValue_Wall, "TileValue_Wall");
+    AddEntry_TileValue(&info->TileValue, 2, TileValue_Stone, "TileValue_Stone");
+    AddEntry_TileValue(&info->TileValue, 3, TileValue_Grass, "TileValue_Grass");
     AddEntry_EntityBehaviorType(&info->EntityBehaviorType, 0, EntityBehavior_None, "EntityBehavior_None");
     AddEntry_EntityBehaviorType(&info->EntityBehaviorType, 1, EntityBehavior_Spawner, "EntityBehavior_Spawner");
     AddEntry_EntityBehaviorType(&info->EntityBehaviorType, 2, EntityBehavior_Button, "EntityBehavior_Button");
     AddEntry_EntityBehaviorType(&info->EntityBehaviorType, 3, EntityBehavior_Portal, "EntityBehavior_Portal");
+    AddEntry_EntityBehaviorType(&info->EntityBehaviorType, 4, EntityBehavior_Spikes, "EntityBehavior_Spikes");
+    AddEntry_EntityBehaviorType(&info->EntityBehaviorType, 5, EntityBehavior_Enenmy, "EntityBehavior_Enenmy");
+    AddEntry_EntityBehaviorType(&info->EntityBehaviorType, 6, EntityBahavior_Lift, "EntityBahavior_Lift");
 
     return info;
 }
