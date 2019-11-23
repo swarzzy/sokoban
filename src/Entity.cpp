@@ -46,6 +46,7 @@ namespace soko
         se->flags = e->flags;
         se->tile = e->pos;
         se->offset = e->offset;
+        se->footprintDim = e->footprintDim;
         se->boundPortalID = e->bindedPortalID;
         se->portalDirection = e->portalDirection;
         se->mesh = e->mesh;
@@ -76,6 +77,7 @@ namespace soko
         e->flags = se->flags;
         e->pos = se->tile;
         e->offset = se->offset;
+        e->footprintDim = se->footprintDim;
         e->bindedPortalID = se->boundPortalID;
         e->portalDirection = (Direction)se->portalDirection;
         e->mesh = (EntityMesh)se->mesh;
@@ -237,8 +239,7 @@ namespace soko
                 }
                 level->entityCount++;
 
-                bool registered = RegisterEntityInTile(level, newEntity);
-                SOKO_ASSERT(registered);
+                RegisterEntityInTile(level, newEntity);
 
                 result = newEntity->id;
             }
@@ -259,6 +260,7 @@ namespace soko
         if (CheckTile(level, entity.pos))
         {
             // TODO: Better hash
+            entity.footprintDim = UV3(1);
             u32 entityId = level->entitySerialNumber + 1;
             u32 entityHash = entityId % LEVEL_ENTITY_TABLE_SIZE;
             Entity* bucketEntity = level->entities[entityHash];
@@ -273,8 +275,7 @@ namespace soko
                 *newEntity = entity;
                 newEntity->id = entityId;
 
-                bool registered = RegisterEntityInTile(level, newEntity);
-                SOKO_ASSERT(registered);
+                RegisterEntityInTile(level, newEntity);
 
                 result = entityId;
             }
@@ -296,6 +297,14 @@ namespace soko
         entity.flags = EntityTypesFlags[type];
         result = AddEntity(level, entity);
         return result;
+    }
+
+    inline void
+    ChangeEntityFootprint(Level* level, Entity* e, uv3 newDim)
+    {
+        UnregisterEntityInTile(level, e);
+        e->footprintDim = newDim;
+        RegisterEntityInTile(level, e);
     }
 
     inline Entity*

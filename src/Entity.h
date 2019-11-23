@@ -34,8 +34,10 @@ namespace soko
         u32 id;
         EntityType type;
         u32 flags;
+        // NOTE: pos is lower left corner of footprint
         iv3 pos;
         v3 offset;
+        uv3 footprintDim;
         EntityBehavior behavior;
 
         EntityMesh mesh;
@@ -100,6 +102,7 @@ namespace soko
         u32 flags;
         iv3 tile;
         v3 offset;
+        uv3 footprintDim;
         u32 boundPortalID;
         u32 portalDirection;
         u32 mesh;

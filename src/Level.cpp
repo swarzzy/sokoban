@@ -266,7 +266,7 @@ namespace soko
     }
 
     internal bool
-    RegisterEntityInTile(Chunk* chunk, Entity* entity, uv3 tileInChunk)
+    RegisterEntityInTileInternal(Chunk* chunk, Entity* entity, uv3 tileInChunk)
     {
         SOKO_STATIC_ASSERT(IsPowerOfTwo(CHUNK_ENTITY_MAP_SIZE));
         AB::MemoryArena* arena = chunk->level->sessionArena;
@@ -323,33 +323,43 @@ namespace soko
         return result;
     }
 
-
-    inline bool
-    RegisterEntityInTile(Chunk* chunk, Entity* entity)
+    inline void
+    RegisterEntityInTile(Chunk* chunk, Entity* e)
     {
-        uv3 t = GetTileCoordInChunk(entity->pos);
-        return RegisterEntityInTile(chunk, entity, t);
+        for (u32 z = 0; z < e->footprintDim.z; z++)
+        {
+            for (u32 y = 0; y < e->footprintDim.y; y++)
+            {
+                for (u32 x = 0; x < e->footprintDim.x; x++)
+                {
+                    uv3 t = GetTileCoordInChunk(e->pos + IV3(x, y, z));
+                    bool result = RegisterEntityInTileInternal(chunk, e, t);
+                    SOKO_ASSERT(result);
+                }
+            }
+        }
     }
 
-    inline bool
-    RegisterEntityInTile(Level* level, Entity* entity, iv3 tile)
-    {
-        iv3 c = GetChunkCoord(tile);
-        uv3 t = GetTileCoordInChunk(tile);
-        Chunk* chunk = GetChunk(level, c);
-        return RegisterEntityInTile(chunk, entity, t);
-    }
-
-    inline bool
+    inline void
     RegisterEntityInTile(Level* level, Entity* e)
     {
-        iv3 c = GetChunkCoord(e->pos);
-        Chunk* chunk = GetChunk(level, c);
-        return RegisterEntityInTile(chunk, e);
+        for (u32 z = 0; z < e->footprintDim.z; z++)
+        {
+            for (u32 y = 0; y < e->footprintDim.y; y++)
+            {
+                for (u32 x = 0; x < e->footprintDim.x; x++)
+                {
+                    // TODO: @Speed ??? Cache chunk pointer
+                    iv3 c = GetChunkCoord(e->pos + IV3(x, y, z));
+                    Chunk* chunk = GetChunk(level, c);
+                    RegisterEntityInTile(chunk, e);
+                }
+            }
+        }
     }
 
     internal bool
-    UnregisterEntityInTile(Chunk* chunk, uv3 tileInChunk, Entity* e)
+    UnregisterEntityInTileInternal(Chunk* chunk, uv3 tileInChunk, Entity* e)
     {
         u32 index = GetChunkEntityMapIndex(tileInChunk);
 
@@ -417,28 +427,47 @@ namespace soko
     }
 
     internal bool
-    UnregisterEntityInTile(Level* level, iv3 tile, Entity* e)
+    UnregisterEntityInTileInternal(Level* level, iv3 tile, Entity* e)
     {
         iv3 c = GetChunkCoord(tile);
         uv3 t = GetTileCoordInChunk(tile);
         Chunk* chunk = GetChunk(level, c);
-        return UnregisterEntityInTile(chunk, t, e);
+        return UnregisterEntityInTileInternal(chunk, t, e);
     }
 
     internal void
-    UnregisterEntityInTile(Chunk* chunk, Entity* entity)
+    UnregisterEntityInTile(Chunk* chunk, Entity* e)
     {
-        uv3 t = GetTileCoordInChunk(entity->pos);
-        bool result = UnregisterEntityInTile(chunk, t, entity);
-        SOKO_ASSERT(result);
+        for (u32 z = 0; z < e->footprintDim.z; z++)
+        {
+            for (u32 y = 0; y < e->footprintDim.y; y++)
+            {
+                for (u32 x = 0; x < e->footprintDim.x; x++)
+                {
+                    uv3 t = GetTileCoordInChunk(e->pos + IV3(x, y, z));
+                    bool result = UnregisterEntityInTileInternal(chunk, t, e);
+                    SOKO_ASSERT(result);
+                }
+            }
+        }
     }
 
     inline void
     UnregisterEntityInTile(Level* level, Entity* e)
     {
-        iv3 c = GetChunkCoord(e->pos);
-        Chunk* chunk = GetChunk(level, c);
-        UnregisterEntityInTile(chunk, e);
+        for (u32 z = 0; z < e->footprintDim.z; z++)
+        {
+            for (u32 y = 0; y < e->footprintDim.y; y++)
+            {
+                for (u32 x = 0; x < e->footprintDim.x; x++)
+                {
+                    iv3 c = GetChunkCoord(e->pos + IV3(x, y, z));
+                    // TODO: @Speed ??? Cache chunk pointer?
+                    Chunk* chunk = GetChunk(level, c);
+                    UnregisterEntityInTile(chunk, e);
+                }
+            }
+        }
     }
 
     inline void
@@ -630,7 +659,7 @@ namespace soko
     };
 
     inline bool
-    CheckTile(Chunk* chunk, uv3 tileInChunk, u32 flags = TileCheck_Terrain | TileCheck_Entities)
+    CheckTile(Chunk* chunk, uv3 tileInChunk, u32 flags = TileCheck_Terrain | TileCheck_Entities, Entity* forEntity = 0)
     {
         bool result = true;
         const Tile* tile = GetTileInChunk(chunk, tileInChunk);
@@ -645,7 +674,7 @@ namespace soko
             {
                 Entity* e = YieldEntityFromTile(chunk, tileInChunk, &it);
                 if (!e) break;
-                if (EntityCollisionChecks[e->behavior.type](chunk->level, e))
+                if ((e != forEntity) && EntityCollisionChecks[e->behavior.type](chunk->level, e))
                 {
                     occupiedByEntities = true;
                     break;
@@ -670,19 +699,20 @@ namespace soko
     }
 
     inline bool
-    CheckTile(Level* level, iv3 tile, u32 flags = TileCheck_Terrain | TileCheck_Entities)
+    CheckTile(Level* level, iv3 tile, u32 flags = TileCheck_Terrain | TileCheck_Entities, Entity* forEntity = 0)
     {
         iv3 c = GetChunkCoord(tile);
         uv3 t = GetTileCoordInChunk(tile);
         Chunk* chunk = GetChunk(level, c);
-        return CheckTile(chunk, t, flags);
+        return CheckTile(chunk, t, flags, forEntity);
     }
 
     inline bool
-    CanMove(Level* level,  iv3 tile)
+    CanMove(Level* level,  iv3 tile, Entity* forEntity = 0)
     {
         iv3 groundTile = tile + DirToUnitOffset(Direction_Down);
-        bool result = CheckTile(level, tile) && TileIsTerrain(level, groundTile);
+        bool result = CheckTile(level, tile, TileCheck_Terrain | TileCheck_Entities, forEntity) && TileIsTerrain(level, groundTile);
+//        result = true;
         return result;
     }
 

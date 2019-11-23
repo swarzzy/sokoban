@@ -57,9 +57,7 @@ namespace soko
 
     enum [reflect seq_enum] TileValue : u8
     {
-        //TileValue_TileNotExist = 0,
-        // TODO: Set this to zero (it will destroy all saved levels)
-        TileValue_Empty = 1,
+        TileValue_Empty = 0,
         TileValue_Wall,
         TileValue_Stone,
         TileValue_Grass

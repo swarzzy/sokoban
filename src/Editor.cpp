@@ -121,9 +121,9 @@ namespace soko
             if (editor->tool == Tool_TilePlacer)
             {
                 ImGui::PushID("Tile picker listbox");
-                int tileValue = editor->placerTile - 1;
+                int tileValue = editor->placerTile;
                 ImGui::ListBox("", &tileValue, TypeInfo(TileValue).names, TypeTraits(TileValue)::MemberCount);
-                editor->placerTile = (TileValue)(tileValue + 1); // TODO: See todo at TilValue struct
+                editor->placerTile = (TileValue)tileValue;
                 ImGui::PopID();
                 if (ImGui::Button("Go back"))
                 {
@@ -223,9 +223,19 @@ namespace soko
                     ImGui::InputInt("y", &pos.y);
                     ImGui::InputInt("z", &pos.z);
 
-
                     entity->pos = pos;
                     ImGui::PopID();
+
+                    ImGui::Text("Tile footprint");
+                    uv3 footprint = entity->footprintDim;
+                    ImGui::PushID("footprint input");
+                    // TODO: Footprint max and min size
+                    ImGui::InputScalarN("", ImGuiDataType_U32, &footprint, 3);
+                    ImGui::PopID();
+                    if (footprint != entity->footprintDim)
+                    {
+                        ChangeEntityFootprint(editor->region->level, entity, footprint);
+                    }
                     ImGui::Separator();
 
                     ImGui::Text("Type\t ");
@@ -925,10 +935,11 @@ namespace soko
                 Entity* entity = GetEntity(simRegion, editor->selectedEntityID);
                 // TODO: This is correct only while region
                 // origin and camera origin are the same value
-                v3 relP = GetRelPos(camera->targetWorldPos, entity->pos) + entity->offset;
+                v3 relP = GetRelPos(camera->targetWorldPos, entity->pos) + entity->offset - V3(LEVEL_TILE_RADIUS);
+                v3 footprintDim = V3(entity->footprintDim.x * LEVEL_TILE_SIZE, entity->footprintDim.y * LEVEL_TILE_SIZE, entity->footprintDim.z * LEVEL_TILE_SIZE);
                 DrawAlignedBoxOutline(gameState->renderGroup,
-                                      WorldToRH(relP - V3(LEVEL_TILE_RADIUS)),
-                                      WorldToRH(relP + V3(LEVEL_TILE_RADIUS)),
+                                      WorldToRH(relP),
+                                      WorldToRH(relP + footprintDim),
                                       V3(1.0f, 0.0f, 0.0f), 2.0f);
             }
         }

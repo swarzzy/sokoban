@@ -704,6 +704,21 @@ namespace soko
                 player->reversed = !player->reversed;
             }
 
+            if (JustPressed(AB::KEY_SPACE))
+            {
+                BeginEntityTransition(simRegion, player->e, Direction_Up, steps, player->e->movementSpeed, player->reversed ? -2 : 2);
+                //ChangeEntityLocation(simRegion, player->e, &MakeWorldPos(player->e->coord.tile + DirToUnitOffset(Direction_North)));
+                //MoveEntity(gameState->session.level, simSimRegion, player->e->sim, Direction_North, player->e->movementSpeed, player->reversed);
+            }
+
+            if (JustPressed(AB::KEY_SHIFT))
+            {
+                BeginEntityTransition(simRegion, player->e, Direction_Down, steps, player->e->movementSpeed, player->reversed ? -2 : 2);
+                //ChangeEntityLocation(simRegion, player->e, &MakeWorldPos(player->e->coord.tile + DirToUnitOffset(Direction_North)));
+                //MoveEntity(gameState->session.level, simSimRegion, player->e->sim, Direction_North, player->e->movementSpeed, player->reversed);
+            }
+
+
             if (JustPressed(AB::KEY_UP))
             {
                 BeginEntityTransition(simRegion, player->e, Direction_North, steps, player->e->movementSpeed, player->reversed ? -2 : 2);

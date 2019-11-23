@@ -1295,6 +1295,20 @@ namespace hpm
         return result;
     }
 
+    inline bool operator==(const uv3& l, const uv3& r)
+    {
+        bool result;
+        result = ((l.x == r.x) && (l.y == r.y) && (l.z == r.z));
+        return result;
+    }
+
+    inline bool operator!=(const uv3& l, const uv3& r)
+    {
+        bool result;
+        result = ((l.x == r.x) && (l.y == r.y) && (l.z == r.z));
+        return !result;
+    }
+
     inline uv3& operator+=(uv3& l, uv3 r)
     {
         l.x += r.x;

@@ -68,20 +68,25 @@ namespace soko
     inline Entity*
     AddEntityToRegion(SimRegion* region, Entity* e)
     {
-        // NOTE: Since entity itself is a bucket of tile table
-        // Double mapped entitiles also double map all entities
-        SOKO_ASSERT(!(e->region && !e->inTransition), "Multiple entity entries allowed only for transitioning entities!");
         Entity* result = 0;
-        Entity** entry = GetRegionEntityHashMapEntry(region, e->id);
-        if (entry)
+        PrintString("Entity with id: %u32 and type: %s gathered!\n", e->id, meta::GetEnumName(e->type));
+        if (!e->region)
         {
-            if (!(e->region && e->inTransition))
+            Entity** entry = GetRegionEntityHashMapEntry(region, e->id);
+            if (entry)
             {
-                //SOKO_ASSERT((*entry)->id == 0, "Cloned entities are not allowed!");
-                *entry = e;
-                e->region = region;
-                region->entityCount++;
+                if (!(e->region && e->inTransition))
+                {
+                    //SOKO_ASSERT((*entry)->id == 0, "Cloned entities are not allowed!");
+                    *entry = e;
+                    e->region = region;
+                    region->entityCount++;
+                }
+                result = e;
             }
+        }
+        else
+        {
             result = e;
         }
         return result;
@@ -102,6 +107,7 @@ namespace soko
     internal SimRegion*
     BeginSim(AB::MemoryArena* frameArena, Level* level, WorldPos origin, u32 radius)
     {
+        PrintString("Begin entity gathering...\n");
         SimRegion* region = PUSH_STRUCT(frameArena, SimRegion);
         if (region)
         {
@@ -167,6 +173,7 @@ namespace soko
                 }
             }
         }
+        PrintString("End entity gathering...\n");
         return region;
     }
 
@@ -184,8 +191,7 @@ namespace soko
             {
                 UnregisterEntityInTile(region->level, entity);
                 entity->pos = destP;
-                bool registered = RegisterEntityInTile(region->level, entity);
-                SOKO_ASSERT(registered);
+                RegisterEntityInTile(region->level, entity);
                 result = true;
             }
         }
@@ -203,20 +209,31 @@ namespace soko
 
             if (push > 0)
             {
-                EntityMapIterator it = {};
-                while (true)
+                for (u32 z = 0; z < e->footprintDim.z; z++)
                 {
-                    Entity* pe = YieldEntityFromTile(region->level, targetP, &it);
-                    if (!pe) break;
-                    SOKO_ASSERT(pe != e);
-                    if (IsSet(pe, EntityFlag_Collides) && IsSet(pe, EntityFlag_Movable))
+                    for (u32 y = 0; y < e->footprintDim.y; y++)
                     {
-                        BeginEntityTransition(region, pe, dir, length, speed, push - 1);
+                        for (u32 x = 0; x < e->footprintDim.x; x++)
+                        {
+                            EntityMapIterator it = {};
+                            while (true)
+                            {
+                                Entity* pe = YieldEntityFromTile(region->level, targetP + IV3(x, y, z), &it);
+                                if (!pe) break;
+                                if (pe != e)
+                                {
+                                    if (IsSet(pe, EntityFlag_Collides) && IsSet(pe, EntityFlag_Movable))
+                                    {
+                                        BeginEntityTransition(region, pe, dir, length, speed, push - 1);
+                                    }
+                                }
+                            }
+                        }
                     }
                 }
             }
 
-            if (CanMove(region->level, targetP))
+            if (CanMove(region->level, targetP, e))
             {
                 if (ChangeEntityLocation(region, e, targetP))
                 {
@@ -238,19 +255,30 @@ namespace soko
             if (push < 0)
             {
                 iv3 grabP = beginP - DirToUnitOffset(dir);
-                EntityMapIterator it = {};
-                while (true)
+                for (u32 z = 0; z < e->footprintDim.z; z++)
                 {
-                    Entity* pe = YieldEntityFromTile(region->level, grabP, &it);
-                    if (!pe) break;
-                    SOKO_ASSERT(pe != e);
-                    if (IsSet(pe, EntityFlag_Collides) && IsSet(pe, EntityFlag_Movable))
+                    for (u32 y = 0; y < e->footprintDim.y; y++)
                     {
-                        BeginEntityTransition(region, pe, dir, length, speed, push + 1);
+                        for (u32 x = 0; x < e->footprintDim.x; x++)
+                        {
+
+                            EntityMapIterator it = {};
+                            while (true)
+                            {
+                                Entity* pe = YieldEntityFromTile(region->level, grabP + IV3(x, y, z), &it);
+                                if (!pe) break;
+                                if (pe != e)
+                                {
+                                    if (IsSet(pe, EntityFlag_Collides) && IsSet(pe, EntityFlag_Movable))
+                                    {
+                                        BeginEntityTransition(region, pe, dir, length, speed, push + 1);
+                                    }
+                                }
+                            }
+                        }
                     }
                 }
             }
-
         }
         return result;
     }
