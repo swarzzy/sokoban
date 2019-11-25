@@ -69,7 +69,6 @@ namespace soko
     AddEntityToRegion(SimRegion* region, Entity* e)
     {
         Entity* result = 0;
-        PrintString("Entity with id: %u32 and type: %s gathered!\n", e->id, meta::GetEnumName(e->type));
         if (!e->region)
         {
             Entity** entry = GetRegionEntityHashMapEntry(region, e->id);
@@ -107,7 +106,7 @@ namespace soko
     internal SimRegion*
     BeginSim(AB::MemoryArena* frameArena, Level* level, WorldPos origin, u32 radius)
     {
-        PrintString("Begin entity gathering...\n");
+        //PrintString("Begin entity gathering...\n");
         SimRegion* region = PUSH_STRUCT(frameArena, SimRegion);
         if (region)
         {
@@ -133,36 +132,18 @@ namespace soko
                         Chunk* chunk = GetChunk(level, x, y, z);
                         if (chunk)
                         {
-                            // TODO: @Speed: Optimize entity gathering from
-                            // Maybe store entities in some additional
-                            // cache-friendly structure
-                            // _or_
-                            // Change chunk entity map so it will be
-                            // more cache-friendly to traverse
-
-                            for (u32 headBlockindex = 0;
-                                 headBlockindex < CHUNK_ENTITY_MAP_SIZE;
-                                 headBlockindex++)
+                            for (u32 index = 0;
+                                 index < ArrayCount(chunk->entityTable);
+                                 index++)
                             {
-                                auto head = chunk->entityMap + headBlockindex;
-                                for (u32 headEntityIndex = 0;
-                                     headEntityIndex < head->at;
-                                     headEntityIndex++)
-                                {
-                                    Entity* entity = head->entities[headEntityIndex];
-                                    bool added = AddEntityToRegion(region, entity);
-                                    SOKO_ASSERT(added);
-                                }
-
-                                auto block = head->next;
+                                auto block = chunk->entityTable[index];
                                 while (block)
                                 {
-                                    for (u32 entityIndex = 0;
-                                         entityIndex < block->at;
-                                         entityIndex++)
+                                    for (u32 entityIndex = 0; entityIndex < block->at; entityIndex++)
                                     {
                                         Entity* entity = block->entities[entityIndex];
                                         bool added = AddEntityToRegion(region, entity);
+                                        //PrintString("Entity with id: %u32 and type: %s gathered at tile with index %u32!\n", entity->id, meta::GetEnumName(entity->type), index);
                                         SOKO_ASSERT(added);
                                     }
                                     block = block->next;
@@ -173,25 +154,26 @@ namespace soko
                 }
             }
         }
-        PrintString("End entity gathering...\n");
+        //PrintString("End entity gathering...\n");
         return region;
     }
 
     inline bool
-    ChangeEntityLocation(SimRegion* region, Entity* entity, iv3 destP)
+    ChangeEntityLocation(Level* level, Entity* entity, iv3 destP)
     {
         bool result = false;
         iv3 oldP = entity->pos;
 
-        if (CheckTile(region->level, destP))
+        if (CheckTile(level, destP, TileCheck_Terrain | TileCheck_Entities, entity))
         {
-            ProcessEntityTileOverlap(region, oldP, 0);
-            bool alreadyMoved = ProcessEntityTileOverlap(region, destP, entity);
+            // TODO: Decide how to handle multi-tile entity overlaps
+            ProcessEntityTileOverlap(level, oldP, 0);
+            bool alreadyMoved = ProcessEntityTileOverlap(level, destP, entity);
             if (!alreadyMoved)
             {
-                UnregisterEntityInTile(region->level, entity);
+                UnregisterEntityInTile(level, entity);
                 entity->pos = destP;
-                RegisterEntityInTile(region->level, entity);
+                RegisterEntityInTile(level, entity);
                 result = true;
             }
         }
@@ -224,7 +206,10 @@ namespace soko
                                 {
                                     if (IsSet(pe, EntityFlag_Collides) && IsSet(pe, EntityFlag_Movable))
                                     {
-                                        BeginEntityTransition(region, pe, dir, length, speed, push - 1);
+                                        if (BeginEntityTransition(region, pe, dir, length, speed, push - 1))
+                                        {
+                                            it = {};
+                                        }
                                     }
                                 }
                             }
@@ -233,9 +218,9 @@ namespace soko
                 }
             }
 
-            if (CanMove(region->level, targetP, e))
+            if (CanMove(region->level, e, targetP))
             {
-                if (ChangeEntityLocation(region, e, targetP))
+                if (ChangeEntityLocation(region->level, e, targetP))
                 {
                     e->inTransition = true;
                     e->transitionCount = length;
@@ -271,7 +256,10 @@ namespace soko
                                 {
                                     if (IsSet(pe, EntityFlag_Collides) && IsSet(pe, EntityFlag_Movable))
                                     {
-                                        BeginEntityTransition(region, pe, dir, length, speed, push + 1);
+                                        if (BeginEntityTransition(region, pe, dir, length, speed, push + 1))
+                                        {
+                                            it = {};
+                                        }
                                     }
                                 }
                             }

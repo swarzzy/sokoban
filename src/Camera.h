@@ -45,6 +45,8 @@ namespace soko
         WorldPos worldPos;
         WorldPos targetWorldPos;
         f32 followSpeed;
+
+        v3 mouseRayRH;
     };
 
     struct EditorCamera

@@ -692,11 +692,13 @@ namespace soko
         else if (gameState->globalGameMode == GAME_MODE_SINGLE)
         {
             Player* player = gameState->session.controlledPlayer;
+            Level* level = gameState->session.level;
             BeginTemporaryMemory(gameState->tempArena, true);
             SimRegion* simRegion = BeginSim(gameState->tempArena,
-                                            gameState->session.level,
+                                            level,
                                             MakeWorldPos(player->e->pos),
                                             2);
+
             //player->e->sim->pos += V3(GlobalInput.mouseFrameOffsetX, GlobalInput.mouseFrameOffsetY, 0.0f) * 7.0f;
             u32 steps = 1;
             if (JustPressed(AB::KEY_SPACE))
@@ -753,6 +755,7 @@ namespace soko
             }
 
             CameraConfig* camConf = 0;
+            GameCamera* camera = &gameState->session.camera;
             if (gameState->session.useDebugCamera)
             {
                 UpdateCamera(&gameState->session.debugCamera);
@@ -762,6 +765,25 @@ namespace soko
             {
                 UpdateCamera(&gameState->session.camera, &MakeWorldPos(player->e->pos));
                 camConf = &gameState->session.camera.conf;
+            }
+
+            if (JustPressed(MBUTTON_LEFT))
+            {
+                v3 from = RHToWorld(camera->conf.position);
+                v3 ray = RHToWorld(camera->mouseRayRH);
+                auto raycast = Raycast(simRegion, from, ray, Raycast_Tilemap);
+                if (raycast.hit == RaycastResult::Tile)
+                {
+                    iv3 tile = raycast.tile.coord + DirToUnitOffset(raycast.tile.normalDir);
+                    PrintString("Entities in tile: (%i32, %i32, %i32)\n", tile.x, tile.y, tile.z);
+                    EntityMapIterator it = {};
+                    while (true)
+                    {
+                        Entity* pe = YieldEntityFromTile(level, tile, &it);
+                        if (!pe) break;
+                        PrintString("Entity: id = %u32, type = %s, pos = (%i32, %i32, %i32)\n", pe->id, meta::GetEnumName(pe->type), pe->pos.x, pe->pos.y, pe->pos.z);
+                    }
+                }
             }
 
             //UpdateSim(simRegion);

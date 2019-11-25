@@ -1,22 +1,6 @@
 #pragma once
 namespace soko
 {
-    typedef bool(EntityCollidesFn)(Level* level, Entity* e);
-    internal bool DefaultEntityCollisionCheck(Level* level, Entity* e);
-    internal bool PortalCollisionCheck(Level* level, Entity* e);
-    internal bool LiftCollisionCheck(Level* level, Entity* e);
-
-    constant EntityCollidesFn* EntityCollisionChecks[TypeTraits(EntityBehaviorType)::MemberCount] =
-        {
-            DefaultEntityCollisionCheck,
-            DefaultEntityCollisionCheck,
-            DefaultEntityCollisionCheck,
-            PortalCollisionCheck,
-            DefaultEntityCollisionCheck,
-            DefaultEntityCollisionCheck,
-            DefaultEntityCollisionCheck,
-        };
-
     enum [reflect] EntityBehaviorType
     {
         EntityBehavior_None,
@@ -71,8 +55,8 @@ namespace soko
         EntityBehaviorData data;
     };
 
-    struct SimRegion;
-    internal bool ProcessEntityTileOverlap(SimRegion* region, iv3 tile, Entity* overlappingEntity);
+    internal bool ProcessEntityTileOverlap(Level* level, iv3 tile, Entity* overlappingEntity);
+    internal bool EntityCollides(Level* level, Entity* e);
 
 #pragma pack(push, 1)
 

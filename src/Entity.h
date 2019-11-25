@@ -29,6 +29,7 @@ namespace soko
         /* plate */  // all zeros
     };
 
+    struct SimRegion;
     struct Entity
     {
         u32 id;

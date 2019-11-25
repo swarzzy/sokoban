@@ -78,23 +78,11 @@ namespace soko
         TileValue value;
     };
 
-    constant u32 CHUNK_ENTITY_MAP_SIZE = CHUNK_DIM * CHUNK_DIM * CHUNK_DIM;
-
-    // NOTE: 14 perfetly fits in cache line (128 bit)
-    constant u32 CHUNK_ENTITY_MAP_BLOCK_SIZE = 14;
-    struct ChunkEntityMapBlock
+    struct ChunkEntityBlock
     {
-        ChunkEntityMapBlock* next;
         u32 at;
-        Entity* entities[CHUNK_ENTITY_MAP_BLOCK_SIZE];
-    };
-
-    constant u32 CHUNK_ENTITY_MAP_RESIDENT_BLOCK_SIZE = 2;
-    struct ChunkEntityMapResidentBlock
-    {
-        ChunkEntityMapBlock* next;
-        u32 at;
-        Entity* entities[CHUNK_ENTITY_MAP_RESIDENT_BLOCK_SIZE];
+        Entity* entities[8];
+        ChunkEntityBlock* next;
     };
 
     struct Chunk
@@ -106,13 +94,12 @@ namespace soko
         Tile tiles[CHUNK_TILE_COUNT];
         LoadedChunkMesh loadedMesh;
         ChunkMesh mesh;
-        ChunkEntityMapResidentBlock entityMap[CHUNK_ENTITY_MAP_SIZE];
+        ChunkEntityBlock* entityTable[CHUNK_TILE_COUNT];
 
         Chunk* nextInHash;
         // TODO: Acelleration structure for traversing entities
         // in chunk sequentially
     };
-
 
     struct Level
     {
@@ -134,9 +121,8 @@ namespace soko
 
         u32 spawnerID;
 
-        u32 chunkEntityMapBlockCount;
-        u32 freeChunkEntityMapBlockCount;
-        ChunkEntityMapBlock* freeChunkEntityMapBlocks;
+        u32 chunkEntityBlockCount;
+        ChunkEntityBlock* freeChunkEntityBlocks;
     };
 
     struct LevelMetaInfo

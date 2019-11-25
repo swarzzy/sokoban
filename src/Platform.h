@@ -18,6 +18,8 @@
 #define internal static
 #define local_persist static
 
+#define ArrayCount(arr) (sizeof(arr) / sizeof(arr[0]))
+
 #define null nullptr
 
 #define SOKO_STATIC_ASSERT static_assert

@@ -208,6 +208,33 @@ namespace soko
         //camera->worldOffset = -camera->targetPos;
         camera->conf.position = V3(x, y, z);
         camera->conf.front = -Normalize(V3(x, y, z));
+
+        v2 normMousePos;
+        normMousePos.x = 2.0f * GlobalInput.mouseX - 1.0f;
+        normMousePos.y = 2.0f * GlobalInput.mouseY - 1.0f;
+        //DEBUG_OVERLAY_TRACE(normMousePos.x);
+        //DEBUG_OVERLAY_TRACE(normMousePos.y);
+
+        v4 mouseClip = V4(normMousePos, -1.0f, 0.0f);
+
+        // TODO: IMPORTANT: @Speed: Extreme sloooooowness here!!!
+        // Do this in renderer or in some other place
+        // which has all this matrices
+        m4x4 lookAt = LookAtDirRH(camera->conf.position, camera->conf.front, V3(0.0f, 1.0f, 0.0f));
+        m4x4 proj = PerspectiveOpenGLRH(camera->conf.fovDeg, camera->conf.aspectRatio,
+                                        camera->conf.nearPlane, camera->conf.farPlane);
+        m4x4 invLookAt = lookAt;
+        bool inv = Inverse(&invLookAt);
+        SOKO_ASSERT(inv);
+        m4x4 invProj = proj;
+        inv = Inverse(&invProj);
+        SOKO_ASSERT(inv);
+
+        v4 mouseView = MulM4V4(invProj, mouseClip);
+        mouseView = V4(mouseView.xy, -1.0f, 0.0f);
+        v3 mouseWorld = MulM4V4(invLookAt, mouseView).xyz;
+        mouseWorld = Normalize(mouseWorld);
+        camera->mouseRayRH = mouseWorld;
     }
 
     internal void

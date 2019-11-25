@@ -415,8 +415,8 @@ void main()
     vec3 H = normalize(V + L);
 
     // TODO: Adding this to avoid artifacts on edges
-    // Why thuis value so big?
-    float NdotV = max(dot(N, V), 0.0f) + 0.1f;
+    // Why this value so big?
+    float NdotV = max(dot(N, V), 0.0f);// + 0.000001f; // NOTE: Adding this value (trick from epic games shaders) reduces artifacts on the edges in Intel gpu's but completely brokes everything on nvidia
     float NdotL = max(dot(N, L), 0.0f);
 
     // NOTE: Attenuation should be here
