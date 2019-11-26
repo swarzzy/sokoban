@@ -293,7 +293,7 @@ namespace soko
             menu->state = MainMenu_ModeSelection;
         }
     }
-
+#if 0
     internal void
     MenuCreateServer(GameState* gameState, GameMenu* menu)
     {
@@ -538,7 +538,7 @@ namespace soko
                         MenuCleanup_Common | MenuCleanup_NetSpecific);
         }
     }
-
+#endif
     internal void
     MenuEnterLevel(GameMenu* menu, GameState* gameState)
     {
@@ -549,10 +549,9 @@ namespace soko
         // TODO: Allocate session in session
         // arena and store just a pointer in gameState
         // to avoid copying session to gameState
-        gameState->session.controlledPlayer = gameState->session.players;
+        //gameState->session.controlledPlayer = gameState->session.players;
 
-        InitCameras(&gameState->session.camera, &gameState->session.debugCamera,
-                    gameState->session.controlledPlayer);
+        InitCameras(&gameState->session.camera, &gameState->session.debugCamera);
         RenderGroupSetCamera(gameState->renderGroup, &gameState->session.camera.conf);
     }
 
@@ -578,12 +577,12 @@ namespace soko
         } break;
         case MainMenu_SingleSelectLevel: { MenuSingleSelectLevel(menu); } break;
         case MainMenu_SingleLoadLevel: { SingleLoadLevel(menu, gameState); } break;
-        case MainMenu_ConfigureServer: { MenuServerSettings(menu); } break;
-        case MainMenu_CreateServer: { MenuCreateServer(gameState, menu); } break;
-        case MainMenu_ConfigureClient: { MenuClientSettings(menu); } break;
-        case MainMenu_ClientWaitForServerState: { MenuClientWaitForServerState(menu); } break;
-        case MainMenu_ClientConnectToServer: { MenuClientConnectToServer(menu, gameState); } break;
-        case MainMenu_ClientLoadLevel: { ClientLoadLevel(menu, gameState); } break;
+//        case MainMenu_ConfigureServer: { MenuServerSettings(menu); } break;
+//        case MainMenu_CreateServer: { MenuCreateServer(gameState, menu); } break;
+//        case MainMenu_ConfigureClient: { MenuClientSettings(menu); } break;
+//        case MainMenu_ClientWaitForServerState: { MenuClientWaitForServerState(menu); } break;
+//        case MainMenu_ClientConnectToServer: { MenuClientConnectToServer(menu, gameState); } break;
+//        case MainMenu_ClientLoadLevel: { ClientLoadLevel(menu, gameState); } break;
         case MainMenu_GenTestLevel: { GenTestLevel(gameState->tempArena); menu->state = MainMenu_ModeSelection; } break;
         case MainMenu_EnterLevel: { MenuEnterLevel(menu, gameState); } break;
         case MainMenu_EnterEditor: { MenuEnterEditor(menu, gameState); } break;

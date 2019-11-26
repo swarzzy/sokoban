@@ -16,14 +16,14 @@ namespace soko
         u32 bufferAt;
         byte buffer[PLAYER_INPUT_BUFFER_SIZE];
     };
-
+#if 0
     struct Player
     {
         Entity* e;
         Level* level;
         bool reversed;
     };
-
+#endif
     struct PlayerSlot
     {
         b32 used;
@@ -81,9 +81,9 @@ namespace soko
         Level* level;
         Editor* editor;
 
-        Player* controlledPlayer;
-        bool playersOccupancy[SESSION_MAX_PLAYERS];
-        Player players[SESSION_MAX_PLAYERS];
+        Entity* controlledPlayer;
+        //bool playersOccupancy[SESSION_MAX_PLAYERS];
+        //Player players[SESSION_MAX_PLAYERS];
 
         // TODO: Store pointers
         FPCamera debugCamera;

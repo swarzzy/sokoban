@@ -1,3 +1,4 @@
+#include "SimRegion.h"
 namespace soko
 {
     constant u32 SIM_REGION_MAX_ENTITIES = 256;
@@ -181,7 +182,7 @@ namespace soko
     }
 
     inline bool
-    BeginEntityTransition(SimRegion* region, Entity* e, Direction dir, u32 length, f32 speed, i32 push)
+    BeginEntityTransition(Level* level, Entity* e, Direction dir, u32 length, f32 speed, i32 push)
     {
         bool result = false;
         if (!e->inTransition)
@@ -200,13 +201,13 @@ namespace soko
                             EntityMapIterator it = {};
                             while (true)
                             {
-                                Entity* pe = YieldEntityFromTile(region->level, targetP + IV3(x, y, z), &it);
+                                Entity* pe = YieldEntityFromTile(level, targetP + IV3(x, y, z), &it);
                                 if (!pe) break;
                                 if (pe != e)
                                 {
                                     if (IsSet(pe, EntityFlag_Collides) && IsSet(pe, EntityFlag_Movable))
                                     {
-                                        if (BeginEntityTransition(region, pe, dir, length, speed, push - 1))
+                                        if (BeginEntityTransition(level, pe, dir, length, speed, push - 1))
                                         {
                                             it = {};
                                         }
@@ -218,9 +219,9 @@ namespace soko
                 }
             }
 
-            if (CanMove(region->level, e, targetP))
+            if (CanMove(level, e, targetP))
             {
-                if (ChangeEntityLocation(region->level, e, targetP))
+                if (ChangeEntityLocation(level, e, targetP))
                 {
                     e->inTransition = true;
                     e->transitionCount = length;
@@ -250,13 +251,13 @@ namespace soko
                             EntityMapIterator it = {};
                             while (true)
                             {
-                                Entity* pe = YieldEntityFromTile(region->level, grabP + IV3(x, y, z), &it);
+                                Entity* pe = YieldEntityFromTile(level, grabP + IV3(x, y, z), &it);
                                 if (!pe) break;
                                 if (pe != e)
                                 {
                                     if (IsSet(pe, EntityFlag_Collides) && IsSet(pe, EntityFlag_Movable))
                                     {
-                                        if (BeginEntityTransition(region, pe, dir, length, speed, push + 1))
+                                        if (BeginEntityTransition(level, pe, dir, length, speed, push + 1))
                                         {
                                             it = {};
                                         }
@@ -294,8 +295,21 @@ namespace soko
                 SOKO_ASSERT(e->transitionDest == e->pos);
                 if (e->transitionCount)
                 {
-                    BeginEntityTransition(region, e, e->transitionDir, e->transitionCount, e->transitionSpeed, e->transitionPushCount);
+                    BeginEntityTransition(region->level, e, e->transitionDir, e->transitionCount, e->transitionSpeed, e->transitionPushCount);
                 }
+            }
+        }
+    }
+
+    internal void
+    UpdateRegion(SimRegion* region)
+    {
+        for (u32 index = 0; index < SIM_REGION_MAX_ENTITIES; index++)
+        {
+            Entity* e = region->entities[index];
+            if (e)
+            {
+                UpdateEntity(region->level, e);
             }
         }
     }

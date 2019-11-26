@@ -52,7 +52,7 @@ namespace soko
     }
 
     internal void
-    InitCameras(GameCamera* camera, FPCamera* debugCamera, Player* targetPlayer)
+    InitCameras(GameCamera* camera, FPCamera* debugCamera)
     {
         CameraConfig conf = {};
         conf.position = V3(0.0f);

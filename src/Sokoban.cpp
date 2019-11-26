@@ -521,7 +521,130 @@ namespace soko
         }
     }
 
+    void
+    GameRender(AB::MemoryArena* arena, AB::PlatformState* platform)
+    {
+        auto* gameState = _GlobalStaticStorage->gameState;
+        BeginDebugOverlay();
+        switch (gameState->globalGameMode)
+        {
+        case GAME_MODE_MENU: { MenuUpdateAndRender(&gameState->mainMenu, gameState); } break;
+        case GAME_MODE_EDITOR: { EditorUpdateAndRender(gameState); } break;
+        default:
+        {
+            DrawOverlay(gameState);
+            Entity* player = gameState->session.controlledPlayer;
+            Level* level = gameState->session.level;
+            BeginTemporaryMemory(gameState->tempArena, true);
+            SimRegion* simRegion = BeginSim(gameState->tempArena,
+                                            level,
+                                            MakeWorldPos(player->pos),
+                                            2);
 
+            UpdateRegion(simRegion);
+
+            if (JustPressed(AB::KEY_F1))
+            {
+                gameState->session.useDebugCamera = !gameState->session.useDebugCamera;
+            }
+
+            CameraConfig* camConf = 0;
+            GameCamera* camera = &gameState->session.camera;
+            if (gameState->session.useDebugCamera)
+            {
+                UpdateCamera(&gameState->session.debugCamera);
+                camConf = &gameState->session.debugCamera.conf;
+            }
+            else
+            {
+                UpdateCamera(&gameState->session.camera, &MakeWorldPos(player->pos));
+                camConf = &gameState->session.camera.conf;
+            }
+
+            if (JustPressed(MBUTTON_LEFT))
+            {
+                v3 from = RHToWorld(camera->conf.position);
+                v3 ray = RHToWorld(camera->mouseRayRH);
+                auto raycast = Raycast(simRegion, from, ray, Raycast_Tilemap);
+                if (raycast.hit == RaycastResult::Tile)
+                {
+                    iv3 tile = raycast.tile.coord + DirToUnitOffset(raycast.tile.normalDir);
+                    PrintString("Entities in tile: (%i32, %i32, %i32)\n", tile.x, tile.y, tile.z);
+                    EntityMapIterator it = {};
+                    while (true)
+                    {
+                        Entity* pe = YieldEntityFromTile(level, tile, &it);
+                        if (!pe) break;
+                        PrintString("Entity: id = %u32, type = %s, pos = (%i32, %i32, %i32)\n", pe->id, meta::GetEnumName(pe->type), pe->pos.x, pe->pos.y, pe->pos.z);
+                    }
+                }
+            }
+
+            RenderGroupSetCamera(gameState->renderGroup, camConf);
+
+            v3 beg = gameState->session.camera.conf.position;
+
+            DirectionalLight light = {};
+            light.dir = Normalize(V3(-0.3f, -1.0f, -1.0f));
+            light.ambient = V3(0.3f);
+            light.diffuse = V3(0.8f);
+            light.specular = V3(1.0f);
+            RenderCommandSetDirLight lightCommand = {};
+            lightCommand.light = light;
+            RenderGroupPushCommand(gameState->renderGroup, RENDER_COMMAND_SET_DIR_LIGHT,
+                                   (void*)&lightCommand);
+
+            DrawRegion(simRegion, gameState, gameState->session.camera.worldPos);
+
+            RendererBeginFrame(gameState->renderer, V2(PlatformGlobals.windowWidth, PlatformGlobals.windowHeight));
+            FlushRenderGroup(gameState->renderer, gameState->renderGroup);
+            RendererEndFrame(gameState->renderer);
+
+            EndSim(gameState->session.level, simRegion);
+            EndTemporaryMemory(gameState->tempArena);
+
+            if (DebugOverlayBeginCustom())
+            {
+                if (ImGui::Button("Exit to main menu", {150.0f, 20.0f}))
+                {
+                    DestroyGameSession(&gameState->session);
+                    gameState->globalGameMode = GAME_MODE_MENU;
+
+                }
+                DebugOverlayEndCustom();
+            }
+        } break;
+        }
+    }
+
+#if 0
+    inline bool
+    IsValid(WorldPos p)
+    {
+        bool result = (p.tile.x >= LEVEL_MIN_DIM && p.tile.x <= LEVEL_MAX_DIM &&
+                       p.tile.y >= LEVEL_MIN_DIM && p.tile.y <= LEVEL_MAX_DIM &&
+                       p.tile.z >= LEVEL_MIN_DIM && p.tile.z <= LEVEL_MAX_DIM);
+        result = result && (p.offset.x >= -LEVEL_TILE_RADIUS && p.offset.x <= LEVEL_TILE_RADIUS &&
+                            p.offset.y >= -LEVEL_TILE_RADIUS && p.offset.y <= LEVEL_TILE_RADIUS &&
+                            p.offset.z >= -LEVEL_TILE_RADIUS && p.offset.z <= LEVEL_TILE_RADIUS);
+        return result;
+    }
+#endif
+
+}
+
+#include "RenderGroup.cpp"
+//#include "Renderer.cpp"
+
+// NOTE: IMGUI
+#include "imgui/imconfig.h"
+#include "imgui/imgui.cpp"
+#include "imgui/imgui_draw.cpp"
+#include "imgui/imgui_widgets.cpp"
+#include "imgui/imgui_demo.cpp"
+
+
+#if 0
     void
     DoOtherStuff(GameState* gameState)
     {
@@ -537,7 +660,7 @@ namespace soko
         //DEBUG_OVERLAY_TRACE(gameState->level->platePressed);
         //DEBUG_OVERLAY_TRACE(gameState->level->entityCount);
         //DEBUG_OVERLAY_TRACE(gameState->level->deletedEntityCount);
-
+#if 0
         if (gameState->globalGameMode == GAME_MODE_SERVER)
         {
             net::Server* server = gameState->session.server;
@@ -691,63 +814,16 @@ namespace soko
 
         else if (gameState->globalGameMode == GAME_MODE_SINGLE)
         {
-            Player* player = gameState->session.controlledPlayer;
+#endif
+            Entity* player = gameState->session.controlledPlayer;
             Level* level = gameState->session.level;
             BeginTemporaryMemory(gameState->tempArena, true);
             SimRegion* simRegion = BeginSim(gameState->tempArena,
                                             level,
-                                            MakeWorldPos(player->e->pos),
+                                            MakeWorldPos(player->pos),
                                             2);
 
-            //player->e->sim->pos += V3(GlobalInput.mouseFrameOffsetX, GlobalInput.mouseFrameOffsetY, 0.0f) * 7.0f;
-            u32 steps = 1;
-            if (JustPressed(AB::KEY_SPACE))
-            {
-                player->reversed = !player->reversed;
-            }
-
-            if (JustPressed(AB::KEY_SPACE))
-            {
-                BeginEntityTransition(simRegion, player->e, Direction_Up, steps, player->e->movementSpeed, player->reversed ? -2 : 2);
-                //ChangeEntityLocation(simRegion, player->e, &MakeWorldPos(player->e->coord.tile + DirToUnitOffset(Direction_North)));
-                //MoveEntity(gameState->session.level, simSimRegion, player->e->sim, Direction_North, player->e->movementSpeed, player->reversed);
-            }
-
-            if (JustPressed(AB::KEY_SHIFT))
-            {
-                BeginEntityTransition(simRegion, player->e, Direction_Down, steps, player->e->movementSpeed, player->reversed ? -2 : 2);
-                //ChangeEntityLocation(simRegion, player->e, &MakeWorldPos(player->e->coord.tile + DirToUnitOffset(Direction_North)));
-                //MoveEntity(gameState->session.level, simSimRegion, player->e->sim, Direction_North, player->e->movementSpeed, player->reversed);
-            }
-
-
-            if (JustPressed(AB::KEY_UP))
-            {
-                BeginEntityTransition(simRegion, player->e, Direction_North, steps, player->e->movementSpeed, player->reversed ? -2 : 2);
-                //ChangeEntityLocation(simRegion, player->e, &MakeWorldPos(player->e->coord.tile + DirToUnitOffset(Direction_North)));
-                //MoveEntity(gameState->session.level, simSimRegion, player->e->sim, Direction_North, player->e->movementSpeed, player->reversed);
-            }
-
-            if (JustPressed(AB::KEY_DOWN))
-            {
-                BeginEntityTransition(simRegion, player->e, Direction_South, steps, player->e->movementSpeed, player->reversed ? -2 : 2);
-                //ChangeEntityLocation(simRegion, player->e, &MakeWorldPos(player->e->coord.tile + DirToUnitOffset(Direction_South)));
-                //MoveEntity(gameState->session.level, simSimRegion, player->e->sim, Direction_South, player->e->movementSpeed, player->reversed);
-            }
-
-            if (JustPressed(AB::KEY_RIGHT))
-            {
-                BeginEntityTransition(simRegion, player->e, Direction_East, steps, player->e->movementSpeed, player->reversed ? -2 : 2);
-                //ChangeEntityLocation(simRegion, player->e, &MakeWorldPos(player->e->coord.tile + DirToUnitOffset(Direction_East)));
-                //MoveEntity(gameState->session.level, simSimRegion, player->e->sim, Direction_East, player->e->movementSpeed, player->reversed);
-            }
-
-            if (JustPressed(AB::KEY_LEFT))
-            {
-                BeginEntityTransition(simRegion, player->e, Direction_West, steps, player->e->movementSpeed, player->reversed ? -2 : 2);
-                //ChangeEntityLocation(simRegion, player->e, &MakeWorldPos(player->e->coord.tile + DirToUnitOffset(Direction_West)));
-                //MoveEntity(gameState->session.level, simSimRegion, player->e->sim, Direction_West, player->e->movementSpeed, player->reversed);
-            }
+            UpdateRegion(simRegion);
 
             if (JustPressed(AB::KEY_F1))
             {
@@ -763,7 +839,7 @@ namespace soko
             }
             else
             {
-                UpdateCamera(&gameState->session.camera, &MakeWorldPos(player->e->pos));
+                UpdateCamera(&gameState->session.camera, &MakeWorldPos(player->pos));
                 camConf = &gameState->session.camera.conf;
             }
 
@@ -816,63 +892,5 @@ namespace soko
 
             EndSim(gameState->session.level, simRegion);
             EndTemporaryMemory(gameState->tempArena);
-
-        }
-        else
-        {
-            INVALID_CODE_PATH;
-        }
-
-    }
-
-    void
-    GameRender(AB::MemoryArena* arena, AB::PlatformState* platform)
-    {
-        auto* gameState = _GlobalStaticStorage->gameState;
-        BeginDebugOverlay();
-        switch (gameState->globalGameMode)
-        {
-        case GAME_MODE_MENU: { MenuUpdateAndRender(&gameState->mainMenu, gameState); } break;
-        case GAME_MODE_EDITOR: { EditorUpdateAndRender(gameState); } break;
-        default:
-        {
-            DoOtherStuff(gameState);
-            if (DebugOverlayBeginCustom())
-            {
-                if (ImGui::Button("Exit to main menu", {150.0f, 20.0f}))
-                {
-                    DestroyGameSession(&gameState->session);
-                    gameState->globalGameMode = GAME_MODE_MENU;
-
-                }
-                DebugOverlayEndCustom();
-            }
-        } break;
-        }
-    }
-
-#if 0
-    inline bool
-    IsValid(WorldPos p)
-    {
-        bool result = (p.tile.x >= LEVEL_MIN_DIM && p.tile.x <= LEVEL_MAX_DIM &&
-                       p.tile.y >= LEVEL_MIN_DIM && p.tile.y <= LEVEL_MAX_DIM &&
-                       p.tile.z >= LEVEL_MIN_DIM && p.tile.z <= LEVEL_MAX_DIM);
-        result = result && (p.offset.x >= -LEVEL_TILE_RADIUS && p.offset.x <= LEVEL_TILE_RADIUS &&
-                            p.offset.y >= -LEVEL_TILE_RADIUS && p.offset.y <= LEVEL_TILE_RADIUS &&
-                            p.offset.z >= -LEVEL_TILE_RADIUS && p.offset.z <= LEVEL_TILE_RADIUS);
-        return result;
     }
 #endif
-
-}
-
-#include "RenderGroup.cpp"
-//#include "Renderer.cpp"
-
-// NOTE: IMGUI
-#include "imgui/imconfig.h"
-#include "imgui/imgui.cpp"
-#include "imgui/imgui_draw.cpp"
-#include "imgui/imgui_widgets.cpp"
-#include "imgui/imgui_demo.cpp"

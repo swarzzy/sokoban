@@ -1,5 +1,5 @@
 #include "Network.h"
-
+#if 0
 namespace soko::net
 {
 
@@ -602,3 +602,4 @@ namespace soko::net
     }
 #endif
 }
+#endif

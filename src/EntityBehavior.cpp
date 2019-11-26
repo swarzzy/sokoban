@@ -1,6 +1,17 @@
 #include "EntityBehavior.h"
+#include "Player.h"
 namespace soko
 {
+    internal void
+    UpdateEntity(Level* level, Entity* e)
+    {
+        switch (e->behavior.type)
+        {
+        case EntityBehavior_Player: { UpdatePlayer(level, e); }
+        default: {} break;
+        }
+    }
+
     internal bool
     EntityCollides(Level* level, Entity* e)
     {

@@ -61,6 +61,7 @@ namespace soko
         case EntityBehavior_Button: { se->behaviorData.button.boundEntityID = e->behavior.data.button.boundEntityID; } break;
         case EntityBehavior_Spawner: { se->behaviorData.spawner.spawnP = e->behavior.data.spawner.spawnP; se->behaviorData.spawner.entityType = e->behavior.data.spawner.entityType; } break;
         case EntityBehavior_Portal: { se->behaviorData.portal.destPortalID = e->behavior.data.portal.destPortalID; se->behaviorData.portal.teleportP = e->behavior.data.portal.teleportP;} break;
+        case EntityBehavior_Player: {} break;
             INVALID_DEFAULT_CASE;
         }
 
@@ -93,6 +94,7 @@ namespace soko
         case EntityBehavior_Button: { e->behavior.data.button.boundEntityID = se->behaviorData.button.boundEntityID; } break;
         case EntityBehavior_Spawner: { e->behavior.data.spawner.spawnP = se->behaviorData.spawner.spawnP; e->behavior.data.spawner.entityType = (EntityType)se->behaviorData.spawner.entityType; } break;
         case EntityBehavior_Portal: { e->behavior.data.portal.destPortalID = se->behaviorData.portal.destPortalID; e->behavior.data.portal.teleportP = se->behaviorData.portal.teleportP;} break;
+        case EntityBehavior_Player: {} break;
             INVALID_DEFAULT_CASE;
         }
 

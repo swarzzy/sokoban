@@ -8,20 +8,12 @@ namespace soko
         EntityBehavior_Button,
         EntityBehavior_Portal,
         EntityBehavior_Spikes,
-        EntityBehavior_Enenmy,
-        EntityBahavior_Lift
+        EntityBehavior_Player
     };
 
-    struct LiftBehaviorData
+    struct PlayerBehaviorData
     {
-        u32 height;
-    };
-
-    struct EnemyBehaviorData
-    {
-        Direction dir;
-        u32 count;
-        b32 atDest;
+        bool reversed;
     };
 
     struct PortalBehaviorData
@@ -46,7 +38,7 @@ namespace soko
         SpawnerBehaviorData spawner;
         ButtonBehaviorData button;
         PortalBehaviorData portal;
-        EnemyBehaviorData enemy;
+        PlayerBehaviorData player;
     };
 
     struct EntityBehavior
@@ -54,23 +46,11 @@ namespace soko
         EntityBehaviorType type;
         EntityBehaviorData data;
     };
-
+    internal void UpdateEntity(Level* level, Entity* e);
     internal bool ProcessEntityTileOverlap(Level* level, iv3 tile, Entity* overlappingEntity);
     internal bool EntityCollides(Level* level, Entity* e);
 
 #pragma pack(push, 1)
-
-    struct SerializedLiftBehaviorData
-    {
-        u32 height;
-    };
-
-    struct SerializedEnemyBehaviorData
-    {
-        u32 dir;
-        u32 count;
-        b32 atDest;
-    };
 
     struct SerializedPortalBehaviorData
     {

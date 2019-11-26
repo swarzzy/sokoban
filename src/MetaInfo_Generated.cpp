@@ -60,8 +60,7 @@ InitMetaInfo(AB::MemoryArena* arena)
     AddEntry_EntityBehaviorType(&info->EntityBehaviorType, 2, EntityBehavior_Button, "EntityBehavior_Button");
     AddEntry_EntityBehaviorType(&info->EntityBehaviorType, 3, EntityBehavior_Portal, "EntityBehavior_Portal");
     AddEntry_EntityBehaviorType(&info->EntityBehaviorType, 4, EntityBehavior_Spikes, "EntityBehavior_Spikes");
-    AddEntry_EntityBehaviorType(&info->EntityBehaviorType, 5, EntityBehavior_Enenmy, "EntityBehavior_Enenmy");
-    AddEntry_EntityBehaviorType(&info->EntityBehaviorType, 6, EntityBahavior_Lift, "EntityBahavior_Lift");
+    AddEntry_EntityBehaviorType(&info->EntityBehaviorType, 5, EntityBehavior_Player, "EntityBehavior_Player");
 
     return info;
 }
