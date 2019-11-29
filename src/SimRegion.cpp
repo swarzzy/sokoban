@@ -219,7 +219,7 @@ namespace soko
                 }
             }
 
-            if (CanMove(level, e, targetP))
+            if (CanMove(level, targetP, e))
             {
                 if (ChangeEntityLocation(level, e, targetP))
                 {

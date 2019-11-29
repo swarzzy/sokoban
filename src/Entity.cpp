@@ -52,17 +52,14 @@ namespace soko
         se->mesh = e->mesh;
         se->material = e->material;
         se->movementSpeed = e->movementSpeed;
-        se->behaviorType = e->behavior.type;
 
-        switch (e->behavior.type)
+        switch (e->type)
         {
-        case EntityBehavior_Spikes:
-        case EntityBehavior_None: {} break;
-        case EntityBehavior_Button: { se->behaviorData.button.boundEntityID = e->behavior.data.button.boundEntityID; } break;
-        case EntityBehavior_Spawner: { se->behaviorData.spawner.spawnP = e->behavior.data.spawner.spawnP; se->behaviorData.spawner.entityType = e->behavior.data.spawner.entityType; } break;
-        case EntityBehavior_Portal: { se->behaviorData.portal.destPortalID = e->behavior.data.portal.destPortalID; se->behaviorData.portal.teleportP = e->behavior.data.portal.teleportP;} break;
-        case EntityBehavior_Player: {} break;
-            INVALID_DEFAULT_CASE;
+        case EntityType_Spikes:
+        case EntityType_Button: { se->behaviorData.button.boundEntityID = e->behavior.data.button.boundEntityID; } break;
+        case EntityType_Spawner: { se->behaviorData.spawner.spawnP = e->behavior.data.spawner.spawnP; se->behaviorData.spawner.entityType = e->behavior.data.spawner.entityType; } break;
+        case EntityType_Portal: { se->behaviorData.portal.destPortalID = e->behavior.data.portal.destPortalID; se->behaviorData.portal.teleportP = e->behavior.data.portal.teleportP;} break;
+        default: {} break;
         }
 
         se->materialRoughness = e->materialRoughness;
@@ -85,17 +82,12 @@ namespace soko
         e->material = (EntityMaterial)se->material;
         e->movementSpeed = se->movementSpeed;
 
-        e->behavior.type = (EntityBehaviorType)se->behaviorType;
-
-        switch (e->behavior.type)
+        switch (e->type)
         {
-        case EntityBehavior_Spikes:
-        case EntityBehavior_None: {} break;
-        case EntityBehavior_Button: { e->behavior.data.button.boundEntityID = se->behaviorData.button.boundEntityID; } break;
-        case EntityBehavior_Spawner: { e->behavior.data.spawner.spawnP = se->behaviorData.spawner.spawnP; e->behavior.data.spawner.entityType = (EntityType)se->behaviorData.spawner.entityType; } break;
-        case EntityBehavior_Portal: { e->behavior.data.portal.destPortalID = se->behaviorData.portal.destPortalID; e->behavior.data.portal.teleportP = se->behaviorData.portal.teleportP;} break;
-        case EntityBehavior_Player: {} break;
-            INVALID_DEFAULT_CASE;
+        case EntityType_Button: { e->behavior.data.button.boundEntityID = se->behaviorData.button.boundEntityID; } break;
+        case EntityType_Spawner: { e->behavior.data.spawner.spawnP = se->behaviorData.spawner.spawnP; e->behavior.data.spawner.entityType = (EntityType)se->behaviorData.spawner.entityType; } break;
+        case EntityType_Portal: { e->behavior.data.portal.destPortalID = se->behaviorData.portal.destPortalID; e->behavior.data.portal.teleportP = se->behaviorData.portal.teleportP;} break;
+        default: {} break;
         }
 
         e->materialRoughness = se->materialRoughness;
@@ -325,5 +317,11 @@ namespace soko
             entity = entity->nextEntity;
         }
         return result;
+    }
+
+    inline const Entity*
+    GetEntity(const Level* level, u32 id)
+    {
+        return GetEntity((Level*)level, id);
     }
 }

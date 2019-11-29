@@ -119,7 +119,7 @@ namespace soko
         Entity* entities[LEVEL_ENTITY_TABLE_SIZE];
         b32 platePressed;
 
-        u32 spawnerID;
+        iv3 spawnP;
 
         u32 chunkEntityBlockCount;
         ChunkEntityBlock* freeChunkEntityBlocks;

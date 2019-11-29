@@ -223,9 +223,7 @@ namespace soko
         {
             menu->session.sessionArena = levelArena;
             menu->session.level = level;
-            Entity* spawner = GetEntity(level, level->spawnerID);
-            SOKO_ASSERT(spawner);
-            menu->session.controlledPlayer = AddPlayer(&menu->session, spawner->pos);
+            menu->session.controlledPlayer = AddPlayer(&menu->session, level->spawnP);
             nextState = MainMenu_EnterLevel;
         }
         else

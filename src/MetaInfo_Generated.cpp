@@ -55,12 +55,6 @@ InitMetaInfo(AB::MemoryArena* arena)
     AddEntry_TileValue(&info->TileValue, 1, TileValue_Wall, "TileValue_Wall");
     AddEntry_TileValue(&info->TileValue, 2, TileValue_Stone, "TileValue_Stone");
     AddEntry_TileValue(&info->TileValue, 3, TileValue_Grass, "TileValue_Grass");
-    AddEntry_EntityBehaviorType(&info->EntityBehaviorType, 0, EntityBehavior_None, "EntityBehavior_None");
-    AddEntry_EntityBehaviorType(&info->EntityBehaviorType, 1, EntityBehavior_Spawner, "EntityBehavior_Spawner");
-    AddEntry_EntityBehaviorType(&info->EntityBehaviorType, 2, EntityBehavior_Button, "EntityBehavior_Button");
-    AddEntry_EntityBehaviorType(&info->EntityBehaviorType, 3, EntityBehavior_Portal, "EntityBehavior_Portal");
-    AddEntry_EntityBehaviorType(&info->EntityBehaviorType, 4, EntityBehavior_Spikes, "EntityBehavior_Spikes");
-    AddEntry_EntityBehaviorType(&info->EntityBehaviorType, 5, EntityBehavior_Player, "EntityBehavior_Player");
 
     return info;
 }

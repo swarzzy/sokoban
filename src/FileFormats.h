@@ -24,14 +24,13 @@ namespace AB
         f32 shininess;
     };
 
-    struct _AABMeshHeader
+    struct AABMeshHeaderV1
     {
         u32 magicValue;
         u32 version = 1;
         u64 assetSize;
         u32 assetType;
         u32 verticesCount;
-        // TODO: These counts are redundant
         u32 normalsCount;
         u32 uvsCount;
         u32 indicesCount;
@@ -39,7 +38,8 @@ namespace AB
         u64 normalsOffset;
         u64 uvsOffset;
         u64 indicesOffset;
-        u64 materialNameOffset;     // Both are zero if there is no material
+        u64 materialNameOffset;
+        // NOTE: Both are zero if there is no material
         u64 materialDiffBitmapNameOffset;
         u64 materialSpecBitmapNameOffset;
         u64 materialPropertiesOffset;
@@ -71,7 +71,9 @@ namespace AB
         u32 entityCount;
         u64 firstChunkOffset;
         u64 firstEntityOffset;
-        u32 spawnerID;
+        // TODO: Is that possible that iv3 would have different alignment
+        // on any of supported platform?
+        iv3 spawnP;
     };
 #pragma pack (pop)
 

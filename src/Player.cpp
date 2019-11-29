@@ -6,7 +6,7 @@ namespace soko
     internal void
     UpdatePlayer(Level* level, Entity* e)
     {
-        SOKO_ASSERT(e->behavior.type == EntityBehavior_Player);
+        SOKO_ASSERT(e->type == EntityType_Player);
         auto* data = &e->behavior.data.player;
         u32 steps = 1;
 
@@ -72,7 +72,6 @@ namespace soko
                 //p = session->players + freePlayerIndex;
                 //p->level = level;
                 p = GetEntity(level, playerId);
-                p->behavior.type = EntityBehavior_Player;
                 p->behavior.data.player.reversed = false;
                 SOKO_ASSERT(p);
                 //session->playersOccupancy[freePlayerIndex] = true;

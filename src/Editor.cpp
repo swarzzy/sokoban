@@ -21,7 +21,6 @@ namespace soko
         b32 chunkListerOpened;
         b32 exitToMainMenu;
         b32 levelSettingsOpened;
-        b32 wantsToSaveLevel;
         b32 saveAs;
         i32 chunkListerZLevel;
         char levelName[EDITOR_UI_LEVEL_NAME_SIZE];
@@ -153,32 +152,10 @@ namespace soko
         auto windowFlags = ImGuiWindowFlags_NoResize | ImGuiWindowFlags_AlwaysAutoResize;
         if (ImGui::Begin("Level settings", (bool*)&editor->ui.levelSettingsOpened, windowFlags))
         {
-            char string[32];
-            FormatString(string, 32, "id: %u32", editor->session->level->spawnerID);
-            if (ImGui::BeginCombo("Spawner entity", string))
-            {
-                for (u32 i = 0 ; i < LEVEL_ENTITY_TABLE_SIZE; i++)
-                {
-                    Entity* e = editor->session->level->entities[i];
-                    while (e)
-                    {
-                        if (e->type == EntityType_Spawner)
-                        {
-                            bool wasSelected = (e->id == editor->selectedEntityID);
-                            FormatString(string, 32, "id: %u32", e->id);
-                            bool selected = ImGui::Selectable(string, wasSelected);
-                            if (selected)
-                            {
-                                editor->session->level->spawnerID = e->id;
-                            }
-                        }
-                        e = e->nextEntity;
-                    }
-                }
-
-                ImGui::EndCombo();
-            }
-
+            ImGui::Text("Spawn position");
+            ImGui::InputInt("x", &editor->region->level->spawnP.x);
+            ImGui::InputInt("y", &editor->region->level->spawnP.y);
+            ImGui::InputInt("z", &editor->region->level->spawnP.z);
         }
         ImGui::End();
     }
@@ -265,15 +242,10 @@ namespace soko
                     }
                     ImGui::Separator();
 
-                    ImGui::Text("Behavior");
-                    i32 behType = entity->behavior.type;
-                    ImGui::PushID("Entity behavior combo");
-                    ImGui::Combo("", &behType, TypeInfo(EntityBehaviorType).names, TypeTraits(EntityBehaviorType)::MemberCount);
-                    entity->behavior.type = (EntityBehaviorType)behType;
-                    ImGui::PopID();
-                    switch (behType)
+                    ImGui::Text("Behavior properties");
+                    switch (entity->type)
                     {
-                    case EntityBehavior_Spawner:
+                    case EntityType_Spawner:
                     {
                         SpawnerBehaviorData* data = &entity->behavior.data.spawner;
                         ImGui::InputInt("Spawn x", &data->spawnP.x);
@@ -286,12 +258,12 @@ namespace soko
                         ImGui::PopID();
 
                     } break;
-                    case EntityBehavior_Button:
+                    case EntityType_Button:
                     {
                         ButtonBehaviorData* data = &entity->behavior.data.button;
                         ImGui::InputScalar("Bound entity id", ImGuiDataType_U32, &data->boundEntityID);
                     } break;
-                    case EntityBehavior_Portal:
+                    case EntityType_Portal:
                     {
                         PortalBehaviorData* data = &entity->behavior.data.portal;
                         ImGui::InputInt("Teleport x", &data->teleportP.x);
@@ -485,11 +457,18 @@ namespace soko
             {
                 bool fileNotExit = !DebugGetFileSize(editor->ui.wLevelName);
                 // TODO: Show message if spawner is not selected
-                if (fileNotExit && editor->session->level->spawnerID)
+                if (fileNotExit)
                 {
-                    editor->ui.wantsToSaveLevel = true;
-                    editor->ui.saveAs = false;
-                    ImGui::CloseCurrentPopup();
+                    // TODO: Do this in new temporary memory block once
+                    // we have new temp memory system
+                    //BeginTemporaryMemory(editor->gameState->tempArena);
+                    bool saved = SaveLevel(editor->session->level, editor->ui.wLevelName, editor->gameState->tempArena);
+                    //EndTemporaryMemory(editor->gameState->tempArena);
+                    if (saved)
+                    {
+                        editor->ui.saveAs = false;
+                        ImGui::CloseCurrentPopup();
+                    }
                 }
             }
 
@@ -972,14 +951,6 @@ namespace soko
         EndSim(gameState->session.level, simRegion);
         EndTemporaryMemory(gameState->tempArena);
 
-        if (editor->ui.wantsToSaveLevel)
-        {
-            editor->ui.wantsToSaveLevel = false;
-            BeginTemporaryMemory(gameState->tempArena);
-            bool saved = SaveLevel(editor->session->level, editor->ui.wLevelName, gameState->tempArena);
-            SOKO_ASSERT(saved);
-            EndTemporaryMemory(gameState->tempArena);
-        }
         if (editor->ui.exitToMainMenu)
         {
             DestroyGameSession(&gameState->session);

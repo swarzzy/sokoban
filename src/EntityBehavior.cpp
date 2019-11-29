@@ -5,29 +5,29 @@ namespace soko
     internal void
     UpdateEntity(Level* level, Entity* e)
     {
-        switch (e->behavior.type)
+        switch (e->type)
         {
-        case EntityBehavior_Player: { UpdatePlayer(level, e); }
+        case EntityType_Player: { UpdatePlayer(level, e); }
         default: {} break;
         }
     }
 
     internal bool
-    EntityCollides(Level* level, Entity* e)
+    EntityCollides(const Level* level, const Entity* e)
     {
         bool result = true;
-        switch (e->behavior.type)
+        switch (e->type)
         {
-        case EntityBehavior_Portal:
+        case EntityType_Portal:
         {
-            SOKO_ASSERT(e->behavior.type == EntityBehavior_Portal);
+            SOKO_ASSERT(e->type == EntityType_Portal);
             auto data = &e->behavior.data.portal;
             if (data->destPortalID)
             {
-                Entity* destPortal = GetEntity(level, data->destPortalID);
+                const Entity* destPortal = GetEntity(level, data->destPortalID);
                 if (destPortal)
                 {
-                    SOKO_ASSERT(destPortal->behavior.type == EntityBehavior_Portal);
+                    SOKO_ASSERT(destPortal->type == EntityType_Portal);
                     if (CheckTile(level, destPortal->behavior.data.portal.teleportP))
                     {
                         result = false;
@@ -45,11 +45,11 @@ namespace soko
     EntityHandleOverlap(Level* level, Entity* e, Entity* caller)
     {
         bool result = false;
-        switch(e->behavior.type)
+        switch(e->type)
         {
-        case EntityBehavior_Spikes:
+        case EntityType_Spikes:
         {
-            SOKO_ASSERT(e->behavior.type == EntityBehavior_Spikes);
+            SOKO_ASSERT(e->type == EntityType_Spikes);
             if (caller && caller->type != EntityType_Player)
             {
                 // TODO: Delete from sim region
@@ -57,7 +57,7 @@ namespace soko
                 result = true;
             }
         } break;
-        case EntityBehavior_Portal:
+        case EntityType_Portal:
         {
             auto data = &e->behavior.data.portal;
             if (caller && IsSet(caller, EntityFlag_Movable))
@@ -65,7 +65,7 @@ namespace soko
                 if (data->destPortalID)
                 {
                     Entity* destPortal = GetEntity(level, data->destPortalID);
-                    if (destPortal && destPortal->behavior.type == EntityBehavior_Portal)
+                    if (destPortal && destPortal->type == EntityType_Portal)
                     {
                         iv3 destPos = destPortal->behavior.data.portal.teleportP;
                         if (CheckTile(level, destPos))
@@ -79,7 +79,7 @@ namespace soko
                 }
             }
         }
-        case EntityBehavior_Button:
+        case EntityType_Button:
         {
             if (caller && IsSet(caller, EntityFlag_Collides))
             {
@@ -95,7 +95,7 @@ namespace soko
                 }
             }
         } break;
-        case EntityBehavior_Spawner:
+        case EntityType_Spawner:
         {
             // TODO: Check is p valid?
             auto data = &e->behavior.data.spawner;

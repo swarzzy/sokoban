@@ -148,6 +148,14 @@ namespace soko
         return result;
     }
 
+    inline const Chunk*
+    GetChunk(const Level* level, iv3 coord)
+    {
+        // NOTE: Using this hack for avoiding bothering with separate const routine
+        Level* unconstLevel = (Level*)level;
+        return GetChunk(unconstLevel, coord);
+    }
+
     inline u32
     GetChunkEntityTableIndex(uv3 tile)
     {
@@ -161,7 +169,7 @@ namespace soko
 
     struct EntityMapIterator
     {
-        ChunkEntityBlock* block;
+        const ChunkEntityBlock* block;
         u32 index;
     };
 
@@ -211,6 +219,18 @@ namespace soko
         uv3 t = GetTileCoordInChunk(tile);
         Chunk* chunk = GetChunk(level, c);
         return YieldEntityFromTile(chunk, t, at);
+    }
+
+    inline const Entity*
+    YieldEntityFromTile(const Level* level, iv3 tile, EntityMapIterator* at)
+    {
+        return YieldEntityFromTile((Level*)level, tile, at);
+    }
+
+    inline const Entity*
+    YieldEntityFromTile(const Chunk* chunk, uv3 tileInChunk, EntityMapIterator* at)
+    {
+        return YieldEntityFromTile((Chunk*)chunk, tileInChunk, at);
     }
 
     inline ChunkEntityBlock*
@@ -426,21 +446,21 @@ namespace soko
     }
 
     inline const Tile*
-    GetTilePointerInChunkInternal(Chunk* chunk, u32 x, u32 y, u32 z)
+    GetTilePointerInChunkInternal(const Chunk* chunk, u32 x, u32 y, u32 z)
     {
         // TODO: Actial check?
         SOKO_ASSERT(x < CHUNK_DIM);
         SOKO_ASSERT(y < CHUNK_DIM);
         SOKO_ASSERT(z < CHUNK_DIM);
 
-        Tile* tile = 0;
+        const Tile* tile = 0;
         tile = chunk->tiles + (z * CHUNK_DIM * CHUNK_DIM + y * CHUNK_DIM + x);
 
         return tile;
     }
 
     inline const Tile*
-    GetTileInChunk(Chunk* chunk, u32 x, u32 y, u32 z)
+    GetTileInChunk(const Chunk* chunk, u32 x, u32 y, u32 z)
     {
         const Tile* result = 0;
         if (chunk &&
@@ -458,7 +478,7 @@ namespace soko
     }
 
     inline const Tile*
-    GetTileInChunk(Chunk* chunk, uv3 tileInChunk)
+    GetTileInChunk(const Chunk* chunk, uv3 tileInChunk)
     {
         return GetTileInChunk(chunk, tileInChunk.x, tileInChunk.y, tileInChunk.z);
     }
@@ -522,7 +542,7 @@ namespace soko
     }
 
     inline bool
-    TileIsTerrain(Chunk* chunk, uv3 tileInChunk)
+    TileIsTerrain(const Chunk* chunk, uv3 tileInChunk)
     {
         bool result = true;
         const Tile* tile = GetTileInChunk(chunk, tileInChunk);
@@ -531,11 +551,11 @@ namespace soko
     }
 
     inline bool
-    TileIsTerrain(Level* level, iv3 tile)
+    TileIsTerrain(const Level* level, iv3 tile)
     {
         iv3 c = GetChunkCoord(tile);
         uv3 t = GetTileCoordInChunk(tile);
-        Chunk* chunk = GetChunk(level, c);
+        const Chunk* chunk = GetChunk(level, c);
         bool result = TileIsTerrain(chunk, t);
         return result;
     }
@@ -547,7 +567,7 @@ namespace soko
     };
 
     inline bool
-    CheckTile(Chunk* chunk, uv3 tileInChunk, u32 flags = TileCheck_Terrain | TileCheck_Entities, Entity* forEntity = 0)
+    CheckTile(const Chunk* chunk, uv3 tileInChunk, u32 flags = TileCheck_Terrain | TileCheck_Entities, const Entity* forEntity = 0)
     {
         bool result = true;
         const Tile* tile = GetTileInChunk(chunk, tileInChunk);
@@ -560,7 +580,7 @@ namespace soko
             EntityMapIterator it = {};
             while (true)
             {
-                Entity* e = YieldEntityFromTile(chunk, tileInChunk, &it);
+                const Entity* e = YieldEntityFromTile(chunk, tileInChunk, &it);
                 if (!e) break;
                 if ((e != forEntity) && EntityCollides(chunk->level, e))
                 {
@@ -587,31 +607,42 @@ namespace soko
     }
 
     inline bool
-    CheckTile(Level* level, iv3 tile, u32 flags = TileCheck_Terrain | TileCheck_Entities, Entity* forEntity = 0)
+    CheckTile(const Level* level, iv3 tile, u32 flags = TileCheck_Terrain | TileCheck_Entities, const Entity* forEntity = 0)
     {
         iv3 c = GetChunkCoord(tile);
         uv3 t = GetTileCoordInChunk(tile);
-        Chunk* chunk = GetChunk(level, c);
+        const Chunk* chunk = GetChunk(level, c);
         return CheckTile(chunk, t, flags, forEntity);
     }
 
     inline bool
-    CanMove(Level* level, Entity* e, iv3 tile)
+    CanMove(const Level* level, iv3 tile, const Entity* e)
     {
         bool result = true;
-        for (u32 z = 0; z < e->footprintDim.z; z++)
+        if (e)
         {
-            for (u32 y = 0; y < e->footprintDim.y; y++)
+            for (u32 z = 0; z < e->footprintDim.z; z++)
             {
-                for (u32 x = 0; x < e->footprintDim.x; x++)
+                for (u32 y = 0; y < e->footprintDim.y; y++)
                 {
-                    iv3 testTile = tile + IV3(x, y, z);
-                    iv3 groundTile = testTile + DirToUnitOffset(Direction_Down);
-                    bool tileFree = CheckTile(level, testTile, TileCheck_Terrain | TileCheck_Entities, e);
-                    bool groundFree = (z == 0) ? TileIsTerrain(level, groundTile) : true;
-                    result = result && tileFree && groundFree;
+                    for (u32 x = 0; x < e->footprintDim.x; x++)
+                    {
+                        iv3 testTile = tile + IV3(x, y, z);
+                        iv3 groundTile = testTile + DirToUnitOffset(Direction_Down);
+                        bool tileFree = CheckTile(level, testTile, TileCheck_Terrain | TileCheck_Entities, e);
+                        bool groundFree = (z == 0) ? TileIsTerrain(level, groundTile) : true;
+                        result = result && tileFree && groundFree;
+                    }
                 }
             }
+        }
+        else
+        {
+            iv3 testTile = tile;
+            iv3 groundTile = testTile + DirToUnitOffset(Direction_Down);
+            bool tileFree = CheckTile(level, testTile, TileCheck_Terrain | TileCheck_Entities);
+            bool groundFree = TileIsTerrain(level, groundTile);
+            result = tileFree && groundFree;
         }
         return result;
     }
@@ -712,59 +743,62 @@ namespace soko
     SaveLevel(const Level* level, const wchar_t* filename, AB::MemoryArena* arena)
     {
         bool result = false;
-
-        uptr headerSize = sizeof(AB::AABLevelHeader);
-        uptr chunksSize = sizeof(SerializedChunk) * level->loadedChunksCount;
-        uptr entitiesSize = CalcSerializedEntitiesSize(level);
-
-        uptr bufferSize = headerSize + chunksSize + entitiesSize;
-
-        byte* buffer = (byte*)PUSH_SIZE(arena, bufferSize);
-        if (buffer)
+        bool spawnTileIsFree = CanMove(level, level->spawnP, 0);
+        if (spawnTileIsFree)
         {
-            auto header = (AB::AABLevelHeader*)buffer;
-            header->magicValue = AB::AAB_FILE_MAGIC_VALUE;
-            header->version = AB::AAB_LEVEL_FILE_VERSION;
-            // TODO: Is that should be size of data placed after header?
-            header->assetSize = bufferSize - sizeof(AB::AABLevelHeader);
-            header->assetType = AB::AAB_FILE_TYPE_LEVEL;
-            header->chunkCount = level->loadedChunksCount;
-            header->chunkMeshBlockCount = level->globalChunkMeshBlockCount;
-            header->firstChunkOffset = sizeof(AB::AABLevelHeader);
-            SOKO_ASSERT(level->spawnerID);
-            header->spawnerID = level->spawnerID;
-            //header->entityCount = level->entityCount - 1; // Null entity is not considered
-            header->firstEntityOffset = headerSize + chunksSize;
 
-            auto chunks = (SerializedChunk*)(buffer + header->firstChunkOffset);
+            uptr headerSize = sizeof(AB::AABLevelHeader);
+            uptr chunksSize = sizeof(SerializedChunk) * level->loadedChunksCount;
+            uptr entitiesSize = CalcSerializedEntitiesSize(level);
 
-            u32 chunksWritten = 0;
-            for (u32 i = 0; i < LEVEL_CHUNK_TABLE_SIZE; i++)
+            uptr bufferSize = headerSize + chunksSize + entitiesSize;
+
+            byte* buffer = (byte*)PUSH_SIZE(arena, bufferSize);
+            if (buffer)
             {
-                Chunk* chunk = level->chunkTable[i];
-                if (chunk)
+                auto header = (AB::AABLevelHeader*)buffer;
+                header->magicValue = AB::AAB_FILE_MAGIC_VALUE;
+                header->version = AB::AAB_LEVEL_FILE_VERSION;
+                // TODO: Is that should be size of data placed after header?
+                header->assetSize = bufferSize - sizeof(AB::AABLevelHeader);
+                header->assetType = AB::AAB_FILE_TYPE_LEVEL;
+                header->chunkCount = level->loadedChunksCount;
+                header->chunkMeshBlockCount = level->globalChunkMeshBlockCount;
+                header->firstChunkOffset = sizeof(AB::AABLevelHeader);
+                header->spawnP = level->spawnP;
+                //header->entityCount = level->entityCount - 1; // Null entity is not considered
+                header->firstEntityOffset = headerSize + chunksSize;
+
+                auto chunks = (SerializedChunk*)(buffer + header->firstChunkOffset);
+
+                u32 chunksWritten = 0;
+                for (u32 i = 0; i < LEVEL_CHUNK_TABLE_SIZE; i++)
                 {
-                    chunksWritten++;
-                    SOKO_ASSERT(chunksWritten <= header->chunkCount);
-                    chunks[chunksWritten - 1].coord = chunk->coord;
-                    chunks[chunksWritten - 1].filledTileCount = chunk->filledTileCount;
-                    for (u32 tileInd = 0;
-                         tileInd < (CHUNK_DIM * CHUNK_DIM * CHUNK_DIM);
-                         tileInd++)
+                    Chunk* chunk = level->chunkTable[i];
+                    if (chunk)
                     {
-                        chunks[chunksWritten - 1].tiles[tileInd].value = chunk->tiles[tileInd].value;
+                        chunksWritten++;
+                        SOKO_ASSERT(chunksWritten <= header->chunkCount);
+                        chunks[chunksWritten - 1].coord = chunk->coord;
+                        chunks[chunksWritten - 1].filledTileCount = chunk->filledTileCount;
+                        for (u32 tileInd = 0;
+                             tileInd < (CHUNK_DIM * CHUNK_DIM * CHUNK_DIM);
+                             tileInd++)
+                        {
+                            chunks[chunksWritten - 1].tiles[tileInd].value = chunk->tiles[tileInd].value;
+                        }
                     }
                 }
+
+                SOKO_ASSERT(chunksWritten == level->loadedChunksCount);
+
+                void* entities = buffer + headerSize + chunksSize;
+                // TODO: Checking
+                header->entityCount = SerializeEntititiesToBuffer(level, entities, entitiesSize);
+
+                SOKO_ASSERT(bufferSize <= 0xffffffff);
+                result = DebugWriteFile(filename, buffer, (u32)bufferSize);
             }
-
-            SOKO_ASSERT(chunksWritten == level->loadedChunksCount);
-
-            void* entities = buffer + headerSize + chunksSize;
-            // TODO: Checking
-            header->entityCount = SerializeEntititiesToBuffer(level, entities, entitiesSize);
-
-            SOKO_ASSERT(bufferSize <= 0xffffffff);
-            result = DebugWriteFile(filename, buffer, (u32)bufferSize);
         }
         return result;
     }
@@ -893,8 +927,7 @@ namespace soko
                         Level* loadedLevel = CreateLevel(levelArena);
                         if (loadedLevel)
                         {
-                            SOKO_ASSERT(header.spawnerID);
-                            loadedLevel->spawnerID = header.spawnerID;
+                            loadedLevel->spawnP = header.spawnP;
                             auto chunks = (SerializedChunk*)((byte*)fileBuffer + header.firstChunkOffset);
                             if (LoadChunks(levelArena, loadedLevel, chunks, header.chunkCount))
                             {
@@ -903,6 +936,7 @@ namespace soko
                                 {
                                     SOKO_ASSERT(loadedLevel->loadedChunksCount == header.chunkCount);
                                     SOKO_ASSERT(loadedLevel->entityCount == header.entityCount + 1);
+                                    SOKO_ASSERT(CanMove(loadedLevel, header.spawnP, 0));
                                     result = loadedLevel;
                                 }
                             }
@@ -979,19 +1013,7 @@ namespace soko
         AddEntity(level, entity1);
         //AddEntity(playerLevel)
 
-        Entity spawner = {};
-        spawner.type = EntityType_Spawner;
-        spawner.flags = 0;
-        spawner.pos = IV3(10, 10, 1);
-        spawner.movementSpeed = 0.0f;
-        spawner.mesh = EntityMesh_Plate;
-        spawner.material = EntityMaterial_RedPlate;
-
-        u32 spawnerID = AddEntity(level, spawner);
-        SOKO_ASSERT(spawnerID);
-        level->spawnerID = spawnerID;
-        //AddEntity(playerLevel)
-
+        level->spawnP = IV3(10, 10, 1);
 
         Entity entity2 = {};
         entity2.type = EntityType_Block;
