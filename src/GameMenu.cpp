@@ -549,8 +549,18 @@ namespace soko
         // to avoid copying session to gameState
         //gameState->session.controlledPlayer = gameState->session.players;
 
-        InitCameras(&gameState->session.camera, &gameState->session.debugCamera);
+        InitCameras(&gameState->session.camera, MakeWorldPos(gameState->session.controlledPlayer->pos), &gameState->session.debugCamera);
         RenderGroupSetCamera(gameState->renderGroup, &gameState->session.camera.conf);
+    }
+
+    internal void
+    MenuLevelCompleted(GameMenu* menu, GameState* gameState)
+    {
+        ImGui::Text("Level completed!");
+        if (ImGui::Button("Go to menu"))
+        {
+            menu->state = MainMenu_ModeSelection;
+        }
     }
 
     internal void
@@ -587,6 +597,7 @@ namespace soko
         case MainMenu_EditorConf: { MenuEditorConf(menu); } break;
         case MainMenu_EditorLoadLevel: { MenuEditorLoadLevel(menu, gameState); } break;
         case MainMenu_EditorCreateLevel: { MenuEditorCreateLevel(menu, gameState); } break;
+        case MainMenu_LevelCompleted: { MenuLevelCompleted(menu, gameState); } break;
         INVALID_DEFAULT_CASE;
         }
 

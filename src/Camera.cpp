@@ -52,7 +52,7 @@ namespace soko
     }
 
     internal void
-    InitCameras(GameCamera* camera, FPCamera* debugCamera)
+    InitCameras(GameCamera* camera, WorldPos targetPos, FPCamera* debugCamera)
     {
         CameraConfig conf = {};
         conf.position = V3(0.0f);
@@ -69,6 +69,7 @@ namespace soko
         debugCamera->rotateSmooth = 0.45f;
 
         camera->conf = conf;
+        camera->targetWorldPos = targetPos;
         camera->longSmooth = 30.0f;
         camera->latSmooth = 30.0f;
         camera->distSmooth = 30.0f;

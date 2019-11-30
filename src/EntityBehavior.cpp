@@ -42,36 +42,90 @@ namespace soko
 
     // NOTE: Returns true if caller entity was moved
     internal bool
-    EntityHandleOverlap(Level* level, Entity* e, Entity* caller)
+    EntityHandleOverlap(Level* level, Entity* e, Entity* caller, EntityOverlapType type)
     {
         bool result = false;
         switch(e->type)
         {
+        case EntityType_Platform:
+        {
+            // TODO: Support multi-tile entities
+            SOKO_ASSERT(e->footprintDim == UV3(1, 1, 1));
+            if (type == EntityOverlapType_Entering)
+            {
+                if (caller->type == EntityType_Block)
+                {
+                    bool alreadyComplete = false;
+                    EntityMapIterator it = {};
+                    while (true)
+                    {
+                        Entity* entity = YieldEntityFromTile(level, e->pos, &it);
+                        if (!entity) break;
+                        if (entity != e && entity != caller && entity->type == EntityType_Block)
+                        {
+                            alreadyComplete = true;
+                            break;
+                        }
+                    }
+                    if (!alreadyComplete)
+                    {
+                        level->completePlatformCount++;
+                    }
+                }
+            }
+            else
+            {
+                if (caller->type == EntityType_Block)
+                {
+                    bool stillComplete = false;
+                    EntityMapIterator it = {};
+                    while (true)
+                    {
+                        Entity* entity = YieldEntityFromTile(level, e->pos, &it);
+                        if (!entity) break;
+                        SOKO_ASSERT(entity != caller);
+                        if (entity != e && entity->type == EntityType_Block)
+                        {
+                            stillComplete = true;
+                            break;
+                        }
+                    }
+                    if (!stillComplete)
+                    {
+                        SOKO_ASSERT(level->completePlatformCount > 0);
+                        level->completePlatformCount--;
+                    }
+                }
+            }
+        } break;
         case EntityType_Spikes:
         {
-            SOKO_ASSERT(e->type == EntityType_Spikes);
-            if (caller && caller->type != EntityType_Player)
+            if (type == EntityOverlapType_Entering)
             {
-                // TODO: Delete from sim region
-                DeleteEntity(level, caller);
-                result = true;
+                if (caller->type != EntityType_Player)
+                {
+                    // TODO: Delete from sim region
+                    DeleteEntity(level, caller);
+                    result = true;
+                }
             }
         } break;
         case EntityType_Portal:
         {
             auto data = &e->behavior.data.portal;
-            if (caller && IsSet(caller, EntityFlag_Movable))
+            if (type == EntityOverlapType_Entering)
             {
-                if (data->destPortalID)
+                if (IsSet(caller, EntityFlag_Movable))
                 {
-                    Entity* destPortal = GetEntity(level, data->destPortalID);
-                    if (destPortal && destPortal->type == EntityType_Portal)
+                    if (data->destPortalID)
                     {
-                        iv3 destPos = destPortal->behavior.data.portal.teleportP;
-                        if (CheckTile(level, destPos))
+                        Entity* destPortal = GetEntity(level, data->destPortalID);
+                        if (destPortal && destPortal->type == EntityType_Portal)
                         {
-                            if (ChangeEntityLocation(level, caller, destPos))
+                            iv3 destPos = destPortal->behavior.data.portal.teleportP;
+                            if (CheckTile(level, destPos))
                             {
+                                ChangeEntityLocation(level, caller, destPos);
                                 result = true;
                             }
                         }
@@ -81,27 +135,33 @@ namespace soko
         }
         case EntityType_Button:
         {
-            if (caller && IsSet(caller, EntityFlag_Collides))
+            if (type == EntityOverlapType_Entering)
             {
-                auto data = &e->behavior.data.button;
-                if (data->boundEntityID)
+                if (IsSet(caller, EntityFlag_Collides))
                 {
-                    Entity* boundE = GetEntity(level, data->boundEntityID);
-                    if (boundE)
+                    auto data = &e->behavior.data.button;
+                    if (data->boundEntityID)
                     {
-                        // TODO: Call actual behavior here! Not overlap behavior
-                        EntityHandleOverlap(level, boundE, e);
+                        Entity* boundE = GetEntity(level, data->boundEntityID);
+                        if (boundE)
+                        {
+                            // TODO: Call actual behavior here! Not overlap behavior
+                            EntityHandleOverlap(level, boundE, e, EntityOverlapType_Entering);
+                        }
                     }
                 }
             }
         } break;
         case EntityType_Spawner:
         {
-            // TODO: Check is p valid?
-            auto data = &e->behavior.data.spawner;
-            if (CheckTile(level, data->spawnP))
+            if (type == EntityOverlapType_Entering)
             {
-                u32 id = AddEntity(level, data->entityType, data->spawnP, 2.0f, EntityMesh_Box, EntityMaterial_Box);
+                // TODO: Check is p valid?
+                auto data = &e->behavior.data.spawner;
+                if (CheckTile(level, data->spawnP))
+                {
+                    u32 id = AddEntity(level, data->entityType, data->spawnP, 2.0f, EntityMesh_Box, EntityMaterial_Box);
+                }
             }
         }
         default: {} break;
@@ -109,10 +169,9 @@ namespace soko
         return result;
     }
 
-    // TODO: Clean the sim and stored entity concept up
     // TODO: Update ticks
     internal bool
-    ProcessEntityTileOverlap(Level* level, iv3 tile, Entity* overlappingEntity)
+    ProcessEntityTileOverlap(Level* level, iv3 tile, Entity* overlappingEntity, EntityOverlapType type)
     {
         bool result = false;
         EntityMapIterator it = {};
@@ -120,9 +179,9 @@ namespace soko
         {
             Entity* entity = YieldEntityFromTile(level, tile, &it);
             if (!entity) break;
-            if (!overlappingEntity || entity->id != overlappingEntity->id)
+            if (!entity->id != overlappingEntity->id)
             {
-                result = result || EntityHandleOverlap(level, entity, overlappingEntity);
+                result = result || EntityHandleOverlap(level, entity, overlappingEntity, type);
             }
         }
         return result;

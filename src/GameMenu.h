@@ -22,6 +22,7 @@ namespace soko
         MainMenu_EditorLoadLevel,
         MainMenu_EditorCreateLevel,
         MainMenu_EnterEditor,
+        MainMenu_LevelCompleted,
         MainMenu_Error
     };
 

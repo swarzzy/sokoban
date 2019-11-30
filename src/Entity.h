@@ -11,7 +11,7 @@ namespace soko
         EntityType_Spikes,
         EntityType_Button,
         EntityType_Spawner,
-        EntityType_Custom
+        EntityType_Platform
     };
 
     enum [reflect flag_enum] EntityFlags : u32

@@ -1,6 +1,12 @@
 #pragma once
 namespace soko
 {
+    enum EntityOverlapType
+    {
+        EntityOverlapType_Entering,
+        EntityOverlapType_Leaving
+    };
+
     struct PlayerBehaviorData
     {
         bool reversed;
@@ -36,7 +42,7 @@ namespace soko
         EntityBehaviorData data;
     };
     internal void UpdateEntity(Level* level, Entity* e);
-    internal bool ProcessEntityTileOverlap(Level* level, iv3 tile, Entity* overlappingEntity);
+    internal bool ProcessEntityTileOverlap(Level* level, iv3 tile, Entity* overlappingEntity, EntityOverlapType type);
     internal bool EntityCollides(const Level* level, const Entity* e);
 
 #pragma pack(push, 1)

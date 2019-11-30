@@ -159,7 +159,7 @@ namespace soko
         return region;
     }
 
-    inline bool
+    inline void
     ChangeEntityLocation(Level* level, Entity* entity, iv3 destP)
     {
         bool result = false;
@@ -168,17 +168,13 @@ namespace soko
         if (CheckTile(level, destP, TileCheck_Terrain | TileCheck_Entities, entity))
         {
             // TODO: Decide how to handle multi-tile entity overlaps
-            ProcessEntityTileOverlap(level, oldP, 0);
-            bool alreadyMoved = ProcessEntityTileOverlap(level, destP, entity);
-            if (!alreadyMoved)
-            {
-                UnregisterEntityInTile(level, entity);
-                entity->pos = destP;
-                RegisterEntityInTile(level, entity);
-                result = true;
-            }
+            UnregisterEntityInTile(level, entity);
+            bool movedAtLeaving = ProcessEntityTileOverlap(level, oldP, entity, EntityOverlapType_Leaving);
+            SOKO_ASSERT(!movedAtLeaving);
+            entity->pos = destP;
+            RegisterEntityInTile(level, entity);
+            bool alreadyMoved = ProcessEntityTileOverlap(level, destP, entity, EntityOverlapType_Entering);
         }
-        return result;
     }
 
     inline bool
@@ -221,21 +217,19 @@ namespace soko
 
             if (CanMove(level, targetP, e))
             {
-                if (ChangeEntityLocation(level, e, targetP))
-                {
-                    e->inTransition = true;
-                    e->transitionCount = length;
-                    e->transitionPushCount = push;
-                    e->transitionDir = dir;
-                    e->transitionSpeed = speed;
-                    e->transitionFullPath = (v3)DirToUnitOffset(dir) * LEVEL_TILE_SIZE;
-                    e->transitionTraveledPath = {};
-                    e->transitionOrigin = beginP;
-                    e->transitionDest = targetP;
-                    e->transitionOffset = {};
-                    e->transitionSpeed = speed;
-                    result = true;
-                }
+                ChangeEntityLocation(level, e, targetP);
+                e->inTransition = true;
+                e->transitionCount = length;
+                e->transitionPushCount = push;
+                e->transitionDir = dir;
+                e->transitionSpeed = speed;
+                e->transitionFullPath = (v3)DirToUnitOffset(dir) * LEVEL_TILE_SIZE;
+                e->transitionTraveledPath = {};
+                e->transitionOrigin = beginP;
+                e->transitionDest = targetP;
+                e->transitionOffset = {};
+                e->transitionSpeed = speed;
+                result = true;
             }
 
             if (push < 0)

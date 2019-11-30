@@ -121,6 +121,9 @@ namespace soko
 
         iv3 spawnP;
 
+        u32 platformCount;
+        u32 completePlatformCount;
+
         u32 chunkEntityBlockCount;
         ChunkEntityBlock* freeChunkEntityBlocks;
     };

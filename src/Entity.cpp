@@ -135,15 +135,6 @@ namespace soko
         return entitiesWritten;
     }
 
-#if 0
-    internal void
-    ChangeEntityType(Entity* entity, EntityType newType)
-    {
-        entity->type = newType;
-        entity->flags = EntityTypesFlags[newType];
-    }
-#endif
-
     inline Entity*
     GetEntityMemory(Level* level)
     {
@@ -184,6 +175,8 @@ namespace soko
                 UnregisterEntityInTile(level, entity);
 
                 level->entityCount--;
+                SOKO_ASSERT(level->platformCount > 0);
+                level->platformCount--;
                 entity->nextEntity = level->entityFreeList;
                 level->entityFreeList = entity;
                 level->deletedEntityCount++;
@@ -233,6 +226,11 @@ namespace soko
                 }
                 level->entityCount++;
 
+                if (newEntity->type == EntityType_Platform)
+                {
+                    level->platformCount++;
+                }
+
                 RegisterEntityInTile(level, newEntity);
 
                 result = newEntity->id;
@@ -265,6 +263,11 @@ namespace soko
                 level->entities[entityHash] = newEntity;
                 level->entitySerialNumber++;
                 level->entityCount++;
+
+                if (newEntity->type == EntityType_Platform)
+                {
+                    level->platformCount++;
+                }
 
                 *newEntity = entity;
                 newEntity->id = entityId;

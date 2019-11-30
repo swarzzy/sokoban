@@ -603,13 +603,24 @@ namespace soko
             EndSim(gameState->session.level, simRegion);
             EndTemporaryMemory(gameState->tempArena);
 
+            SOKO_ASSERT(level->completePlatformCount <= level->platformCount);
+
+            DEBUG_OVERLAY_TRACE(level->completePlatformCount);
+            DEBUG_OVERLAY_TRACE(level->platformCount);
+
+            if (level->completePlatformCount == level->platformCount)
+            {
+                DestroyGameSession(&gameState->session);
+                gameState->globalGameMode = GAME_MODE_MENU;
+                gameState->mainMenu.state = MainMenu_LevelCompleted;
+            }
+
             if (DebugOverlayBeginCustom())
             {
                 if (ImGui::Button("Exit to main menu", {150.0f, 20.0f}))
                 {
                     DestroyGameSession(&gameState->session);
                     gameState->globalGameMode = GAME_MODE_MENU;
-
                 }
                 DebugOverlayEndCustom();
             }

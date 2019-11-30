@@ -9,6 +9,7 @@ namespace soko
         SOKO_ASSERT(e->type == EntityType_Player);
         auto* data = &e->behavior.data.player;
         u32 steps = 1;
+        u32 pushDepth = data->reversed ? 1 : 1;
 
         if (JustPressed(AB::KEY_SPACE))
         {
@@ -17,32 +18,32 @@ namespace soko
 
         if (JustPressed(AB::KEY_SPACE))
         {
-            BeginEntityTransition(level, e, Direction_Up, steps, e->movementSpeed, data->reversed ? -2 : 2);
+            BeginEntityTransition(level, e, Direction_Up, steps, e->movementSpeed, pushDepth);
         }
 
         if (JustPressed(AB::KEY_SHIFT))
         {
-            BeginEntityTransition(level, e, Direction_Down, steps, e->movementSpeed, data->reversed ? -2 : 2);
+            BeginEntityTransition(level, e, Direction_Down, steps, e->movementSpeed, pushDepth);
         }
 
         if (JustPressed(AB::KEY_UP))
         {
-            BeginEntityTransition(level, e, Direction_North, steps, e->movementSpeed, data->reversed ? -2 : 2);
+            BeginEntityTransition(level, e, Direction_North, steps, e->movementSpeed, pushDepth);
         }
 
         if (JustPressed(AB::KEY_DOWN))
         {
-            BeginEntityTransition(level, e, Direction_South, steps, e->movementSpeed, data->reversed ? -2 : 2);
+            BeginEntityTransition(level, e, Direction_South, steps, e->movementSpeed, pushDepth);
         }
 
         if (JustPressed(AB::KEY_RIGHT))
         {
-            BeginEntityTransition(level, e, Direction_East, steps, e->movementSpeed, data->reversed ? -2 : 2);
+            BeginEntityTransition(level, e, Direction_East, steps, e->movementSpeed, pushDepth);
         }
 
         if (JustPressed(AB::KEY_LEFT))
         {
-            BeginEntityTransition(level, e, Direction_West, steps, e->movementSpeed, data->reversed ? -2 : 2);
+            BeginEntityTransition(level, e, Direction_West, steps, e->movementSpeed, pushDepth);
         }
     }
 
