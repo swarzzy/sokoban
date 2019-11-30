@@ -871,6 +871,127 @@ namespace AB
         return datetime;
     }
 
+    inline b32
+    TcharToWchar(wchar_t* dest, const TCHAR* src, u32 destSize)
+    {
+        b32 result = false;
+#if defined(UNICODE) || defined(_UNICODE)
+        auto cpyResult = wcscpy_s(dest, destSize, src);
+        if (cpyResult == 0) result = true;
+#else
+        auto mbsResult = mbstowcs(dest, src, destSize);
+        if (mbsResult) result = true;
+#endif
+        return result;
+    }
+
+    internal i32
+    CountFilesInDirectory(const wchar_t* dirName)
+    {
+        i32 count = 0;
+        WIN32_FIND_DATA fd;
+
+        HANDLE handle = FindFirstFileW(dirName, &fd);
+
+        if (handle != INVALID_HANDLE_VALUE)
+        {
+            do
+            {
+                if (!(fd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY))
+                {
+                    count++;
+                }
+            }
+            while (FindNextFile(handle, &fd) != 0);
+
+            auto error = GetLastError();
+            if (error != ERROR_NO_MORE_FILES)
+            {
+                AB_CORE_ERROR("An error occured while enumerating files in directory (%u32).", (u32)error);
+                count = -1;
+            }
+            FindClose(handle);
+        }
+        else
+        {
+            count = -1;
+        }
+        return count;
+    }
+
+    internal DirectoryContents
+    EnumerateFilesInDirectory(const wchar_t* dirName, MemoryArena* tempArena)
+    {
+        // TODO: Actually support names that are larger than MAX_PATH
+        // TODO: This is not well tested. Test with unicode paths, lengthy paths etc...
+        DirectoryContents result = {};
+        result.scannedSuccesfully = true;
+
+        WIN32_FIND_DATA fd;
+        u32 dirNameLen = (u32)wcslen(dirName);
+        wchar_t* dirBuf = (wchar_t*)PUSH_SIZE(tempArena, sizeof(wchar_t) * (dirNameLen + 4)); // Extra byte just in case
+        if (dirBuf)
+        {
+            wcscpy(dirBuf, dirName);
+            wcscat(dirBuf, L"\\*");
+
+            i32 count = CountFilesInDirectory(dirBuf);
+            if (count > 0)
+            {
+                HANDLE handle = FindFirstFileW(dirBuf, &fd);
+
+                if (handle != INVALID_HANDLE_VALUE)
+                {
+                    result.filenames = PUSH_ARRAY(tempArena, wchar_t*, count);
+                    if (result.filenames)
+                    {
+                        do
+                        {
+                            if (!(fd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY))
+                            {
+                                u32 filenameLen = (u32)_tcslen(fd.cFileName) + 1;
+                                wchar_t* filename = (wchar_t*)PUSH_SIZE(tempArena, sizeof(wchar_t) * filenameLen);
+                                if (filename)
+                                {
+                                    bool cvtResult = TcharToWchar(filename, fd.cFileName, filenameLen);
+                                    if (cvtResult)
+                                    {
+                                        result.filenames[result.count] = filename;
+                                        result.count++;
+                                        AB_CORE_ASSERT(result.count <= (u32)count);
+                                    }
+                                    else
+                                    {
+                                        result.scannedSuccesfully = false;
+                                        break;
+                                    }
+                                }
+                                else
+                                {
+                                    result.scannedSuccesfully = false;
+                                    break;
+                                }
+                            }
+                        }
+                        while (FindNextFile(handle, &fd) != 0);
+                    }
+                    else
+                    {
+                        result.scannedSuccesfully = false;
+                    }
+
+                    auto error = GetLastError();
+                    if (error != ERROR_NO_MORE_FILES)
+                    {
+                        result.scannedSuccesfully = false;
+                    }
+                    FindClose(handle);
+                }
+            }
+        }
+        return result;
+    }
+
     u32 DebugReadFileToBuffer(void* buffer, u32 bufferSize, const wchar_t* filename)
     {
         u32 written = 0;
@@ -1236,6 +1357,8 @@ namespace AB
 
         app->state.functions.GetTimeStamp = GetTimeStamp;
 
+        app->state.functions.EnumerateFilesInDirectory = EnumerateFilesInDirectory;
+
         app->state.functions.AllocForImGui = AllocForImGui;
         app->state.functions.FreeForImGui = FreeForImGui;
 
@@ -1371,6 +1494,12 @@ int main()
     AB::GlobalApplication = app;
     AB_CORE_ASSERT(app, "Failed to allocate Application.");
     app->mainArena = arena;
+    AB::DirectoryContents c = AB::EnumerateFilesInDirectory(L".", app->mainArena);
+    for (u32 i = 0; i < c.count; i++)
+    {
+        wprintf(L"%s\n", c.filenames[i]);
+    }
+
     AB::AppRun(app);
     return 0;
 }

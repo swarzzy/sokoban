@@ -176,38 +176,80 @@ namespace soko
         RenderGroupSetCamera(gameState->renderGroup, &gameState->session.editorCamera->conf);
     }
 
+    // TODO: Better tempArena
     internal void
-    MenuSingleSelectLevel(GameMenu* menu)
+    MenuSingleSelectLevel(GameMenu* menu, AB::MemoryArena* tempArena)
     {
-        ImGui::Text("Load level");
-        ImGui::Separator();
-        ImGui::Text("Path:");
-        ImGui::PushID("level path input");
-        if (ImGui::InputText("", menu->levelPathBuffer, LEVEL_PATH_BUFFER_SIZE))
+        MainMenuState nextState = MainMenu_SingleSelectLevel;
+        if (!menu->levelCache.initialized)
         {
-            mbstowcs(menu->wLevelPathBuffer, menu->levelPathBuffer, LEVEL_PATH_BUFFER_SIZE);
+            BeginTemporaryMemory(tempArena);
+            menu->levelCache.dirScanResult = EnumerateFilesInDirectory(L".", tempArena);
+
+            menu->levelCache.isLevel = PUSH_ARRAY(tempArena, b32, menu->levelCache.dirScanResult.count);
+            SOKO_ASSERT(menu->levelCache.isLevel);
+
+            for (u32 i = 0; i < menu->levelCache.dirScanResult.count; i++)
+            {
+                LevelMetaInfo info = {};
+                b32 isLevel = GetLevelMetaInfo(menu->levelCache.dirScanResult.filenames[i], &info);
+                if (isLevel && !menu->levelCache.initialized)
+                {
+                    menu->levelCache.selectedIndex = i;
+                }
+                menu->levelCache.isLevel[i] = isLevel;
+            }
+            menu->levelCache.initialized = true;
         }
-        ImGui::PopID();
+
+        ImGui::Text("Load level");
+
+        char string[256];
+        wcstombs(string, menu->levelCache.dirScanResult.filenames[menu->levelCache.selectedIndex], 256);
+        if (ImGui::BeginCombo("Available levels", string))
+        {
+            for (u32 i = 0; i < menu->levelCache.dirScanResult.count; i++)
+            {
+                if (menu->levelCache.isLevel[i])
+                {
+                    if (wcstombs(string, menu->levelCache.dirScanResult.filenames[i], 256) == (size_t)(-1))
+                    {
+                        strcpy(string, "<error>");
+                    }
+                    if (ImGui::Selectable(string))
+                    {
+                        menu->levelCache.selectedIndex = i;
+                    }
+                }
+            }
+
+            ImGui::EndCombo();
+        }
+
+        ImGui::Separator();
         if (ImGui::Button("Load", ImVec2(60, 20)))
         {
-            if (GetLevelMetaInfo(menu->wLevelPathBuffer, &menu->levelMetaInfo))
+            wchar_t* levelName = menu->levelCache.dirScanResult.filenames[menu->levelCache.selectedIndex];
+            if (GetLevelMetaInfo(levelName, &menu->levelMetaInfo))
             {
-                menu->state = MainMenu_SingleLoadLevel;
+                wcscpy_s(menu->wLevelPathBuffer, LEVEL_PATH_BUFFER_SIZE, levelName);
+                nextState = MainMenu_SingleLoadLevel;
             }
         }
         ImGui::SameLine();
 
-        if (ImGui::Button("Create new", ImVec2(100, 20)))
-        {
-        }
-
-        ImGui::Separator();
-
         if (ImGui::Button("Return", ImVec2(100, 20)))
         {
-            menu->state = MainMenu_ModeSelection;
+            nextState = MainMenu_ModeSelection;
         }
 
+        menu->state = nextState;
+
+        if (menu->state != MainMenu_SingleSelectLevel)
+        {
+            menu->levelCache = {};
+            EndTemporaryMemory(tempArena);
+        }
     }
 
     internal void
@@ -583,7 +625,8 @@ namespace soko
             MenuModeSelection(menu);
             ImGui::Text("Main arena free space: %llu", gameState->memoryArena->free);
         } break;
-        case MainMenu_SingleSelectLevel: { MenuSingleSelectLevel(menu); } break;
+        // NOTE: MenuSingleSelectLevel() uses tempArena
+        case MainMenu_SingleSelectLevel: { MenuSingleSelectLevel(menu, gameState->tempArena); } break;
         case MainMenu_SingleLoadLevel: { SingleLoadLevel(menu, gameState); } break;
 //        case MainMenu_ConfigureServer: { MenuServerSettings(menu); } break;
 //        case MainMenu_CreateServer: { MenuCreateServer(gameState, menu); } break;

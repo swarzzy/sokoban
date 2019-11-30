@@ -278,6 +278,13 @@ namespace AB
 
     const u16 DATETIME_STRING_SIZE = 9; // hh:mm:ss\0
 
+    struct DirectoryContents
+    {
+        b32 scannedSuccesfully;
+        u32 count;
+        wchar_t** filenames;
+    };
+
     // NOTE: Net functions
     struct NetAddress
     {
@@ -330,6 +337,8 @@ namespace AB
 
     typedef i64(GetTimeStampFn)();
 
+    typedef DirectoryContents(EnumerateFilesInDirectoryFn)(const wchar_t* dirName, MemoryArena* tempArena);
+
     typedef void*(AllocForImGuiFn)(size_t sz, void* data);
     typedef void(FreeForImGuiFn)(void* ptr, void* data);
 
@@ -371,6 +380,8 @@ namespace AB
         FreeArenaFn* FreeArena;
 
         GetTimeStampFn* GetTimeStamp;
+
+        EnumerateFilesInDirectoryFn* EnumerateFilesInDirectory;
 
         AllocForImGuiFn* AllocForImGui;
         FreeForImGuiFn* FreeForImGui;

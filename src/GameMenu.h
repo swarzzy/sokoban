@@ -43,9 +43,18 @@ namespace soko
 
     namespace net { struct Client; }
 
+    struct MenuLevelCache
+    {
+        bool initialized;
+        u32 selectedIndex;
+        DirectoryContents dirScanResult;
+        b32* isLevel;
+    };
+
     struct GameMenu
     {
         MainMenuState state;
+        MenuLevelCache levelCache;
         // NOTE: Will be zeroed from this member
         char levelPathBuffer[LEVEL_PATH_BUFFER_SIZE];
         wchar_t wLevelPathBuffer[LEVEL_PATH_BUFFER_SIZE];

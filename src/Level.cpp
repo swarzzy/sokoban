@@ -806,7 +806,7 @@ namespace soko
     internal bool
     GetLevelMetaInfo(const wchar_t* filename, LevelMetaInfo* outInfo)
     {
-        bool result = 0;
+        bool result = false;
         u32 fileSize = DebugGetFileSize(filename);
         if (fileSize)
         {
@@ -819,7 +819,7 @@ namespace soko
                 header.chunkCount &&
                 header.chunkMeshBlockCount)
             {
-                result = 1;
+                result = true;
                 if (outInfo)
                 {
                     ZERO_STRUCT(LevelMetaInfo, outInfo);

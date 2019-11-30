@@ -58,6 +58,7 @@ namespace soko
 #define QueryNewArena SOKO_PLATFORM_FUNCTION(QueryNewArena)
 #define FreeArena SOKO_PLATFORM_FUNCTION(FreeArena)
 #define GetTimeStamp SOKO_PLATFORM_FUNCTION(GetTimeStamp)
+#define EnumerateFilesInDirectory SOKO_PLATFORM_FUNCTION(EnumerateFilesInDirectory)
 
 #define PLATFORM_QUERY_NEW_ARENA(size) QueryNewArena(size)
 #define PLATFORM_FREE_ARENA(arena) FreeArena(arena)
