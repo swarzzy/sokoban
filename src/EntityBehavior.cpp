@@ -3,11 +3,41 @@
 namespace soko
 {
     internal void
+    UpdatePlatform(Level* level, Entity* e)
+    {
+        SOKO_ASSERT(e->type == EntityType_Platform);
+        SOKO_ASSERT(e->footprintDim == UV3(1, 1, 1));
+
+        if (!level->initialized)
+        {
+            bool complete = false;
+            EntityMapIterator it = {};
+            while (true)
+            {
+                Entity* entity = YieldEntityFromTile(level, e->pos, &it);
+                if (!entity) break;
+
+                if (entity != e && entity->type == EntityType_Block)
+                {
+                    complete = true;
+                    break;
+                }
+            }
+
+            if (complete)
+            {
+                level->completePlatformCount++;
+            }
+        }
+    }
+
+    internal void
     UpdateEntity(Level* level, Entity* e)
     {
         switch (e->type)
         {
-        case EntityType_Player: { UpdatePlayer(level, e); }
+        case EntityType_Player: { UpdatePlayer(level, e); } break;
+        case EntityType_Platform: { UpdatePlatform(level, e); } break;
         default: {} break;
         }
     }

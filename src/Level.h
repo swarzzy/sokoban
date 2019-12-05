@@ -106,8 +106,10 @@ namespace soko
         AB::MemoryArena* sessionArena;
         u32 globalChunkMeshBlockCount;
 
+        b32 initialized;
+
         u32 loadedChunksCount;
-        // TODO: @Robustness Store linked list of loaded chunks
+        // TODO: @Robustness Store an array of loaded chunks
         // for fast traversing
         // TODO: @Speed store key data inside table buckets
         Chunk* chunkTable[LEVEL_CHUNK_TABLE_SIZE];

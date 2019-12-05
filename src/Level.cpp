@@ -904,6 +904,26 @@ namespace soko
         return result;
     }
 
+    internal void
+    InitEntities(Level* level)
+    {
+        Entity* e = 0;
+        for (u32 index = 0; index < ArrayCount(level->entities); index++)
+        {
+            e = level->entities[index];
+            if (e)
+            {
+                do
+                {
+                    UpdateEntity(level, e);
+                    e = e->nextEntity;
+                }
+                while (e);
+            }
+        }
+        level->initialized = true;
+    }
+
     internal Level*
     LoadLevel(const wchar_t* filename, AB::MemoryArena* levelArena, AB::MemoryArena* tempArena)
     {
@@ -937,6 +957,7 @@ namespace soko
                                     SOKO_ASSERT(loadedLevel->loadedChunksCount == header.chunkCount);
                                     SOKO_ASSERT(loadedLevel->entityCount == header.entityCount + 1);
                                     SOKO_ASSERT(CanMove(loadedLevel, header.spawnP, 0));
+                                    InitEntities(loadedLevel);
                                     result = loadedLevel;
                                 }
                             }

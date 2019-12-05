@@ -536,6 +536,7 @@ namespace soko
             DrawOverlay(gameState);
             Entity* player = gameState->session.controlledPlayer;
             Level* level = gameState->session.level;
+
             BeginTemporaryMemory(gameState->tempArena, true);
             SimRegion* simRegion = BeginSim(gameState->tempArena,
                                             level,
