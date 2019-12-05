@@ -12,7 +12,7 @@ namespace AB
 
     const u32 AAB_FILE_MAGIC_VALUE = 0xaabaabaa;
     const u32 AAB_MESH_FILE_VERSION = 2;
-    const u32 AAB_LEVEL_FILE_VERSION = 0;
+    const u32 AAB_LEVEL_FILE_VERSION = 1;
 
 #pragma pack(push, 1)
     struct AABMeshMaterialProperties
@@ -73,7 +73,9 @@ namespace AB
         u64 firstEntityOffset;
         // TODO: Is that possible that iv3 would have different alignment
         // on any of supported platform?
-        iv3 spawnP;
+        iv3 firstPlayerSpawnPos;
+        iv3 secondPlayerSpawnPos;
+        b32 hasSecondPlayer;
     };
 #pragma pack (pop)
 

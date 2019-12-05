@@ -165,7 +165,10 @@ namespace soko
         // TODO: Allocate session in session
         // arena and store just a pointer in gameState
         // to avoid copying session to gameState
-        gameState->session.controlledPlayer = 0;
+        gameState->session.firstPlayer = 0;
+        gameState->session.secondPlayer = 0;
+
+
 
         gameState->session.editorCamera = PUSH_STRUCT(gameState->session.sessionArena, EditorCamera);
         gameState->session.editor = PUSH_STRUCT(gameState->session.sessionArena, Editor);
@@ -265,7 +268,13 @@ namespace soko
         {
             menu->session.sessionArena = levelArena;
             menu->session.level = level;
-            menu->session.controlledPlayer = AddPlayer(&menu->session, level->spawnP);
+            bool p1Added = AddPlayer(&menu->session, level->firstPlayerSpawnPos, PlayerSlot_First);
+            SOKO_ASSERT(p1Added);
+            if (level->hasSecondPlayer)
+            {
+                bool p2Added = AddPlayer(&menu->session, level->secondPlayerSpawnPos, PlayerSlot_Second);
+                SOKO_ASSERT(p2Added);
+            }
             nextState = MainMenu_EnterLevel;
         }
         else
@@ -591,7 +600,7 @@ namespace soko
         // to avoid copying session to gameState
         //gameState->session.controlledPlayer = gameState->session.players;
 
-        InitCameras(&gameState->session.camera, MakeWorldPos(gameState->session.controlledPlayer->pos), &gameState->session.debugCamera);
+        InitCameras(&gameState->session.camera, MakeWorldPos(gameState->session.firstPlayer->pos), &gameState->session.debugCamera);
         RenderGroupSetCamera(gameState->renderGroup, &gameState->session.camera.conf);
     }
 

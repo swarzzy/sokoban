@@ -534,7 +534,7 @@ namespace soko
         default:
         {
             DrawOverlay(gameState);
-            Entity* player = gameState->session.controlledPlayer;
+            Entity* player = gameState->session.firstPlayer;
             Level* level = gameState->session.level;
 
             BeginTemporaryMemory(gameState->tempArena, true);

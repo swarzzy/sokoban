@@ -743,7 +743,13 @@ namespace soko
     SaveLevel(const Level* level, const wchar_t* filename, AB::MemoryArena* arena)
     {
         bool result = false;
-        bool spawnTileIsFree = CanMove(level, level->spawnP, 0);
+        bool spawnTileIsFree = CanMove(level, level->firstPlayerSpawnPos, 0);
+        if (level->hasSecondPlayer)
+        {
+            spawnTileIsFree = spawnTileIsFree && CanMove(level, level->secondPlayerSpawnPos, 0);
+            spawnTileIsFree = spawnTileIsFree && (level->firstPlayerSpawnPos != level->secondPlayerSpawnPos);
+        }
+
         if (spawnTileIsFree)
         {
 
@@ -765,8 +771,9 @@ namespace soko
                 header->chunkCount = level->loadedChunksCount;
                 header->chunkMeshBlockCount = level->globalChunkMeshBlockCount;
                 header->firstChunkOffset = sizeof(AB::AABLevelHeader);
-                header->spawnP = level->spawnP;
-                //header->entityCount = level->entityCount - 1; // Null entity is not considered
+                header->firstPlayerSpawnPos = level->firstPlayerSpawnPos;
+                header->secondPlayerSpawnPos = level->secondPlayerSpawnPos;
+                header->hasSecondPlayer = level->hasSecondPlayer;
                 header->firstEntityOffset = headerSize + chunksSize;
 
                 auto chunks = (SerializedChunk*)(buffer + header->firstChunkOffset);
@@ -924,6 +931,33 @@ namespace soko
         level->initialized = true;
     }
 
+    inline bool
+    CheckLoadedLevel(const Level* level, const AB::AABLevelHeader* header)
+    {
+        bool result = false;
+        if (level->loadedChunksCount == header->chunkCount)
+        {
+            if (level->entityCount == header->entityCount + 1)
+            {
+                if (CanMove(level, header->firstPlayerSpawnPos, 0))
+                {
+                    if (level->hasSecondPlayer)
+                    {
+                        if (CanMove(level, header->secondPlayerSpawnPos, 0))
+                        {
+                            result = true;
+                        }
+                    }
+                    else
+                    {
+                        result = true;
+                    }
+                }
+            }
+        }
+        return result;
+    }
+
     internal Level*
     LoadLevel(const wchar_t* filename, AB::MemoryArena* levelArena, AB::MemoryArena* tempArena)
     {
@@ -947,18 +981,22 @@ namespace soko
                         Level* loadedLevel = CreateLevel(levelArena);
                         if (loadedLevel)
                         {
-                            loadedLevel->spawnP = header.spawnP;
+                            loadedLevel->firstPlayerSpawnPos = header.firstPlayerSpawnPos;
+                            loadedLevel->secondPlayerSpawnPos = header.secondPlayerSpawnPos;
+                            loadedLevel->hasSecondPlayer = header.hasSecondPlayer;
+
                             auto chunks = (SerializedChunk*)((byte*)fileBuffer + header.firstChunkOffset);
                             if (LoadChunks(levelArena, loadedLevel, chunks, header.chunkCount))
                             {
                                 auto entities = (SerializedEntityV2*)((byte*)fileBuffer + header.firstEntityOffset);
                                 if (LoadEntities(loadedLevel, entities, header.entityCount))
                                 {
-                                    SOKO_ASSERT(loadedLevel->loadedChunksCount == header.chunkCount);
-                                    SOKO_ASSERT(loadedLevel->entityCount == header.entityCount + 1);
-                                    SOKO_ASSERT(CanMove(loadedLevel, header.spawnP, 0));
-                                    InitEntities(loadedLevel);
-                                    result = loadedLevel;
+                                    bool valid = CheckLoadedLevel(loadedLevel, &header);
+                                    if (valid)
+                                    {
+                                        InitEntities(loadedLevel);
+                                        result = loadedLevel;
+                                    }
                                 }
                             }
                         }
@@ -969,6 +1007,7 @@ namespace soko
         return result;
     }
 
+    // TODO: Fix this
     internal bool
     GenTestLevel(AB::MemoryArena* tempArena)
     {
@@ -1034,7 +1073,8 @@ namespace soko
         AddEntity(level, entity1);
         //AddEntity(playerLevel)
 
-        level->spawnP = IV3(10, 10, 1);
+        level->firstPlayerSpawnPos = IV3(10, 10, 1);
+        level->hasSecondPlayer = false;
 
         Entity entity2 = {};
         entity2.type = EntityType_Block;

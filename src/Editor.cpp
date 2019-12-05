@@ -147,15 +147,29 @@ namespace soko
     internal void
     EditorLevelSettings(Editor* editor)
     {
+        Level* level = editor->region->level;
         ImGuiIO* io = &ImGui::GetIO();
         ImGui::SetNextWindowSize({400, 150});
         auto windowFlags = ImGuiWindowFlags_NoResize | ImGuiWindowFlags_AlwaysAutoResize;
         if (ImGui::Begin("Level settings", (bool*)&editor->ui.levelSettingsOpened, windowFlags))
         {
-            ImGui::Text("Spawn position");
-            ImGui::InputInt("x", &editor->region->level->spawnP.x);
-            ImGui::InputInt("y", &editor->region->level->spawnP.y);
-            ImGui::InputInt("z", &editor->region->level->spawnP.z);
+            ImGui::Text("First player spawn position");
+            ImGui::InputInt("first player x", &level->firstPlayerSpawnPos.x);
+            ImGui::InputInt("first player y", &level->firstPlayerSpawnPos.y);
+            ImGui::InputInt("first player z", &level->firstPlayerSpawnPos.z);
+            ImGui::Separator();
+
+            bool enableSecondPlayer = (bool)level->hasSecondPlayer;
+            ImGui::Checkbox("Second player", &enableSecondPlayer);
+            level->hasSecondPlayer = (b32)enableSecondPlayer;
+
+            if (level->hasSecondPlayer)
+            {
+                ImGui::Text("Second player spawn position");
+                ImGui::InputInt("second player x", &level->secondPlayerSpawnPos.x);
+                ImGui::InputInt("second player y", &level->secondPlayerSpawnPos.y);
+                ImGui::InputInt("second player z", &level->secondPlayerSpawnPos.z);
+            }
         }
         ImGui::End();
     }

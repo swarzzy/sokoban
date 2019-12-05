@@ -7,9 +7,16 @@ namespace soko
         EntityOverlapType_Leaving
     };
 
+    enum PlayerSlot
+    {
+        PlayerSlot_First,
+        PlayerSlot_Second
+    };
+
     struct PlayerBehaviorData
     {
         bool reversed;
+        PlayerSlot slot;
     };
 
     struct PortalBehaviorData

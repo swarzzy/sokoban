@@ -8,78 +8,123 @@ namespace soko
     {
         SOKO_ASSERT(e->type == EntityType_Player);
         auto* data = &e->behavior.data.player;
-        u32 steps = 1;
-        u32 pushDepth = data->reversed ? 1 : 1;
-
-        if (JustPressed(AB::KEY_SPACE))
+        if (data->slot == PlayerSlot_First)
         {
-            data->reversed = !data->reversed;
+            u32 steps = 1;
+            u32 pushDepth = data->reversed ? 1 : 1;
+
+            if (JustPressed(AB::KEY_SPACE))
+            {
+                data->reversed = !data->reversed;
+            }
+
+            if (JustPressed(AB::KEY_SPACE))
+            {
+                BeginEntityTransition(level, e, Direction_Up, steps, e->movementSpeed, pushDepth);
+            }
+
+            if (JustPressed(AB::KEY_SHIFT))
+            {
+                BeginEntityTransition(level, e, Direction_Down, steps, e->movementSpeed, pushDepth);
+            }
+
+            if (JustPressed(AB::KEY_UP))
+            {
+                BeginEntityTransition(level, e, Direction_North, steps, e->movementSpeed, pushDepth);
+            }
+
+            if (JustPressed(AB::KEY_DOWN))
+            {
+                BeginEntityTransition(level, e, Direction_South, steps, e->movementSpeed, pushDepth);
+            }
+
+            if (JustPressed(AB::KEY_RIGHT))
+            {
+                BeginEntityTransition(level, e, Direction_East, steps, e->movementSpeed, pushDepth);
+            }
+
+            if (JustPressed(AB::KEY_LEFT))
+            {
+                BeginEntityTransition(level, e, Direction_West, steps, e->movementSpeed, pushDepth);
+            }
         }
-
-        if (JustPressed(AB::KEY_SPACE))
+        else if (data->slot == PlayerSlot_Second)
         {
-            BeginEntityTransition(level, e, Direction_Up, steps, e->movementSpeed, pushDepth);
+            u32 steps = 1;
+            u32 pushDepth = data->reversed ? 1 : 1;
+
+            if (JustPressed(AB::KEY_SHIFT))
+            {
+                data->reversed = !data->reversed;
+            }
+
+            if (JustPressed(AB::KEY_W))
+            {
+                BeginEntityTransition(level, e, Direction_North, steps, e->movementSpeed, pushDepth);
+            }
+
+            if (JustPressed(AB::KEY_S))
+            {
+                BeginEntityTransition(level, e, Direction_South, steps, e->movementSpeed, pushDepth);
+            }
+
+            if (JustPressed(AB::KEY_D))
+            {
+                BeginEntityTransition(level, e, Direction_East, steps, e->movementSpeed, pushDepth);
+            }
+
+            if (JustPressed(AB::KEY_A))
+            {
+                BeginEntityTransition(level, e, Direction_West, steps, e->movementSpeed, pushDepth);
+            }
         }
-
-        if (JustPressed(AB::KEY_SHIFT))
+        else
         {
-            BeginEntityTransition(level, e, Direction_Down, steps, e->movementSpeed, pushDepth);
-        }
-
-        if (JustPressed(AB::KEY_UP))
-        {
-            BeginEntityTransition(level, e, Direction_North, steps, e->movementSpeed, pushDepth);
-        }
-
-        if (JustPressed(AB::KEY_DOWN))
-        {
-            BeginEntityTransition(level, e, Direction_South, steps, e->movementSpeed, pushDepth);
-        }
-
-        if (JustPressed(AB::KEY_RIGHT))
-        {
-            BeginEntityTransition(level, e, Direction_East, steps, e->movementSpeed, pushDepth);
-        }
-
-        if (JustPressed(AB::KEY_LEFT))
-        {
-            BeginEntityTransition(level, e, Direction_West, steps, e->movementSpeed, pushDepth);
+            INVALID_CODE_PATH;
         }
     }
 
-    internal Entity*
-    AddPlayer(GameSession* session, iv3 coord)
+    inline bool
+    AddPlayer(GameSession* session, iv3 coord, PlayerSlot slot)
     {
+        bool result = false;
+
         Level* level = session->level;
-        Entity* p = 0;
-#if 0
-        i32 freePlayerIndex = -1;
-        for (i32 i = 0; i < SESSION_MAX_PLAYERS; i++)
+
+        bool slotIsFree = false;
+
+        if (slot == PlayerSlot_First)
         {
-            if (!session->playersOccupancy[i])
-            {
-                freePlayerIndex = i;
-                break;
-            }
+            slotIsFree = (session->firstPlayer == 0);
+        }
+        else if (slot == PlayerSlot_Second)
+        {
+            slotIsFree = (session->secondPlayer == 0);
+        }
+        else
+        {
+            INVALID_CODE_PATH;
         }
 
-        if (freePlayerIndex != -1)
+        u32 playerId = AddEntity(level, EntityType_Player, coord, 8.0f,
+                                 EntityMesh_Cat, EntityMaterial_Cat);
+        if (playerId)
         {
-#endif
-            u32 playerId = AddEntity(level, EntityType_Player, coord, 8.0f,
-                                     EntityMesh_Cat, EntityMaterial_Cat);
-            if (playerId)
+            Entity* p = GetEntity(level, playerId);
+            SOKO_ASSERT(p);
+            if (slot == PlayerSlot_First)
             {
-                //p = session->players + freePlayerIndex;
-                //p->level = level;
-                p = GetEntity(level, playerId);
-                p->behavior.data.player.reversed = false;
-                SOKO_ASSERT(p);
-                //session->playersOccupancy[freePlayerIndex] = true;
+                session->firstPlayer = p;
             }
-
-//        }
-        return p;
+            else
+            {
+                session->secondPlayer = p;
+            }
+            p->behavior.data.player.reversed = false;
+            p->behavior.data.player.slot = slot;
+            result = true;
+        }
+        return result;
     }
 
     internal void

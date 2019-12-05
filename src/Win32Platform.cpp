@@ -1494,12 +1494,6 @@ int main()
     AB::GlobalApplication = app;
     AB_CORE_ASSERT(app, "Failed to allocate Application.");
     app->mainArena = arena;
-    AB::DirectoryContents c = AB::EnumerateFilesInDirectory(L".", app->mainArena);
-    for (u32 i = 0; i < c.count; i++)
-    {
-        wprintf(L"%s\n", c.filenames[i]);
-    }
-
     AB::AppRun(app);
     return 0;
 }
