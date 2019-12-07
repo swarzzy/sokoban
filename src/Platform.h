@@ -19,6 +19,7 @@
 #define local_persist static
 
 #define ArrayCount(arr) (sizeof(arr) / sizeof(arr[0]))
+#define DeclMember(type, member) (((type*)0)->member)
 
 #define null nullptr
 
@@ -286,6 +287,13 @@ namespace AB
     };
 
     // NOTE: Net functions
+
+    enum SocketType
+    {
+        SocketType_TCP,
+        SocketType_UDP
+    };
+
     struct NetAddress
     {
         u32 ip;
@@ -305,11 +313,27 @@ namespace AB
         NetAddress from;
     };
 
+    enum ConnectionStatus
+    {
+        ConnectionStatus_Error = 0,
+        ConnectionStatus_Connected,
+        ConnectionStatus_Pending
+    };
+
     typedef uptr Socket;
 
-    typedef uptr(NetCreateSocketFn)();
+    inline u32 PackIP(byte o1, byte o2, byte o3, byte o4)
+    {
+        u32 result = (o1 << 24) | (o2 << 16) | (o3 << 8) | (o4);
+        return result;
+    }
+
+    typedef uptr(NetCreateSocketFn)(SocketType type);
     typedef bool(NetCloseSocketFn)(uptr socket);
-    typedef bool(NetBindSocketFn)(uptr socket, u16 port);
+    typedef u16(NetBindSocketFn)(uptr socket);
+    typedef bool(NetListenFn)(uptr sock, u32 queueSize);
+    typedef uptr(NetAcceptFn)(uptr sock);
+    typedef ConnectionStatus(NetConnectFn)(uptr sock, NetAddress address);
     typedef NetSendResult(NetSendFn)(uptr socket, NetAddress address, const void* buffer, u32 bufferSize);
     typedef NetRecieveResult(NetRecieveFn)(uptr socket, void* buffer, u32 bufferSize);
 
@@ -373,6 +397,9 @@ namespace AB
         NetCreateSocketFn* NetCreateSocket;
         NetCloseSocketFn* NetCloseSocket;
         NetBindSocketFn* NetBindSocket;
+        NetListenFn* NetListen;
+        NetAcceptFn* NetAccept;
+        NetConnectFn* NetConnect;
         NetSendFn* NetSend;
         NetRecieveFn* NetRecieve;
 

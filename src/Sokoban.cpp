@@ -53,6 +53,9 @@ namespace soko
 #define NetCreateSocket SOKO_PLATFORM_FUNCTION(NetCreateSocket)
 #define NetCloseSocket SOKO_PLATFORM_FUNCTION(NetCloseSocket)
 #define NetBindSocket SOKO_PLATFORM_FUNCTION(NetBindSocket)
+#define NetListen SOKO_PLATFORM_FUNCTION(NetListen)
+#define NetAccept SOKO_PLATFORM_FUNCTION(NetAccept)
+#define NetConnect SOKO_PLATFORM_FUNCTION(NetConnect)
 #define NetSend SOKO_PLATFORM_FUNCTION(NetSend)
 #define NetRecieve SOKO_PLATFORM_FUNCTION(NetRecieve)
 #define QueryNewArena SOKO_PLATFORM_FUNCTION(QueryNewArena)
@@ -495,6 +498,9 @@ namespace soko
         //gameState->port = 9999;
         //gameState->ipOctets[0] = 127;
         //gameState->ipOctets[3] = 1;
+
+        // TODO: Loading player name from config file
+        strcpy(gameState->playerName, "Unnamed player");
     }
 
     void

@@ -21,7 +21,6 @@ namespace soko::meta
     struct MetaInfo;
 }
 
-struct ImFont;
 
 namespace soko
 {
@@ -41,11 +40,14 @@ namespace soko
     };
 
     struct Renderer;
+
     struct GameState
     {
         GameMode globalGameMode;
         GameMenu mainMenu;
         GameSession session;
+
+        char playerName[PLAYER_NAME_LEN];
 
 
         AB::MemoryArena* memoryArena;

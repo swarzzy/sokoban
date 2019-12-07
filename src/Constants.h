@@ -8,6 +8,8 @@ namespace soko
     constant char* DEFAULT_LEVEL_NAME = "pbr02.aab";
     constant wchar_t* DEFAULT_LEVEL_NAME_W = L"pbr02.aab";
 
+    constant u32 PLAYER_NAME_LEN = 128;
+
 
     constant i32 CHUNK_BIT_SHIFT = 5;
     constant i32 CHUNK_BIT_MASK = (1 << CHUNK_BIT_SHIFT) - 1;

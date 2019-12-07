@@ -12,11 +12,13 @@ namespace soko
         MainMenu_SingleLoadLevel,
         MainMenu_EnterLevel,
         MainMenu_ConfigureServer,
-        MainMenu_CreateServer,
-        MainMenu_ConfigureClient,
-        MainMenu_ClientWaitForServerState,
-        MainMenu_ClientLoadLevel,
-        MainMenu_ClientConnectToServer,
+        //MainMenu_CreateServer,
+        MainMenu_ConnectToServer,
+        MainMenu_ClientWaitForConnection,
+        MainMenu_ClientSessionLobby,
+        //MainMenu_ClientWaitForServerState,
+        //MainMenu_ClientLoadLevel,
+        //MainMenu_ClientConnectToServer,
         MainMenu_GenTestLevel,
         MainMenu_EditorConf,
         MainMenu_EditorLoadLevel,
@@ -51,10 +53,23 @@ namespace soko
         b32* isLevel;
     };
 
+    enum ServerState
+    {
+        ServerState_NotInitialized = 0,
+        ServerState_Listening,
+        ServerState_Connected
+    };
+
     struct GameMenu
     {
         MainMenuState state;
         MenuLevelCache levelCache;
+        char playerNameCache[PLAYER_NAME_LEN];
+        ServerState serverState;
+        u16 serverPort;
+        uptr serverListenSocket;
+        uptr serverConnectionSocket;
+        uptr clientSocket;
         // NOTE: Will be zeroed from this member
         char levelPathBuffer[LEVEL_PATH_BUFFER_SIZE];
         wchar_t wLevelPathBuffer[LEVEL_PATH_BUFFER_SIZE];
