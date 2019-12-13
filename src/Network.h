@@ -1,4 +1,34 @@
 #pragma once
+namespace soko
+{
+#pragma pack(push, 1)
+    struct NetMessageHeader
+    {
+        enum
+        {
+            ClientConnectMessage,
+            ClientLevelListMessage
+        } type;
+    };
+
+    struct ClientConnectMessage
+    {
+        NetMessageHeader header;
+        char playerName[PLAYER_NAME_LEN];
+    };
+
+    struct ClientLevelListMessage
+    {
+        NetMessageHeader header;
+        u32 numLevels;
+        u64 firstGUID;
+        // ... level GUIDs (u64) ...
+    };
+#pragma pack(pop)
+}
+
+
+#if 0
 #include "NetMessages.h"
 
 namespace  soko { namespace net
@@ -69,3 +99,4 @@ namespace  soko { namespace net
     };
 
 }}
+#endif

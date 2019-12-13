@@ -10,6 +10,7 @@ namespace soko
 
     constant u32 PLAYER_NAME_LEN = 128;
 
+    constant f32 CONNECTION_ESTABLISH_TIMEOUT = 5.0f; // NOTE: Seconds
 
     constant i32 CHUNK_BIT_SHIFT = 5;
     constant i32 CHUNK_BIT_MASK = (1 << CHUNK_BIT_SHIFT) - 1;

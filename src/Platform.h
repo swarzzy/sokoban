@@ -302,13 +302,13 @@ namespace AB
 
     struct NetSendResult
     {
-        bool succeed;
+        enum { Error = 0, Success, DataTooLarge } status;
         u32 bytesSent;
     };
 
     struct NetRecieveResult
     {
-        enum { Success, Nothing, ConnectionClosed, Error } status;
+        enum { Success, Nothing, ConnectionClosed, ConnectionReset, Error } status;
         u32 bytesRecieved;
         NetAddress from;
     };
@@ -320,7 +320,11 @@ namespace AB
         ConnectionStatus_Pending
     };
 
-    typedef uptr Socket;
+    struct Socket
+    {
+        uptr handle;
+        SocketType type;
+    };
 
     inline u32 PackIP(byte o1, byte o2, byte o3, byte o4)
     {
@@ -328,14 +332,14 @@ namespace AB
         return result;
     }
 
-    typedef uptr(NetCreateSocketFn)(SocketType type);
-    typedef bool(NetCloseSocketFn)(uptr socket);
-    typedef u16(NetBindSocketFn)(uptr socket);
-    typedef bool(NetListenFn)(uptr sock, u32 queueSize);
-    typedef uptr(NetAcceptFn)(uptr sock);
-    typedef ConnectionStatus(NetConnectFn)(uptr sock, NetAddress address);
-    typedef NetSendResult(NetSendFn)(uptr socket, NetAddress address, const void* buffer, u32 bufferSize);
-    typedef NetRecieveResult(NetRecieveFn)(uptr socket, void* buffer, u32 bufferSize);
+    typedef Socket(NetCreateSocketFn)(SocketType type);
+    typedef bool(NetCloseSocketFn)(Socket socket);
+    typedef u16(NetBindSocketFn)(Socket socket);
+    typedef bool(NetListenFn)(Socket sock, u32 queueSize);
+    typedef Socket(NetAcceptFn)(Socket sock);
+    typedef ConnectionStatus(NetConnectFn)(Socket sock, NetAddress address);
+    typedef NetSendResult(NetSendFn)(Socket socket, const void* buffer, u32 bufferSize, NetAddress address);
+    typedef NetRecieveResult(NetRecieveFn)(Socket socket, void* buffer, u32 bufferSize);
 
     // NOTE: On unix API this should be defined as int
     typedef uptr FileHandle;

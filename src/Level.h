@@ -135,6 +135,7 @@ namespace soko
 
     struct LevelMetaInfo
     {
+        u64 guid;
         u32 chunkCount;
         u32 chunkMeshBlockCount;
     };

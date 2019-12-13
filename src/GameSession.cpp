@@ -6,6 +6,7 @@ namespace soko
     internal void
     DestroyGameSession(GameSession* session)
     {
+        #if 0
         if (session->gameMode = GAME_MODE_SERVER)
         {
             if (session->server)
@@ -26,6 +27,7 @@ namespace soko
         {
             INVALID_CODE_PATH;
         }
+        #endif
 
 
         if (session->sessionArena)

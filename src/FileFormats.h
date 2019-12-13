@@ -30,6 +30,7 @@ namespace AB
         u32 version = 1;
         u64 assetSize;
         u32 assetType;
+
         u32 verticesCount;
         u32 normalsCount;
         u32 uvsCount;
@@ -51,6 +52,7 @@ namespace AB
         u32 version = 2;
         u64 assetSize;
         u32 assetType;
+
         u32 vertexCount;
         u32 indexCount;
         u64 vertexOffset;
@@ -66,6 +68,10 @@ namespace AB
         u32 version;
         u64 assetSize;
         u32 assetType;
+
+        // TODO: Maybe use 128 bits hash
+        u64 guid;
+
         u32 chunkCount;
         u32 chunkMeshBlockCount;
         u32 entityCount;

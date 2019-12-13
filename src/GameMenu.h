@@ -16,6 +16,7 @@ namespace soko
         MainMenu_ConnectToServer,
         MainMenu_ClientWaitForConnection,
         MainMenu_ClientSessionLobby,
+        MainMenu_ConnectionError,
         //MainMenu_ClientWaitForServerState,
         //MainMenu_ClientLoadLevel,
         //MainMenu_ClientConnectToServer,
@@ -51,6 +52,7 @@ namespace soko
         u32 selectedIndex;
         DirectoryContents dirScanResult;
         b32* isLevel;
+        u64* GUIDs;
     };
 
     enum ServerState
@@ -65,11 +67,16 @@ namespace soko
         MainMenuState state;
         MenuLevelCache levelCache;
         char playerNameCache[PLAYER_NAME_LEN];
+        char secondPlayerName[PLAYER_NAME_LEN];
         ServerState serverState;
         u16 serverPort;
-        uptr serverListenSocket;
-        uptr serverConnectionSocket;
-        uptr clientSocket;
+        Socket serverListenSocket;
+        Socket serverConnectionSocket;
+        // NOTE: Set to true when connect message recieved
+        b32 serverPlayerConnected;
+        Socket clientSocket;
+        f32 clientConnectionTimeout;
+        b32 clientConnectionEstablished;
         // NOTE: Will be zeroed from this member
         char levelPathBuffer[LEVEL_PATH_BUFFER_SIZE];
         wchar_t wLevelPathBuffer[LEVEL_PATH_BUFFER_SIZE];

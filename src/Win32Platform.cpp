@@ -15,6 +15,11 @@
 #include <winsock2.h>
 #include <stdio.h>
 
+#if defined (AB_DISCRETE_GRAPHICS_DEFAULT)
+extern "C" { __declspec(dllexport) DWORD NvOptimusEnablement = 0x00000001; }
+extern "C" { __declspec(dllexport) DWORD AmdPowerXpressRequestHighPerformance = 0x01; }
+#endif
+
 // NOTE: For now assume that all windows devices are little-endian
 #define AB_BYTE_ORDER AB_LITTLE_ENDIAN
 
@@ -1156,13 +1161,13 @@ namespace AB
 #define SOCK_TO_UPTR(s) (*((uptr*)&s))
 #define UPTR_TO_SOCK(s) (*((SOCKET*)&s))
 
-    internal uptr
+    internal Socket
     NetCreateSocket(SocketType type)
     {
         AB_STATIC_ASSERT(sizeof(uptr) == sizeof(SOCKET));
         AB_CORE_ASSERT(type == SocketType_TCP || type == SocketType_UDP);
 
-        uptr result = 0;
+        Socket result = {};
         int t = type == SocketType_TCP ? SOCK_STREAM : SOCK_DGRAM;
         int p = type == SocketType_TCP ? IPPROTO_TCP : IPPROTO_UDP;
 
@@ -1174,7 +1179,8 @@ namespace AB
             if (ioctlResult == 0)
             {
                 // TODO: Is that brokes strict aliasing rules???
-                result = SOCK_TO_UPTR(sock);
+                result.handle = SOCK_TO_UPTR(sock);
+                result.type = type;
             }
             else
             {
@@ -1186,10 +1192,10 @@ namespace AB
     }
 
     internal bool
-    NetCloseSocket(uptr socket)
+    NetCloseSocket(Socket socket)
     {
         bool result = 0;
-        if (::closesocket(UPTR_TO_SOCK(socket)) == 0)
+        if (::closesocket(UPTR_TO_SOCK(socket.handle)) == 0)
         {
             result = 1;
         }
@@ -1197,20 +1203,20 @@ namespace AB
     }
 
     internal u16
-    NetBindSocket(uptr socket)
+    NetBindSocket(Socket socket)
     {
         u16 result = 0;
         SOCKADDR_IN address = {};
         address.sin_family = AF_INET;
         address.sin_port = 0;
         address.sin_addr.s_addr = INADDR_ANY;
-        int bindResult = ::bind(UPTR_TO_SOCK(socket), (SOCKADDR*)&address, sizeof(SOCKADDR_IN));
+        int bindResult = ::bind(UPTR_TO_SOCK(socket.handle), (SOCKADDR*)&address, sizeof(SOCKADDR_IN));
         if (bindResult == 0)
         {
             SOCKADDR a = {};
             int len = sizeof(a);
             // NOTE: MSDN says this function may not return address untill accept() is called
-            int socknameResult = getsockname(UPTR_TO_SOCK(socket), &a, &len);
+            int socknameResult = getsockname(UPTR_TO_SOCK(socket.handle), &a, &len);
             if (socknameResult == 0)
             {
                 SOCKADDR_IN* aIn = (SOCKADDR_IN*)(&a);
@@ -1222,72 +1228,98 @@ namespace AB
     }
 
     internal bool
-    NetListen(uptr sock, u32 queueSize)
+    NetListen(Socket sock, u32 queueSize)
     {
         bool result = false;
-        if (listen(UPTR_TO_SOCK(sock), (int)queueSize) == 0)
+        if (sock.type == SocketType_TCP)
         {
-            result = true;
+            if (listen(UPTR_TO_SOCK(sock.handle), (int)queueSize) == 0)
+            {
+                result = true;
+            }
         }
         return result;
     }
 
-    internal uptr
-    NetAccept(uptr sock)
+    internal Socket
+    NetAccept(Socket sock)
     {
-        uptr result = 0;
-        SOCKET connectionSocket = accept(UPTR_TO_SOCK(sock), 0, 0);
-        if (connectionSocket != INVALID_SOCKET)
+        Socket result = {};
+        if (sock.type == SocketType_TCP)
         {
-            result = SOCK_TO_UPTR(connectionSocket);
+            SOCKET connectionSocket = accept(UPTR_TO_SOCK(sock.handle), 0, 0);
+            if (connectionSocket != INVALID_SOCKET)
+            {
+                result.handle = SOCK_TO_UPTR(connectionSocket);
+                result.type = SocketType_TCP;
+            }
         }
         return result;
     }
 
     internal ConnectionStatus
-    NetConnect(uptr sock, NetAddress address)
+    NetConnect(Socket sock, NetAddress address)
     {
         ConnectionStatus result = ConnectionStatus_Error;
-        SOCKADDR_IN toAddress = {};
-        toAddress.sin_family = AF_INET;
-        toAddress.sin_port = htons(address.port);
-        toAddress.sin_addr.S_un.S_addr = htonl(address.ip);
+        if (sock.type == SocketType_TCP)
+        {
+            SOCKADDR_IN toAddress = {};
+            toAddress.sin_family = AF_INET;
+            toAddress.sin_port = htons(address.port);
+            toAddress.sin_addr.S_un.S_addr = htonl(address.ip);
 
-        int errorCode = connect(UPTR_TO_SOCK(sock), (SOCKADDR*)(&toAddress), sizeof(SOCKADDR_IN));
-        if (errorCode == 0)
-        {
-            result = ConnectionStatus_Connected;
-        }
-        else
-        {
-            int lastError = WSAGetLastError();
-            switch (lastError)
+            int errorCode = connect(UPTR_TO_SOCK(sock.handle), (SOCKADDR*)(&toAddress), sizeof(SOCKADDR_IN));
+            if (errorCode == 0)
             {
-            case WSAEWOULDBLOCK:
-            case WSAEALREADY: { result = ConnectionStatus_Pending; } break;
-            case WSAEISCONN: { result = ConnectionStatus_Connected; } break;
-            default: {} break;
+                result = ConnectionStatus_Connected;
+            }
+            else
+            {
+                int lastError = WSAGetLastError();
+                switch (lastError)
+                {
+                case WSAEWOULDBLOCK:
+                case WSAEALREADY: { result = ConnectionStatus_Pending; } break;
+                case WSAEISCONN: { result = ConnectionStatus_Connected; } break;
+                default: {} break;
+                }
             }
         }
         return result;
     }
 
     internal NetSendResult
-    NetSend(uptr socket, NetAddress address, const void* buffer, u32 bufferSize)
+    NetSend(Socket socket, const void* buffer, u32 bufferSize, NetAddress address = {})
     {
         NetSendResult result = {};
-        SOCKADDR_IN toAddress = {};
-        toAddress.sin_family = AF_INET;
-        toAddress.sin_port = htons(address.port);
-        toAddress.sin_addr.S_un.S_addr = htonl(address.ip);
 
-        int bytesSent = sendto(UPTR_TO_SOCK(socket), (const char*)buffer, bufferSize, 0, (SOCKADDR*)&toAddress, (int)sizeof(SOCKADDR_IN));
-        if (bytesSent != SOCKET_ERROR)
+        int bytesSent;
+        if (socket.type == SocketType_UDP)
         {
-            result.succeed = true;
-            result.bytesSent = (u32)bytesSent;
+            SOCKADDR_IN toAddress = {};
+            toAddress.sin_family = AF_INET;
+            toAddress.sin_port = htons(address.port);
+            toAddress.sin_addr.S_un.S_addr = htonl(address.ip);
+            bytesSent = sendto(UPTR_TO_SOCK(socket.handle), (const char*)buffer, bufferSize, 0, (SOCKADDR*)&toAddress, (int)sizeof(SOCKADDR_IN));
+        }
+        else // NOTE: TCP
+        {
+            bytesSent = send(UPTR_TO_SOCK(socket.handle), (const char*)buffer, bufferSize, 0);
         }
 
+        if (bytesSent != SOCKET_ERROR)
+        {
+            result.status = NetSendResult::Success;
+            result.bytesSent = (u32)bytesSent;
+        }
+        else
+        {
+            auto errorCode = WSAGetLastError();
+            if (errorCode == WSAEMSGSIZE)
+            {
+                result.status = NetSendResult::DataTooLarge;
+            }
+        }
         return result;
     }
 
@@ -1302,23 +1334,32 @@ namespace AB
     }
 
     NetRecieveResult
-    NetRecieve(uptr socket, void* buffer, u32 bufferSize)
+    NetRecieve(Socket socket, void* buffer, u32 bufferSize)
     {
         NetRecieveResult result = {};
+
         SOCKADDR_IN fromAddress = {};
-        int fromLen = sizeof(SOCKADDR_IN);
-        int bytesRecieved = recvfrom(UPTR_TO_SOCK(socket), (char*)buffer, bufferSize, 0, (SOCKADDR*)&fromAddress, &fromLen);
+        int bytesRecieved;
+        if (socket.type == SocketType_UDP)
+        {
+            int fromLen = sizeof(SOCKADDR_IN);
+            bytesRecieved = recvfrom(UPTR_TO_SOCK(socket.handle), (char*)buffer, bufferSize, 0, (SOCKADDR*)&fromAddress, &fromLen);
+        }
+        else // NOTE: TCP
+        {
+            bytesRecieved = recv(UPTR_TO_SOCK(socket.handle), (char*)buffer, bufferSize, 0);
+        }
+
         switch (bytesRecieved)
         {
         case SOCKET_ERROR:
         {
-            if (WSAGetLastError() == WSAEWOULDBLOCK)
+            auto errorCode = WSAGetLastError();
+            switch (errorCode)
             {
-                result.status = NetRecieveResult::Nothing;
-            }
-            else
-            {
-                result.status = NetRecieveResult::Error;
+            case WSAEWOULDBLOCK: { result.status = NetRecieveResult::Nothing; } break;
+            case WSAECONNRESET: { result.status = NetRecieveResult::ConnectionReset; } break;
+            default: { result.status = NetRecieveResult::Error; } break;
             }
         } break;
         case 0: { result.status = NetRecieveResult::ConnectionClosed; } break;
@@ -1326,7 +1367,11 @@ namespace AB
         {
             result.status = NetRecieveResult::Success;
             result.bytesRecieved = (u32)bytesRecieved;
-            result.from = SockaddrToNetAddress(&fromAddress);
+
+            if (socket.type == SocketType_UDP)
+            {
+                result.from = SockaddrToNetAddress(&fromAddress);
+            }
         } break;
         }
         return result;

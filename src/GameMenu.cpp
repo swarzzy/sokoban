@@ -20,6 +20,8 @@ namespace soko
     {
         if (flags & MenuCleanup_NetSpecific)
         {
+#if 0
+
             if (menu->session.gameMode = GAME_MODE_SERVER)
             {
                 if (menu->session.server)
@@ -40,7 +42,7 @@ namespace soko
             {
                 INVALID_CODE_PATH;
             }
-
+#endif
 
             if (menu->session.sessionArena)
             {
@@ -189,6 +191,9 @@ namespace soko
         levelCache->isLevel = PUSH_ARRAY(tempArena, b32, levelCache->dirScanResult.count);
         SOKO_ASSERT(levelCache->isLevel);
 
+        levelCache->GUIDs = PUSH_ARRAY(tempArena, u64, levelCache->dirScanResult.count);
+        SOKO_ASSERT(levelCache->GUIDs);
+
         for (u32 i = 0; i < levelCache->dirScanResult.count; i++)
         {
             LevelMetaInfo info = {};
@@ -198,6 +203,7 @@ namespace soko
                 levelCache->selectedIndex = i;
             }
             levelCache->isLevel[i] = isLevel;
+            levelCache->GUIDs[i] = info.guid;
         }
         levelCache->initialized = true;
     }
@@ -318,10 +324,10 @@ namespace soko
     InitServer(GameMenu* menu)
     {
         SOKO_ASSERT(menu->serverState == ServerState_NotInitialized);
-        SOKO_ASSERT(!menu->serverListenSocket);
+        SOKO_ASSERT(!menu->serverListenSocket.handle);
 
-        uptr listenSocket = NetCreateSocket(SocketType_TCP);
-        if (listenSocket)
+        Socket listenSocket = NetCreateSocket(SocketType_TCP);
+        if (listenSocket.handle)
         {
             u16 port = NetBindSocket(listenSocket);
             if (port)
@@ -349,18 +355,19 @@ namespace soko
     internal void
     ShutdownServer(GameMenu* menu)
     {
-        if (menu->serverListenSocket)
+        if (menu->serverListenSocket.handle)
         {
             NetCloseSocket(menu->serverListenSocket);
-            menu->serverListenSocket = 0;
+            menu->serverListenSocket = {};
         }
-        if (menu->serverConnectionSocket)
+        if (menu->serverConnectionSocket.handle)
         {
             NetCloseSocket(menu->serverConnectionSocket);
-            menu->serverConnectionSocket = 0;
+            menu->serverConnectionSocket = {};
         }
         menu->serverState = ServerState_NotInitialized;
         menu->serverPort = 0;
+        menu->secondPlayerName[0] = 0;
     }
 
     internal void
@@ -433,7 +440,7 @@ namespace soko
             {
                 ChangePlayerNameModal(gameState, menu);
             }
-            ImGui::Text("Player 2:\t <not connected>");
+            ImGui::Text("Player 2:\t %s", menu->secondPlayerName);
 
             ImGui::Separator();
             if (ImGui::Button("Load", ImVec2(60, 20)))
@@ -457,13 +464,81 @@ namespace soko
 
             if (menu->serverState == ServerState_Listening)
             {
-                uptr connectionSocket = NetAccept(menu->serverListenSocket);
-                if (connectionSocket)
+                Socket connectionSocket = NetAccept(menu->serverListenSocket);
+                if (connectionSocket.handle)
                 {
-                    NetCloseSocket(menu->serverListenSocket);
+                    //NetCloseSocket(menu->serverListenSocket);
                     menu->serverState = ServerState_Connected;
                     menu->serverConnectionSocket = connectionSocket;
                     SOKO_INFO("Connection established!");
+                }
+            }
+            else if (menu->serverState == ServerState_Connected)
+            {
+                byte buffer[1024];
+                auto recieveResult = NetRecieve(menu->serverConnectionSocket, buffer, 256);
+                if (recieveResult.status == NetRecieveResult::ConnectionClosed ||
+                    recieveResult.status == NetRecieveResult::ConnectionReset ||
+                    recieveResult.status == NetRecieveResult::Error)
+                {
+                    menu->serverState = ServerState_Listening;
+                    NetCloseSocket(menu->serverConnectionSocket);
+                    menu->serverConnectionSocket = {};
+                    // TODO: Disconnect player
+                    menu->secondPlayerName[0] = 0;
+                    menu->serverPlayerConnected = false;
+                }
+                else if (recieveResult.status == NetRecieveResult::Success)
+                {
+                    NetMessageHeader* header = (NetMessageHeader*)buffer;
+                    switch (header->type)
+                    {
+                    case NetMessageHeader::ClientConnectMessage:
+                    {
+                        // TODO: Send confirmation message back to client
+                        SOKO_INFO("Server: recieve <ClientConnectMessage> message");
+                        ClientConnectMessage* msg = (ClientConnectMessage*)buffer;
+                        strcpy(menu->secondPlayerName, msg->playerName);
+                        menu->serverPlayerConnected = true;
+                    } break;
+                    case NetMessageHeader::ClientLevelListMessage:
+                    {
+                        SOKO_INFO("Server: recieve <ClientLevelListMessage> message");
+                        ClientLevelListMessage* msg = (ClientLevelListMessage*)buffer;
+                        u32 numLevels = msg->numLevels;
+                        u64* GUIDs = &msg->firstGUID;
+
+                        for (u32 j = 0; j < menu->levelCache.dirScanResult.count; j++)
+                        {
+                            if (menu->levelCache.isLevel[j])
+                            {
+                                u64 serverGUID = menu->levelCache.GUIDs[j];
+                                menu->levelCache.isLevel[j] = false;
+
+                                for (u32 i = 0; i < numLevels; i++)
+                                {
+                                    u64 clientGUID = GUIDs[i];
+                                    if (serverGUID == clientGUID)
+                                    {
+                                        menu->levelCache.isLevel[j] = true;
+                                        break;
+                                    }
+                                }
+                            }
+                        }
+                        // NOTE: Set selected index to a valid level
+                        menu->levelCache.selectedIndex = 0;
+                        for (u32 i = 0; i < menu->levelCache.dirScanResult.count; i++)
+                        {
+                            bool isLevel = menu->levelCache.isLevel[0];
+                            if (isLevel)
+                            {
+                                menu->levelCache.selectedIndex = i + 1;
+                            }
+                        }
+                    } break;
+                    default: { SOKO_INFO("Server recieved broken message"); } break;
+                    }
                 }
             }
 
@@ -555,8 +630,8 @@ namespace soko
         {
             if (inputSucceed)
             {
-                uptr socket = NetCreateSocket(SocketType_TCP);
-                if (socket)
+                Socket socket = NetCreateSocket(SocketType_TCP);
+                if (socket.handle)
                 {
                     NetAddress address;
                     address.ip = menu->clientConf.serverAddress.ip;
@@ -571,33 +646,124 @@ namespace soko
                     {
                         menu->clientSocket = socket;
                         menu->state = MainMenu_ClientWaitForConnection;
+                        menu->clientConnectionTimeout = CONNECTION_ESTABLISH_TIMEOUT;
                     }
                 }
             }
+        }
+
+        ImGui::SameLine();
+        if (ImGui::Button("Return", ImVec2(100, 20)))
+        {
+            menu->state = MainMenu_ModeSelection;
         }
     }
 
     internal void
     MenuWaitForConnection(GameMenu* menu)
     {
-        ImGui::Text("Connecting...");
-        NetAddress address;
-        address.ip = menu->clientConf.serverAddress.ip;
-        address.port = menu->clientConf.serverAddress.port;
-        auto connectionResult = NetConnect(menu->clientSocket, address);
-        switch (connectionResult)
+        if (menu->clientConnectionTimeout > 0.0f)
         {
-        case ConnectionStatus_Connected: { menu->state = MainMenu_ClientSessionLobby; } break;
-        // TODO: Show error
-        case ConnectionStatus_Error: { NetCloseSocket(menu->clientSocket); menu->clientSocket = 0; menu->state = MainMenu_ConnectToServer;} break;
-        default: {} break;
+            menu->clientConnectionTimeout -= GlobalAbsDeltaTime;
+            ImGui::Text("Connecting...");
+            NetAddress address;
+            address.ip = menu->clientConf.serverAddress.ip;
+            address.port = menu->clientConf.serverAddress.port;
+            auto connectionResult = NetConnect(menu->clientSocket, address);
+            switch (connectionResult)
+            {
+            case ConnectionStatus_Connected: { menu->state = MainMenu_ClientSessionLobby; } break;
+                // TODO: Show error
+            case ConnectionStatus_Error: { NetCloseSocket(menu->clientSocket); menu->clientSocket = {}; menu->state = MainMenu_ConnectionError;} break;
+            default: {} break;
+            }
+        }
+        else
+        {
+            menu->state = MainMenu_ConnectionError;
         }
     }
 
     internal void
-    MenuClientSessionLobby(GameMenu* menu)
+    MenuConnectionError(GameMenu* menu)
     {
+        ImGui::Text("Connection error.");
+        if (ImGui::Button("Back"))
+        {
+            menu->state = MainMenu_ConnectToServer;
+        }
+    }
+
+    internal void
+    MenuClientSessionLobby(GameMenu* menu, GameState* gameState)
+    {
+        if (!menu->clientConnectionEstablished)
+        {
+            menu->clientConnectionEstablished = true;
+
+            NetSendResult levelsMsgResult = {};
+            NetSendResult connectMsgResult = {};
+
+            {
+                ClientConnectMessage msg = {};
+                msg.header.type = NetMessageHeader::ClientConnectMessage;
+                strcpy(msg.playerName, gameState->playerName);
+                connectMsgResult = NetSend(menu->clientSocket, (void*)(&msg), sizeof(msg), {});
+                SOKO_INFO("Client: sending <ClientConnectMessage> message");
+            }
+
+            {
+                BeginTemporaryMemory(gameState->tempArena);
+                FillLevelCache(&menu->levelCache, gameState->tempArena);
+
+                const u32 bufferSize = 1024;
+                byte buffer[bufferSize];
+                ZERO_ARRAY(byte, bufferSize, buffer);
+
+                ClientLevelListMessage* msg = (ClientLevelListMessage*)buffer;
+                msg->header.type = NetMessageHeader::ClientLevelListMessage;
+                msg->numLevels = menu->levelCache.dirScanResult.count;
+
+                u32 buffSizeForGUIDs = bufferSize - sizeof(ClientLevelListMessage) + sizeof(u64);
+                u32 numLevelsFit = buffSizeForGUIDs / sizeof(u64);
+                if (numLevelsFit < msg->numLevels)
+                {
+                    msg->numLevels = numLevelsFit;
+                }
+
+                u64* GUIDs = &msg->firstGUID;
+
+                for (u32 i = 0; i < msg->numLevels; i++)
+                {
+                    // TODO: Send only valid guids
+                    u64 guid = menu->levelCache.GUIDs[i];
+                    GUIDs[i] = guid;
+                }
+
+                menu->levelCache = {};
+                EndTemporaryMemory(gameState->tempArena);
+
+                levelsMsgResult = NetSend(menu->clientSocket, (void*)(msg), sizeof(msg) + (numLevelsFit - 1 * sizeof(u64)), {});
+                SOKO_INFO("Client: sending <ClientLevelListMessage> message");
+            }
+
+
+            if (!connectMsgResult.status || !levelsMsgResult.status)
+            {
+                NetCloseSocket(menu->clientSocket);
+                menu->clientConnectionEstablished = false;
+                menu->state = MainMenu_ConnectToServer;
+            }
+        }
+
         ImGui::Text("Connected to server");
+        if (ImGui::Button("Disconnect"))
+        {
+            NetCloseSocket(menu->clientSocket);
+            menu->clientConnectionEstablished = false;
+            menu->state = MainMenu_ConnectToServer;
+        }
+
     }
 
 #if 0
@@ -797,7 +963,8 @@ namespace soko
 //        case MainMenu_CreateServer: { MenuCreateServer(gameState, menu); } break;
         case MainMenu_ConnectToServer: { MenuConnectToServer(menu); } break;
         case MainMenu_ClientWaitForConnection: { MenuWaitForConnection(menu); } break;
-        case MainMenu_ClientSessionLobby: { MenuClientSessionLobby(menu); } break;
+        case MainMenu_ClientSessionLobby: { MenuClientSessionLobby(menu, gameState); } break;
+        case MainMenu_ConnectionError: { MenuConnectionError(menu); } break;
 //        case MainMenu_ClientWaitForServerState: { MenuClientWaitForServerState(menu); } break;
 //        case MainMenu_ClientConnectToServer: { MenuClientConnectToServer(menu, gameState); } break;
 //        case MainMenu_ClientLoadLevel: { ClientLoadLevel(menu, gameState); } break;

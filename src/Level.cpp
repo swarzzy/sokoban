@@ -768,6 +768,11 @@ namespace soko
                 // TODO: Is that should be size of data placed after header?
                 header->assetSize = bufferSize - sizeof(AB::AABLevelHeader);
                 header->assetType = AB::AAB_FILE_TYPE_LEVEL;
+
+                // NOTE: Go completely crazy and just use some random number instead of hash
+                // TODO: IMPORTANT: Hash!!!
+                header->guid = (u64)DummyRandom();
+
                 header->chunkCount = level->loadedChunksCount;
                 header->chunkMeshBlockCount = level->globalChunkMeshBlockCount;
                 header->firstChunkOffset = sizeof(AB::AABLevelHeader);
@@ -830,6 +835,7 @@ namespace soko
                 if (outInfo)
                 {
                     ZERO_STRUCT(LevelMetaInfo, outInfo);
+                    outInfo->guid = header.guid;
                     outInfo->chunkCount = header.chunkCount;
                     outInfo->chunkMeshBlockCount = header.chunkMeshBlockCount;
                 }

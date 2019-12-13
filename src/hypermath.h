@@ -4,6 +4,10 @@
 // @SECTION: uv3
 // @SECTION: iv3
 
+// NOTE: For random
+#include <time.h>
+#include <stdlib.h>
+
 //#include <xmmintrin.h>
 #include <math.h>
 
@@ -39,6 +43,14 @@ namespace hpm
     const f32 PI_32 = 3.14159265358979323846f;
     const f32 FLOAT_EPS = 0.000001f;
     const f32 FLOAT_NAN = NAN;
+
+    // TODO: Random functions
+    inline u32 DummyRandom()
+    {
+        srand((u32)time(0));
+        u32 result = rand();
+        return result;
+    }
 
     // TODO: intrinsics file
     struct BitScanResult
