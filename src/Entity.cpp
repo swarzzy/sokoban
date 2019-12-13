@@ -175,8 +175,14 @@ namespace soko
                 UnregisterEntityInTile(level, entity);
 
                 level->entityCount--;
-                SOKO_ASSERT(level->platformCount > 0);
-                level->platformCount--;
+                if (entity->type == EntityType_Platform)
+                {
+                    SOKO_ASSERT(level->platformCount > 0);
+                    if (level->platformCount > 0)
+                    {
+                        level->platformCount--;
+                    }
+                }
                 entity->nextEntity = level->entityFreeList;
                 level->entityFreeList = entity;
                 level->deletedEntityCount++;

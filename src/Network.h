@@ -7,8 +7,10 @@ namespace soko
         enum
         {
             ClientConnectMessage,
-            ClientLevelListMessage
+            ClientLevelListMessage,
+            ServerLevelListQueryMessage
         } type;
+        u32 messageSize;
     };
 
     struct ClientConnectMessage
@@ -23,6 +25,11 @@ namespace soko
         u32 numLevels;
         u64 firstGUID;
         // ... level GUIDs (u64) ...
+    };
+
+    struct ServerLevelListQueryMessage
+    {
+        NetMessageHeader header = { NetMessageHeader::ServerLevelListQueryMessage, sizeof(ServerLevelListQueryMessage)};
     };
 #pragma pack(pop)
 }

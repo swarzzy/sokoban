@@ -181,6 +181,37 @@ namespace soko
         RenderGroupSetCamera(gameState->renderGroup, &gameState->session.editorCamera->conf);
     }
 
+    inline void
+    SetLevelAvailability(MenuLevelCache* levelCache, b32 value)
+    {
+        for (u32 i = 0; i < levelCache->dirScanResult.count; i++)
+        {
+            levelCache->availableOnClient[i] = value;
+        }
+    }
+
+    inline void
+    ResetLevelIndexToValid(MenuLevelCache* levelCache, bool multiplayer)
+    {
+        levelCache->selectedIndex = 0;
+        for (u32 i = 0; i < levelCache->dirScanResult.count; i++)
+        {
+            bool isLevel = levelCache->isLevel[i];
+            bool valid = isLevel;
+            if (multiplayer)
+            {
+                bool available = levelCache->availableOnClient[i];
+                bool supportsMultiplayer = levelCache->supportsMultiplayer[i];
+                valid = valid && available && supportsMultiplayer;
+            }
+            if (valid)
+            {
+                levelCache->selectedIndex = i + 1;
+                break;
+            }
+        }
+    }
+
     internal void
     FillLevelCache(MenuLevelCache* levelCache, AB::MemoryArena* tempArena)
     {
@@ -194,17 +225,24 @@ namespace soko
         levelCache->GUIDs = PUSH_ARRAY(tempArena, u64, levelCache->dirScanResult.count);
         SOKO_ASSERT(levelCache->GUIDs);
 
+        levelCache->availableOnClient = PUSH_ARRAY(tempArena, b32, levelCache->dirScanResult.count);
+        SOKO_ASSERT(levelCache->availableOnClient);
+
+        levelCache->supportsMultiplayer = PUSH_ARRAY(tempArena, b32, levelCache->dirScanResult.count);
+        SOKO_ASSERT(levelCache->supportsMultiplayer);
+
+        SetLevelAvailability(levelCache, true);
+
         for (u32 i = 0; i < levelCache->dirScanResult.count; i++)
         {
             LevelMetaInfo info = {};
             b32 isLevel = GetLevelMetaInfo(levelCache->dirScanResult.filenames[i], &info);
-            if (isLevel && !levelCache->initialized)
-            {
-                levelCache->selectedIndex = i;
-            }
+
             levelCache->isLevel[i] = isLevel;
             levelCache->GUIDs[i] = info.guid;
+            levelCache->supportsMultiplayer[i] = info.supportsMultiplayer;
         }
+        ResetLevelIndexToValid(levelCache, true);
         levelCache->initialized = true;
     }
 
@@ -402,19 +440,23 @@ namespace soko
             }
             else
             {
-                wcstombs(string, menu->levelCache.dirScanResult.filenames[menu->levelCache.selectedIndex], 256);
+                wcstombs(string, menu->levelCache.dirScanResult.filenames[menu->levelCache.selectedIndex - 1], 256);
             }
             if (ImGui::BeginCombo("Available levels", string))
             {
                 for (u32 i = 0; i < menu->levelCache.dirScanResult.count; i++)
                 {
-                    if (menu->levelCache.isLevel[i])
+                    bool supportsMultiplayer = menu->levelCache.supportsMultiplayer[i];
+                    if (menu->levelCache.isLevel[i] && supportsMultiplayer)
                     {
                         if (wcstombs(string, menu->levelCache.dirScanResult.filenames[i], 256) == (size_t)(-1))
                         {
                             strcpy(string, "<error>");
                         }
-                        if (ImGui::Selectable(string))
+                        bool available = menu->levelCache.availableOnClient[i];
+                        ImGuiSelectableFlags flags = available ? 0 : ImGuiSelectableFlags_Disabled;
+
+                        if (ImGui::Selectable(string, false, flags) && available)
                         {
                             menu->levelCache.selectedIndex = i + 1; // NOTE: Zero is invalid value
                         }
@@ -422,6 +464,36 @@ namespace soko
                 }
 
                 ImGui::EndCombo();
+            }
+
+            ImGui::SameLine();
+            if (ImGui::Button("Refresh"))
+            {
+                menu->levelCache = {};
+                EndTemporaryMemory(tempArena);
+                BeginTemporaryMemory(tempArena);
+                FillLevelCache(&menu->levelCache, tempArena);
+                if (menu->serverPlayerConnected)
+                {
+                    SetLevelAvailability(&menu->levelCache, false);
+                }
+                else
+                {
+                    SetLevelAvailability(&menu->levelCache, true);
+                }
+
+                ResetLevelIndexToValid(&menu->levelCache, true);
+
+                ServerLevelListQueryMessage msg = {};
+                auto levelQueryResult = NetSend(menu->serverConnectionSocket, (void*)(&msg), sizeof(msg), {});
+                if (!levelQueryResult.status)
+                {
+                    SOKO_INFO("Server: failed to send <ServerLevelListQueryMessage> message");
+                }
+                else
+                {
+                    SOKO_INFO("Server: sent <ServerLevelListQueryMessage> message");
+                }
             }
 
             ImGui::Separator();
@@ -476,7 +548,7 @@ namespace soko
             else if (menu->serverState == ServerState_Connected)
             {
                 byte buffer[1024];
-                auto recieveResult = NetRecieve(menu->serverConnectionSocket, buffer, 256);
+                auto recieveResult = NetRecieve(menu->serverConnectionSocket, buffer, 1024);
                 if (recieveResult.status == NetRecieveResult::ConnectionClosed ||
                     recieveResult.status == NetRecieveResult::ConnectionReset ||
                     recieveResult.status == NetRecieveResult::Error)
@@ -487,10 +559,15 @@ namespace soko
                     // TODO: Disconnect player
                     menu->secondPlayerName[0] = 0;
                     menu->serverPlayerConnected = false;
+
+                    SetLevelAvailability(&menu->levelCache, true);
+                    ResetLevelIndexToValid(&menu->levelCache, true);
+
                 }
                 else if (recieveResult.status == NetRecieveResult::Success)
                 {
                     NetMessageHeader* header = (NetMessageHeader*)buffer;
+                    SOKO_ASSERT(header->messageSize == recieveResult.bytesRecieved);
                     switch (header->type)
                     {
                     case NetMessageHeader::ClientConnectMessage:
@@ -500,6 +577,19 @@ namespace soko
                         ClientConnectMessage* msg = (ClientConnectMessage*)buffer;
                         strcpy(menu->secondPlayerName, msg->playerName);
                         menu->serverPlayerConnected = true;
+                        SetLevelAvailability(&menu->levelCache, false);
+
+                        ServerLevelListQueryMessage queryMsg = {};
+                        auto levelQueryResult = NetSend(menu->serverConnectionSocket, (void*)(&queryMsg), sizeof(queryMsg), {});
+                        if (!levelQueryResult.status)
+                        {
+                            SOKO_INFO("Server: failed to send <ServerLevelListQueryMessage> message");
+                        }
+                        else
+                        {
+                            SOKO_INFO("Server: sent <ServerLevelListQueryMessage> message");
+                        }
+
                     } break;
                     case NetMessageHeader::ClientLevelListMessage:
                     {
@@ -513,29 +603,20 @@ namespace soko
                             if (menu->levelCache.isLevel[j])
                             {
                                 u64 serverGUID = menu->levelCache.GUIDs[j];
-                                menu->levelCache.isLevel[j] = false;
+                                menu->levelCache.availableOnClient[j] = false;
 
                                 for (u32 i = 0; i < numLevels; i++)
                                 {
                                     u64 clientGUID = GUIDs[i];
                                     if (serverGUID == clientGUID)
                                     {
-                                        menu->levelCache.isLevel[j] = true;
+                                        menu->levelCache.availableOnClient[j] = true;
                                         break;
                                     }
                                 }
                             }
                         }
-                        // NOTE: Set selected index to a valid level
-                        menu->levelCache.selectedIndex = 0;
-                        for (u32 i = 0; i < menu->levelCache.dirScanResult.count; i++)
-                        {
-                            bool isLevel = menu->levelCache.isLevel[0];
-                            if (isLevel)
-                            {
-                                menu->levelCache.selectedIndex = i + 1;
-                            }
-                        }
+                        ResetLevelIndexToValid(&menu->levelCache, true);
                     } break;
                     default: { SOKO_INFO("Server recieved broken message"); } break;
                     }
@@ -701,58 +782,87 @@ namespace soko
         {
             menu->clientConnectionEstablished = true;
 
-            NetSendResult levelsMsgResult = {};
             NetSendResult connectMsgResult = {};
 
-            {
-                ClientConnectMessage msg = {};
-                msg.header.type = NetMessageHeader::ClientConnectMessage;
-                strcpy(msg.playerName, gameState->playerName);
-                connectMsgResult = NetSend(menu->clientSocket, (void*)(&msg), sizeof(msg), {});
-                SOKO_INFO("Client: sending <ClientConnectMessage> message");
-            }
+            ClientConnectMessage msg = {};
+            msg.header.type = NetMessageHeader::ClientConnectMessage;
+            strcpy(msg.playerName, gameState->playerName);
+            msg.header.messageSize = sizeof(ClientConnectMessage);
+            connectMsgResult = NetSend(menu->clientSocket, (void*)(&msg), sizeof(msg), {});
+            SOKO_INFO("Client: sending <ClientConnectMessage> message");
 
-            {
-                BeginTemporaryMemory(gameState->tempArena);
-                FillLevelCache(&menu->levelCache, gameState->tempArena);
-
-                const u32 bufferSize = 1024;
-                byte buffer[bufferSize];
-                ZERO_ARRAY(byte, bufferSize, buffer);
-
-                ClientLevelListMessage* msg = (ClientLevelListMessage*)buffer;
-                msg->header.type = NetMessageHeader::ClientLevelListMessage;
-                msg->numLevels = menu->levelCache.dirScanResult.count;
-
-                u32 buffSizeForGUIDs = bufferSize - sizeof(ClientLevelListMessage) + sizeof(u64);
-                u32 numLevelsFit = buffSizeForGUIDs / sizeof(u64);
-                if (numLevelsFit < msg->numLevels)
-                {
-                    msg->numLevels = numLevelsFit;
-                }
-
-                u64* GUIDs = &msg->firstGUID;
-
-                for (u32 i = 0; i < msg->numLevels; i++)
-                {
-                    // TODO: Send only valid guids
-                    u64 guid = menu->levelCache.GUIDs[i];
-                    GUIDs[i] = guid;
-                }
-
-                menu->levelCache = {};
-                EndTemporaryMemory(gameState->tempArena);
-
-                levelsMsgResult = NetSend(menu->clientSocket, (void*)(msg), sizeof(msg) + (numLevelsFit - 1 * sizeof(u64)), {});
-                SOKO_INFO("Client: sending <ClientLevelListMessage> message");
-            }
-
-
-            if (!connectMsgResult.status || !levelsMsgResult.status)
+            if (!connectMsgResult.status)
             {
                 NetCloseSocket(menu->clientSocket);
                 menu->clientConnectionEstablished = false;
                 menu->state = MainMenu_ConnectToServer;
+            }
+        }
+        else
+        {
+            // TODO: Formalize these buffers
+            byte buffer[1024];
+            auto recieveResult = NetRecieve(menu->clientSocket, buffer, 1024);
+            if (recieveResult.status == NetRecieveResult::ConnectionClosed ||
+                recieveResult.status == NetRecieveResult::ConnectionReset ||
+                recieveResult.status == NetRecieveResult::Error)
+            {
+                // TODO: Close connection
+            }
+            else if (recieveResult.status == NetRecieveResult::Success)
+            {
+                NetMessageHeader* header = (NetMessageHeader*)buffer;
+                SOKO_ASSERT(header->messageSize == recieveResult.bytesRecieved);
+                switch (header->type)
+                {
+                case NetMessageHeader::ServerLevelListQueryMessage:
+                {
+                    BeginTemporaryMemory(gameState->tempArena);
+                    FillLevelCache(&menu->levelCache, gameState->tempArena);
+
+                    const u32 bufferSize = 1024;
+                    byte buffer[bufferSize];
+                    ZERO_ARRAY(byte, bufferSize, buffer);
+
+                    ClientLevelListMessage* msg = (ClientLevelListMessage*)buffer;
+                    msg->header.type = NetMessageHeader::ClientLevelListMessage;
+                    msg->numLevels = menu->levelCache.dirScanResult.count;
+
+                    u32 buffSizeForGUIDs = bufferSize - sizeof(ClientLevelListMessage) + sizeof(u64);
+                    u32 numLevelsFit = buffSizeForGUIDs / sizeof(u64);
+                    if (numLevelsFit < msg->numLevels)
+                    {
+                        msg->numLevels = numLevelsFit;
+                    }
+
+                    u64* GUIDs = &msg->firstGUID;
+
+                    for (u32 i = 0; i < msg->numLevels; i++)
+                    {
+                        // TODO: Send only valid guids
+                        u64 guid = menu->levelCache.GUIDs[i];
+                        GUIDs[i] = guid;
+                    }
+
+                    menu->levelCache = {};
+                    EndTemporaryMemory(gameState->tempArena);
+
+                    u32 msgSize = sizeof(msg) + ((msg->numLevels - 1) * sizeof(u64));
+                    msg->header.messageSize = msgSize;
+
+                    auto levelsMsgResult = NetSend(menu->clientSocket, (void*)msg, msgSize, {});
+                    // TODO: Nice and clean way for logging this
+                    if (!levelsMsgResult.status)
+                    {
+                        SOKO_INFO("Client: failed to send <ClientLevelListMessage> message");
+                    }
+                    else
+                    {
+                        SOKO_INFO("Client: sent <ClientLevelListMessage> message");
+                    }
+                } break;
+                default: { SOKO_INFO("Client: recieved broken message"); } break;
+                }
             }
         }
 

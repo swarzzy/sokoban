@@ -136,6 +136,7 @@ namespace soko
     struct LevelMetaInfo
     {
         u64 guid;
+        b32 supportsMultiplayer;
         u32 chunkCount;
         u32 chunkMeshBlockCount;
     };

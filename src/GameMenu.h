@@ -51,8 +51,11 @@ namespace soko
         bool initialized;
         u32 selectedIndex;
         DirectoryContents dirScanResult;
+        // TODO: Switch to array of structs
         b32* isLevel;
         u64* GUIDs;
+        b32* availableOnClient;
+        b32* supportsMultiplayer;
     };
 
     enum ServerState

@@ -838,6 +838,7 @@ namespace soko
                     outInfo->guid = header.guid;
                     outInfo->chunkCount = header.chunkCount;
                     outInfo->chunkMeshBlockCount = header.chunkMeshBlockCount;
+                    outInfo->supportsMultiplayer = header.hasSecondPlayer;
                 }
             }
         }
