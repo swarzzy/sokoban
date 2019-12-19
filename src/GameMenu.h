@@ -71,15 +71,26 @@ namespace soko
         MenuLevelCache levelCache;
         char playerNameCache[PLAYER_NAME_LEN];
         char secondPlayerName[PLAYER_NAME_LEN];
+        // NOTE: Server state
         ServerState serverState;
         u16 serverPort;
         Socket serverListenSocket;
         Socket serverConnectionSocket;
+        f32 serverPresenceTimer;
+        f32 serverConnectionTimer;
+        // TODO: For debug only
+        b32 serverStopSendPresenceMessages;
         // NOTE: Set to true when connect message recieved
         b32 serverPlayerConnected;
+        // NOTE: Client state
         Socket clientSocket;
         f32 clientConnectionTimeout;
         b32 clientConnectionEstablished;
+        f32 clientPresenceTimer;
+        f32 clientConnectionTimer;
+        // TODO: For debug only!!!
+        b32 clientStopSendPresenceMessages;
+
         // NOTE: Will be zeroed from this member
         char levelPathBuffer[LEVEL_PATH_BUFFER_SIZE];
         wchar_t wLevelPathBuffer[LEVEL_PATH_BUFFER_SIZE];

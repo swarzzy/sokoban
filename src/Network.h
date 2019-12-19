@@ -1,4 +1,11 @@
 #pragma once
+
+#define SOKO_LOG_CLIENT_SEND(result, messageType) if (!result.status) SOKO_INFO("Client: failed to send <%s> message", #messageType); else SOKO_INFO("Client: sent <%s> message", #messageType)
+#define SOKO_LOG_SERVER_SEND(result, messageType) if (!result.status) SOKO_INFO("Server: failed to send <%s> message", #messageType); else SOKO_INFO("Server: sent <%s> message", #messageType)
+
+#define SOKO_LOG_CLIENT_RECV(messageType) SOKO_INFO("Client: recieve <%s> message", #messageType)
+#define SOKO_LOG_SERVER_RECV(messageType) SOKO_INFO("Server: recieve <%s> message", #messageType)
+
 namespace soko
 {
 #pragma pack(push, 1)
@@ -8,28 +15,47 @@ namespace soko
         {
             ClientConnectMessage,
             ClientLevelListMessage,
-            ServerLevelListQueryMessage
+            ClientPresenceMessage,
+            ServerConnectMessage,
+            ServerLevelListQueryMessage,
+            ServerPresenceMessage,
         } type;
         u32 messageSize;
     };
 
     struct ClientConnectMessage
     {
-        NetMessageHeader header;
+        NetMessageHeader header = { NetMessageHeader::ClientConnectMessage, sizeof(ClientConnectMessage)};;
         char playerName[PLAYER_NAME_LEN];
     };
 
     struct ClientLevelListMessage
     {
-        NetMessageHeader header;
+        NetMessageHeader header = { NetMessageHeader::ClientLevelListMessage, sizeof(ClientLevelListMessage)};
         u32 numLevels;
         u64 firstGUID;
         // ... level GUIDs (u64) ...
     };
 
+    struct ServerConnectMessage
+    {
+        NetMessageHeader header = { NetMessageHeader::ServerConnectMessage, sizeof(ServerConnectMessage)};
+        char playerName[PLAYER_NAME_LEN];
+    };
+
     struct ServerLevelListQueryMessage
     {
         NetMessageHeader header = { NetMessageHeader::ServerLevelListQueryMessage, sizeof(ServerLevelListQueryMessage)};
+    };
+
+    struct ServerPresenceMessage
+    {
+        NetMessageHeader header = { NetMessageHeader::ServerPresenceMessage, sizeof(ServerPresenceMessage)};
+    };
+
+    struct ClientPresenceMessage
+    {
+        NetMessageHeader header = { NetMessageHeader::ClientPresenceMessage, sizeof(ClientPresenceMessage)};
     };
 #pragma pack(pop)
 }
