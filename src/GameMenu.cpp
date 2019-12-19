@@ -422,6 +422,38 @@ namespace soko
         ResetLevelIndexToValid(&menu->levelCache, true);
     }
 
+    inline NetRecieveResult
+    BeginReadIncomingMessages(Socket socket, SocketBuffer* buffer)
+    {
+        auto result = NetRecieve(socket, buffer->buffer, ArrayCount(buffer->buffer));
+        buffer->end = result.bytesRecieved;
+        buffer->at = 0;
+        return result;
+    }
+
+    inline NetMessageHeader*
+    GetNextIncomingMessage(SocketBuffer* buffer)
+    {
+        NetMessageHeader* result = 0;
+        if ((buffer->end - buffer->at) >= sizeof(NetMessageHeader))
+        {
+            result = (NetMessageHeader*)(buffer->buffer + buffer->at);
+            if (MessageValid(result))
+            {
+                u32 messageSize = result->messageSize;
+                buffer->at += messageSize;
+            }
+        }
+        return result;
+    }
+
+    inline void
+    EndReadIncomingMessages(SocketBuffer* buffer)
+    {
+        buffer->at = 0;
+        buffer->end = 0;
+    }
+
     internal void
     MenuServerSettings(GameState* gameState, GameMenu* menu, AB::MemoryArena* tempArena)
     {
@@ -571,8 +603,8 @@ namespace soko
             }
             else if (menu->serverState == ServerState_Connected)
             {
-                byte buffer[1024];
-                auto recieveResult = NetRecieve(menu->serverConnectionSocket, buffer, 1024);
+                auto recieveResult = BeginReadIncomingMessages(menu->serverConnectionSocket, &menu->socketBuffer);
+                // TODO: Handle errors and normal disconnects differently
                 if (recieveResult.status == NetRecieveResult::ConnectionClosed ||
                     recieveResult.status == NetRecieveResult::ConnectionReset ||
                     recieveResult.status == NetRecieveResult::Error)
@@ -581,65 +613,72 @@ namespace soko
                 }
                 else if (recieveResult.status == NetRecieveResult::Success)
                 {
-                    NetMessageHeader* header = (NetMessageHeader*)buffer;
-                    SOKO_ASSERT(header->messageSize == recieveResult.bytesRecieved);
-                    // TODO: Not reset timer if message is broken
-                    menu->serverConnectionTimer = CONNECTION_TIMEOUT;
-                    switch (header->type)
+                    NetMessageHeader* header;
+                    do
                     {
-                    case NetMessageHeader::ClientPresenceMessage:
-                    {
-                        SOKO_LOG_SERVER_RECV(ClientPresenceMessage);
-                    } break;
-                    case NetMessageHeader::ClientConnectMessage:
-                    {
-                        SOKO_LOG_SERVER_RECV(ClientConnectMessage);
-                        ClientConnectMessage* msg = (ClientConnectMessage*)buffer;
-                        strcpy(menu->secondPlayerName, msg->playerName);
-                        menu->serverPlayerConnected = true;
-
+                        header = GetNextIncomingMessage(&menu->socketBuffer);
+                        if (header)
                         {
-                            ServerConnectMessage message = {};
-                            strcpy(message.playerName, gameState->playerName);
-                            auto result = NetSend(menu->serverConnectionSocket, (void*)(&message), sizeof(message), {});
-                            SOKO_LOG_SERVER_SEND(result, ServerConnectMessage);
-                        }
-
-                        SetLevelAvailability(&menu->levelCache, false);
-                        ServerLevelListQueryMessage queryMsg = {};
-                        auto levelQueryResult = NetSend(menu->serverConnectionSocket, (void*)(&queryMsg), sizeof(queryMsg), {});
-                        SOKO_LOG_SERVER_SEND(levelQueryResult, ServerLevelListQueryMessage);
-
-                    } break;
-                    case NetMessageHeader::ClientLevelListMessage:
-                    {
-                        SOKO_INFO("Server: recieve <ClientLevelListMessage> message");
-                        ClientLevelListMessage* msg = (ClientLevelListMessage*)buffer;
-                        u32 numLevels = msg->numLevels;
-                        u64* GUIDs = &msg->firstGUID;
-
-                        for (u32 j = 0; j < menu->levelCache.dirScanResult.count; j++)
-                        {
-                            if (menu->levelCache.isLevel[j])
+                            // TODO: Not reset timer if message is broken
+                            menu->serverConnectionTimer = CONNECTION_TIMEOUT;
+                            switch (header->type)
                             {
-                                u64 serverGUID = menu->levelCache.GUIDs[j];
-                                menu->levelCache.availableOnClient[j] = false;
+                            case NetMessageHeader::ClientPresenceMessage:
+                            {
+                                SOKO_LOG_SERVER_RECV(ClientPresenceMessage);
+                            } break;
+                            case NetMessageHeader::ClientConnectMessage:
+                            {
+                                SOKO_LOG_SERVER_RECV(ClientConnectMessage);
+                                ClientConnectMessage* msg = (ClientConnectMessage*)header;
+                                strcpy(menu->secondPlayerName, msg->playerName);
+                                menu->serverPlayerConnected = true;
 
-                                for (u32 i = 0; i < numLevels; i++)
                                 {
-                                    u64 clientGUID = GUIDs[i];
-                                    if (serverGUID == clientGUID)
+                                    ServerConnectMessage message = {};
+                                    strcpy(message.playerName, gameState->playerName);
+                                    auto result = NetSend(menu->serverConnectionSocket, (void*)(&message), sizeof(message), {});
+                                    SOKO_LOG_SERVER_SEND(result, ServerConnectMessage);
+                                }
+
+                                SetLevelAvailability(&menu->levelCache, false);
+                                ServerLevelListQueryMessage queryMsg = {};
+                                auto levelQueryResult = NetSend(menu->serverConnectionSocket, (void*)(&queryMsg), sizeof(queryMsg), {});
+                                SOKO_LOG_SERVER_SEND(levelQueryResult, ServerLevelListQueryMessage);
+
+                            } break;
+                            case NetMessageHeader::ClientLevelListMessage:
+                            {
+                                SOKO_INFO("Server: recieve <ClientLevelListMessage> message");
+                                ClientLevelListMessage* msg = (ClientLevelListMessage*)header;
+                                u32 numLevels = msg->numLevels;
+                                u64* GUIDs = &msg->firstGUID;
+
+                                for (u32 j = 0; j < menu->levelCache.dirScanResult.count; j++)
+                                {
+                                    if (menu->levelCache.isLevel[j])
                                     {
-                                        menu->levelCache.availableOnClient[j] = true;
-                                        break;
+                                        u64 serverGUID = menu->levelCache.GUIDs[j];
+                                        menu->levelCache.availableOnClient[j] = false;
+
+                                        for (u32 i = 0; i < numLevels; i++)
+                                        {
+                                            u64 clientGUID = GUIDs[i];
+                                            if (serverGUID == clientGUID)
+                                            {
+                                                menu->levelCache.availableOnClient[j] = true;
+                                                break;
+                                            }
+                                        }
                                     }
                                 }
+                                ResetLevelIndexToValid(&menu->levelCache, true);
+                            } break;
+                            default: { SOKO_INFO("Server recieved broken message"); } break;
                             }
                         }
-                        ResetLevelIndexToValid(&menu->levelCache, true);
-                    } break;
-                    default: { SOKO_INFO("Server recieved broken message"); } break;
                     }
+                    while (header);
                 }
 
                 // NOTE: Send presence message
@@ -864,79 +903,87 @@ namespace soko
         }
         else
         {
-            // TODO: Formalize these buffers
-            byte buffer[1024];
-            auto recieveResult = NetRecieve(menu->clientSocket, buffer, 1024);
+            auto recieveResult = BeginReadIncomingMessages(menu->clientSocket, &menu->socketBuffer);
+            // TODO: Handle errors and normal disconnect differently
             if (recieveResult.status == NetRecieveResult::ConnectionClosed ||
                 recieveResult.status == NetRecieveResult::ConnectionReset ||
                 recieveResult.status == NetRecieveResult::Error)
             {
                 ClientDisconnectFromServer(menu);
+                EndReadIncomingMessages(&menu->socketBuffer);
             }
             else if (recieveResult.status == NetRecieveResult::Success)
             {
-                NetMessageHeader* header = (NetMessageHeader*)buffer;
-                // TODO: IMPORTANT: Seems like NetRecieve recieves all queued messages at once
-                // so we need parse the buffer and extract all recieved messages
-                SOKO_ASSERT(header->messageSize == recieveResult.bytesRecieved);
-                // TODO: Not reset the timer if message are broken
-                menu->clientConnectionTimer = CONNECTION_TIMEOUT;
-                switch (header->type)
+                NetMessageHeader* header;
+                do
                 {
-                case NetMessageHeader::ServerPresenceMessage:
-                {
-                    SOKO_LOG_CLIENT_RECV(ServerPresenceMessage);
-                } break;
-                // TODO: Ensure that this is the first message recieved
-                case NetMessageHeader::ServerConnectMessage:
-                {
-                    SOKO_LOG_CLIENT_RECV(ServerConnectMessage);
-                    ServerConnectMessage* msg = (ServerConnectMessage*)buffer;
-                    strcpy(menu->secondPlayerName, msg->playerName);
-                }
-                case NetMessageHeader::ServerLevelListQueryMessage:
-                {
-                    SOKO_LOG_CLIENT_RECV(ServerLevelListQueryMessage);
-
-                    BeginTemporaryMemory(gameState->tempArena);
-                    FillLevelCache(&menu->levelCache, gameState->tempArena);
-
-                    const u32 bufferSize = 1024;
-                    byte buffer[bufferSize];
-                    ZERO_ARRAY(byte, bufferSize, buffer);
-
-                    ClientLevelListMessage* msg = (ClientLevelListMessage*)buffer;
-                    msg->header.type = NetMessageHeader::ClientLevelListMessage;
-                    msg->numLevels = menu->levelCache.dirScanResult.count;
-
-                    u32 buffSizeForGUIDs = bufferSize - sizeof(ClientLevelListMessage) + sizeof(u64);
-                    u32 numLevelsFit = buffSizeForGUIDs / sizeof(u64);
-                    if (numLevelsFit < msg->numLevels)
+                    header = GetNextIncomingMessage(&menu->socketBuffer);
+                    if (header)
                     {
-                        msg->numLevels = numLevelsFit;
+                        // TODO: Not reset the timer if message are broken
+                        menu->clientConnectionTimer = CONNECTION_TIMEOUT;
+                        switch (header->type)
+                        {
+                        case NetMessageHeader::ServerPresenceMessage:
+                        {
+                            SOKO_LOG_CLIENT_RECV(ServerPresenceMessage);
+                        } break;
+                        // TODO: Ensure that this is the first message recieved
+                        case NetMessageHeader::ServerConnectMessage:
+                        {
+                            SOKO_LOG_CLIENT_RECV(ServerConnectMessage);
+                            ServerConnectMessage* msg = (ServerConnectMessage*)header;
+                            strcpy(menu->secondPlayerName, msg->playerName);
+                        } break;
+                        case NetMessageHeader::ServerLevelListQueryMessage:
+                        {
+                            SOKO_LOG_CLIENT_RECV(ServerLevelListQueryMessage);
+
+                            BeginTemporaryMemory(gameState->tempArena);
+                            FillLevelCache(&menu->levelCache, gameState->tempArena);
+
+                            const u32 bufferSize = 1024;
+                            byte buffer[bufferSize];
+                            ZERO_ARRAY(byte, bufferSize, buffer);
+
+                            ClientLevelListMessage* msg = (ClientLevelListMessage*)buffer;
+                            msg->header.type = NetMessageHeader::ClientLevelListMessage;
+                            msg->numLevels = menu->levelCache.dirScanResult.count;
+
+                            u32 buffSizeForGUIDs = bufferSize - sizeof(ClientLevelListMessage) + sizeof(u64);
+                            u32 numLevelsFit = buffSizeForGUIDs / sizeof(u64);
+                            if (numLevelsFit < msg->numLevels)
+                            {
+                                msg->numLevels = numLevelsFit;
+                            }
+
+                            u64* GUIDs = &msg->firstGUID;
+
+                            for (u32 i = 0; i < msg->numLevels; i++)
+                            {
+                                // TODO: Send only valid guids
+                                u64 guid = menu->levelCache.GUIDs[i];
+                                GUIDs[i] = guid;
+                            }
+
+                            menu->levelCache = {};
+                            EndTemporaryMemory(gameState->tempArena);
+
+                            u32 msgSize = sizeof(msg) + ((msg->numLevels - 1) * sizeof(u64));
+                            msg->header.messageSize = msgSize;
+
+                            auto levelsMsgResult = NetSend(menu->clientSocket, (void*)msg, msgSize, {});
+                            SOKO_LOG_CLIENT_SEND(levelsMsgResult, ClientLevelListMessage);
+                        } break;
+                        default: { SOKO_INFO("Client: recieved broken message"); } break;
+                        }
+
                     }
-
-                    u64* GUIDs = &msg->firstGUID;
-
-                    for (u32 i = 0; i < msg->numLevels; i++)
-                    {
-                        // TODO: Send only valid guids
-                        u64 guid = menu->levelCache.GUIDs[i];
-                        GUIDs[i] = guid;
-                    }
-
-                    menu->levelCache = {};
-                    EndTemporaryMemory(gameState->tempArena);
-
-                    u32 msgSize = sizeof(msg) + ((msg->numLevels - 1) * sizeof(u64));
-                    msg->header.messageSize = msgSize;
-
-                    auto levelsMsgResult = NetSend(menu->clientSocket, (void*)msg, msgSize, {});
-                    SOKO_LOG_CLIENT_SEND(levelsMsgResult, ClientLevelListMessage);
-                } break;
-                default: { SOKO_INFO("Client: recieved broken message"); } break;
                 }
+                while (header);
             }
+
+            EndReadIncomingMessages(&menu->socketBuffer);
 
             // NOTE: Send presence message
             // TODO: For debug only!!!

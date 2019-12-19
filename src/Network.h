@@ -13,12 +13,12 @@ namespace soko
     {
         enum
         {
-            ClientConnectMessage,
-            ClientLevelListMessage,
-            ClientPresenceMessage,
-            ServerConnectMessage,
-            ServerLevelListQueryMessage,
-            ServerPresenceMessage,
+            ClientConnectMessage = 1,
+            ClientLevelListMessage = 2,
+            ClientPresenceMessage = 3,
+            ServerConnectMessage = 4,
+            ServerLevelListQueryMessage = 5,
+            ServerPresenceMessage = 6,
         } type;
         u32 messageSize;
     };
@@ -29,9 +29,10 @@ namespace soko
         char playerName[PLAYER_NAME_LEN];
     };
 
+    // NOTE: Size should be specified manually
     struct ClientLevelListMessage
     {
-        NetMessageHeader header = { NetMessageHeader::ClientLevelListMessage, sizeof(ClientLevelListMessage)};
+        NetMessageHeader header = { NetMessageHeader::ClientLevelListMessage, 0};
         u32 numLevels;
         u64 firstGUID;
         // ... level GUIDs (u64) ...
@@ -58,6 +59,13 @@ namespace soko
         NetMessageHeader header = { NetMessageHeader::ClientPresenceMessage, sizeof(ClientPresenceMessage)};
     };
 #pragma pack(pop)
+
+    inline bool MessageValid(const NetMessageHeader* header)
+    {
+        bool result;
+        result = (header->type > 0 && header->type <=6);
+        return result;
+    }
 }
 
 

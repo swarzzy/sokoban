@@ -65,6 +65,14 @@ namespace soko
         ServerState_Connected
     };
 
+    struct SocketBuffer
+    {
+        // TODO: We don't need THAT big buffer
+        u32 at;
+        u32 end;
+        byte buffer[MEGABYTES(1)];
+    };
+
     struct GameMenu
     {
         MainMenuState state;
@@ -90,6 +98,8 @@ namespace soko
         f32 clientConnectionTimer;
         // TODO: For debug only!!!
         b32 clientStopSendPresenceMessages;
+
+        SocketBuffer socketBuffer;
 
         // NOTE: Will be zeroed from this member
         char levelPathBuffer[LEVEL_PATH_BUFFER_SIZE];
