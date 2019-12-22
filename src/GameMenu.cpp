@@ -359,112 +359,16 @@ namespace soko
     }
 
     internal void
-    InitServer(GameMenu* menu)
-    {
-        SOKO_ASSERT(menu->serverState == ServerState_NotInitialized);
-        SOKO_ASSERT(!menu->serverListenSocket.handle);
-
-        Socket listenSocket = NetCreateSocket(SocketType_TCP);
-        if (listenSocket.handle)
-        {
-            u16 port = NetBindSocket(listenSocket);
-            if (port)
-            {
-                if (NetListen(listenSocket, 4))
-                {
-                    menu->serverPort = port;
-                    menu->serverListenSocket = listenSocket;
-                    menu->serverState = ServerState_Listening;
-                }
-                else
-                {
-                    SOKO_INFO("Failed to listen socket");
-                    NetCloseSocket(listenSocket);
-                }
-            }
-            else
-            {
-                SOKO_INFO("Failed to bind socket");
-                NetCloseSocket(listenSocket);
-            }
-        }
-    }
-
-    internal void
-    ShutdownServer(GameMenu* menu)
-    {
-        if (menu->serverListenSocket.handle)
-        {
-            NetCloseSocket(menu->serverListenSocket);
-            menu->serverListenSocket = {};
-        }
-        if (menu->serverConnectionSocket.handle)
-        {
-            NetCloseSocket(menu->serverConnectionSocket);
-            menu->serverConnectionSocket = {};
-        }
-        menu->serverState = ServerState_NotInitialized;
-        menu->serverPort = 0;
-        menu->secondPlayerName[0] = 0;
-    }
-
-    internal void
-    ServerDisconnectPlayer(GameMenu* menu)
-    {
-        menu->serverState = ServerState_Listening;
-        NetCloseSocket(menu->serverConnectionSocket);
-        menu->serverConnectionSocket = {};
-        // TODO: Disconnect player
-        menu->secondPlayerName[0] = 0;
-        menu->serverPlayerConnected = false;
-
-        SetLevelAvailability(&menu->levelCache, true);
-        ResetLevelIndexToValid(&menu->levelCache, true);
-    }
-
-    inline NetRecieveResult
-    BeginReadIncomingMessages(Socket socket, SocketBuffer* buffer)
-    {
-        auto result = NetRecieve(socket, buffer->buffer, ArrayCount(buffer->buffer));
-        buffer->end = result.bytesRecieved;
-        buffer->at = 0;
-        return result;
-    }
-
-    inline NetMessageHeader*
-    GetNextIncomingMessage(SocketBuffer* buffer)
-    {
-        NetMessageHeader* result = 0;
-        if ((buffer->end - buffer->at) >= sizeof(NetMessageHeader))
-        {
-            result = (NetMessageHeader*)(buffer->buffer + buffer->at);
-            if (MessageValid(result))
-            {
-                u32 messageSize = result->messageSize;
-                buffer->at += messageSize;
-            }
-        }
-        return result;
-    }
-
-    inline void
-    EndReadIncomingMessages(SocketBuffer* buffer)
-    {
-        buffer->at = 0;
-        buffer->end = 0;
-    }
-
-    internal void
     MenuServerSettings(GameState* gameState, GameMenu* menu, AB::MemoryArena* tempArena)
     {
         MainMenuState nextState = MainMenu_ConfigureServer;
         bool serverInitialized = false;
-        if (!menu->serverState)
+        if (!menu->server.state)
         {
-            InitServer(menu);
+            InitServer(&menu->server);
         }
 
-        if (menu->serverState)
+        if (menu->server.state)
         {
             if (!menu->levelCache.initialized)
             {
@@ -474,8 +378,8 @@ namespace soko
 
             ImGui::Text("Session settings:");
             ImGui::Separator();
-            SOKO_ASSERT(menu->serverPort);
-            ImGui::Text("Server port: %d", (int)menu->serverPort);
+            SOKO_ASSERT(menu->server.port);
+            ImGui::Text("Server port: %d", (int)menu->server.port);
             ImGui::Separator();
 
             ImGui::Text("Level");
@@ -519,7 +423,7 @@ namespace soko
                 EndTemporaryMemory(tempArena);
                 BeginTemporaryMemory(tempArena);
                 FillLevelCache(&menu->levelCache, tempArena);
-                if (menu->serverPlayerConnected)
+                if (menu->server.playerConnected)
                 {
                     SetLevelAvailability(&menu->levelCache, false);
                 }
@@ -531,7 +435,7 @@ namespace soko
                 ResetLevelIndexToValid(&menu->levelCache, true);
 
                 ServerLevelListQueryMessage msg = {};
-                auto levelQueryResult = NetSend(menu->serverConnectionSocket, (void*)(&msg), sizeof(msg), {});
+                auto levelQueryResult = NetSend(menu->server.connectionSocket, (void*)(&msg), sizeof(msg), {});
                 if (!levelQueryResult.status)
                 {
                     SOKO_INFO("Server: failed to send <ServerLevelListQueryMessage> message");
@@ -558,13 +462,15 @@ namespace soko
             {
                 ChangePlayerNameModal(gameState, menu);
             }
-            ImGui::Text("Player 2:\t %s", menu->secondPlayerName);
-            if (menu->serverState == ServerState_Connected)
+            ImGui::Text("Player 2:\t %s", menu->server.connectedPlayerName);
+            if (menu->server.state == Server::Connected)
             {
                 ImGui::SameLine();
                 if (ImGui::SmallButton("Kick"))
                 {
-                    ServerDisconnectPlayer(menu);
+                    ServerDisconnectPlayer(&menu->server);
+                    SetLevelAvailability(&menu->levelCache, true);
+                    ResetLevelIndexToValid(&menu->levelCache, true);
                 }
             }
 
@@ -588,28 +494,30 @@ namespace soko
                 nextState = MainMenu_ModeSelection;
             }
 
-            if (menu->serverState == ServerState_Listening)
+            if (menu->server.state == Server::Listening)
             {
-                Socket connectionSocket = NetAccept(menu->serverListenSocket);
+                Socket connectionSocket = NetAccept(menu->server.listenSocket);
                 if (connectionSocket.handle)
                 {
                     //NetCloseSocket(menu->serverListenSocket);
-                    menu->serverState = ServerState_Connected;
-                    menu->serverConnectionSocket = connectionSocket;
-                    menu->serverPresenceTimer = PRESENCE_MESSAGE_TIMEOUT;
-                    menu->serverConnectionTimer = CONNECTION_TIMEOUT;
+                    menu->server.state = Server::Connected;
+                    menu->server.connectionSocket = connectionSocket;
+                    menu->server.presenceTimer = PRESENCE_MESSAGE_TIMEOUT;
+                    menu->server.connectionTimer = CONNECTION_TIMEOUT;
                     SOKO_INFO("Connection established!");
                 }
             }
-            else if (menu->serverState == ServerState_Connected)
+            else if (menu->server.state == Server::Connected)
             {
-                auto recieveResult = BeginReadIncomingMessages(menu->serverConnectionSocket, &menu->socketBuffer);
+                auto recieveResult = BeginReadIncomingMessages(menu->server.connectionSocket, &menu->socketBuffer);
                 // TODO: Handle errors and normal disconnects differently
                 if (recieveResult.status == NetRecieveResult::ConnectionClosed ||
                     recieveResult.status == NetRecieveResult::ConnectionReset ||
                     recieveResult.status == NetRecieveResult::Error)
                 {
-                    ServerDisconnectPlayer(menu);
+                    ServerDisconnectPlayer(&menu->server);
+                    SetLevelAvailability(&menu->levelCache, true);
+                    ResetLevelIndexToValid(&menu->levelCache, true);
                 }
                 else if (recieveResult.status == NetRecieveResult::Success)
                 {
@@ -620,7 +528,7 @@ namespace soko
                         if (header)
                         {
                             // TODO: Not reset timer if message is broken
-                            menu->serverConnectionTimer = CONNECTION_TIMEOUT;
+                            menu->server.connectionTimer = CONNECTION_TIMEOUT;
                             switch (header->type)
                             {
                             case NetMessageHeader::ClientPresenceMessage:
@@ -631,19 +539,19 @@ namespace soko
                             {
                                 SOKO_LOG_SERVER_RECV(ClientConnectMessage);
                                 ClientConnectMessage* msg = (ClientConnectMessage*)header;
-                                strcpy(menu->secondPlayerName, msg->playerName);
-                                menu->serverPlayerConnected = true;
+                                strcpy(menu->server.connectedPlayerName, msg->playerName);
+                                menu->server.playerConnected = true;
 
                                 {
                                     ServerConnectMessage message = {};
                                     strcpy(message.playerName, gameState->playerName);
-                                    auto result = NetSend(menu->serverConnectionSocket, (void*)(&message), sizeof(message), {});
+                                    auto result = NetSend(menu->server.connectionSocket, (void*)(&message), sizeof(message), {});
                                     SOKO_LOG_SERVER_SEND(result, ServerConnectMessage);
                                 }
 
                                 SetLevelAvailability(&menu->levelCache, false);
                                 ServerLevelListQueryMessage queryMsg = {};
-                                auto levelQueryResult = NetSend(menu->serverConnectionSocket, (void*)(&queryMsg), sizeof(queryMsg), {});
+                                auto levelQueryResult = NetSend(menu->server.connectionSocket, (void*)(&queryMsg), sizeof(queryMsg), {});
                                 SOKO_LOG_SERVER_SEND(levelQueryResult, ServerLevelListQueryMessage);
 
                             } break;
@@ -685,24 +593,26 @@ namespace soko
                 // TODO: For debug only!!!
                 if (JustPressed(KEY_P))
                 {
-                    menu->serverStopSendPresenceMessages = !menu->serverStopSendPresenceMessages;
+                    menu->server.stopSendPresenceMessages = !menu->server.stopSendPresenceMessages;
                 }
-                if (!menu->serverStopSendPresenceMessages)
+                if (!menu->server.stopSendPresenceMessages)
                 {
-                    menu->serverPresenceTimer -= GlobalAbsDeltaTime;
-                    if (menu->serverPresenceTimer < 0.0f)
+                    menu->server.presenceTimer -= GlobalAbsDeltaTime;
+                    if (menu->server.presenceTimer < 0.0f)
                     {
-                        menu->serverPresenceTimer = PRESENCE_MESSAGE_TIMEOUT;
+                        menu->server.presenceTimer = PRESENCE_MESSAGE_TIMEOUT;
                         ServerPresenceMessage message = {};
-                        auto result = NetSend(menu->serverConnectionSocket, (void*)(&message), sizeof(message), {});
+                        auto result = NetSend(menu->server.connectionSocket, (void*)(&message), sizeof(message), {});
                         SOKO_LOG_SERVER_SEND(result, ServerPresenceMessage);
                     }
                 }
-                menu->serverConnectionTimer -= GlobalAbsDeltaTime;
-                if (menu->serverConnectionTimer < 0.0f)
+                menu->server.connectionTimer -= GlobalAbsDeltaTime;
+                if (menu->server.connectionTimer < 0.0f)
                 {
                     SOKO_INFO("Server: connection timeout");
-                    ServerDisconnectPlayer(menu);
+                    ServerDisconnectPlayer(&menu->server);
+                    SetLevelAvailability(&menu->levelCache, true);
+                    ResetLevelIndexToValid(&menu->levelCache, true);
                 }
             }
 
@@ -710,7 +620,7 @@ namespace soko
 
             if (menu->state != MainMenu_ConfigureServer)
             {
-                ShutdownServer(menu);
+                ShutdownServer(&menu->server);
                 menu->levelCache = {};
                 EndTemporaryMemory(tempArena);
             }
@@ -808,9 +718,9 @@ namespace soko
                     }
                     else
                     {
-                        menu->clientSocket = socket;
+                        menu->client.socket = socket;
                         menu->state = MainMenu_ClientWaitForConnection;
-                        menu->clientConnectionTimeout = CONNECTION_ESTABLISH_TIMEOUT;
+                        menu->client.connectionTimeout = CONNECTION_ESTABLISH_TIMEOUT;
                     }
                 }
             }
@@ -826,19 +736,19 @@ namespace soko
     internal void
     MenuWaitForConnection(GameMenu* menu)
     {
-        if (menu->clientConnectionTimeout > 0.0f)
+        if (menu->client.connectionTimeout > 0.0f)
         {
-            menu->clientConnectionTimeout -= GlobalAbsDeltaTime;
+            menu->client.connectionTimeout -= GlobalAbsDeltaTime;
             ImGui::Text("Connecting...");
             NetAddress address;
             address.ip = menu->clientConf.serverAddress.ip;
             address.port = menu->clientConf.serverAddress.port;
-            auto connectionResult = NetConnect(menu->clientSocket, address);
+            auto connectionResult = NetConnect(menu->client.socket, address);
             switch (connectionResult)
             {
             case ConnectionStatus_Connected: { menu->state = MainMenu_ClientSessionLobby; } break;
                 // TODO: Show error
-            case ConnectionStatus_Error: { NetCloseSocket(menu->clientSocket); menu->clientSocket = {}; menu->state = MainMenu_ConnectionError;} break;
+            case ConnectionStatus_Error: { NetCloseSocket(menu->client.socket); menu->client.socket = {}; menu->state = MainMenu_ConnectionError;} break;
             default: {} break;
             }
         }
@@ -859,28 +769,17 @@ namespace soko
     }
 
     internal void
-    ClientDisconnectFromServer(GameMenu* menu)
-    {
-        menu->state = MainMenu_ConnectToServer;
-        NetCloseSocket(menu->clientSocket);
-        menu->clientSocket = {};
-        // TODO: Disconnect player
-        menu->clientConnectionEstablished = false;
-        menu->secondPlayerName[0] = 0;
-    }
-
-    internal void
     MenuClientSessionLobby(GameMenu* menu, GameState* gameState)
     {
         // NOTE: Showing players
         ImGui::Separator();
         ImGui::Text("Players:");
         ImGui::Text("Player 1:\t %s", gameState->playerName);
-        ImGui::Text("Player 2:\t %s", menu->secondPlayerName);
+        ImGui::Text("Player 2:\t %s", menu->client.connectedPlayerName);
 
-        if (!menu->clientConnectionEstablished)
+        if (!menu->client.connectionEstablished)
         {
-            menu->clientConnectionEstablished = true;
+            menu->client.connectionEstablished = true;
 
             NetSendResult connectMsgResult = {};
 
@@ -888,28 +787,29 @@ namespace soko
             msg.header.type = NetMessageHeader::ClientConnectMessage;
             strcpy(msg.playerName, gameState->playerName);
             msg.header.messageSize = sizeof(ClientConnectMessage);
-            connectMsgResult = NetSend(menu->clientSocket, (void*)(&msg), sizeof(msg), {});
+            connectMsgResult = NetSend(menu->client.socket, (void*)(&msg), sizeof(msg), {});
             SOKO_LOG_CLIENT_SEND(connectMsgResult, ClientConnectMessage);
 
             if (!connectMsgResult.status)
             {
-                NetCloseSocket(menu->clientSocket);
-                menu->clientConnectionEstablished = false;
+                NetCloseSocket(menu->client.socket);
+                menu->client.connectionEstablished = false;
                 menu->state = MainMenu_ConnectToServer;
             }
 
-            menu->clientPresenceTimer = PRESENCE_MESSAGE_TIMEOUT;
-            menu->clientConnectionTimer = CONNECTION_TIMEOUT;
+            menu->client.presenceTimer = PRESENCE_MESSAGE_TIMEOUT;
+            menu->client.connectionTimer = CONNECTION_TIMEOUT;
         }
         else
         {
-            auto recieveResult = BeginReadIncomingMessages(menu->clientSocket, &menu->socketBuffer);
+            auto recieveResult = BeginReadIncomingMessages(menu->client.socket, &menu->socketBuffer);
             // TODO: Handle errors and normal disconnect differently
             if (recieveResult.status == NetRecieveResult::ConnectionClosed ||
                 recieveResult.status == NetRecieveResult::ConnectionReset ||
                 recieveResult.status == NetRecieveResult::Error)
             {
-                ClientDisconnectFromServer(menu);
+                ClientDisconnectFromServer(&menu->client);
+                menu->state = MainMenu_ConnectToServer;
                 EndReadIncomingMessages(&menu->socketBuffer);
             }
             else if (recieveResult.status == NetRecieveResult::Success)
@@ -921,7 +821,7 @@ namespace soko
                     if (header)
                     {
                         // TODO: Not reset the timer if message are broken
-                        menu->clientConnectionTimer = CONNECTION_TIMEOUT;
+                        menu->client.connectionTimer = CONNECTION_TIMEOUT;
                         switch (header->type)
                         {
                         case NetMessageHeader::ServerPresenceMessage:
@@ -933,7 +833,7 @@ namespace soko
                         {
                             SOKO_LOG_CLIENT_RECV(ServerConnectMessage);
                             ServerConnectMessage* msg = (ServerConnectMessage*)header;
-                            strcpy(menu->secondPlayerName, msg->playerName);
+                            strcpy(menu->client.connectedPlayerName, msg->playerName);
                         } break;
                         case NetMessageHeader::ServerLevelListQueryMessage:
                         {
@@ -972,7 +872,7 @@ namespace soko
                             u32 msgSize = sizeof(msg) + ((msg->numLevels - 1) * sizeof(u64));
                             msg->header.messageSize = msgSize;
 
-                            auto levelsMsgResult = NetSend(menu->clientSocket, (void*)msg, msgSize, {});
+                            auto levelsMsgResult = NetSend(menu->client.socket, (void*)msg, msgSize, {});
                             SOKO_LOG_CLIENT_SEND(levelsMsgResult, ClientLevelListMessage);
                         } break;
                         default: { SOKO_INFO("Client: recieved broken message"); } break;
@@ -989,25 +889,26 @@ namespace soko
             // TODO: For debug only!!!
             if (JustPressed(KEY_P))
             {
-                menu->clientStopSendPresenceMessages = !menu->clientStopSendPresenceMessages;
+                menu->client.stopSendPresenceMessages = !menu->client.stopSendPresenceMessages;
             }
-            if (!menu->clientStopSendPresenceMessages)
+            if (!menu->client.stopSendPresenceMessages)
             {
-                menu->clientPresenceTimer -= GlobalAbsDeltaTime;
-                if (menu->clientPresenceTimer < 0.0f)
+                menu->client.presenceTimer -= GlobalAbsDeltaTime;
+                if (menu->client.presenceTimer < 0.0f)
                 {
-                    menu->clientPresenceTimer = PRESENCE_MESSAGE_TIMEOUT;
+                    menu->client.presenceTimer = PRESENCE_MESSAGE_TIMEOUT;
                     ClientPresenceMessage message = {};
-                    auto result = NetSend(menu->clientSocket, (void*)(&message), sizeof(message), {});
+                    auto result = NetSend(menu->client.socket, (void*)(&message), sizeof(message), {});
                     SOKO_LOG_CLIENT_SEND(result, ClientPresenceMessage);
                 }
             }
 
-            menu->clientConnectionTimer -= GlobalAbsDeltaTime;
-            if (menu->clientConnectionTimer < 0.0f)
+            menu->client.connectionTimer -= GlobalAbsDeltaTime;
+            if (menu->client.connectionTimer < 0.0f)
             {
                 SOKO_INFO("Client: connection timeout");
-                ClientDisconnectFromServer(menu);
+                ClientDisconnectFromServer(&menu->client);
+                menu->state = MainMenu_ConnectToServer;
             }
 
         }
@@ -1015,7 +916,8 @@ namespace soko
         ImGui::Text("Connected to server");
         if (ImGui::Button("Disconnect"))
         {
-            ClientDisconnectFromServer(menu);
+            ClientDisconnectFromServer(&menu->client);
+            menu->state = MainMenu_ConnectToServer;
         }
 
     }

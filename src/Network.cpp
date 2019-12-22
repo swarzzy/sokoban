@@ -1,605 +1,107 @@
 #include "Network.h"
-#if 0
-namespace soko::net
+
+namespace soko
 {
-
-    static void
-    PushPlayerAction(InputBuffer* inputBuffer, PlayerAction action)
+    internal void
+    InitServer(Server* server)
     {
-        SOKO_ASSERT(inputBuffer->at <= PLAYER_INPUT_BUFFER_SIZE);
-        *(inputBuffer->base + inputBuffer->at) = action;
-        inputBuffer->at++;
-    }
+        SOKO_ASSERT(server->state == Server::NotInitialized);
+        SOKO_ASSERT(!server->listenSocket.handle);
 
-    void
-    CollectPlayerInput(InputBuffer* inputBuffer)
-    {
-        if (JustPressed(AB::KEY_SPACE))
+        Socket listenSocket = NetCreateSocket(SocketType_TCP);
+        if (listenSocket.handle)
         {
-            PushPlayerAction(inputBuffer, PlayerAction_ToggleInteractionMode);
-        }
-
-        if (JustPressed(AB::KEY_UP))
-        {
-            PushPlayerAction(inputBuffer, PlayerAction_MoveNorth);
-        }
-
-        if (JustPressed(AB::KEY_DOWN))
-        {
-            PushPlayerAction(inputBuffer, PlayerAction_MoveSouth);
-        }
-
-        if (JustPressed(AB::KEY_RIGHT))
-        {
-            PushPlayerAction(inputBuffer, PlayerAction_MoveEast);
-        }
-
-        if (JustPressed(AB::KEY_LEFT))
-        {
-            PushPlayerAction(inputBuffer, PlayerAction_MoveWest);
-        }
-    }
-
-    internal Server*
-    InitializeServer(AB::MemoryArena* arena, i16 port)
-    {
-        Server* result = 0;
-        uptr socket = NetCreateSocket();
-        if (socket)
-        {
-            if (NetBindSocket(socket, port))
+            u16 port = NetBindSocket(listenSocket);
+            if (port)
             {
-                result = PUSH_STRUCT(arena, Server);
-                if (result)
+                if (NetListen(listenSocket, 4))
                 {
-                    result->socket = socket;
-                    result->port = port;
+                    server->port = port;
+                    server->listenSocket = listenSocket;
+                    server->state = Server::Listening;
                 }
-            }
-        }
-        return result;
-    }
-
-    inline bool
-    ServerAddPlayer(Server* server, Player* player, i16 slot, AB::NetAddress playerAddress)
-    {
-        bool result = false;
-        if (slot >= 0 && slot < SERVER_SLOTS_NUM)
-        {
-            if (!server->slotsOccupancy[slot])
-            {
-                server->slotsOccupancy[slot] = true;
-                server->slots[slot].player = player;
-                server->slots[slot].address = playerAddress;
-                result = true;
-            }
-        }
-        return result;
-    }
-
-    inline i16
-    ServerFindEmptySlot(const Server* server)
-    {
-        i16 result = -1;
-        for (u32 i = 0; i < SERVER_SLOTS_NUM; i++)
-        {
-            if (!server->slotsOccupancy[i])
-            {
-                result = (i16)i;
-                break;
-            }
-        }
-        return result;
-    }
-
-    void
-    ServerSendOutputMessages(GameState* gameState, Level* level, Server* server)
-    {
-        byte* buffer = server->socketBuffer;
-        for (u32 i = 0; i < SERVER_SLOTS_NUM; i++)
-        {
-            b32 slotOccupied = server->slotsOccupancy[i];
-            ServerSlot* slot = server->slots + i;
-            if (slotOccupied && slot->inputBuffer.at)
-            {
-                for (u32 inputIndex = 0;
-                     inputIndex < slot->inputBuffer.at;
-                     inputIndex++)
+                else
                 {
-                    PlayerAction action = (PlayerAction)slot->inputBuffer.base[inputIndex];
-                    if (ActionIsMovement(action))
-                    {
-#if 0 // TODO: Use sim regions
-                        MoveEntity(level,
-                                   slot->player->e,
-                                   (Direction)action,
-                                   slot->player->reversed);
-#endif
-                    }
-                    else
-                    {
-                        switch (action)
-                        {
-                        case PlayerAction_ToggleInteractionMode:
-                        {
-                            slot->player->reversed = !slot->player->reversed;
-                        } break;
-                        INVALID_DEFAULT_CASE;
-                        }
-                    }
+                    SOKO_INFO("Failed to listen socket");
+                    NetCloseSocket(listenSocket);
                 }
-
-                auto header = (ServerMsgHeader*)buffer;
-                header->type = ServerMsg_PlayerAction;
-
-                auto msg = (ServerPlayerActionMsg*)(buffer + sizeof(ServerMsgHeader));
-
-                msg->slot = (i16)i;
-
-                u32 inputOffset = sizeof(ServerMsgHeader) + sizeof(ServerPlayerActionMsg);
-                // TODO: Check for buffer overflow
-                COPY_BYTES(slot->inputBuffer.at, buffer + inputOffset, slot->inputBuffer.base);
-                inputOffset += slot->inputBuffer.at;
-                for (u32 sendIndex = 1; sendIndex < net::SERVER_SLOTS_NUM; sendIndex++)
-                {
-                    if (server->slotsOccupancy[sendIndex])
-                    {
-                        ServerSlot* sendSlot = server->slots + sendIndex;
-                        auto[status, size] = NetSend(server->socket,
-                                                     sendSlot->address,
-                                                     buffer, inputOffset);
-                        SOKO_ASSERT(status);
-                    }
-                }
-                slot->inputBuffer.at = 0;
-            }
-        }
-    }
-
-    void
-    ServerPollInputMessages(GameState* gameState, Server* server)
-    {
-        while (true)
-        {
-            auto[rcStatus, rcSize, rcFrom] = NetRecieve(server->socket, server->socketBuffer,
-                                                        net::SERVER_SOCKET_BUFFER_SIZE);
-            if (rcStatus == AB::NetRecieveResult::Success && rcSize) // TODO: empty packets
-            {
-                byte* buffer = server->socketBuffer;
-                auto inHeader = (ClientMsgHeader*)server->socketBuffer;
-                auto outHeader = (ServerMsgHeader*)server->socketBuffer;
-                u32 bufferAt = sizeof(ServerMsgHeader);
-                switch (inHeader->type)
-                {
-                case ClientMsg_QueryState:
-                {
-                    outHeader->type = ServerMsg_State;
-                    auto msg = (ServerMsgState*)(buffer + sizeof(ServerMsgHeader));
-                    msg->hasAvailableSlot = ServerFindEmptySlot(server);
-                    msg->levelNameStrLen = SERVER_MAX_LEVEL_NAME_LEN;
-                    void* name = (byte*)msg + sizeof(ServerMsgState);
-                    bufferAt += sizeof(ServerMsgState);
-                    COPY_BYTES(SERVER_MAX_LEVEL_NAME_LEN, name, server->levelName);
-                    bufferAt += SERVER_MAX_LEVEL_NAME_LEN;
-
-                    auto[sndStatus, sndSize] =
-                        NetSend(server->socket, rcFrom, buffer, bufferAt);
-                    SOKO_ASSERT(sndStatus);
-
-                    // TODO: check for errors
-                } break;
-                case ClientMsg_Join:
-                {
-                    i16 freeSlot = ServerFindEmptySlot(server);
-
-                    outHeader->type = ServerMsg_JoinResult;
-
-                    auto msg = (ServerJoinResultMsg*)(buffer + sizeof(ServerMsgHeader));
-                    bufferAt += sizeof(ServerJoinResultMsg);
-
-                    Player* player = 0;
-                    bool slotInitialized = false;
-                    if (freeSlot != -1)
-                    {
-                        // TODO: Aaargh!! Using static
-                        static i32 playerCount = 0;
-                        iv3 coord = IV3(13 + playerCount, 13, 1);
-                        playerCount++;
-
-                        player = AddPlayer(&gameState->session, coord);
-
-                        if (player)
-                        {
-                            if (ServerAddPlayer(server, player, freeSlot, rcFrom))
-                            {
-                                msg->succeed = 1;
-                                msg->newPlayer = {freeSlot, coord.x, coord.y, coord.z};
-
-                                for (i16 otherSlot = 0;
-                                     otherSlot < SERVER_SLOTS_NUM;
-                                     otherSlot++)
-                                {
-                                    if (otherSlot != freeSlot)
-                                    {
-                                        if (server->slotsOccupancy[otherSlot])
-                                        {
-                                            ServerSlot* s = server->slots + otherSlot;
-                                            auto data = (NewPlayerData*)(buffer + bufferAt);
-                                            bufferAt += sizeof(NewPlayerData);
-
-                                            // TODO: Deal with offsets?
-                                            data->slot = otherSlot;
-                                            data->x = s->player->e->pos.x;
-                                            data->y = s->player->e->pos.y;
-                                            data->z = s->player->e->pos.z;
-                                            msg->otherPlayersCount++;
-                                        }
-                                    }
-                                }
-                                slotInitialized = true;
-                            }
-                        }
-                    }
-
-                    if (!slotInitialized)
-                    {
-                        msg->succeed = 0;
-                    }
-
-                    auto[sndStatus, sndSize] =
-                        NetSend(server->socket, rcFrom, buffer, bufferAt);
-
-                    if (!sndStatus && slotInitialized)
-                    {
-                        DeletePlayer(&gameState->session, player);
-                        server->slotsOccupancy[freeSlot] = 0;
-                    }
-
-                    // NOTE: Recieving new player data to all other players
-                    if (slotInitialized && sndStatus)
-                    {
-                        bufferAt = sizeof(ServerMsgHeader);
-                        outHeader->type = ServerMsg_AddPlayer;
-                        auto msg = (ServerAddPlayerMsg*)(buffer + bufferAt);
-                        bufferAt += sizeof(ServerAddPlayerMsg);
-                        msg->newPlayer = {freeSlot, player->e->pos.x, player->e->pos.y, player->e->pos.z};
-
-                        for (u32 i = 0; i < SERVER_SLOTS_NUM; i++)
-                        {
-                            bool slotOccupied = server->slotsOccupancy[i];
-                            if (slotOccupied && (i != freeSlot) && (i != SERVER_LOCAL_PLAYER_SLOT))
-                            {
-                                auto* s = server->slots + i;
-                                auto[sndStatus, sndSize] =
-                                    NetSend(server->socket, s->address, buffer, bufferAt);
-                                // TODO: Make sure that all players get this info
-                                // And revert all join stuff in not
-                                SOKO_ASSERT(sndStatus);
-                            }
-                        }
-                    }
-                } break;
-
-                case ClientMsg_Leave:
-                {
-                    i16 slot = inHeader->slot;
-                    if (slot >= 0 && slot < SERVER_SLOTS_NUM)
-                    {
-                        if (server->slotsOccupancy[slot])
-                        {
-                            server->slotsOccupancy[slot] = 0;
-                            DeletePlayer(&gameState->session, server->slots[slot].player);
-
-                            outHeader->type = ServerMsg_DeletePlayer;
-
-                            auto msg = (ServerDeletePlayerMsg*)(buffer + bufferAt);
-                            bufferAt += sizeof(ServerDeletePlayerMsg);
-
-                            msg->slot = slot;
-
-                            for (u32 i = 0; i < SERVER_SLOTS_NUM; i++)
-                            {
-                                if (i != slot &&
-                                    i != SERVER_LOCAL_PLAYER_SLOT &&
-                                    server->slotsOccupancy[i])
-                                {
-                                    ServerSlot* s = server->slots + i;
-                                    auto[sndStatus, sndSize] =
-                                        NetSend(server->socket, s->address, buffer, bufferAt);
-                                    // TODO: Handle send error
-                                    SOKO_ASSERT(sndStatus);
-                                }
-                            }
-                        }
-                    }
-                } break;
-
-                case ClientMsg_PlayerAction:
-                {
-                    if (inHeader->slot >= 0 && inHeader->slot < SERVER_SLOTS_NUM)
-                    {
-                        ServerSlot* slot = server->slots + inHeader->slot;
-                        u32 recvInputSize = rcSize - sizeof(ClientMsgHeader);
-                        // TODO: Handle case when recieved input is too big
-                        if (recvInputSize > (PLAYER_INPUT_BUFFER_SIZE - slot->inputBuffer.at))
-                        {
-                            recvInputSize = PLAYER_INPUT_BUFFER_SIZE - slot->inputBuffer.at;
-                        }
-                        COPY_BYTES(recvInputSize,
-                                   slot->inputBuffer.base + slot->inputBuffer.at,
-                                   buffer + sizeof(ClientMsgHeader));
-
-                        slot->inputBuffer.at += recvInputSize;
-                    }
-                } break;
-                INVALID_DEFAULT_CASE;
-                }
-            }
-            else if (rcStatus == AB::NetRecieveResult::Nothing)
-            {
-                break;
             }
             else
             {
-                // TODO: Handle socket error (Maybe just disconnest)
-                INVALID_CODE_PATH;
+                SOKO_INFO("Failed to bind socket");
+                NetCloseSocket(listenSocket);
             }
         }
-
     }
 
-    // TODO: Store client and server in transient slorage in order to delete
-    // when it no longer needed
-
-    internal Client*
-    InitializeClient(AB::MemoryArena* arena)
+    internal void
+    ServerDisconnectPlayer(Server* server)
     {
-        Client* result = 0;
-        Client* client = PUSH_STRUCT(arena, Client);
-        if (client)
+        server->state = Server::Listening;
+        NetCloseSocket(server->connectionSocket);
+        server->connectionSocket = {};
+        // TODO: Disconnect player
+        server->connectedPlayerName[0] = 0;
+        server->playerConnected = false;
+    }
+
+    internal void
+    ShutdownServer(Server* server)
+    {
+        if (server->listenSocket.handle)
         {
-            uptr socket = NetCreateSocket();
-            if (socket)
+            NetCloseSocket(server->listenSocket);
+            server->listenSocket = {};
+        }
+        if (server->connectionSocket.handle)
+        {
+            NetCloseSocket(server->connectionSocket);
+            server->connectionSocket = {};
+        }
+        server->state = Server::NotInitialized;
+        server->connectedPlayerName[0] = 0;
+        server->port = 0;
+    }
+
+    internal void
+    ClientDisconnectFromServer(Client* client)
+    {
+        NetCloseSocket(client->socket);
+        client->socket = {};
+        // TODO: Disconnect player
+        client->connectionEstablished = false;
+        client->connectedPlayerName[0] = 0;
+    }
+
+    inline NetRecieveResult
+    BeginReadIncomingMessages(Socket socket, SocketBuffer* buffer)
+    {
+        auto result = NetRecieve(socket, buffer->buffer, ArrayCount(buffer->buffer));
+        buffer->end = result.bytesRecieved;
+        buffer->at = 0;
+        return result;
+    }
+
+    inline NetMessageHeader*
+    GetNextIncomingMessage(SocketBuffer* buffer)
+    {
+        NetMessageHeader* result = 0;
+        if ((buffer->end - buffer->at) >= sizeof(NetMessageHeader))
+        {
+            result = (NetMessageHeader*)(buffer->buffer + buffer->at);
+            if (MessageValid(result))
             {
-                client->joinTimeout = 15.0f;
-                client->socket = socket;
-                result = client;
+                u32 messageSize = result->messageSize;
+                buffer->at += messageSize;
             }
         }
         return result;
     }
 
-    inline bool
-    SendServerStateQuery(uptr socket, AB::NetAddress serverAddr)
+    inline void
+    EndReadIncomingMessages(SocketBuffer* buffer)
     {
-        bool result;
-        ClientMsgHeader msg = {};
-        msg.type = ClientMsg_QueryState;
-        msg.slot = -1;
-
-        auto[sndStatus, sndSize] = NetSend(socket, serverAddr,
-                                           (void*)&msg, sizeof(ClientMsgHeader));
-        result = sndStatus;
-        return result;
+        buffer->at = 0;
+        buffer->end = 0;
     }
-
-    internal i32
-    ClientWaitForServerState(Socket socket, void* buffer, u32 bufferSize)
-    {
-        i32 result = 0;
-        auto[recvStatus, recvSize, recvFrom] =
-            NetRecieve(socket, buffer, bufferSize);
-        if (recvStatus == AB::NetRecieveResult::Success && recvSize)
-        {
-            auto header = (ServerMsgHeader*)buffer;
-            if (header->type == ServerMsg_State)
-            {
-                result = 1;
-            }
-        }
-        else if (recvStatus == AB::NetRecieveResult::Nothing)
-        {
-        }
-        else
-        {
-            result = -1;
-        }
-        return result;
-    }
-
-    inline bool
-    ClientSendConnectionQuery(uptr socket, AB::NetAddress serverAddr)
-    {
-        bool result;
-        ClientMsgHeader msg = {};
-        msg.type = ClientMsg_Join;
-        msg.slot = -1;
-
-        auto[sndStatus, sndSize] = NetSend(socket, serverAddr,
-                                           (void*)&msg, sizeof(ClientMsgHeader));
-        result = sndStatus;
-        return result;
-    }
-
-    internal i32
-    ClientWaitForConnectionResult(Socket socket, void* buffer, u32 bufferSize)
-    {
-        i32 result = 0;
-        auto[recvStatus, recvSize, recvFrom] =
-            NetRecieve(socket, buffer, bufferSize);
-        if (recvStatus == AB::NetRecieveResult::Success && recvSize)
-        {
-            auto header = (ServerMsgHeader*)buffer;
-            if (header->type == ServerMsg_JoinResult)
-            {
-                result = recvSize;
-            }
-        }
-        else if (recvStatus == AB::NetRecieveResult::Nothing)
-        {
-        }
-        else
-        {
-            result = -1;
-        }
-        return result;
-    }
-
-    internal bool
-    ClientEstablishConnection(net::Client* client, ServerJoinResultMsg* msg, u32 messageSize, GameState* gameState, Level* level)
-    {
-        bool result = 0;
-        byte* buffer = client->socketBuffer;
-        u32 bufferAt = 0;
-        if (msg->succeed)
-        {
-            iv3 playerCoord = IV3(msg->newPlayer.x, msg->newPlayer.y, msg->newPlayer.z);
-            Player* player = AddPlayer(&gameState->session, playerCoord);
-            if (player)
-            {
-                gameState->session.controlledPlayer = player;
-                client->playerSlot = msg->newPlayer.slot;
-
-                // TODO: Check for overflow
-                client->slotsOccupancy[client->playerSlot] = 1;
-                client->slots[client->playerSlot].player = player;
-
-                bufferAt = sizeof(ServerJoinResultMsg) + 1;
-                while (bufferAt < messageSize)
-                {
-                    auto nextPlayer = (NewPlayerData*)(buffer + bufferAt);
-                    bufferAt += sizeof(NewPlayerData);
-
-                    iv3 coord = IV3(nextPlayer->x, nextPlayer->y, nextPlayer->z);
-                    Player* player = AddPlayer(&gameState->session, coord);
-                    SOKO_ASSERT(player);
-                    // TODO: Check for overflow
-                    client->slotsOccupancy[nextPlayer->slot] = 1;
-                    client->slots[nextPlayer->slot].player = player;
-                }
-                result = 1;
-            }
-        }
-        return result;
-    }
-
-#if 0
-    ClientConnectionResult
-    ClientTryToConnect(GameState* gameState, AB::MemoryArena* tempArena, AB::NetAddress serverAddr = {})
-    {
-        ClientConnectionResult result = {};
-        Client* client = gameState->client;
-        byte* buffer = client->socketBuffer;
-
-        ConnectionStatus currentStatus = client->connectionStatus;
-
-        if (currentStatus == ConnectionStatus_None)
-        {
-            u32 bufferAt = 0;
-            client->serverAddr = serverAddr;
-            auto msg = (ClientMsgHeader*)(buffer);
-            msg->type = ClientMsg_QueryState;
-            msg->slot = -1;
-            bufferAt += sizeof(ClientMsgHeader);
-
-            auto[sndStatus, sndSize] = NetSend(client->socket, serverAddr,
-                                               buffer, bufferAt);
-            if (sndStatus)
-            {
-                client->waitingTime = client->joinTimeout;
-                result.status = ConnectionStatus_Waiting;
-            }
-        }
-
-        if (client->waitingTime)
-        {
-            client->waitingTime -= GlobalAbsDeltaTime;
-
-            auto[recvStatus, recvSize, recvFrom] =
-                NetRecieve(client->socket, buffer, net::SERVER_SOCKET_BUFFER_SIZE);
-            if (recvStatus == AB::NetRecieveResult::Success && recvSize)
-            {
-                auto header = (ServerMsgHeader*)buffer;
-                if (header->type == ServerMsg_State)
-                {
-                    auto stateMsg = (ServerMsgState*)(buffer + sizeof(ServerMsgHeader));
-                    auto levelName = (char*)stateMsg + sizeof(ServerMsgState);
-                    SOKO_ASSERT(stateMsg.levelNameStrLen <= SERVER_MAX_LEVEL_NAME_LEN);
-                    if (stateMsg->hasAvailableSlot)
-                    {
-                        result.levelName = PUSH_SIZE(tempArena, stateMsg->levelNameStrLen);
-                        if (result.levelName)
-                        {
-                            result.status = ConnectionStatus_Connected;
-                            CORY_BYTES(stateMsg->levelNameStrLen, result.levelName, levelName);
-                        }
-                    }
-                }
-
-                if (buffer[0] == ServerMsg_JoinResult)
-                {
-                    auto msg = (ServerJoinResultMsg*)(buffer + 1);
-                    u32 bufferAt = sizeof(ServerJoinResultMsg) + 1;
-                    if (msg->succeed)
-                    {
-                        iv3 playerCoord = IV3(msg->newPlayer.x, msg->newPlayer.y, msg->newPlayer.z);
-                        Player* player = AddPlayer(gameState, playerCoord, gameState->memoryArena);
-                        if (player)
-                        {
-                            gameState->controlledPlayer = player;
-                            gameState->client->playerSlot = msg->newPlayer.slot;
-
-                            // TODO: Check for overflow
-                            gameState->client->slotsOccupancy[gameState->client->playerSlot] = 1;
-                            gameState->client->slots[gameState->client->playerSlot].player = player;
-
-                            bufferAt = sizeof(ServerJoinResultMsg) + 1;
-
-                            i32 levelNameLength = msg->levelNameLength;
-                            char* levelName = (char*)(buffer + bufferAt);
-                            bufferAt += levelNameLength;
-                            // TODO Clenup on level name size constants
-                            wchar_t nameBuffer[CLIENT_LEVEL_NAME_LEN];
-                            mbstowcs(nameBuffer, levelName, CLIENT_LEVEL_NAME_LEN);
-                            if (DebugGetFileSize(nameBuffer))
-                            {
-                                COPY_BYTES(sizeof(wchar_t) * CLIENT_LEVEL_NAME_LEN, client->levelName, nameBuffer);
-                                while (bufferAt < recvSize)
-                                {
-                                    auto nextPlayer = (NewPlayerData*)(buffer + bufferAt);
-                                    bufferAt += sizeof(NewPlayerData);
-
-                                    iv3 coord = IV3(nextPlayer->x, nextPlayer->y, nextPlayer->z);
-                                    Player* player = AddPlayer(gameState, coord, gameState->memoryArena);
-                                    SOKO_ASSERT(player);
-                                    // TODO: Check for overflow
-                                    gameState->client->slotsOccupancy[nextPlayer->slot] = 1;
-                                    gameState->client->slots[nextPlayer->slot].player = player;
-                                }
-                                result = ConnectionStatus_Connected;
-                            }
-                        }
-                    }
-                }
-            }
-            else if (recvStatus == AB::NetRecieveResult::Nothing)
-            {
-                result = ConnectionStatus_Waiting;
-            }
-            else
-            {
-                result = ConnectionStatus_None;
-                client->serverAddr;
-                // TODO: Log error
-            }
-        }
-        else
-        {
-            client->serverAddr;
-            // TODO: Log timeout
-        }
-        return result;
-    }
-#endif
 }
-#endif

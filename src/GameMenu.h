@@ -1,5 +1,6 @@
 #pragma once
 #include "NetMessages.h"
+#include "Network.h"
 
 namespace soko
 {
@@ -39,7 +40,6 @@ namespace soko
         AB::NetAddress serverAddress;
         int ipOctets[4];
         int inputPort;
-        AB::Socket socket;
     };
 
     static constexpr u32 LEVEL_PATH_BUFFER_SIZE = SERVER_MAX_LEVEL_NAME_LEN;
@@ -58,49 +58,14 @@ namespace soko
         b32* supportsMultiplayer;
     };
 
-    enum ServerState
-    {
-        ServerState_NotInitialized = 0,
-        ServerState_Listening,
-        ServerState_Connected
-    };
-
-    struct SocketBuffer
-    {
-        // TODO: We don't need THAT big buffer
-        u32 at;
-        u32 end;
-        byte buffer[MEGABYTES(1)];
-    };
-
     struct GameMenu
     {
         MainMenuState state;
         MenuLevelCache levelCache;
         char playerNameCache[PLAYER_NAME_LEN];
-        char secondPlayerName[PLAYER_NAME_LEN];
-        // NOTE: Server state
-        ServerState serverState;
-        u16 serverPort;
-        Socket serverListenSocket;
-        Socket serverConnectionSocket;
-        f32 serverPresenceTimer;
-        f32 serverConnectionTimer;
-        // TODO: For debug only
-        b32 serverStopSendPresenceMessages;
-        // NOTE: Set to true when connect message recieved
-        b32 serverPlayerConnected;
-        // NOTE: Client state
-        Socket clientSocket;
-        f32 clientConnectionTimeout;
-        b32 clientConnectionEstablished;
-        f32 clientPresenceTimer;
-        f32 clientConnectionTimer;
-        // TODO: For debug only!!!
-        b32 clientStopSendPresenceMessages;
-
+        Server server;
+        Client client;
         SocketBuffer socketBuffer;
-
         // NOTE: Will be zeroed from this member
         char levelPathBuffer[LEVEL_PATH_BUFFER_SIZE];
         wchar_t wLevelPathBuffer[LEVEL_PATH_BUFFER_SIZE];
