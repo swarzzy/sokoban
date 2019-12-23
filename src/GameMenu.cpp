@@ -586,6 +586,7 @@ namespace soko
                     recieveResult.status == NetRecieveResult::ConnectionReset ||
                     recieveResult.status == NetRecieveResult::Error)
                 {
+                    EndReadIncomingMessages(&menu->socketBuffer);
                     ServerDisconnectPlayer(&menu->server);
                     SetLevelAvailability(&menu->levelCache, true);
                     ResetLevelIndexToValid(&menu->levelCache, true);
@@ -658,7 +659,9 @@ namespace soko
                         }
                     }
                     while (header);
+
                 }
+                EndReadIncomingMessages(&menu->socketBuffer);
 
                 // NOTE: Send presence message
                 // TODO: For debug only!!!
@@ -1056,10 +1059,12 @@ namespace soko
         if (menu->session.gameMode == GAME_MODE_SERVER)
         {
             menu->session.server = &menu->server;
+            menu->session.socketBuffer = &menu->socketBuffer;
         }
         else if (menu->session.gameMode == GAME_MODE_CLIENT)
         {
             menu->session.client = &menu->client;
+            menu->session.socketBuffer = &menu->socketBuffer;
         }
 
         gameState->globalGameMode = menu->session.gameMode;

@@ -59,6 +59,7 @@ namespace soko
         MainMenuState state;
         MenuLevelCache levelCache;
         char playerNameCache[PLAYER_NAME_LEN];
+        // TODO: These three probably sould be moved to GameState
         Server server;
         Client client;
         SocketBuffer socketBuffer;

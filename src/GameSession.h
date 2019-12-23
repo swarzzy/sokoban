@@ -53,6 +53,7 @@ namespace soko
         GameMode gameMode;
         Client* client;
         Server* server;
+        SocketBuffer* socketBuffer;
         AB::MemoryArena* sessionArena;
         Level* level;
         Editor* editor;

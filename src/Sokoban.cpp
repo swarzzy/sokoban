@@ -529,6 +529,104 @@ namespace soko
     }
 
     void
+    SessionUpdateAndRender(GameState* gameState)
+    {
+        DrawOverlay(gameState);
+        Entity* player = gameState->session.firstPlayer;
+        Level* level = gameState->session.level;
+
+        BeginTemporaryMemory(gameState->tempArena, true);
+        SimRegion* simRegion = BeginSim(gameState->tempArena,
+                                        level,
+                                        MakeWorldPos(player->pos),
+                                        2);
+
+        UpdateRegion(simRegion);
+
+        if (JustPressed(AB::KEY_F1))
+        {
+            gameState->session.useDebugCamera = !gameState->session.useDebugCamera;
+        }
+
+        CameraConfig* camConf = 0;
+        GameCamera* camera = &gameState->session.camera;
+        if (gameState->session.useDebugCamera)
+        {
+            UpdateCamera(&gameState->session.debugCamera);
+            camConf = &gameState->session.debugCamera.conf;
+        }
+        else
+        {
+            UpdateCamera(&gameState->session.camera, &MakeWorldPos(player->pos));
+            camConf = &gameState->session.camera.conf;
+        }
+
+        if (JustPressed(MBUTTON_LEFT))
+        {
+            v3 from = RHToWorld(camera->conf.position);
+            v3 ray = RHToWorld(camera->mouseRayRH);
+            auto raycast = Raycast(simRegion, from, ray, Raycast_Tilemap);
+            if (raycast.hit == RaycastResult::Tile)
+            {
+                iv3 tile = raycast.tile.coord + DirToUnitOffset(raycast.tile.normalDir);
+                PrintString("Entities in tile: (%i32, %i32, %i32)\n", tile.x, tile.y, tile.z);
+                EntityMapIterator it = {};
+                while (true)
+                {
+                    Entity* pe = YieldEntityFromTile(level, tile, &it);
+                    if (!pe) break;
+                    PrintString("Entity: id = %u32, type = %s, pos = (%i32, %i32, %i32)\n", pe->id, meta::GetEnumName(pe->type), pe->pos.x, pe->pos.y, pe->pos.z);
+                }
+            }
+        }
+
+        RenderGroupSetCamera(gameState->renderGroup, camConf);
+
+        v3 beg = gameState->session.camera.conf.position;
+
+        DirectionalLight light = {};
+        light.dir = Normalize(V3(-0.3f, -1.0f, -1.0f));
+        light.ambient = V3(0.3f);
+        light.diffuse = V3(0.8f);
+        light.specular = V3(1.0f);
+        RenderCommandSetDirLight lightCommand = {};
+        lightCommand.light = light;
+        RenderGroupPushCommand(gameState->renderGroup, RENDER_COMMAND_SET_DIR_LIGHT,
+                               (void*)&lightCommand);
+
+        DrawRegion(simRegion, gameState, gameState->session.camera.worldPos);
+
+        RendererBeginFrame(gameState->renderer, V2(PlatformGlobals.windowWidth, PlatformGlobals.windowHeight));
+        FlushRenderGroup(gameState->renderer, gameState->renderGroup);
+        RendererEndFrame(gameState->renderer);
+
+        EndSim(gameState->session.level, simRegion);
+        EndTemporaryMemory(gameState->tempArena);
+
+        SOKO_ASSERT(level->completePlatformCount <= level->platformCount);
+
+        DEBUG_OVERLAY_TRACE(level->completePlatformCount);
+        DEBUG_OVERLAY_TRACE(level->platformCount);
+
+        if (level->completePlatformCount == level->platformCount)
+        {
+            DestroyGameSession(&gameState->session);
+            gameState->globalGameMode = GAME_MODE_MENU;
+            gameState->mainMenu.state = MainMenu_LevelCompleted;
+        }
+
+        if (DebugOverlayBeginCustom())
+        {
+            if (ImGui::Button("Exit to main menu", {150.0f, 20.0f}))
+            {
+                DestroyGameSession(&gameState->session);
+                gameState->globalGameMode = GAME_MODE_MENU;
+            }
+            DebugOverlayEndCustom();
+        }
+    }
+
+    internal void
     GameRender(AB::MemoryArena* arena, AB::PlatformState* platform)
     {
         auto* gameState = _GlobalStaticStorage->gameState;
@@ -539,99 +637,15 @@ namespace soko
         case GAME_MODE_EDITOR: { EditorUpdateAndRender(gameState); } break;
         default:
         {
-            DrawOverlay(gameState);
-            Entity* player = gameState->session.firstPlayer;
-            Level* level = gameState->session.level;
-
-            BeginTemporaryMemory(gameState->tempArena, true);
-            SimRegion* simRegion = BeginSim(gameState->tempArena,
-                                            level,
-                                            MakeWorldPos(player->pos),
-                                            2);
-
-            UpdateRegion(simRegion);
-
-            if (JustPressed(AB::KEY_F1))
+            if (gameState->globalGameMode == GAME_MODE_SERVER)
             {
-                gameState->session.useDebugCamera = !gameState->session.useDebugCamera;
-            }
-
-            CameraConfig* camConf = 0;
-            GameCamera* camera = &gameState->session.camera;
-            if (gameState->session.useDebugCamera)
-            {
-                UpdateCamera(&gameState->session.debugCamera);
-                camConf = &gameState->session.debugCamera.conf;
+                SessionUpdateServer(&gameState->session);
             }
             else
             {
-                UpdateCamera(&gameState->session.camera, &MakeWorldPos(player->pos));
-                camConf = &gameState->session.camera.conf;
+                SessionUpdateClient(&gameState->session);
             }
-
-            if (JustPressed(MBUTTON_LEFT))
-            {
-                v3 from = RHToWorld(camera->conf.position);
-                v3 ray = RHToWorld(camera->mouseRayRH);
-                auto raycast = Raycast(simRegion, from, ray, Raycast_Tilemap);
-                if (raycast.hit == RaycastResult::Tile)
-                {
-                    iv3 tile = raycast.tile.coord + DirToUnitOffset(raycast.tile.normalDir);
-                    PrintString("Entities in tile: (%i32, %i32, %i32)\n", tile.x, tile.y, tile.z);
-                    EntityMapIterator it = {};
-                    while (true)
-                    {
-                        Entity* pe = YieldEntityFromTile(level, tile, &it);
-                        if (!pe) break;
-                        PrintString("Entity: id = %u32, type = %s, pos = (%i32, %i32, %i32)\n", pe->id, meta::GetEnumName(pe->type), pe->pos.x, pe->pos.y, pe->pos.z);
-                    }
-                }
-            }
-
-            RenderGroupSetCamera(gameState->renderGroup, camConf);
-
-            v3 beg = gameState->session.camera.conf.position;
-
-            DirectionalLight light = {};
-            light.dir = Normalize(V3(-0.3f, -1.0f, -1.0f));
-            light.ambient = V3(0.3f);
-            light.diffuse = V3(0.8f);
-            light.specular = V3(1.0f);
-            RenderCommandSetDirLight lightCommand = {};
-            lightCommand.light = light;
-            RenderGroupPushCommand(gameState->renderGroup, RENDER_COMMAND_SET_DIR_LIGHT,
-                                   (void*)&lightCommand);
-
-            DrawRegion(simRegion, gameState, gameState->session.camera.worldPos);
-
-            RendererBeginFrame(gameState->renderer, V2(PlatformGlobals.windowWidth, PlatformGlobals.windowHeight));
-            FlushRenderGroup(gameState->renderer, gameState->renderGroup);
-            RendererEndFrame(gameState->renderer);
-
-            EndSim(gameState->session.level, simRegion);
-            EndTemporaryMemory(gameState->tempArena);
-
-            SOKO_ASSERT(level->completePlatformCount <= level->platformCount);
-
-            DEBUG_OVERLAY_TRACE(level->completePlatformCount);
-            DEBUG_OVERLAY_TRACE(level->platformCount);
-
-            if (level->completePlatformCount == level->platformCount)
-            {
-                DestroyGameSession(&gameState->session);
-                gameState->globalGameMode = GAME_MODE_MENU;
-                gameState->mainMenu.state = MainMenu_LevelCompleted;
-            }
-
-            if (DebugOverlayBeginCustom())
-            {
-                if (ImGui::Button("Exit to main menu", {150.0f, 20.0f}))
-                {
-                    DestroyGameSession(&gameState->session);
-                    gameState->globalGameMode = GAME_MODE_MENU;
-                }
-                DebugOverlayEndCustom();
-            }
+            SessionUpdateAndRender(gameState);
         } break;
         }
     }
