@@ -45,6 +45,7 @@ namespace soko
         f32 connectionTimer;
         // TODO: For debug only!!!
         b32 stopSendPresenceMessages;
+        u64 levelGUID;
         char connectedPlayerName[PLAYER_NAME_LEN];
     };
 
@@ -53,12 +54,15 @@ namespace soko
     {
         enum
         {
-            ClientConnectMessage = 1,
-            ClientLevelListMessage = 2,
-            ClientPresenceMessage = 3,
-            ServerConnectMessage = 4,
-            ServerLevelListQueryMessage = 5,
-            ServerPresenceMessage = 6,
+            InvalidMessage = 0,
+            ClientConnectMessage,
+            ClientLevelListMessage,
+            ClientPresenceMessage,
+            ServerConnectMessage,
+            ServerLevelListQueryMessage,
+            ServerPresenceMessage,
+            ServerEnterLevelMessage,
+            _NumMessageTypes
         } type;
         u32 messageSize;
     };
@@ -98,12 +102,18 @@ namespace soko
     {
         NetMessageHeader header = { NetMessageHeader::ClientPresenceMessage, sizeof(ClientPresenceMessage)};
     };
+
+    struct ServerEnterLevelMessage
+    {
+        NetMessageHeader header = { NetMessageHeader::ServerEnterLevelMessage, sizeof(ServerEnterLevelMessage)};
+        u64 levelGUID;
+    };
 #pragma pack(pop)
 
     inline bool MessageValid(const NetMessageHeader* header)
     {
         bool result;
-        result = (header->type > 0 && header->type <=6);
+        result = (header->type > NetMessageHeader::InvalidMessage && header->type < NetMessageHeader::_NumMessageTypes);
         return result;
     }
 }

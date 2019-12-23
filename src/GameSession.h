@@ -1,21 +1,14 @@
 #pragma once
 #include "Level.h"
+#include "Network.h"
 
 namespace soko
 {
-    namespace net {struct Client; struct Server;}
     struct Level;
     struct Entity;
 
-    constant u32 SESSION_MAX_PLAYERS = 4;
 
     constant u32 PLAYER_INPUT_BUFFER_SIZE = 512;
-
-    struct ClientInput
-    {
-        u32 bufferAt;
-        byte buffer[PLAYER_INPUT_BUFFER_SIZE];
-    };
 
     enum PlayerAction : byte
     {
@@ -58,19 +51,14 @@ namespace soko
     struct GameSession
     {
         GameMode gameMode;
-        union
-        {
-            net::Client* client;
-            net::Server* server;
-        };
+        Client* client;
+        Server* server;
         AB::MemoryArena* sessionArena;
         Level* level;
         Editor* editor;
 
         Entity* firstPlayer;
         Entity* secondPlayer;
-        //bool playersOccupancy[SESSION_MAX_PLAYERS];
-        //Player players[SESSION_MAX_PLAYERS];
 
         // TODO: Store pointers
         FPCamera debugCamera;

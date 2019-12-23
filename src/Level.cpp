@@ -991,6 +991,7 @@ namespace soko
                             loadedLevel->firstPlayerSpawnPos = header.firstPlayerSpawnPos;
                             loadedLevel->secondPlayerSpawnPos = header.secondPlayerSpawnPos;
                             loadedLevel->hasSecondPlayer = header.hasSecondPlayer;
+                            loadedLevel->guid = header.guid;
 
                             auto chunks = (SerializedChunk*)((byte*)fileBuffer + header.firstChunkOffset);
                             if (LoadChunks(levelArena, loadedLevel, chunks, header.chunkCount))

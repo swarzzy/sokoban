@@ -1,5 +1,4 @@
 #pragma once
-#include "NetMessages.h"
 #include "Network.h"
 
 namespace soko
@@ -13,14 +12,12 @@ namespace soko
         MainMenu_SingleLoadLevel,
         MainMenu_EnterLevel,
         MainMenu_ConfigureServer,
-        //MainMenu_CreateServer,
+        MainMenu_ServerLoadLevel,
         MainMenu_ConnectToServer,
         MainMenu_ClientWaitForConnection,
         MainMenu_ClientSessionLobby,
+        MainMenu_ClientLoadLevel,
         MainMenu_ConnectionError,
-        //MainMenu_ClientWaitForServerState,
-        //MainMenu_ClientLoadLevel,
-        //MainMenu_ClientConnectToServer,
         MainMenu_GenTestLevel,
         MainMenu_EditorConf,
         MainMenu_EditorLoadLevel,
@@ -42,9 +39,8 @@ namespace soko
         int inputPort;
     };
 
-    static constexpr u32 LEVEL_PATH_BUFFER_SIZE = SERVER_MAX_LEVEL_NAME_LEN;
-
-    namespace net { struct Client; }
+    // TODO: Unbounded sizes to pathes
+    constant u32 LEVEL_PATH_BUFFER_SIZE = 256;
 
     struct MenuLevelCache
     {

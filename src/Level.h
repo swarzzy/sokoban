@@ -103,6 +103,7 @@ namespace soko
 
     struct Level
     {
+        u64 guid;
         AB::MemoryArena* sessionArena;
         u32 globalChunkMeshBlockCount;
 
