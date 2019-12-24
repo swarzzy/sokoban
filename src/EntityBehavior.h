@@ -1,16 +1,11 @@
 #pragma once
+#include "Player.h"
 namespace soko
 {
     enum EntityOverlapType
     {
         EntityOverlapType_Entering,
         EntityOverlapType_Leaving
-    };
-
-    enum PlayerSlot
-    {
-        PlayerSlot_First,
-        PlayerSlot_Second
     };
 
     struct PlayerBehaviorData

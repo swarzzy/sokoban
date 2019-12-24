@@ -20,30 +20,6 @@ namespace soko
     {
         if (flags & MenuCleanup_NetSpecific)
         {
-#if 0
-
-            if (menu->session.gameMode = GAME_MODE_SERVER)
-            {
-                if (menu->session.server)
-                {
-                    bool result = NetCloseSocket(menu->session.server->socket);
-                    SOKO_ASSERT(result);
-                }
-            }
-            else if (menu->session.gameMode = GAME_MODE_CLIENT)
-            {
-                if (menu->session.client)
-                {
-                    bool result = NetCloseSocket(menu->session.client->socket);
-                    SOKO_ASSERT(result);
-                }
-            }
-            else
-            {
-                INVALID_CODE_PATH;
-            }
-#endif
-
             if (menu->session.sessionArena)
             {
                 PLATFORM_FREE_ARENA(menu->session.sessionArena);
@@ -55,6 +31,7 @@ namespace soko
         if (flags & MenuCleanup_Common)
         {
             ZERO_FROM_MEMBER(GameMenu, levelPathBuffer, menu);
+            menu->session = {};
             COPY_BYTES(StrSize(DEFAULT_LEVEL_NAME), menu->levelPathBuffer, DEFAULT_LEVEL_NAME);
             COPY_BYTES(StrSize(DEFAULT_LEVEL_NAME_W), menu->wLevelPathBuffer, DEFAULT_LEVEL_NAME_W);
 
@@ -1071,6 +1048,8 @@ namespace soko
         gameState->session = menu->session;
         menu->session = {};
         menu->state = MainMenu_ModeSelection;
+
+        gameState->session.level->session = &gameState->session;
 
         InitCameras(&gameState->session.camera, MakeWorldPos(gameState->session.firstPlayer->pos), &gameState->session.debugCamera);
         RenderGroupSetCamera(gameState->renderGroup, &gameState->session.camera.conf);

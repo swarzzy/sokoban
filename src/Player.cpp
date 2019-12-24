@@ -3,85 +3,86 @@
 
 namespace soko
 {
-    internal void
-    UpdatePlayer(Level* level, Entity* e)
+    inline bool
+    PushPlayerAction(PlayerActionBuffer* buffer, PlayerAction action)
     {
-        SOKO_ASSERT(e->type == EntityType_Player);
-        auto* data = &e->behavior.data.player;
-        if (data->slot == PlayerSlot_First)
+        bool result = false;
+        if (buffer->at < ArrayCount(buffer->actions))
         {
-            u32 steps = 1;
-            u32 pushDepth = data->reversed ? 1 : 1;
-
-            if (JustPressed(AB::KEY_SPACE))
-            {
-                data->reversed = !data->reversed;
-            }
-
-            if (JustPressed(AB::KEY_SPACE))
-            {
-                BeginEntityTransition(level, e, Direction_Up, steps, e->movementSpeed, pushDepth);
-            }
-
-            if (JustPressed(AB::KEY_SHIFT))
-            {
-                BeginEntityTransition(level, e, Direction_Down, steps, e->movementSpeed, pushDepth);
-            }
-
-            if (JustPressed(AB::KEY_UP))
-            {
-                BeginEntityTransition(level, e, Direction_North, steps, e->movementSpeed, pushDepth);
-            }
-
-            if (JustPressed(AB::KEY_DOWN))
-            {
-                BeginEntityTransition(level, e, Direction_South, steps, e->movementSpeed, pushDepth);
-            }
-
-            if (JustPressed(AB::KEY_RIGHT))
-            {
-                BeginEntityTransition(level, e, Direction_East, steps, e->movementSpeed, pushDepth);
-            }
-
-            if (JustPressed(AB::KEY_LEFT))
-            {
-                BeginEntityTransition(level, e, Direction_West, steps, e->movementSpeed, pushDepth);
-            }
+            buffer->actions[buffer->at] = action;
+            buffer->at++;
+            result = true;
         }
-        else if (data->slot == PlayerSlot_Second)
+        return result;
+    }
+
+    internal void
+    FillPlayerActionBuffer(PlayerActionBuffer* buffer)
+    {
+        if (buffer->slot == PlayerSlot_First)
         {
-            u32 steps = 1;
-            u32 pushDepth = data->reversed ? 1 : 1;
-
-            if (JustPressed(AB::KEY_SHIFT))
-            {
-                data->reversed = !data->reversed;
-            }
-
-            if (JustPressed(AB::KEY_W))
-            {
-                BeginEntityTransition(level, e, Direction_North, steps, e->movementSpeed, pushDepth);
-            }
-
-            if (JustPressed(AB::KEY_S))
-            {
-                BeginEntityTransition(level, e, Direction_South, steps, e->movementSpeed, pushDepth);
-            }
-
-            if (JustPressed(AB::KEY_D))
-            {
-                BeginEntityTransition(level, e, Direction_East, steps, e->movementSpeed, pushDepth);
-            }
-
-            if (JustPressed(AB::KEY_A))
-            {
-                BeginEntityTransition(level, e, Direction_West, steps, e->movementSpeed, pushDepth);
-            }
+            if (JustPressed(AB::KEY_SPACE)) PushPlayerAction(buffer, PlayerAction_ToggleInteractionMode);
+            if (JustPressed(AB::KEY_UP)) PushPlayerAction(buffer, PlayerAction_MoveNorth);
+            if (JustPressed(AB::KEY_DOWN)) PushPlayerAction(buffer, PlayerAction_MoveSouth);
+            if (JustPressed(AB::KEY_RIGHT)) PushPlayerAction(buffer, PlayerAction_MoveEast);
+            if (JustPressed(AB::KEY_LEFT)) PushPlayerAction(buffer, PlayerAction_MoveWest);
+        }
+        else if (buffer->slot == PlayerSlot_Second)
+        {
+            if (JustPressed(AB::KEY_SHIFT)) PushPlayerAction(buffer, PlayerAction_ToggleInteractionMode);
+            if (JustPressed(AB::KEY_W)) PushPlayerAction(buffer, PlayerAction_MoveNorth);
+            if (JustPressed(AB::KEY_S)) PushPlayerAction(buffer, PlayerAction_MoveSouth);
+            if (JustPressed(AB::KEY_D)) PushPlayerAction(buffer, PlayerAction_MoveEast);
+            if (JustPressed(AB::KEY_A)) PushPlayerAction(buffer, PlayerAction_MoveWest);
         }
         else
         {
             INVALID_CODE_PATH;
         }
+    }
+
+    internal void
+    UpdatePlayer(Level* level, Entity* e)
+    {
+        SOKO_ASSERT(e->type == EntityType_Player);
+        auto* data = &e->behavior.data.player;
+
+        PlayerActionBuffer* actionBuffer;
+        if (data->slot == PlayerSlot_First)
+        {
+            actionBuffer = &level->session->firstPlayerActionBuffer;
+        }
+        else if (data->slot == PlayerSlot_Second)
+        {
+            actionBuffer = &level->session->secondPlayerActionBuffer;
+        }
+        else
+        {
+            INVALID_CODE_PATH;
+        }
+
+        // TODO: Formalize this
+        u32 steps = 1;
+        u32 pushDepth = data->reversed ? 1 : 1;
+
+        for (u32 i = 0; i < actionBuffer->at; i++)
+        {
+            PlayerAction action = actionBuffer->actions[i];
+            if (ActionIsMovement(action))
+            {
+                BeginEntityTransition(level, e, (Direction)action, steps, e->movementSpeed, pushDepth);
+            }
+            else
+            {
+                switch (action)
+                {
+                case PlayerAction_ToggleInteractionMode: { data->reversed = !data->reversed; } break;
+                default: { SOKO_INFO("Trying to apply invalid player action: %u8", action); } break;
+                }
+            }
+        }
+
+        actionBuffer->at = 0;
     }
 
     inline bool

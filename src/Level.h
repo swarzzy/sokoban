@@ -101,9 +101,11 @@ namespace soko
         // in chunk sequentially
     };
 
+    struct GameSession;
     struct Level
     {
         u64 guid;
+        GameSession* session;
         AB::MemoryArena* sessionArena;
         u32 globalChunkMeshBlockCount;
 

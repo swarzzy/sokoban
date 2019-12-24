@@ -641,10 +641,12 @@ namespace soko
             {
                 SessionUpdateServer(&gameState->session);
             }
-            else
+            else if (gameState->globalGameMode == GAME_MODE_CLIENT)
             {
                 SessionUpdateClient(&gameState->session);
             }
+            FillPlayerActionBuffer(&gameState->session.firstPlayerActionBuffer);
+            FillPlayerActionBuffer(&gameState->session.secondPlayerActionBuffer);
             SessionUpdateAndRender(gameState);
         } break;
         }
