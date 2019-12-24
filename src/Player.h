@@ -1,43 +1,51 @@
 #pragma once
 namespace soko
 {
-    enum PlayerSlot
+#pragma pack(push, 1)
+
+    enum PlayerSlot : byte
     {
         PlayerSlot_First,
         PlayerSlot_Second
     };
 
-    enum PlayerAction : byte
+    struct PlayerAction
     {
-        // NOTE: Movement action values should be same
-        // as in Direction enum
-        PlayerAction_MoveNorth = 1,
-        PlayerAction_MoveSouth,
-        PlayerAction_MoveWest,
-        PlayerAction_MoveEast,
-        PlayerAction_MoveUp,
-        PlayerAction_MoveDown,
-        PlayerAction_ToggleInteractionMode
+        enum Action : byte
+        {
+            // NOTE: Movement action values should be same
+            // as in Direction enum
+            MoveNorth = 1,
+            MoveSouth,
+            MoveWest,
+            MoveEast,
+            MoveUp,
+            MoveDown,
+            ToggleInteractionMode
+        } action;
+        PlayerSlot slot;
     };
+#pragma pack(pop)
 
-    static_assert((byte)PlayerAction_MoveNorth == (byte)Direction_North);
-    static_assert((byte)PlayerAction_MoveSouth == (byte)Direction_South);
-    static_assert((byte)PlayerAction_MoveWest == (byte)Direction_West);
-    static_assert((byte)PlayerAction_MoveEast == (byte)Direction_East);
-    static_assert((byte)PlayerAction_MoveUp == (byte)Direction_Up);
-    static_assert((byte)PlayerAction_MoveDown == (byte)Direction_Down);
+    static_assert((byte)(PlayerAction::MoveNorth) == (byte)Direction_North);
+    static_assert((byte)(PlayerAction::MoveSouth) == (byte)Direction_South);
+    static_assert((byte)(PlayerAction::MoveWest) == (byte)Direction_West);
+    static_assert((byte)(PlayerAction::MoveEast) == (byte)Direction_East);
+    static_assert((byte)(PlayerAction::MoveUp) == (byte)Direction_Up);
+    static_assert((byte)(PlayerAction::MoveDown) == (byte)Direction_Down);
 
     inline bool ActionIsMovement(PlayerAction action)
     {
-        bool result = (action > 0 && action <= PlayerAction_MoveDown);
+        bool result = (action.action > 0 && action.action <= PlayerAction::MoveDown);
         return result;
     }
 
+    template<u32 Size>
     struct PlayerActionBuffer
     {
-        PlayerSlot slot;
+        static constexpr u32 BufferSize = Size;
         u32 at;
-        PlayerAction actions[256];
+        PlayerAction actions[Size];
     };
 
     internal void UpdatePlayer(Level* level, Entity* e);

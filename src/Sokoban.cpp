@@ -637,17 +637,24 @@ namespace soko
         case GAME_MODE_EDITOR: { EditorUpdateAndRender(gameState); } break;
         default:
         {
+            FillPlayerActionBuffer(&gameState->session.playerActionBuffer);
+            PrintActionBuffer(&gameState->session.playerActionBuffer);
+
             if (gameState->globalGameMode == GAME_MODE_SERVER)
             {
+                ServerUploadLocalActionBuffer(gameState->session.server, &gameState->session.playerActionBuffer);
                 SessionUpdateServer(&gameState->session);
+                ServerDownloadLocalActionBuffer(gameState->session.server, &gameState->session.playerActionBuffer);
+                PrintActionBuffer(&gameState->session.playerActionBuffer);
+                ResetPlayerActionBuffer(&gameState->session.server->actionBuffer);
             }
             else if (gameState->globalGameMode == GAME_MODE_CLIENT)
             {
+                ClientSendActionBuffer(gameState->session.client, &gameState->session.playerActionBuffer);
                 SessionUpdateClient(&gameState->session);
             }
-            FillPlayerActionBuffer(&gameState->session.firstPlayerActionBuffer);
-            FillPlayerActionBuffer(&gameState->session.secondPlayerActionBuffer);
             SessionUpdateAndRender(gameState);
+            ResetPlayerActionBuffer(&gameState->session.playerActionBuffer);
         } break;
         }
     }

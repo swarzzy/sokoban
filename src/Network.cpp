@@ -2,6 +2,99 @@
 
 namespace soko
 {
+    template<u32 Size> internal void
+    ServerUploadLocalActionBuffer(Server* server, PlayerActionBuffer<Size>* buffer)
+    {
+        // NOTE: Not sening but just copying actually
+        u32 serverBufferFree = server->actionBuffer.BufferSize - server->actionBuffer.at;
+        u32 copyCount = serverBufferFree < buffer->at ? serverBufferFree : buffer->at;
+        u32 copySize = copyCount * sizeof(PlayerAction);
+        Memcpy(server->actionBuffer.actions + server->actionBuffer.at,
+               buffer->actions, copySize);
+        server->actionBuffer.at += copyCount;
+        buffer->at = 0;
+        SOKO_ASSERT(server->actionBuffer.at <= server->actionBuffer.BufferSize);
+    }
+
+    template<u32 Size> internal void
+    ServerDownloadLocalActionBuffer(Server* server, PlayerActionBuffer<Size>* buffer)
+    {
+        // NOTE: Not sening but just copying actually
+        u32 bufferFree = buffer->BufferSize - buffer->at;
+        u32 copyCount = bufferFree < server->actionBuffer.at ? bufferFree : server->actionBuffer.at;
+        u32 copySize = copyCount * sizeof(PlayerAction);
+        Memcpy(buffer->actions + buffer->at,
+               server->actionBuffer.actions, copySize);
+        buffer->at += copyCount;
+    }
+
+    template<u32 Size> internal void
+    ServerSendActionBuffer(Server* server, PlayerActionBuffer<Size>* buffer)
+    {
+        if (buffer->at > 0)
+        {
+            // TODO: Stop wasting stack space
+            const u32 messageSize = sizeof(ServerActionSequenceMessage) + (Size - 1) * sizeof(PlayerAction);
+            byte messageMem[messageSize];
+            ServerActionSequenceMessage* message = (ServerActionSequenceMessage*)messageMem;
+            *message = {};
+            u32 actualMessageSize = sizeof(ServerActionSequenceMessage) + (buffer->at * sizeof(PlayerAction)) - sizeof(PlayerAction);
+            message->header.messageSize = actualMessageSize;
+            message->actionCount = buffer->at;
+            PlayerAction* actions = (PlayerAction*)(&message->firstAction);
+
+            Memcpy(actions, buffer->actions, sizeof(PlayerAction) * buffer->at);
+
+            auto result = NetSend(server->connectionSocket, (void*)(message), actualMessageSize, {});
+            SOKO_LOG_SERVER_SEND(result, ServerActionSequenceMessage);
+
+            //buffer->at = 0;
+        }
+    }
+
+    template<u32 Size> internal void
+    PrintActionBuffer(PlayerActionBuffer<Size>* buffer)
+    {
+        if (buffer->at)
+        {
+            PrintString("ActionBuffer contents:\n");
+            for (u32 i = 0; i < buffer->at; i++)
+            {
+                auto action = buffer->actions[i];
+                const char* slotStr = action.slot == PlayerSlot_First ? "First" : "Second";
+                PrintString("Action: %u8, %s\n", (u8)action.action, slotStr);
+            }
+        }
+    }
+
+
+    template<u32 Size> internal void
+    ClientSendActionBuffer(Client* client, PlayerActionBuffer<Size>* buffer)
+    {
+        if (buffer->at > 0)
+        {
+            // TODO: Stop wasting stack space
+            const u32 messageSize = sizeof(ClientActionSequenceMessage) + Size - 1;
+            byte messageMem[messageSize];
+            ClientActionSequenceMessage* message = (ClientActionSequenceMessage*)messageMem;
+            *message = {};
+            u32 actualMessageSize = sizeof(ClientActionSequenceMessage) + (buffer->at * sizeof(byte)) - 1;
+            message->header.messageSize = actualMessageSize;
+            message->actionCount = buffer->at;
+            byte* actions = &message->firstAction;
+
+            for (u32 i = 0; i < buffer->at; i++)
+            {
+                actions[i] = buffer->actions[i].action;
+            }
+
+            auto result = NetSend(client->socket, (void*)(message), actualMessageSize, {});
+            SOKO_LOG_CLIENT_SEND(result, ClientActionSequenceMessage);
+
+            buffer->at = 0;
+        }
+    }
+
     internal void
     InitServer(Server* server)
     {
@@ -129,6 +222,22 @@ namespace soko
                     session->server->connectionTimer = CONNECTION_TIMEOUT;
                     switch (header->type)
                     {
+                    case NetMessageHeader::ClientActionSequenceMessage:
+                    {
+                        SOKO_LOG_SERVER_RECV(ClientActionSequenceMessage);
+                        auto* message = (ClientActionSequenceMessage*)header;
+
+                        for (u32 i = 0; i < message->actionCount; i++)
+                        {
+                            PlayerAction::Action action = (PlayerAction::Action)((&message->firstAction)[i]);
+                            if(!PushPlayerAction(&session->server->actionBuffer, { action, PlayerSlot_Second } ))
+                            {
+                                SOKO_INFO("Server: input buffer overflow");
+                                break;
+                            }
+                        }
+
+                    } break;
                     case NetMessageHeader::ClientPresenceMessage:
                     {
                         SOKO_LOG_SERVER_RECV(ClientPresenceMessage);
@@ -139,7 +248,12 @@ namespace soko
             }
             while (header);
         }
+
         EndReadIncomingMessages(session->socketBuffer);
+
+        //PrintActionBuffer(&session->server->actionBuffer);
+        ServerSendActionBuffer(session->server, &session->server->actionBuffer);
+
 
         // NOTE: Send presence message
         // TODO: For debug only!!!
@@ -186,6 +300,22 @@ namespace soko
                     session->client->connectionTimer = CONNECTION_TIMEOUT;
                     switch (header->type)
                     {
+                    case NetMessageHeader::ServerActionSequenceMessage:
+                    {
+                        SOKO_LOG_CLIENT_RECV(ServerActionSequenceMessage);
+                        auto* message = (ServerActionSequenceMessage*)header;
+
+                        for (u32 i = 0; i < message->actionCount; i++)
+                        {
+                            PlayerAction* action = (PlayerAction*)((&message->firstAction) + i);
+                            if(!PushPlayerAction(&session->playerActionBuffer, *action))
+                            {
+                                SOKO_INFO("Client: input buffer overflow");
+                                break;
+                            }
+                        }
+
+                    } break;
                     case NetMessageHeader::ServerPresenceMessage:
                     {
                         SOKO_LOG_CLIENT_RECV(ServerPresenceMessage);

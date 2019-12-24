@@ -1,4 +1,5 @@
 #pragma once
+#include "Player.h"
 
 #define SOKO_LOG_CLIENT_SEND(result, messageType) if (!result.status) SOKO_INFO("Client: failed to send <%s> message", #messageType); else SOKO_INFO("Client: sent <%s> message", #messageType)
 #define SOKO_LOG_SERVER_SEND(result, messageType) if (!result.status) SOKO_INFO("Server: failed to send <%s> message", #messageType); else SOKO_INFO("Server: sent <%s> message", #messageType)
@@ -34,6 +35,7 @@ namespace soko
         // NOTE: Set to true when connect message recieved
         b32 playerConnected;
         char connectedPlayerName[PLAYER_NAME_LEN];
+        PlayerActionBuffer<1024> actionBuffer;
     };
 
     struct Client
@@ -58,10 +60,12 @@ namespace soko
             ClientConnectMessage,
             ClientLevelListMessage,
             ClientPresenceMessage,
+            ClientActionSequenceMessage,
             ServerConnectMessage,
             ServerLevelListQueryMessage,
             ServerPresenceMessage,
             ServerEnterLevelMessage,
+            ServerActionSequenceMessage,
             _NumMessageTypes
         } type;
         u32 messageSize;
@@ -80,6 +84,22 @@ namespace soko
         u32 numLevels;
         u64 firstGUID;
         // ... level GUIDs (u64) ...
+    };
+
+    struct ClientActionSequenceMessage
+    {
+        NetMessageHeader header = { NetMessageHeader::ClientActionSequenceMessage, 0};
+        u32 actionCount;
+        byte firstAction;
+        // ... Actions ...
+    };
+
+    struct ServerActionSequenceMessage
+    {
+        NetMessageHeader header = { NetMessageHeader::ServerActionSequenceMessage, 0};
+        u32 actionCount;
+        PlayerAction firstAction;
+        // ... Actions ...
     };
 
     struct ServerConnectMessage

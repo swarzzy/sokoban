@@ -33,8 +33,7 @@ namespace soko
         Entity* secondPlayer;
 
         // NOTE: Just always store them here for now
-        PlayerActionBuffer firstPlayerActionBuffer = { PlayerSlot_First };
-        PlayerActionBuffer secondPlayerActionBuffer = { PlayerSlot_Second };
+        PlayerActionBuffer<256> playerActionBuffer;
 
         // TODO: Store pointers
         FPCamera debugCamera;
