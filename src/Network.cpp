@@ -133,7 +133,6 @@ namespace soko
         server->state = Server::Listening;
         NetCloseSocket(server->connectionSocket);
         server->connectionSocket = {};
-        // TODO: Disconnect player
         server->connectedPlayerName[0] = 0;
         server->playerConnected = false;
     }
@@ -144,26 +143,19 @@ namespace soko
         if (server->listenSocket.handle)
         {
             NetCloseSocket(server->listenSocket);
-            server->listenSocket = {};
         }
         if (server->connectionSocket.handle)
         {
             NetCloseSocket(server->connectionSocket);
-            server->connectionSocket = {};
         }
-        server->state = Server::NotInitialized;
-        server->connectedPlayerName[0] = 0;
-        server->port = 0;
+        *server = {};
     }
 
     internal void
     ClientDisconnectFromServer(Client* client)
     {
         NetCloseSocket(client->socket);
-        client->socket = {};
-        // TODO: Disconnect player
-        client->connectionEstablished = false;
-        client->connectedPlayerName[0] = 0;
+        *client = {};
     }
 
     inline NetRecieveResult
@@ -201,152 +193,171 @@ namespace soko
     internal void
     SessionUpdateServer(GameSession* session)
     {
-        auto recieveResult = BeginReadIncomingMessages(session->server->connectionSocket, session->socketBuffer);
-        // TODO: Handle errors and normal disconnects differently
-        if (recieveResult.status == NetRecieveResult::ConnectionClosed ||
-            recieveResult.status == NetRecieveResult::ConnectionReset ||
-            recieveResult.status == NetRecieveResult::Error)
+        if (session->server->state == Server::Connected)
         {
-            EndReadIncomingMessages(session->socketBuffer);
-            ServerDisconnectPlayer(session->server);
-        }
-        else if (recieveResult.status == NetRecieveResult::Success)
-        {
-            NetMessageHeader* header;
-            do
+            auto recieveResult = BeginReadIncomingMessages(session->server->connectionSocket, session->socketBuffer);
+            // TODO: Handle errors and normal disconnects differently
+            if (recieveResult.status == NetRecieveResult::ConnectionClosed ||
+                recieveResult.status == NetRecieveResult::ConnectionReset ||
+                recieveResult.status == NetRecieveResult::Error)
             {
-                header = GetNextIncomingMessage(session->socketBuffer);
-                if (header)
+                EndReadIncomingMessages(session->socketBuffer);
+                ServerDisconnectPlayer(session->server);
+                ShutdownServer(session->server);
+                DeleteEntity(session->level, session->secondPlayer);
+            }
+            else if (recieveResult.status == NetRecieveResult::Success)
+            {
+                NetMessageHeader* header;
+                do
                 {
-                    // TODO: Not reset timer if message is broken
-                    session->server->connectionTimer = CONNECTION_TIMEOUT;
-                    switch (header->type)
+                    header = GetNextIncomingMessage(session->socketBuffer);
+                    if (header)
                     {
-                    case NetMessageHeader::ClientActionSequenceMessage:
-                    {
-                        SOKO_LOG_SERVER_RECV(ClientActionSequenceMessage);
-                        auto* message = (ClientActionSequenceMessage*)header;
-
-                        for (u32 i = 0; i < message->actionCount; i++)
+                        // TODO: Not reset timer if message is broken
+                        session->server->connectionTimer = CONNECTION_TIMEOUT;
+                        switch (header->type)
                         {
-                            PlayerAction::Action action = (PlayerAction::Action)((&message->firstAction)[i]);
-                            if(!PushPlayerAction(&session->server->actionBuffer, { action, PlayerSlot_Second } ))
-                            {
-                                SOKO_INFO("Server: input buffer overflow");
-                                break;
-                            }
-                        }
+                        case NetMessageHeader::ClientActionSequenceMessage:
+                        {
+                            SOKO_LOG_SERVER_RECV(ClientActionSequenceMessage);
+                            auto* message = (ClientActionSequenceMessage*)header;
 
-                    } break;
-                    case NetMessageHeader::ClientPresenceMessage:
-                    {
-                        SOKO_LOG_SERVER_RECV(ClientPresenceMessage);
-                    } break;
-                    default: { SOKO_INFO("Server recieved broken message"); } break;
+                            for (u32 i = 0; i < message->actionCount; i++)
+                            {
+                                PlayerAction::Action action = (PlayerAction::Action)((&message->firstAction)[i]);
+                                if(!PushPlayerAction(&session->server->actionBuffer, { action, PlayerSlot_Second } ))
+                                {
+                                    SOKO_INFO("Server: input buffer overflow");
+                                    break;
+                                }
+                            }
+
+                        } break;
+                        case NetMessageHeader::ClientPresenceMessage:
+                        {
+                            SOKO_LOG_SERVER_RECV(ClientPresenceMessage);
+                        } break;
+                        default: { SOKO_INFO("Server recieved broken message"); } break;
+                        }
                     }
                 }
+                while (header);
             }
-            while (header);
-        }
 
-        EndReadIncomingMessages(session->socketBuffer);
+            EndReadIncomingMessages(session->socketBuffer);
 
-        //PrintActionBuffer(&session->server->actionBuffer);
-        ServerSendActionBuffer(session->server, &session->server->actionBuffer);
+            //PrintActionBuffer(&session->server->actionBuffer);
+            ServerSendActionBuffer(session->server, &session->server->actionBuffer);
 
 
-        // NOTE: Send presence message
-        // TODO: For debug only!!!
-        if (JustPressed(KEY_P))
-        {
-            session->server->stopSendPresenceMessages = !session->server->stopSendPresenceMessages;
-        }
-        if (!session->server->stopSendPresenceMessages)
-        {
-            session->server->presenceTimer -= GlobalAbsDeltaTime;
-            if (session->server->presenceTimer < 0.0f)
+            // NOTE: Send presence message
+            // TODO: For debug only!!!
+            if (JustPressed(KEY_P))
             {
-                session->server->presenceTimer = PRESENCE_MESSAGE_TIMEOUT;
-                ServerPresenceMessage message = {};
-                auto result = NetSend(session->server->connectionSocket, (void*)(&message), sizeof(message), {});
-                SOKO_LOG_SERVER_SEND(result, ServerPresenceMessage);
+                session->server->stopSendPresenceMessages = !session->server->stopSendPresenceMessages;
+            }
+            if (!session->server->stopSendPresenceMessages)
+            {
+                session->server->presenceTimer -= GlobalAbsDeltaTime;
+                if (session->server->presenceTimer < 0.0f)
+                {
+                    session->server->presenceTimer = PRESENCE_MESSAGE_TIMEOUT;
+                    ServerPresenceMessage message = {};
+                    auto result = NetSend(session->server->connectionSocket, (void*)(&message), sizeof(message), {});
+                    SOKO_LOG_SERVER_SEND(result, ServerPresenceMessage);
+                }
+            }
+            session->server->connectionTimer -= GlobalAbsDeltaTime;
+            if (session->server->connectionTimer < 0.0f)
+            {
+                ServerDisconnectPlayer(session->server);
+                ShutdownServer(session->server);
+                DeleteEntity(session->level, session->secondPlayer);
             }
         }
-        session->server->connectionTimer -= GlobalAbsDeltaTime;
-        // TODO: Disconnect if timer is out
     }
 
     internal void
     SessionUpdateClient(GameSession* session)
     {
-        auto recieveResult = BeginReadIncomingMessages(session->client->socket, session->socketBuffer);
-        // TODO: Handle errors and normal disconnect differently
-        if (recieveResult.status == NetRecieveResult::ConnectionClosed ||
-            recieveResult.status == NetRecieveResult::ConnectionReset ||
-            recieveResult.status == NetRecieveResult::Error)
+        if (session->client->connectionEstablished)
         {
-            ClientDisconnectFromServer(session->client);
-            EndReadIncomingMessages(session->socketBuffer);
-        }
-        else if (recieveResult.status == NetRecieveResult::Success)
-        {
-            NetMessageHeader* header;
-            do
+            auto recieveResult = BeginReadIncomingMessages(session->client->socket, session->socketBuffer);
+            // TODO: Handle errors and normal disconnect differently
+            if (recieveResult.status == NetRecieveResult::ConnectionClosed ||
+                recieveResult.status == NetRecieveResult::ConnectionReset ||
+                recieveResult.status == NetRecieveResult::Error)
             {
-                header = GetNextIncomingMessage(session->socketBuffer);
-                if (header)
+                EndReadIncomingMessages(session->socketBuffer);
+                ClientDisconnectFromServer(session->client);
+                DeleteEntity(session->level, session->firstPlayer);
+            }
+            else if (recieveResult.status == NetRecieveResult::Success)
+            {
+                NetMessageHeader* header;
+                do
                 {
-                    // TODO: Not reset the timer if message are broken
-                    session->client->connectionTimer = CONNECTION_TIMEOUT;
-                    switch (header->type)
+                    header = GetNextIncomingMessage(session->socketBuffer);
+                    if (header)
                     {
-                    case NetMessageHeader::ServerActionSequenceMessage:
-                    {
-                        SOKO_LOG_CLIENT_RECV(ServerActionSequenceMessage);
-                        auto* message = (ServerActionSequenceMessage*)header;
-
-                        for (u32 i = 0; i < message->actionCount; i++)
+                        // TODO: Not reset the timer if message are broken
+                        session->client->connectionTimer = CONNECTION_TIMEOUT;
+                        switch (header->type)
                         {
-                            PlayerAction* action = (PlayerAction*)((&message->firstAction) + i);
-                            if(!PushPlayerAction(&session->playerActionBuffer, *action))
-                            {
-                                SOKO_INFO("Client: input buffer overflow");
-                                break;
-                            }
-                        }
+                        case NetMessageHeader::ServerActionSequenceMessage:
+                        {
+                            SOKO_LOG_CLIENT_RECV(ServerActionSequenceMessage);
+                            auto* message = (ServerActionSequenceMessage*)header;
 
-                    } break;
-                    case NetMessageHeader::ServerPresenceMessage:
-                    {
-                        SOKO_LOG_CLIENT_RECV(ServerPresenceMessage);
-                    } break;
-                    default: { SOKO_INFO("Client: recieved broken message"); } break;
+                            for (u32 i = 0; i < message->actionCount; i++)
+                            {
+                                PlayerAction* action = (PlayerAction*)((&message->firstAction) + i);
+                                if(!PushPlayerAction(&session->playerActionBuffer, *action))
+                                {
+                                    SOKO_INFO("Client: input buffer overflow");
+                                    break;
+                                }
+                            }
+
+                        } break;
+                        case NetMessageHeader::ServerPresenceMessage:
+                        {
+                            SOKO_LOG_CLIENT_RECV(ServerPresenceMessage);
+                        } break;
+                        default: { SOKO_INFO("Client: recieved broken message"); } break;
+                        }
                     }
                 }
+                while (header);
             }
-            while (header);
-        }
 
-        EndReadIncomingMessages(session->socketBuffer);
+            EndReadIncomingMessages(session->socketBuffer);
 
-        // NOTE: Send presence message
-        // TODO: For debug only!!!
-        if (JustPressed(KEY_P))
-        {
-            session->client->stopSendPresenceMessages = !session->client->stopSendPresenceMessages;
-        }
-        if (!session->client->stopSendPresenceMessages)
-        {
-            session->client->presenceTimer -= GlobalAbsDeltaTime;
-            if (session->client->presenceTimer < 0.0f)
+            // NOTE: Send presence message
+            // TODO: For debug only!!!
+            if (JustPressed(KEY_P))
             {
-                session->client->presenceTimer = PRESENCE_MESSAGE_TIMEOUT;
-                ClientPresenceMessage message = {};
-                auto result = NetSend(session->client->socket, (void*)(&message), sizeof(message), {});
-                SOKO_LOG_CLIENT_SEND(result, ClientPresenceMessage);
+                session->client->stopSendPresenceMessages = !session->client->stopSendPresenceMessages;
+            }
+            if (!session->client->stopSendPresenceMessages)
+            {
+                session->client->presenceTimer -= GlobalAbsDeltaTime;
+                if (session->client->presenceTimer < 0.0f)
+                {
+                    session->client->presenceTimer = PRESENCE_MESSAGE_TIMEOUT;
+                    ClientPresenceMessage message = {};
+                    auto result = NetSend(session->client->socket, (void*)(&message), sizeof(message), {});
+                    SOKO_LOG_CLIENT_SEND(result, ClientPresenceMessage);
+                }
+            }
+
+            session->client->connectionTimer -= GlobalAbsDeltaTime;
+            if (session->client->connectionTimer < 0.0f)
+            {
+                ClientDisconnectFromServer(session->client);
+                DeleteEntity(session->level, session->firstPlayer);
             }
         }
-
-        session->client->connectionTimer -= GlobalAbsDeltaTime;
     }
 }

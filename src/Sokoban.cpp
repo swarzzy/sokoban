@@ -420,7 +420,7 @@ namespace soko
 
         BeginTemporaryMemory(gameState->tempArena);
         gameState->meshes[EntityMesh_Sphere] = LoadMesh(gameState->tempArena, L"../res/mesh/sphere.aab");
-        gameState->meshes[EntityMesh_Gun] = LoadMesh(gameState->tempArena, L"../res/mesh/gun.aab");
+//        gameState->meshes[EntityMesh_Gun] = LoadMesh(gameState->tempArena, L"../res/mesh/gun.aab");
         gameState->meshes[EntityMesh_Cube] = LoadMesh(gameState->tempArena, L"../res/mesh/cube.aab");
         gameState->meshes[EntityMesh_Plate] = LoadMesh(gameState->tempArena, L"../res/mesh/plate.aab");
         gameState->meshes[EntityMesh_Portal] = LoadMesh(gameState->tempArena, L"../res/mesh/portal.aab");
@@ -434,10 +434,10 @@ namespace soko
 
         stbi_set_flip_vertically_on_load(1);
 
-        gameState->materials[EntityMaterial_PbrMetal] = LoadMaterialPBR(gameState->tempArena, "../res/rust_metal/grimy-metal-albedo.png", "../res/rust_metal/grimy-metal-roughness.png", "../res/rust_metal/grimy-metal-metalness.png", "../res/rust_metal/grimy-metal-normal-dx.png");
-        gameState->materials[EntityMaterial_Rock] = LoadMaterialPBR(gameState->tempArena, "../res/rock/layered-rock1-albedo.png", "../res/rock/layered-rock1-rough.png", "../res/rock/layered-rock1-Metalness.png", "../res/rock/layered-rock1-normal-dx.png");
+//        gameState->materials[EntityMaterial_PbrMetal] = LoadMaterialPBR(gameState->tempArena, "../res/rust_metal/grimy-metal-albedo.png", "../res/rust_metal/grimy-metal-roughness.png", "../res/rust_metal/grimy-metal-metalness.png", "../res/rust_metal/grimy-metal-normal-dx.png");
+//        gameState->materials[EntityMaterial_Rock] = LoadMaterialPBR(gameState->tempArena, "../res/rock/layered-rock1-albedo.png", "../res/rock/layered-rock1-rough.png", "../res/rock/layered-rock1-Metalness.png", "../res/rock/layered-rock1-normal-dx.png");
         gameState->materials[EntityMaterial_OldMetal] = LoadMaterialPBR(gameState->tempArena, "../res/oldmetal/greasy-metal-pan1-albedo.png", "../res/oldmetal/greasy-metal-pan1-roughness.png", "../res/oldmetal/greasy-metal-pan1-metal.png", "../res/oldmetal/greasy-metal-pan1-normal.png");
-        gameState->materials[EntityMaterial_Gun] = LoadMaterialPBR(gameState->tempArena, "../res/gun/Cerberus_A.png", "../res/gun/Cerberus_R.png", "../res/gun/Cerberus_M.png", "../res/gun/Cerberus_N.png");
+//        gameState->materials[EntityMaterial_Gun] = LoadMaterialPBR(gameState->tempArena, "../res/gun/Cerberus_A.png", "../res/gun/Cerberus_R.png", "../res/gun/Cerberus_M.png", "../res/gun/Cerberus_N.png");
         gameState->materials[EntityMaterial_Box] = LoadMaterialPBR(gameState->tempArena, "../res/material/box/Box_albedo.png", "../res/material/box/Box_roughness.png", "../res/material/box/Box_metallic.png", "../res/material/box/Box_normal.png");
         gameState->materials[EntityMaterial_Altar] = LoadMaterialPBR(gameState->tempArena, "../res/material/altar/DefaultMaterial_Base_Color.png", "../res/material/altar/DefaultMaterial_Roughness.png", "../res/material/altar/DefaultMaterial_Metallic.png", "../res/material/altar/DefaultMaterial_Normal_DirectX.png");
         gameState->materials[EntityMaterial_Cat] = LoadMaterialPBR(gameState->tempArena, "../res/material/cat/DefaultMaterial_albedo.png", "../res/material/cat/DefaultMaterial_roughness.png", "../res/material/cat/DefaultMaterial_metallic.png", "../res/material/cat/DefaultMaterial_normal.png");
@@ -619,7 +619,6 @@ namespace soko
         {
             if (ImGui::Button("Exit to main menu", {150.0f, 20.0f}))
             {
-                DestroyGameSession(&gameState->session);
                 gameState->globalGameMode = GAME_MODE_MENU;
             }
             DebugOverlayEndCustom();
@@ -655,6 +654,22 @@ namespace soko
             }
             SessionUpdateAndRender(gameState);
             ResetPlayerActionBuffer(&gameState->session.playerActionBuffer);
+
+            if (gameState->globalGameMode == GAME_MODE_MENU)
+            {
+                if (gameState->session.server)
+                {
+                    ServerDisconnectPlayer(gameState->session.server);
+                    ShutdownServer(gameState->session.server);
+                    DeleteEntity(gameState->session.level, gameState->session.secondPlayer);
+                }
+                if (gameState->session.client)
+                {
+                    ClientDisconnectFromServer(gameState->session.client);
+                    DeleteEntity(gameState->session.level, gameState->session.firstPlayer);
+                }
+                DestroyGameSession(&gameState->session);
+            }
         } break;
         }
     }

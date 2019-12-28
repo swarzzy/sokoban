@@ -669,11 +669,14 @@ namespace soko
 
             menu->state = nextState;
 
-            if ((menu->state != MainMenu_ConfigureServer) && (menu->state != MainMenu_ServerLoadLevel))
+            if (menu->state != MainMenu_ConfigureServer)
             {
-                ShutdownServer(&menu->server);
                 menu->levelCache = {};
                 EndTemporaryMemory(tempArena);
+                if (menu->state != MainMenu_ServerLoadLevel)
+                {
+                    ShutdownServer(&menu->server);
+                }
             }
         }
     }
@@ -868,6 +871,7 @@ namespace soko
             }
         }
         menu->state = nextState;
+        menu->levelCache = {};
     }
 
     internal void

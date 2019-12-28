@@ -16,7 +16,7 @@ namespace soko
         EntityMesh_Spikes,
         EntityMesh_Button,
         EntityMesh_Sphere,
-        EntityMesh_Gun,
+//        EntityMesh_Gun,
         EntityMesh_Box,
         EntityMesh_Altar,
         EntityMesh_Cat
@@ -32,10 +32,10 @@ namespace soko
         EntityMaterial_Spikes,
         EntityMaterial_Button,
         EntityMaterial_BRDFCustom,
-        EntityMaterial_PbrMetal,
-        EntityMaterial_Rock,
+//        EntityMaterial_PbrMetal,
+//        EntityMaterial_Rock,
         EntityMaterial_OldMetal,
-        EntityMaterial_Gun,
+//        EntityMaterial_Gun,
         EntityMaterial_Box,
         EntityMaterial_Altar,
         EntityMaterial_Cat
