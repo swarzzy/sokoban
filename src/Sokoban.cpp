@@ -532,7 +532,7 @@ namespace soko
     SessionUpdateAndRender(GameState* gameState)
     {
         DrawOverlay(gameState);
-        Entity* player = gameState->session.firstPlayer;
+        Entity* player = gameState->globalGameMode == GAME_MODE_CLIENT ? gameState->session.secondPlayer : gameState->session.firstPlayer;
         Level* level = gameState->session.level;
 
         BeginTemporaryMemory(gameState->tempArena, true);
