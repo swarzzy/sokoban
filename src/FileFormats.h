@@ -79,9 +79,7 @@ namespace AB
         u64 firstEntityOffset;
         // TODO: Is that possible that iv3 would have different alignment
         // on any of supported platform?
-        iv3 firstPlayerSpawnPos;
-        iv3 secondPlayerSpawnPos;
-        b32 hasSecondPlayer;
+        iv3 playerSpawnPos;
     };
 #pragma pack (pop)
 

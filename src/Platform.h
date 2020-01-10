@@ -286,61 +286,6 @@ namespace AB
         wchar_t** filenames;
     };
 
-    // NOTE: Net functions
-
-    enum SocketType
-    {
-        SocketType_TCP,
-        SocketType_UDP
-    };
-
-    struct NetAddress
-    {
-        u32 ip;
-        u16 port;
-    };
-
-    struct NetSendResult
-    {
-        enum { Error = 0, Success, DataTooLarge } status;
-        u32 bytesSent;
-    };
-
-    struct NetRecieveResult
-    {
-        enum { Success, Nothing, ConnectionClosed, ConnectionReset, Error } status;
-        u32 bytesRecieved;
-        NetAddress from;
-    };
-
-    enum ConnectionStatus
-    {
-        ConnectionStatus_Error = 0,
-        ConnectionStatus_Connected,
-        ConnectionStatus_Pending
-    };
-
-    struct Socket
-    {
-        uptr handle;
-        SocketType type;
-    };
-
-    inline u32 PackIP(byte o1, byte o2, byte o3, byte o4)
-    {
-        u32 result = (o1 << 24) | (o2 << 16) | (o3 << 8) | (o4);
-        return result;
-    }
-
-    typedef Socket(NetCreateSocketFn)(SocketType type);
-    typedef bool(NetCloseSocketFn)(Socket socket);
-    typedef u16(NetBindSocketFn)(Socket socket);
-    typedef bool(NetListenFn)(Socket sock, u32 queueSize);
-    typedef Socket(NetAcceptFn)(Socket sock);
-    typedef ConnectionStatus(NetConnectFn)(Socket sock, NetAddress address);
-    typedef NetSendResult(NetSendFn)(Socket socket, const void* buffer, u32 bufferSize, NetAddress address);
-    typedef NetRecieveResult(NetRecieveFn)(Socket socket, void* buffer, u32 bufferSize);
-
     // NOTE: On unix API this should be defined as int
     typedef uptr FileHandle;
     constant FileHandle INVALID_FILE_HANDLE = UPTR_MAX;
@@ -397,15 +342,6 @@ namespace AB
         LogFn* Log;
         LogAssertVFn* LogAssertV;
         SetInputModeFn* SetInputMode;
-
-        NetCreateSocketFn* NetCreateSocket;
-        NetCloseSocketFn* NetCloseSocket;
-        NetBindSocketFn* NetBindSocket;
-        NetListenFn* NetListen;
-        NetAcceptFn* NetAccept;
-        NetConnectFn* NetConnect;
-        NetSendFn* NetSend;
-        NetRecieveFn* NetRecieve;
 
         QueryNewArenaFn* QueryNewArena;
         FreeArenaFn* FreeArena;

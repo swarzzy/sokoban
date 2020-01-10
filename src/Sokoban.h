@@ -10,17 +10,10 @@
 #define SOKO_BYTE_ORDER AB_LITTLE_ENDIAN
 #endif
 
-namespace soko::net
-{
-    struct Server;
-    struct Client;
-}
-
 namespace soko::meta
 {
     struct MetaInfo;
 }
-
 
 namespace soko
 {

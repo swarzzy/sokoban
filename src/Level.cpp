@@ -743,12 +743,7 @@ namespace soko
     SaveLevel(const Level* level, const wchar_t* filename, AB::MemoryArena* arena)
     {
         bool result = false;
-        bool spawnTileIsFree = CanMove(level, level->firstPlayerSpawnPos, 0);
-        if (level->hasSecondPlayer)
-        {
-            spawnTileIsFree = spawnTileIsFree && CanMove(level, level->secondPlayerSpawnPos, 0);
-            spawnTileIsFree = spawnTileIsFree && (level->firstPlayerSpawnPos != level->secondPlayerSpawnPos);
-        }
+        bool spawnTileIsFree = CanMove(level, level->playerSpawnPos, 0);
 
         if (spawnTileIsFree)
         {
@@ -776,10 +771,8 @@ namespace soko
                 header->chunkCount = level->loadedChunksCount;
                 header->chunkMeshBlockCount = level->globalChunkMeshBlockCount;
                 header->firstChunkOffset = sizeof(AB::AABLevelHeader);
-                header->firstPlayerSpawnPos = level->firstPlayerSpawnPos;
-                header->secondPlayerSpawnPos = level->secondPlayerSpawnPos;
-                header->hasSecondPlayer = level->hasSecondPlayer;
                 header->firstEntityOffset = headerSize + chunksSize;
+                header->playerSpawnPos = level->playerSpawnPos;
 
                 auto chunks = (SerializedChunk*)(buffer + header->firstChunkOffset);
 
@@ -838,7 +831,6 @@ namespace soko
                     outInfo->guid = header.guid;
                     outInfo->chunkCount = header.chunkCount;
                     outInfo->chunkMeshBlockCount = header.chunkMeshBlockCount;
-                    outInfo->supportsMultiplayer = header.hasSecondPlayer;
                 }
             }
         }
@@ -946,19 +938,9 @@ namespace soko
         {
             if (level->entityCount == header->entityCount + 1)
             {
-                if (CanMove(level, header->firstPlayerSpawnPos, 0))
+                if (CanMove(level, header->playerSpawnPos, 0))
                 {
-                    if (level->hasSecondPlayer)
-                    {
-                        if (CanMove(level, header->secondPlayerSpawnPos, 0))
-                        {
-                            result = true;
-                        }
-                    }
-                    else
-                    {
-                        result = true;
-                    }
+                    result = true;
                 }
             }
         }
@@ -988,9 +970,7 @@ namespace soko
                         Level* loadedLevel = CreateLevel(levelArena);
                         if (loadedLevel)
                         {
-                            loadedLevel->firstPlayerSpawnPos = header.firstPlayerSpawnPos;
-                            loadedLevel->secondPlayerSpawnPos = header.secondPlayerSpawnPos;
-                            loadedLevel->hasSecondPlayer = header.hasSecondPlayer;
+                            loadedLevel->playerSpawnPos = header.playerSpawnPos;
                             loadedLevel->guid = header.guid;
 
                             auto chunks = (SerializedChunk*)((byte*)fileBuffer + header.firstChunkOffset);
@@ -1081,8 +1061,7 @@ namespace soko
         AddEntity(level, entity1);
         //AddEntity(playerLevel)
 
-        level->firstPlayerSpawnPos = IV3(10, 10, 1);
-        level->hasSecondPlayer = false;
+        level->playerSpawnPos = IV3(10, 10, 1);
 
         Entity entity2 = {};
         entity2.type = EntityType_Block;

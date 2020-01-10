@@ -1,6 +1,5 @@
 #pragma once
 #include "Level.h"
-#include "Network.h"
 #include "Player.h"
 
 namespace soko
@@ -12,8 +11,6 @@ namespace soko
     {
         GAME_MODE_MENU = 0,
         GAME_MODE_SINGLE,
-        GAME_MODE_CLIENT,
-        GAME_MODE_SERVER,
         GAME_MODE_EDITOR
     };
 
@@ -22,18 +19,11 @@ namespace soko
     struct GameSession
     {
         GameMode gameMode;
-        Client* client;
-        Server* server;
-        SocketBuffer* socketBuffer;
         AB::MemoryArena* sessionArena;
         Level* level;
         Editor* editor;
 
-        Entity* firstPlayer;
-        Entity* secondPlayer;
-
-        // NOTE: Just always store them here for now
-        PlayerActionBuffer<256> playerActionBuffer;
+        Entity* player;
 
         // TODO: Store pointers
         FPCamera debugCamera;

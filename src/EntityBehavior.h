@@ -11,7 +11,6 @@ namespace soko
     struct PlayerBehaviorData
     {
         bool reversed;
-        PlayerSlot slot;
     };
 
     struct PortalBehaviorData

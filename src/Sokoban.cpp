@@ -50,14 +50,6 @@ namespace soko
 #define Log SOKO_PLATFORM_FUNCTION(Log)
 #define LogAssertV SOKO_PLATFORM_FUNCTION(LogAssertV)
 #define SetInputMode SOKO_PLATFORM_FUNCTION(SetInputMode)
-#define NetCreateSocket SOKO_PLATFORM_FUNCTION(NetCreateSocket)
-#define NetCloseSocket SOKO_PLATFORM_FUNCTION(NetCloseSocket)
-#define NetBindSocket SOKO_PLATFORM_FUNCTION(NetBindSocket)
-#define NetListen SOKO_PLATFORM_FUNCTION(NetListen)
-#define NetAccept SOKO_PLATFORM_FUNCTION(NetAccept)
-#define NetConnect SOKO_PLATFORM_FUNCTION(NetConnect)
-#define NetSend SOKO_PLATFORM_FUNCTION(NetSend)
-#define NetRecieve SOKO_PLATFORM_FUNCTION(NetRecieve)
 #define QueryNewArena SOKO_PLATFORM_FUNCTION(QueryNewArena)
 #define FreeArena SOKO_PLATFORM_FUNCTION(FreeArena)
 #define GetTimeStamp SOKO_PLATFORM_FUNCTION(GetTimeStamp)
@@ -295,7 +287,6 @@ inline void* ReallocForSTBI(void* p, uptr oldSize, uptr newSize)
 #include "DebugOverlay.cpp"
 #include "Camera.cpp"
 #include "Player.cpp"
-#include "Network.cpp"
 #include "MeshGen.cpp"
 #include "SimRegion.cpp"
 #include "EntityBehavior.cpp"
@@ -532,7 +523,7 @@ namespace soko
     SessionUpdateAndRender(GameState* gameState)
     {
         DrawOverlay(gameState);
-        Entity* player = gameState->globalGameMode == GAME_MODE_CLIENT ? gameState->session.secondPlayer : gameState->session.firstPlayer;
+        Entity* player = gameState->session.player;
         Level* level = gameState->session.level;
 
         BeginTemporaryMemory(gameState->tempArena, true);
@@ -636,38 +627,9 @@ namespace soko
         case GAME_MODE_EDITOR: { EditorUpdateAndRender(gameState); } break;
         default:
         {
-            FillPlayerActionBuffer(&gameState->session.playerActionBuffer);
-            PrintActionBuffer(&gameState->session.playerActionBuffer);
-
-            if (gameState->globalGameMode == GAME_MODE_SERVER)
-            {
-                ServerUploadLocalActionBuffer(gameState->session.server, &gameState->session.playerActionBuffer);
-                SessionUpdateServer(&gameState->session);
-                ServerDownloadLocalActionBuffer(gameState->session.server, &gameState->session.playerActionBuffer);
-                PrintActionBuffer(&gameState->session.playerActionBuffer);
-                ResetPlayerActionBuffer(&gameState->session.server->actionBuffer);
-            }
-            else if (gameState->globalGameMode == GAME_MODE_CLIENT)
-            {
-                ClientSendActionBuffer(gameState->session.client, &gameState->session.playerActionBuffer);
-                SessionUpdateClient(&gameState->session);
-            }
             SessionUpdateAndRender(gameState);
-            ResetPlayerActionBuffer(&gameState->session.playerActionBuffer);
-
             if (gameState->globalGameMode == GAME_MODE_MENU)
             {
-                if (gameState->session.server)
-                {
-                    ServerDisconnectPlayer(gameState->session.server);
-                    ShutdownServer(gameState->session.server);
-                    DeleteEntity(gameState->session.level, gameState->session.secondPlayer);
-                }
-                if (gameState->session.client)
-                {
-                    ClientDisconnectFromServer(gameState->session.client);
-                    DeleteEntity(gameState->session.level, gameState->session.firstPlayer);
-                }
                 DestroyGameSession(&gameState->session);
             }
         } break;

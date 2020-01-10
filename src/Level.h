@@ -124,10 +124,7 @@ namespace soko
         Entity* entities[LEVEL_ENTITY_TABLE_SIZE];
         b32 platePressed;
 
-        iv3 firstPlayerSpawnPos;
-        b32 hasSecondPlayer;
-        iv3 secondPlayerSpawnPos;
-
+        iv3 playerSpawnPos;
 
         u32 platformCount;
         u32 completePlatformCount;
@@ -139,7 +136,6 @@ namespace soko
     struct LevelMetaInfo
     {
         u64 guid;
-        b32 supportsMultiplayer;
         u32 chunkCount;
         u32 chunkMeshBlockCount;
     };
