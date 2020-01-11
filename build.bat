@@ -19,7 +19,7 @@ ctime -begin ctime.ctm
 del %BinOutDir%*.pdb >NUL 2>&1
 set PdbMangleVal=%date:~6,4%%date:~3,2%%date:~0,2%%time:~1,1%%time:~3,2%%time:~6,2%
 
-set CommonDefines=/D_CRT_SECURE_NO_WARNINGS /DWIN32_LEAN_AND_MEAN /DAB_PLATFORM_WINDOWS /DUNICODE /D_UNICODE
+set CommonDefines=/D_CRT_SECURE_NO_WARNINGS /DWIN32_LEAN_AND_MEAN /DAB_PLATFORM_WINDOWS /DUNICODE /D_UNICODE /DUNITY_BUILD
 set CommonCompilerFlags=/Gm- /fp:fast /GR- /nologo /diagnostics:classic /WX /std:c++17
 set DebugCompilerFlags=/Zi /Od /RTC1 /MTd /Fd%BinOutDir% /DSOKO_DEBUG
 set ReleaseCompilerFlags=/O2 /MT /Oi /MT /Zi
@@ -51,7 +51,7 @@ rem echo Building cubemap builder...
 rem cl /W3 /Fo%ObjOutDir% /D_CRT_SECURE_NO_WARNINGS  %CommonCompilerFlags% %ConfigCompilerFlags% src/CubemapBuilder.cpp /link /INCREMENTAL:NO /OPT:REF /MACHINE:X64 /OUT:%BinOutDir%\CubemapBuilder.exe /PDB:%BinOutDir%\CubemapBuilder.pdb
 
 echo Generating meta info...
-build\Prep.exe MetaInfo_Generated.h src/MetaInfo_Generated src/Entity.h src/Level.h src/Renderer.cpp src/EntityBehavior.h
+build\Prep.exe MetaInfo_Generated.h src/MetaInfo_Generated src/Entity.h src/Level.h src/Renderer.cpp src/EntityBehavior.h src/Chunk.h
 rem src/Entity.h src/Level.h src/Platform.h
 
 echo Building platform...

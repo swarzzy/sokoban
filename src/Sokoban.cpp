@@ -90,8 +90,9 @@ namespace soko
 #endif
 #define INVALID_DEFAULT_CASE default:{ SOKO_ASSERT(false, "Invalid default case."); }break
 #define INVALID_CODE_PATH SOKO_ASSERT(false, "Invalid code path.")
-
+#if defined(UNITY_BUILD)
 #include "MetaInfo.cpp"
+#endif
 #include "MetaInfo_Generated.h"
 
 #include "RenderGroup.h"
@@ -280,9 +281,10 @@ inline void* ReallocForSTBI(void* p, uptr oldSize, uptr newSize)
 
 #include "imgui/imgui.h"
 //#include "imgui/imgui_internal.h"
-
+#if defined(UNITY_BUILD)
 #include "Renderer.cpp"
 #include "Level.cpp"
+#include "Chunk.cpp"
 #include "Entity.cpp"
 #include "DebugOverlay.cpp"
 #include "Camera.cpp"
@@ -297,6 +299,8 @@ inline void* ReallocForSTBI(void* p, uptr oldSize, uptr newSize)
 #include "GameSession.cpp"
 
 #include "MetaInfo_Generated.cpp"
+#include "RenderGroup.cpp"
+#endif
 
 extern "C" GAME_CODE_ENTRY void
 GameUpdateAndRender(AB::MemoryArena* arena,
@@ -635,25 +639,7 @@ namespace soko
         } break;
         }
     }
-
-#if 0
-    inline bool
-    IsValid(WorldPos p)
-    {
-        bool result = (p.tile.x >= LEVEL_MIN_DIM && p.tile.x <= LEVEL_MAX_DIM &&
-                       p.tile.y >= LEVEL_MIN_DIM && p.tile.y <= LEVEL_MAX_DIM &&
-                       p.tile.z >= LEVEL_MIN_DIM && p.tile.z <= LEVEL_MAX_DIM);
-        result = result && (p.offset.x >= -LEVEL_TILE_RADIUS && p.offset.x <= LEVEL_TILE_RADIUS &&
-                            p.offset.y >= -LEVEL_TILE_RADIUS && p.offset.y <= LEVEL_TILE_RADIUS &&
-                            p.offset.z >= -LEVEL_TILE_RADIUS && p.offset.z <= LEVEL_TILE_RADIUS);
-        return result;
-    }
-#endif
-
 }
-
-#include "RenderGroup.cpp"
-//#include "Renderer.cpp"
 
 // NOTE: IMGUI
 #include "imgui/imconfig.h"
@@ -661,255 +647,3 @@ namespace soko
 #include "imgui/imgui_draw.cpp"
 #include "imgui/imgui_widgets.cpp"
 #include "imgui/imgui_demo.cpp"
-
-
-#if 0
-    void
-    DoOtherStuff(GameState* gameState)
-    {
-        AB::MemoryArena* arena = gameState->memoryArena;
-        //bool show = true;
-
-        DrawOverlay(gameState);
-        //ImGui::ShowDemoWindow(&show);
-        DEBUG_OVERLAY_TRACE(gameState->session.debugCamera.conf.position);
-        DEBUG_OVERLAY_TRACE(gameState->session.debugCamera.conf.front);
-
-        //DEBUG_OVERLAY_TRACE(gameState->camera.conf.position);
-        //DEBUG_OVERLAY_TRACE(gameState->level->platePressed);
-        //DEBUG_OVERLAY_TRACE(gameState->level->entityCount);
-        //DEBUG_OVERLAY_TRACE(gameState->level->deletedEntityCount);
-#if 0
-        if (gameState->globalGameMode == GAME_MODE_SERVER)
-        {
-            net::Server* server = gameState->session.server;
-            net::ServerPollInputMessages(gameState, server);
-
-            // TODO: Move input buffers to player
-            SOKO_ASSERT(!server->slots[net::SERVER_LOCAL_PLAYER_SLOT].inputBuffer.at);
-            CollectPlayerInput(&server->slots[net::SERVER_LOCAL_PLAYER_SLOT].inputBuffer);
-
-            net::ServerSendOutputMessages(gameState, gameState->session.level, server);
-        }
-        else if (gameState->globalGameMode == GAME_MODE_CLIENT)
-        {
-            net::Client* client = gameState->session.client;
-            byte* netBuffer = client->socketBuffer;
-            u32 netBufferAt = 0;
-
-            {
-#if 0
-                // TODO: @ShouldDisconnect
-                if (gameState->shouldDisconnect)
-                {
-                    auto header = (ClientMsgHeader*)netBuffer;
-                    header->type = ClientMsg_Leave;
-                    header->slot = client->playerSlot;
-                    auto[status, size] = NetSend(client->socket, client->serverAddr, netBuffer, sizeof(ClientMsgHeader));
-                    SOKO_ASSERT(status);
-                }
-                else
-#endif
-                {
-
-                    // TODO: Handle connection failing
-                    SOKO_ASSERT(client->playerSlot);
-
-                    SOKO_ASSERT(!client->slots[client->playerSlot].inputBuffer.at);
-                    auto* playerInput = &client->slots[client->playerSlot].inputBuffer;
-                    net::CollectPlayerInput(playerInput);
-
-                    auto header = (ClientMsgHeader*)netBuffer;
-                    header->type = ClientMsg_PlayerAction;
-                    header->slot = client->playerSlot;
-
-                    u32 netBufferAt = sizeof(ClientMsgHeader);
-                    // TODO: Check for buffer overflow
-                    COPY_BYTES(playerInput->at,
-                               netBuffer + netBufferAt, playerInput->base);
-                    netBufferAt += playerInput->at;
-                    auto[status, size] = NetSend(client->socket, client->serverAddr, netBuffer, netBufferAt);
-                    SOKO_ASSERT(status);
-                    // TODO: Use some temporary buffer instead of player input buffer
-                    playerInput->at = 0;
-
-                    while (true)
-                    {
-                        auto[rcStatus, rcSize, rcFrom] = NetRecieve(client->socket, netBuffer,
-                                                                    net::SERVER_SOCKET_BUFFER_SIZE);
-                        if (rcStatus == AB::NetRecieveResult::Success && rcSize) // TODO: empty packets
-                        {
-                            auto header = (ServerMsgHeader*)netBuffer;
-                            switch (header->type)
-                            {
-                            case ServerMsg_DeletePlayer:
-                            {
-                                auto msg = (ServerDeletePlayerMsg*)(netBuffer + sizeof(ServerMsgHeader));
-                                if (msg->slot >= 0 && msg->slot < net::SERVER_SLOTS_NUM)
-                                {
-                                    bool occupied = client->slotsOccupancy[msg->slot];
-                                    SOKO_ASSERT(occupied);
-                                    client->slotsOccupancy[msg->slot] = false;
-                                    net::ClientSlot* s = client->slots + msg->slot;
-                                    DeletePlayer(&gameState->session, s->player);
-                                }
-                            } break;
-                            case ServerMsg_AddPlayer:
-                            {
-                                auto msg = (ServerAddPlayerMsg*)(netBuffer + sizeof(ServerMsgHeader));
-                                SOKO_ASSERT(!client->slotsOccupancy[msg->newPlayer.slot]);
-                                client->slotsOccupancy[msg->newPlayer.slot] = 1;
-                                auto* s = client->slots + msg->newPlayer.slot;
-                                iv3 coord = IV3(msg->newPlayer.x, msg->newPlayer.y, msg->newPlayer.z);
-                                Player* player = AddPlayer(&gameState->session, coord);
-                                SOKO_ASSERT(player);
-                                s->player = player;
-                            } break;
-                            case ServerMsg_PlayerAction:
-                            {
-                                auto msg = (ServerPlayerActionMsg*)(netBuffer + sizeof(ServerMsgHeader));
-
-                                net::ClientSlot* s = client->slots + msg->slot;
-                                // TODO: Validate _of_do_something_ with controlled
-                                // player input
-                                u32 offset = sizeof(ServerMsgHeader) + sizeof(ServerPlayerActionMsg);
-                                COPY_BYTES(rcSize - offset, s->inputBuffer.base, netBuffer + offset);
-                                s->inputBuffer.at += rcSize - offset;
-                            }
-                            break;
-                            INVALID_DEFAULT_CASE;
-                            }
-                        }
-                        else if (rcStatus == AB::NetRecieveResult::Nothing)
-                        {
-                            break;
-                        }
-                        else
-                        {
-                            INVALID_CODE_PATH;
-                        }
-                    }
-
-                    // TODO: Counter of connected players
-                    for (u32 i = 0; i < net::SERVER_SLOTS_NUM; i++)
-                    {
-                        net::ClientSlot* slot = client->slots + i;
-                        bool slotOccupied = client->slotsOccupancy[i];
-                        if (slotOccupied && slot->inputBuffer.at)
-                        {
-                            for (u32 inputIndex = 0;
-                                 inputIndex < slot->inputBuffer.at;
-                                 inputIndex++)
-                            {
-                                // TODO: Stop passing keycodes through connection
-                                PlayerAction action = (PlayerAction)slot->inputBuffer.base[inputIndex];
-                                if (ActionIsMovement(action))
-                                {
-# if 0 // TODO: Use sim regions
-                                    MoveEntity(gameState->session.level,
-                                               slot->player->e,
-                                               (Direction)action,
-                                               slot->player->reversed);
-#endif
-                                }
-                                else
-                                {
-                                    switch (action)
-                                    {
-                                    case PlayerAction_ToggleInteractionMode:
-                                    {
-                                        slot->player->reversed = !slot->player->reversed;
-                                    } break;
-                                    INVALID_DEFAULT_CASE;
-                                    }
-                                }
-                            }
-                            slot->inputBuffer.at = 0;
-                        }
-                    }
-                }
-            }
-        }
-
-        else if (gameState->globalGameMode == GAME_MODE_SINGLE)
-        {
-#endif
-            Entity* player = gameState->session.controlledPlayer;
-            Level* level = gameState->session.level;
-            BeginTemporaryMemory(gameState->tempArena, true);
-            SimRegion* simRegion = BeginSim(gameState->tempArena,
-                                            level,
-                                            MakeWorldPos(player->pos),
-                                            2);
-
-            UpdateRegion(simRegion);
-
-            if (JustPressed(AB::KEY_F1))
-            {
-                gameState->session.useDebugCamera = !gameState->session.useDebugCamera;
-            }
-
-            CameraConfig* camConf = 0;
-            GameCamera* camera = &gameState->session.camera;
-            if (gameState->session.useDebugCamera)
-            {
-                UpdateCamera(&gameState->session.debugCamera);
-                camConf = &gameState->session.debugCamera.conf;
-            }
-            else
-            {
-                UpdateCamera(&gameState->session.camera, &MakeWorldPos(player->pos));
-                camConf = &gameState->session.camera.conf;
-            }
-
-            if (JustPressed(MBUTTON_LEFT))
-            {
-                v3 from = RHToWorld(camera->conf.position);
-                v3 ray = RHToWorld(camera->mouseRayRH);
-                auto raycast = Raycast(simRegion, from, ray, Raycast_Tilemap);
-                if (raycast.hit == RaycastResult::Tile)
-                {
-                    iv3 tile = raycast.tile.coord + DirToUnitOffset(raycast.tile.normalDir);
-                    PrintString("Entities in tile: (%i32, %i32, %i32)\n", tile.x, tile.y, tile.z);
-                    EntityMapIterator it = {};
-                    while (true)
-                    {
-                        Entity* pe = YieldEntityFromTile(level, tile, &it);
-                        if (!pe) break;
-                        PrintString("Entity: id = %u32, type = %s, pos = (%i32, %i32, %i32)\n", pe->id, meta::GetEnumName(pe->type), pe->pos.x, pe->pos.y, pe->pos.z);
-                    }
-                }
-            }
-
-            //UpdateSim(simRegion);
-
-            RenderGroupSetCamera(gameState->renderGroup, camConf);
-
-
-            v3 beg = gameState->session.camera.conf.position;
-            //v3 ray = gameState->session.camera.mouseRayRH;// + V3(0.1f, .0f, 0.0f);
-
-            //DrawStraightLine(gameState->renderGroup, beg, beg + ray * 10.0f, V3(1.0, 0.0f, 0.0f), 10.0f);
-
-            DirectionalLight light = {};
-            light.dir = Normalize(V3(-0.3f, -1.0f, -1.0f));
-            light.ambient = V3(0.3f);
-            light.diffuse = V3(0.8f);
-            light.specular = V3(1.0f);
-            RenderCommandSetDirLight lightCommand = {};
-            lightCommand.light = light;
-            RenderGroupPushCommand(gameState->renderGroup, RENDER_COMMAND_SET_DIR_LIGHT,
-                                   (void*)&lightCommand);
-
-            DrawRegion(simRegion, gameState, gameState->session.camera.worldPos);
-
-            DEBUG_OVERLAY_SLIDER(gameState->renderer->gamma, 1.0f, 3.0f);
-            DEBUG_OVERLAY_SLIDER(gameState->renderer->exposure, 0.0f, 3.0f);
-            RendererBeginFrame(gameState->renderer, V2(PlatformGlobals.windowWidth, PlatformGlobals.windowHeight));
-            FlushRenderGroup(gameState->renderer, gameState->renderGroup);
-            RendererEndFrame(gameState->renderer);
-
-            EndSim(gameState->session.level, simRegion);
-            EndTemporaryMemory(gameState->tempArena);
-    }
-#endif

@@ -1,3 +1,5 @@
+#include "Platform.h"
+
 namespace soko
 {
     enum ToolKind
