@@ -136,3 +136,8 @@ namespace AB
         return result;
     }
 }
+
+namespace soko
+{
+    typedef AB::MemoryArena MemoryArena;
+}
