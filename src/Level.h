@@ -88,8 +88,12 @@ namespace soko
         u32 platformCount;
         u32 completePlatformCount;
 
+        // TODO: Some generic stuff for freelists
         u32 chunkEntityBlockCount;
         ChunkEntityBlock* freeChunkEntityBlocks;
+
+        u32 chunkEntityArrayBlockCount;
+        EntityArrayBlock* chunkEntityArrayBlockFreeList;
     };
 
     struct LevelMetaInfo

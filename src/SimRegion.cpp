@@ -188,27 +188,18 @@ namespace soko
 
             if (push > 0)
             {
-                for (u32 z = 0; z < e->footprintDim.z; z++)
+                EntityMapIterator it = {};
+                while (true)
                 {
-                    for (u32 y = 0; y < e->footprintDim.y; y++)
+                    Entity* pe = YieldEntityFromTile(level, targetP, &it);
+                    if (!pe) break;
+                    if (pe != e)
                     {
-                        for (u32 x = 0; x < e->footprintDim.x; x++)
+                        if (IsSet(pe, EntityFlag_Collides) && IsSet(pe, EntityFlag_Movable))
                         {
-                            EntityMapIterator it = {};
-                            while (true)
+                            if (BeginEntityTransition(level, pe, dir, length, speed, push - 1))
                             {
-                                Entity* pe = YieldEntityFromTile(level, targetP + IV3(x, y, z), &it);
-                                if (!pe) break;
-                                if (pe != e)
-                                {
-                                    if (IsSet(pe, EntityFlag_Collides) && IsSet(pe, EntityFlag_Movable))
-                                    {
-                                        if (BeginEntityTransition(level, pe, dir, length, speed, push - 1))
-                                        {
-                                            it = {};
-                                        }
-                                    }
-                                }
+                                it = {};
                             }
                         }
                     }
@@ -235,28 +226,19 @@ namespace soko
             if (push < 0)
             {
                 iv3 grabP = beginP - DirToUnitOffset(dir);
-                for (u32 z = 0; z < e->footprintDim.z; z++)
-                {
-                    for (u32 y = 0; y < e->footprintDim.y; y++)
-                    {
-                        for (u32 x = 0; x < e->footprintDim.x; x++)
-                        {
 
-                            EntityMapIterator it = {};
-                            while (true)
+                EntityMapIterator it = {};
+                while (true)
+                {
+                    Entity* pe = YieldEntityFromTile(level, grabP, &it);
+                    if (!pe) break;
+                    if (pe != e)
+                    {
+                        if (IsSet(pe, EntityFlag_Collides) && IsSet(pe, EntityFlag_Movable))
+                        {
+                            if (BeginEntityTransition(level, pe, dir, length, speed, push + 1))
                             {
-                                Entity* pe = YieldEntityFromTile(level, grabP + IV3(x, y, z), &it);
-                                if (!pe) break;
-                                if (pe != e)
-                                {
-                                    if (IsSet(pe, EntityFlag_Collides) && IsSet(pe, EntityFlag_Movable))
-                                    {
-                                        if (BeginEntityTransition(level, pe, dir, length, speed, push + 1))
-                                        {
-                                            it = {};
-                                        }
-                                    }
-                                }
+                                it = {};
                             }
                         }
                     }

@@ -39,6 +39,14 @@ namespace soko
         EntityArrayBlock* next;
     };
 
+    struct ChunkEntityArrayIndex
+    {
+        EntityArrayBlock* block;
+        u32 index;
+    };
+
+    SOKO_STATIC_ASSERT(IsPowerOfTwo(ArrayCount(DeclMember(EntityArrayBlock, entities))));
+
     struct EntityMapIterator
     {
         const ChunkEntityBlock* block;

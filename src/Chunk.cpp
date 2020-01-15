@@ -72,6 +72,9 @@ namespace soko
         return YieldEntityFromTile((Level*)level, tile, at);
     }
 
+    // TODO: These two functions downhere are the same.
+    // Maybe make a generic function to _get stuff from freelist or allocate_
+    // ____GENERIC_FREELISTS____
     inline ChunkEntityBlock*
     GetChunkEntityBlock(Level* level, AB::MemoryArena* arena)
     {
@@ -134,22 +137,90 @@ namespace soko
         return result;
     }
 
-    inline void
-    RegisterEntityInTile(Level* level, Entity* e)
+    EntityArrayBlock* GetChunkEntityArrayBlock(Chunk* chunk)
     {
-        for (u32 z = 0; z < e->footprintDim.z; z++)
+        EntityArrayBlock* result = 0;
+        Level* level = chunk->level;
+        if (level->chunkEntityArrayBlockFreeList)
         {
-            for (u32 y = 0; y < e->footprintDim.y; y++)
-            {
-                for (u32 x = 0; x < e->footprintDim.x; x++)
-                {
-                    // TODO: @Speed ??? Cache chunk pointer
-                    iv3 c = GetChunkCoord(e->pos + IV3(x, y, z));
-                    uv3 t = GetTileCoordInChunk(e->pos + IV3(x, y, z));
-                    Chunk* chunk = GetChunk(level, c);
-                    RegisterEntityInTileInternal(chunk, e, t);
-                }
-            }
+            result = level->chunkEntityArrayBlockFreeList;
+            level->chunkEntityArrayBlockFreeList = result->next;
+            level->chunkEntityArrayBlockCount--;
+            result->at = 0;
+            result->next = 0;
+        }
+        if (!result)
+        {
+            // NOTE: Assumed mem cleared to zero
+            result = PUSH_STRUCT(level->sessionArena, EntityArrayBlock);
+            SOKO_ASSERT(result);
+        }
+        return result;
+    }
+
+    void PutEntityInChunkArray(Chunk* chunk, Entity* entity)
+    {
+        auto block = chunk->entityArray;
+        if (!block)
+        {
+            block = GetChunkEntityArrayBlock(chunk);
+            chunk->entityArray = block;
+        }
+        else if (block->at >= ArrayCount(block->entities))
+        {
+            auto newBlock = GetChunkEntityArrayBlock(chunk);
+            newBlock->next = block;
+            chunk->entityArray = block;
+            block = newBlock;
+        }
+
+        SOKO_ASSERT(block->at < ArrayCount(block->entities));
+        u32 index = block->at;
+        block->entities[index] = entity;
+        block->at++;
+
+        SOKO_ASSERT(!entity->chunkEntityArrayIndex.block);
+        SOKO_ASSERT(!entity->chunkEntityArrayIndex.index);
+
+        entity->chunkEntityArrayIndex.block = block;
+        entity->chunkEntityArrayIndex.index = index;
+    }
+
+    void RemoveEntityFromChunkArray(Chunk* chunk, Entity* entity)
+    {
+        auto block = entity->chunkEntityArrayIndex.block;
+        auto index = entity->chunkEntityArrayIndex.index;
+
+        SOKO_ASSERT(block->entities[index] == entity);
+        SOKO_ASSERT(chunk->entityArray->at);
+
+        // TODO: Maybe not zero this for speed purposes?
+        entity->chunkEntityArrayIndex.block = 0;
+        entity->chunkEntityArrayIndex.index = 0;
+
+        auto lastEntity = chunk->entityArray->entities[chunk->entityArray->at - 1];
+        if (lastEntity != entity)
+        {
+            block->entities[index] = lastEntity;
+            lastEntity->chunkEntityArrayIndex.block = block;
+            lastEntity->chunkEntityArrayIndex.index = index;
+            chunk->entityArray->at--;
+        }
+        else
+        {
+            block->at--;
+        }
+
+        if (chunk->entityArray->at == 0)
+        {
+            auto freeBlock = chunk->entityArray;
+            chunk->entityArray = freeBlock->next;
+
+            auto level = chunk->level;
+
+            freeBlock->next = level->chunkEntityArrayBlockFreeList;
+            level->chunkEntityArrayBlockFreeList = freeBlock;
+            level->chunkEntityArrayBlockCount++;
         }
     }
 
@@ -199,22 +270,23 @@ namespace soko
     }
 
     inline void
+    RegisterEntityInTile(Level* level, Entity* e)
+    {
+        iv3 c = GetChunkCoord(e->pos);
+        uv3 t = GetTileCoordInChunk(e->pos);
+        Chunk* chunk = GetChunk(level, c);
+        RegisterEntityInTileInternal(chunk, e, t);
+        PutEntityInChunkArray(chunk, e);
+    }
+
+    inline void
     UnregisterEntityInTile(Level* level, Entity* e)
     {
-        for (u32 z = 0; z < e->footprintDim.z; z++)
-        {
-            for (u32 y = 0; y < e->footprintDim.y; y++)
-            {
-                for (u32 x = 0; x < e->footprintDim.x; x++)
-                {
-                    iv3 c = GetChunkCoord(e->pos + IV3(x, y, z));
-                    uv3 t = GetTileCoordInChunk(e->pos + IV3(x, y, z));
-                    // TODO: @Speed ??? Cache chunk pointer?
-                    Chunk* chunk = GetChunk(level, c);
-                    UnregisterEntityInTileInternal(chunk, t, e);
-                }
-            }
-        }
+        iv3 c = GetChunkCoord(e->pos);
+        uv3 t = GetTileCoordInChunk(e->pos);
+        Chunk* chunk = GetChunk(level, c);
+        UnregisterEntityInTileInternal(chunk, t, e);
+        RemoveEntityFromChunkArray(chunk, e);
     }
 
     inline void

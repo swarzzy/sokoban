@@ -73,6 +73,7 @@ namespace soko
         f32 materialMetallic;
 
         Entity* nextEntity;
+        ChunkEntityArrayIndex chunkEntityArrayIndex;
     };
 
 #pragma pack(push, 1)
