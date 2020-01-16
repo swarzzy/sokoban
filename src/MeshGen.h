@@ -12,7 +12,6 @@ namespace soko
         v3 pos;
         v3 normal;
         byte tileId;
-        byte AO;
     };
 #pragma pack(pop)
 
@@ -24,7 +23,6 @@ namespace soko
         v3 positions[CHUNK_MESH_VERTEX_BLOCK_CAPACITY];
         v3 normals[CHUNK_MESH_VERTEX_BLOCK_CAPACITY];
         byte tileIds[CHUNK_MESH_VERTEX_BLOCK_CAPACITY];
-        byte AO[CHUNK_MESH_VERTEX_BLOCK_CAPACITY];
     };
 
     struct ChunkMesh

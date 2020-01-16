@@ -831,21 +831,18 @@ void main()
 layout (location = 0) in vec3 a_Position;
 layout (location = 1) in vec3 a_Normal;
 layout (location = 2) in int a_TileId;
-layout (location = 3) in int a_AO;
 
 out vec3 v_Position;
 out vec3 v_MeshSpacePos;
 //out vec4 v_LightSpacePosition;
 flat out int v_TileId;
 out vec3 v_Normal;
-out vec4 v_AO;
 out vec2 v_UV;
 
 uniform mat4 u_ModelMatrix;
 uniform mat3 u_NormalMatrix;
 uniform mat4 u_ViewProjMatrix;
 //uniform mat4 u_LightSpaceMatrix;
-uniform vec4 u_AODistrib;
 
 #define TERRAIN_TEX_ARRAY_NUM_LAYERS 32
 #define INDICES_PER_CHUNK_QUAD 6
@@ -861,11 +858,6 @@ void main()
     // TODO: Pass ints as vertex attrib
     // This problem will be solved when we switch to using
     // packed vertex attributes
-
-    v_AO.x = u_AODistrib[(a_AO & 0x03)];
-    v_AO.y = u_AODistrib[(a_AO & 0x0c) >> 2];
-    v_AO.z = u_AODistrib[(a_AO & 0x30) >> 4];
-    v_AO.w = u_AODistrib[(a_AO & 0xc0) >> 6];
 
     int vertIndexInQuad = gl_VertexID % 4;
 
@@ -886,7 +878,6 @@ in vec3 v_MeshSpacePos;
 //in vec4 v_LightSpacePosition;
 flat in int v_TileId;
 in vec3 v_Normal;
-in vec4 v_AO;
 in vec2 v_UV;
 
 out vec4 color;
@@ -934,10 +925,6 @@ void main()
     vec3 directional = CalcDirectionalLight(u_DirLight, normal, viewDir, diffSample);
     //directional = diffSample;
 
-    float ao0 = mix(v_AO.x, v_AO.y, fract(v_UV.x));
-    float ao1 = mix(v_AO.w, v_AO.z, fract(v_UV.x));
-    float ao = mix(ao0, ao1, fract(v_UV.y));
-
-    color = vec4(directional * ao, alpha);
+    color = vec4(directional, alpha);
 })";
 }

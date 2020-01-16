@@ -1457,7 +1457,6 @@ namespace soko
                         buffer[bufferCount].pos = block->positions[i];
                         buffer[bufferCount].normal = block->normals[i];
                         buffer[bufferCount].tileId = block->tileIds[i];
-                        buffer[bufferCount].AO = block->AO[i];
                         bufferCount++;
                     }
                     block = block->prevBlock;
@@ -1924,11 +1923,6 @@ namespace soko
 
                     if (firstChunkMeshShaderInvocation)
                     {
-                        local_persist v4 aoDistrib = {0.75f, 0.825f, 0.9f, 1.0f};
-                        //DEBUG_OVERLAY_SLIDER(aoDistrib, 0.0f, 1.0f);
-
-                        glUniform4fv(chunkProg->aoDistribLoc, 1, aoDistrib.data);
-
                         firstChunkMeshShaderInvocation = false;
                         glUniformMatrix4fv(chunkProg->viewProjLocation,
                                            1, GL_FALSE, viewProj.data);
@@ -1965,8 +1959,6 @@ namespace soko
                         glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, stride, (void*)(sizeof(v3)));
                         glEnableVertexAttribArray(2);
                         glVertexAttribIPointer(2, 1, GL_UNSIGNED_BYTE, stride, (void*)(sizeof(v3) * 2));
-                        glEnableVertexAttribArray(3);
-                        glVertexAttribIPointer(3, 1, GL_UNSIGNED_BYTE, stride, (void*)(sizeof(v3) * 2 + 1));
 
                         glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, renderer->chunkIndexBuffer);
 

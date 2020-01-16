@@ -27,7 +27,7 @@ namespace soko
 
     inline bool
     PushChunkMeshVertex(Level* level, ChunkMesh* mesh, AB::MemoryArena* arena,
-                        v3 position, v3 normal, byte ao, byte tileId)
+                        v3 position, v3 normal, byte tileId)
     {
         bool result = 0;
         bool memoryIsAvailable = 1;
@@ -74,7 +74,6 @@ namespace soko
             mesh->head->positions[mesh->head->at] = position;
             mesh->head->normals[mesh->head->at] = normal;
             mesh->head->tileIds[mesh->head->at] = tileId;
-            mesh->head->AO[mesh->head->at] = ao;
             mesh->head->at++;
             mesh->vertexCount++;
             result = 1;
@@ -85,32 +84,17 @@ namespace soko
     inline bool
     PushChunkMeshQuad(Level* level, ChunkMesh* mesh, AB::MemoryArena* arena,
                       v3 vtx0, v3 vtx1, v3 vtx2, v3 vtx3,
-                      u32 ao0, u32 ao1, u32 ao2, u32 ao3,
                       TileValue val)
     {
         v3 normal = Cross(vtx3 - vtx0, vtx1 - vtx0);
         bool result = false;
-        byte ao = (byte)ao0 | (byte)(ao1 << 2) | (byte)(ao2 << 4) | (byte)(ao3 << 6);
 
-        result = PushChunkMeshVertex(level, mesh, arena, vtx0, normal, ao, val) &&
-            PushChunkMeshVertex(level, mesh, arena, vtx1, normal, ao, val) &&
-            PushChunkMeshVertex(level, mesh, arena, vtx2, normal, ao, val) &&
-            PushChunkMeshVertex(level, mesh, arena, vtx3, normal, ao, val);
+        result = PushChunkMeshVertex(level, mesh, arena, vtx0, normal, val) &&
+            PushChunkMeshVertex(level, mesh, arena, vtx1, normal, val) &&
+            PushChunkMeshVertex(level, mesh, arena, vtx2, normal, val) &&
+            PushChunkMeshVertex(level, mesh, arena, vtx3, normal, val);
             mesh->quadCount++;
             return result;
-    }
-
-    inline u32
-    CalcVertexAO(bool side0, bool side1, bool corner)
-    {
-        static_assert((int)true == 1);
-        u32 result = 0;
-
-        if (!(side0 && side1))
-        {
-            result = 3 - (u32)side0 - (u32)side1 - (u32)corner;
-        }
-        return result;
     }
 
     inline bool
@@ -120,29 +104,6 @@ namespace soko
 
        const Tile* testTile = GetTileInChunk(chunk, p.x, p.y, p.z);
        SOKO_ASSERT(testTile);
-
-       const Tile* c0Tile = GetTileInChunk(chunk, p.x - 1, p.y - 1, p.z - 1);
-       const Tile* fdnTile = GetTileInChunk(chunk, p.x, p.y - 1, p.z - 1);
-       const Tile* c1Tile = GetTileInChunk(chunk, p.x + 1, p.y - 1, p.z - 1);
-       const Tile* flTile = GetTileInChunk(chunk, p.x - 1, p.y - 1, p.z);
-       const Tile* frTile = GetTileInChunk(chunk, p.x + 1, p.y - 1, p.z);
-       const Tile* c3Tile = GetTileInChunk(chunk, p.x - 1, p.y - 1, p.z + 1);
-       const Tile* fupTile = GetTileInChunk(chunk, p.x, p.y - 1, p.z + 1);
-       const Tile* c2Tile = GetTileInChunk(chunk, p.x + 1, p.y - 1, p.z + 1);
-
-       const Tile* ldnTile = GetTileInChunk(chunk, p.x - 1, p.y, p.z - 1);
-       const Tile* rdnTile = GetTileInChunk(chunk, p.x + 1, p.y, p.z - 1);
-       const Tile* lupTile = GetTileInChunk(chunk, p.x - 1, p.y, p.z + 1);
-       const Tile* rupTile = GetTileInChunk(chunk, p.x + 1, p.y, p.z + 1);
-
-       const Tile* c4Tile = GetTileInChunk(chunk, p.x - 1, p.y + 1, p.z - 1);
-       const Tile* bdnTile = GetTileInChunk(chunk, p.x, p.y + 1, p.z - 1);
-       const Tile* c5Tile = GetTileInChunk(chunk, p.x + 1, p.y + 1, p.z - 1);
-       const Tile* blTile = GetTileInChunk(chunk, p.x - 1, p.y + 1, p.z);
-       const Tile* brTile = GetTileInChunk(chunk, p.x + 1, p.y + 1, p.z);
-       const Tile* c7Tile = GetTileInChunk(chunk, p.x - 1, p.y + 1, p.z + 1);
-       const Tile* bupTile = GetTileInChunk(chunk, p.x, p.y + 1, p.z + 1);
-       const Tile* c6Tile = GetTileInChunk(chunk, p.x + 1, p.y + 1, p.z + 1);
 
         // NOTE: This stage works in left-handed coord system
         // and will be converted to right-handed in push vertex call
@@ -171,59 +132,29 @@ namespace soko
         {
         case Direction_North:
         {
-            u32 ao5 = CalcVertexAO(TileIsTerrain(bdnTile), TileIsTerrain(brTile), TileIsTerrain(c5Tile));
-            u32 ao6 = CalcVertexAO(TileIsTerrain(bupTile), TileIsTerrain(brTile), TileIsTerrain(c6Tile));
-            u32 ao7 = CalcVertexAO(TileIsTerrain(bupTile), TileIsTerrain(blTile), TileIsTerrain(c7Tile));
-            u32 ao4 = CalcVertexAO(TileIsTerrain(bdnTile), TileIsTerrain(blTile), TileIsTerrain(c4Tile));
-
-            result = PushChunkMeshQuad(level, outMesh, arena, vtx5, vtx4, vtx7, vtx6, ao5, ao4, ao7, ao6, val);
+            result = PushChunkMeshQuad(level, outMesh, arena, vtx5, vtx4, vtx7, vtx6, val);
         } break;
         case Direction_South:
         {
-            u32 ao0 = CalcVertexAO(TileIsTerrain(fdnTile), TileIsTerrain(flTile), TileIsTerrain(c0Tile));
-            u32 ao1 = CalcVertexAO(TileIsTerrain(fdnTile), TileIsTerrain(frTile), TileIsTerrain(c1Tile));
-            u32 ao2 = CalcVertexAO(TileIsTerrain(fupTile), TileIsTerrain(frTile), TileIsTerrain(c2Tile));
-            u32 ao3 = CalcVertexAO(TileIsTerrain(fupTile), TileIsTerrain(flTile), TileIsTerrain(c3Tile));
-
-            result = PushChunkMeshQuad(level, outMesh, arena, vtx0, vtx1, vtx2, vtx3, ao0, ao1, ao2, ao3, val);
+            result = PushChunkMeshQuad(level, outMesh, arena, vtx0, vtx1, vtx2, vtx3, val);
         } break;
         case Direction_West:
         {
-            u32 ao4 = CalcVertexAO(TileIsTerrain(ldnTile), TileIsTerrain(blTile), TileIsTerrain(c4Tile));
-            u32 ao7 = CalcVertexAO(TileIsTerrain(lupTile), TileIsTerrain(blTile), TileIsTerrain(c7Tile));
-            u32 ao3 = CalcVertexAO(TileIsTerrain(lupTile), TileIsTerrain(flTile), TileIsTerrain(c3Tile));
-            u32 ao0 = CalcVertexAO(TileIsTerrain(ldnTile), TileIsTerrain(flTile), TileIsTerrain(c0Tile));
-
-            result = PushChunkMeshQuad(level, outMesh, arena, vtx4, vtx0, vtx3, vtx7, ao4, ao0, ao3, ao7, val);
+            result = PushChunkMeshQuad(level, outMesh, arena, vtx4, vtx0, vtx3, vtx7, val);
         } break;
         case Direction_East:
         {
-            u32 ao1 = CalcVertexAO(TileIsTerrain(frTile), TileIsTerrain(rdnTile), TileIsTerrain(c1Tile));
-            u32 ao2 = CalcVertexAO(TileIsTerrain(frTile), TileIsTerrain(rupTile), TileIsTerrain(c2Tile));
-            u32 ao6 = CalcVertexAO(TileIsTerrain(brTile), TileIsTerrain(rupTile), TileIsTerrain(c6Tile));
-            u32 ao5 = CalcVertexAO(TileIsTerrain(brTile), TileIsTerrain(rdnTile), TileIsTerrain(c5Tile));
-
-            result = PushChunkMeshQuad(level, outMesh, arena, vtx1, vtx5, vtx6, vtx2, ao1, ao5, ao6, ao2, val);
+            result = PushChunkMeshQuad(level, outMesh, arena, vtx1, vtx5, vtx6, vtx2, val);
 
         } break;
         case Direction_Up:
         {
-            u32 ao3 = CalcVertexAO(TileIsTerrain(fupTile), TileIsTerrain(lupTile), TileIsTerrain(c3Tile));
-            u32 ao7 = CalcVertexAO(TileIsTerrain(bupTile), TileIsTerrain(lupTile), TileIsTerrain(c7Tile));
-            u32 ao6 = CalcVertexAO(TileIsTerrain(bupTile), TileIsTerrain(rupTile), TileIsTerrain(c6Tile));
-            u32 ao2 = CalcVertexAO(TileIsTerrain(fupTile), TileIsTerrain(rupTile), TileIsTerrain(c2Tile));
-
-            result = PushChunkMeshQuad(level, outMesh, arena, vtx3, vtx2, vtx6, vtx7, ao3, ao2, ao6, ao7, val);
+            result = PushChunkMeshQuad(level, outMesh, arena, vtx3, vtx2, vtx6, vtx7, val);
 
         } break;
         case Direction_Down:
         {
-            u32 ao4 = CalcVertexAO(TileIsTerrain(bdnTile), TileIsTerrain(ldnTile), TileIsTerrain(c4Tile));
-            u32 ao0 = CalcVertexAO(TileIsTerrain(fdnTile), TileIsTerrain(ldnTile), TileIsTerrain(c0Tile));
-            u32 ao1 = CalcVertexAO(TileIsTerrain(fdnTile), TileIsTerrain(rdnTile), TileIsTerrain(c1Tile));
-            u32 ao5 = CalcVertexAO(TileIsTerrain(bdnTile), TileIsTerrain(rdnTile), TileIsTerrain(c5Tile));
-
-            result = PushChunkMeshQuad(level, outMesh, arena, vtx4, vtx5, vtx1, vtx0, ao4, ao5, ao1, ao0, val);
+            result = PushChunkMeshQuad(level, outMesh, arena, vtx4, vtx5, vtx1, vtx0, val);
         } break;
         default: {} break;
         }
