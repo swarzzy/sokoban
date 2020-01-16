@@ -72,35 +72,6 @@ namespace soko
         return YieldEntityFromTile((Level*)level, tile, at);
     }
 
-    // TODO: These two functions downhere are the same.
-    // Maybe make a generic function to _get stuff from freelist or allocate_
-    // ____GENERIC_FREELISTS____
-    inline ChunkEntityBlock*
-    GetChunkEntityBlock(Level* level, AB::MemoryArena* arena)
-    {
-        ChunkEntityBlock* block = 0;
-        if (level->freeChunkEntityBlocks)
-        {
-            auto next = level->freeChunkEntityBlocks->next;
-            block = level->freeChunkEntityBlocks;
-            level->freeChunkEntityBlocks = next;
-            ZERO_ARRAY(Entity*, ArrayCount(block->entities), block->entities);
-        }
-        else
-        {
-            block = PUSH_STRUCT(arena, ChunkEntityBlock);
-        }
-
-        if (block)
-        {
-            level->chunkEntityBlockCount++;
-            block->at = 0;
-            block->next = 0;
-        }
-
-        return block;
-    }
-
     internal bool
     RegisterEntityInTileInternal(Chunk* chunk, Entity* entity, uv3 tileInChunk)
     {
@@ -113,62 +84,36 @@ namespace soko
 
         if (!block || block->at == ArrayCount(block->entities))
         {
-            ChunkEntityBlock* newBlock = GetChunkEntityBlock(level, arena);
-            if (newBlock)
-            {
-                newBlock->next = block;
-                newBlock->at = 0;
-                chunk->entityTable[index] = newBlock;
-                block = newBlock;
-            }
-            else
-            {
-                block = 0;
-            }
+            ChunkEntityBlock* newBlock = level->freeChunkEntityBlocks.Get(arena);
+            newBlock->next = block;
+            newBlock->at = 0;
+            chunk->entityTable[index] = newBlock;
+            block = newBlock;
         }
 
-        if (block)
-        {
-            SOKO_ASSERT(block->at < ArrayCount(block->entities));
-            block->entities[block->at] = entity;
-            block->at++;
-            result = true;
-        }
-        return result;
-    }
+        SOKO_ASSERT(block->at < ArrayCount(block->entities));
+        block->entities[block->at] = entity;
+        block->at++;
+        result = true;
 
-    EntityArrayBlock* GetChunkEntityArrayBlock(Chunk* chunk)
-    {
-        EntityArrayBlock* result = 0;
-        Level* level = chunk->level;
-        if (level->chunkEntityArrayBlockFreeList)
-        {
-            result = level->chunkEntityArrayBlockFreeList;
-            level->chunkEntityArrayBlockFreeList = result->next;
-            level->chunkEntityArrayBlockCount--;
-            result->at = 0;
-            result->next = 0;
-        }
-        if (!result)
-        {
-            // NOTE: Assumed mem cleared to zero
-            result = PUSH_STRUCT(level->sessionArena, EntityArrayBlock);
-            SOKO_ASSERT(result);
-        }
         return result;
     }
 
     void PutEntityInChunkArray(Chunk* chunk, Entity* entity)
     {
+        auto level = chunk->level;
         auto block = chunk->entityArray;
         if (!block)
         {
-            block = GetChunkEntityArrayBlock(chunk);
+            block = level->chunkEntityArrayBlockFreeList.Get(level->sessionArena);
+            block->at = 0;
+            block->next = 0;
             chunk->entityArray = block;
         }
         else if (block->at >= ArrayCount(block->entities))
         {
-            auto newBlock = GetChunkEntityArrayBlock(chunk);
+            auto newBlock = level->chunkEntityArrayBlockFreeList.Get(level->sessionArena);
+            newBlock->at = 0;
             newBlock->next = block;
             chunk->entityArray = newBlock;
             block = newBlock;
@@ -215,12 +160,7 @@ namespace soko
         {
             auto freeBlock = chunk->entityArray;
             chunk->entityArray = freeBlock->next;
-
-            auto level = chunk->level;
-
-            freeBlock->next = level->chunkEntityArrayBlockFreeList;
-            level->chunkEntityArrayBlockFreeList = freeBlock;
-            level->chunkEntityArrayBlockCount++;
+            chunk->level->chunkEntityArrayBlockFreeList.Push(freeBlock);
         }
     }
 
@@ -255,9 +195,7 @@ namespace soko
                         if (!head->at)
                         {
                             chunk->entityTable[index] = head->next;
-                            head->next = chunk->level->freeChunkEntityBlocks;
-                            chunk->level->freeChunkEntityBlocks = head;
-                            chunk->level->chunkEntityBlockCount--;
+                            chunk->level->freeChunkEntityBlocks.Push(head);
                         }
                         goto end;
                     }

@@ -72,7 +72,9 @@ namespace soko
         f32 materialRoughness;
         f32 materialMetallic;
 
-        Entity* nextEntity;
+        // NOTE: next in level hash table
+        // Used in FreeList
+        Entity* next;
         ChunkEntityArrayIndex chunkEntityArrayIndex;
     };
 

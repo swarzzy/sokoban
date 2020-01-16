@@ -5,7 +5,8 @@
 #define KILOBYTES(kb) ((kb) * 1024llu)
 #define MEGABYTES(mb) ((mb) * 1024llu * 1024llu)
 
-#define Memcpy(dest, src, size) memcpy(dest, src, size)
+#define Memcpy(dest, src, size) memcpy((dest), (src), (size))
+#define Memset(dest, val, size) memset((dest), (val), (size))
 // TODO: Get rid of this mess
 #define COPY_ARRAY(type, elem_count, dest, src) memcpy(dest, src, sizeof(type) * elem_count)
 #define COPY_STRUCT(type, dest, src) memcpy(dest, src, sizeof(type))

@@ -39,6 +39,61 @@ namespace soko
         EntityArrayBlock* next;
     };
 
+    struct ChunkEntityArrayIter
+    {
+        EntityArrayBlock* block;
+        u32 at;
+        Entity* ptr;
+
+        inline ChunkEntityArrayIter& operator++()
+            {
+                if (this->at == (this->block->at - 1))
+                {
+                    this->at = 0;
+                    this->block = this->block->next;
+                }
+                else
+                {
+                    this->at++;
+                }
+
+                if (this->block)
+                {
+                    this->ptr = this->block->entities[this->at];
+                }
+
+                return *this;
+            }
+
+        bool operator!=(ChunkEntityArrayIter const& other) const
+            {
+                // TODO: Not a valid comparsion. Used only for foreach loop
+                return this->block != other.block;
+            }
+
+        Entity& operator*()
+            {
+                return *ptr;
+            }
+    };
+
+    inline ChunkEntityArrayIter begin(EntityArrayBlock* array)
+    {
+        ChunkEntityArrayIter iter = {};
+        if (array)
+        {
+            iter.block = array;
+            iter.ptr = array->entities[0];
+        }
+        return iter;
+    }
+
+    inline ChunkEntityArrayIter end(EntityArrayBlock* array)
+    {
+        ChunkEntityArrayIter iter = {};
+        return iter;
+    }
+
     struct ChunkEntityArrayIndex
     {
         EntityArrayBlock* block;

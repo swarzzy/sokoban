@@ -128,29 +128,11 @@ namespace soko
                     bufferCapacity--;
                 }
 
-                e = e->nextEntity;
+                e = e->next;
             }
         }
     end:
         return entitiesWritten;
-    }
-
-    inline Entity*
-    GetEntityMemory(Level* level)
-    {
-        Entity* result = nullptr;
-        if (level->entityFreeList)
-        {
-            result = level->entityFreeList;
-            level->entityFreeList = level->entityFreeList->nextEntity;
-            level->deletedEntityCount--;
-            ZERO_STRUCT(Entity, result);
-        }
-        else
-        {
-            result = PUSH_STRUCT(level->sessionArena, Entity);
-        }
-        return result;
     }
 
     internal void
@@ -165,11 +147,11 @@ namespace soko
             {
                 if (prevEntity)
                 {
-                    prevEntity->nextEntity = entity->nextEntity;
+                    prevEntity->next = entity->next;
                 }
                 else
                 {
-                    level->entities[entityHash] = entity->nextEntity;
+                    level->entities[entityHash] = entity->next;
                 }
 
                 UnregisterEntityInTile(level, entity);
@@ -183,13 +165,11 @@ namespace soko
                         level->platformCount--;
                     }
                 }
-                entity->nextEntity = level->entityFreeList;
-                level->entityFreeList = entity;
-                level->deletedEntityCount++;
+                level->entityFreeList.Push(entity);
                 break;
             }
             prevEntity = bucketEntity;
-            bucketEntity = bucketEntity->nextEntity;
+            bucketEntity = bucketEntity->next;
         }
     }
 
@@ -214,33 +194,31 @@ namespace soko
             }
 #endif
             Entity* bucketEntity = level->entities[entityHash];
-            Entity* newEntity = GetEntityMemory(level);
+            Entity* newEntity = level->entityFreeList.Get(level->sessionArena);
+            Memset(newEntity, 0, sizeof(Entity));
 
-            if (newEntity)
+            DeserializeBinEntityV2(sEntity, newEntity);
+
+            newEntity->next = bucketEntity;
+            level->entities[entityHash] = newEntity;
+            if (newEntity->id > level->entitySerialNumber)
             {
-                DeserializeBinEntityV2(sEntity, newEntity);
-
-                newEntity->nextEntity = bucketEntity;
-                level->entities[entityHash] = newEntity;
-                if (newEntity->id > level->entitySerialNumber)
-                {
-                    level->entitySerialNumber = newEntity->id + 1;
-                }
-                else
-                {
-                    level->entitySerialNumber++;
-                }
-                level->entityCount++;
-
-                if (newEntity->type == EntityType_Platform)
-                {
-                    level->platformCount++;
-                }
-
-                RegisterEntityInTile(level, newEntity);
-
-                result = newEntity->id;
+                level->entitySerialNumber = newEntity->id + 1;
             }
+            else
+            {
+                level->entitySerialNumber++;
+            }
+            level->entityCount++;
+
+            if (newEntity->type == EntityType_Platform)
+            {
+                level->platformCount++;
+            }
+
+            RegisterEntityInTile(level, newEntity);
+
+            result = newEntity->id;
         }
         else
         {
@@ -262,10 +240,10 @@ namespace soko
             u32 entityId = level->entitySerialNumber + 1;
             u32 entityHash = entityId % LEVEL_ENTITY_TABLE_SIZE;
             Entity* bucketEntity = level->entities[entityHash];
-            Entity* newEntity = GetEntityMemory(level);
+            Entity* newEntity = level->entityFreeList.Get(level->sessionArena);
             if (newEntity)
             {
-                newEntity->nextEntity = bucketEntity;
+                newEntity->next = bucketEntity;
                 level->entities[entityHash] = newEntity;
                 level->entitySerialNumber++;
                 level->entityCount++;
@@ -323,7 +301,7 @@ namespace soko
                 result = entity;
                 break;
             }
-            entity = entity->nextEntity;
+            entity = entity->next;
         }
         return result;
     }

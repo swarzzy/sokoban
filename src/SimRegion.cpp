@@ -46,20 +46,13 @@ namespace soko
         for (u32 chunkIndex = 0; chunkIndex < region->chunkCount; chunkIndex++)
         {
             auto chunk = region->chunks[chunkIndex];
-            auto block = chunk->entityArray;
-            // TODO: Nice iterators for that
-            while (block)
+            foreach (chunk->entityArray)
             {
-                for (u32 entityIndex = 0; entityIndex < block->at; entityIndex++)
+                UpdateEntity(region->level, &it);
+                if (it.inTransition)
                 {
-                    auto entity = block->entities[entityIndex];
-                    UpdateEntity(region->level, entity);
-                    if (entity->inTransition)
-                    {
-                        UpdateEntityTransition(region->level, entity);
-                    }
+                    UpdateEntityTransition(region->level, &it);
                 }
-                block = block->next;
             }
         }
     }
@@ -99,50 +92,44 @@ namespace soko
         for (u32 chunkIndex = 0; chunkIndex < region->chunkCount; chunkIndex++)
         {
             auto chunk = region->chunks[chunkIndex];
-            auto block = chunk->entityArray;
-            // TODO: Nice iterators for that
-            while (block)
+
+            foreach (chunk->entityArray)
             {
-                for (u32 entityIndex = 0; entityIndex < block->at; entityIndex++)
+                v3 wp;
+                if (it.inTransition)
                 {
-                    auto e = block->entities[entityIndex];
-                    v3 wp;
-                    if (e->inTransition)
-                    {
-                        wp = GetRelPos(camOrigin, e->transitionOrigin) + e->transitionOffset;
-                    }
-                    else
-                    {
-                        wp = GetRelPos(camOrigin, MakeWorldPos(e->pos));
-                    }
-                    v3 pos = WorldToRH(wp);
-
-                    RenderCommandDrawMesh command = {};
-                    command.transform = Translation(pos);
-                    //SOKO_ASSERT(entity->mesh);
-                    //SOKO_ASSERT(entity->material);
-                    command.mesh = gameState->meshes + e->mesh;
-                    auto material = gameState->materials + e->material;
-                    if (material->type == Material::PBR && material->pbr.isCustom)
-                    {
-                        Material m = {};
-                        m.type = Material::PBR;
-                        m.pbr.isCustom = true;
-                        m.pbr.custom.albedo = e->materialAlbedo;
-                        m.pbr.custom.roughness = e->materialRoughness;
-                        m.pbr.custom.metalness = e->materialMetallic;
-
-                        command.material = m;
-                    }
-                    else
-                    {
-                        command.material = *material;
-                    }
-
-                    RenderGroupPushCommand(gameState->renderGroup, RENDER_COMMAND_DRAW_MESH,
-                                           (void*)&command);
+                    wp = GetRelPos(camOrigin, it.transitionOrigin) + it.transitionOffset;
                 }
-                block = block->next;
+                else
+                {
+                    wp = GetRelPos(camOrigin, MakeWorldPos(it.pos));
+                }
+                v3 pos = WorldToRH(wp);
+
+                RenderCommandDrawMesh command = {};
+                command.transform = Translation(pos);
+                //SOKO_ASSERT(entity->mesh);
+                //SOKO_ASSERT(entity->material);
+                command.mesh = gameState->meshes + it.mesh;
+                auto material = gameState->materials + it.material;
+                if (material->type == Material::PBR && material->pbr.isCustom)
+                {
+                    Material m = {};
+                    m.type = Material::PBR;
+                    m.pbr.isCustom = true;
+                    m.pbr.custom.albedo = it.materialAlbedo;
+                    m.pbr.custom.roughness = it.materialRoughness;
+                    m.pbr.custom.metalness = it.materialMetallic;
+
+                    command.material = m;
+                }
+                else
+                {
+                    command.material = *material;
+                }
+
+                RenderGroupPushCommand(gameState->renderGroup, RENDER_COMMAND_DRAW_MESH,
+                                       (void*)&command);
             }
         }
     }
@@ -412,31 +399,23 @@ namespace soko
 
             if (chunkIntersection.intersects)
             {
-                auto block = chunk->entityArray;
-                // TODO: Nice iterators for that
-                while (block)
+                foreach (chunk->entityArray)
                 {
-                    for (u32 entityIndex = 0; entityIndex < block->at; entityIndex++)
+                    v3 simPos = GetRelPos(region->origin, it.pos) + it.offset;
+                    BBoxAligned aabb;
+                    aabb.min = simPos - LEVEL_TILE_RADIUS;
+                    aabb.max = simPos + LEVEL_TILE_RADIUS;
+                    auto intersection = RayAABBIntersectionSlow(from, ray, &aabb);
+                    if (intersection.intersects &&
+                        intersection.tMin < result.tMin)
                     {
-                        auto entity = block->entities[entityIndex];
-
-                        v3 simPos = GetRelPos(region->origin, entity->pos) + entity->offset;
-                        BBoxAligned aabb;
-                        aabb.min = simPos - LEVEL_TILE_RADIUS;
-                        aabb.max = simPos + LEVEL_TILE_RADIUS;
-                        auto intersection = RayAABBIntersectionSlow(from, ray, &aabb);
-                        if (intersection.intersects &&
-                            intersection.tMin < result.tMin)
-                        {
-                            result.hit = RaycastResult::Entity;
-                            result.tMin = intersection.tMin;
-                            result.entity.normal = intersection.normal;
-                            result.entity.id = entity->id;
-                            // TODO: Is using stored position during the simulation allowed?
-                            result.entity.tile = entity->pos;
-                        }
+                        result.hit = RaycastResult::Entity;
+                        result.tMin = intersection.tMin;
+                        result.entity.normal = intersection.normal;
+                        result.entity.id = it.id;
+                        // TODO: Is using stored position during the simulation allowed?
+                        result.entity.tile = it.pos;
                     }
-                    block = block->next;
                 }
             }
         }

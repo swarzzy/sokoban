@@ -4,6 +4,8 @@
 #include "MeshGen.h"
 #include "Chunk.h"
 
+#include "FreeList.h"
+
 namespace soko
 {
 
@@ -78,8 +80,7 @@ namespace soko
 
         u32 entitySerialNumber;
         u32 entityCount;
-        u32 deletedEntityCount;
-        Entity* entityFreeList;
+        FreeList<Entity> entityFreeList;
         // NOTE: This is chained hash table
         Entity* entities[LEVEL_ENTITY_TABLE_SIZE];
         b32 platePressed;
@@ -89,12 +90,8 @@ namespace soko
         u32 platformCount;
         u32 completePlatformCount;
 
-        // TODO: Some generic stuff for freelists
-        u32 chunkEntityBlockCount;
-        ChunkEntityBlock* freeChunkEntityBlocks;
-
-        u32 chunkEntityArrayBlockCount;
-        EntityArrayBlock* chunkEntityArrayBlockFreeList;
+        FreeList<ChunkEntityBlock> freeChunkEntityBlocks;
+        FreeList<EntityArrayBlock> chunkEntityArrayBlockFreeList;
     };
 
     struct LevelMetaInfo

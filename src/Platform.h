@@ -23,6 +23,8 @@
 
 #define null nullptr
 
+#define foreach(collection) for(auto& it : collection)
+
 #define SOKO_STATIC_ASSERT static_assert
 
 // NOTE: [reflect] - no hint (using seq_enum by default)

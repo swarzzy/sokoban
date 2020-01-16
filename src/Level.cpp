@@ -420,7 +420,7 @@ namespace soko
                 do
                 {
                     UpdateEntity(level, e);
-                    e = e->nextEntity;
+                    e = e->next;
                 }
                 while (e);
             }

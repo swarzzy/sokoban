@@ -331,7 +331,7 @@ namespace soko
                     {
                         selectedEntity = e->id;
                     }
-                    e = e->nextEntity;
+                    e = e->next;
                 }
             }
             ImGui::EndChild();
