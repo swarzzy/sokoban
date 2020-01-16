@@ -170,7 +170,7 @@ namespace soko
         {
             auto newBlock = GetChunkEntityArrayBlock(chunk);
             newBlock->next = block;
-            chunk->entityArray = block;
+            chunk->entityArray = newBlock;
             block = newBlock;
         }
 
@@ -291,70 +291,6 @@ namespace soko
 
     inline void
     SetTileInChunkInternal(Chunk* chunk, u32 x, u32 y, u32 z, TileValue value);
-
-    inline Chunk*
-    AddChunk(Level* level, i32 x, i32 y, i32 z)
-    {
-        Chunk* result = 0;
-
-        SOKO_ASSERT(x >= LEVEL_MIN_DIM_CHUNKS && x <= LEVEL_MAX_DIM_CHUNKS);
-        SOKO_ASSERT(y >= LEVEL_MIN_DIM_CHUNKS && y <= LEVEL_MAX_DIM_CHUNKS);
-        SOKO_ASSERT(z >= LEVEL_MIN_DIM_CHUNKS && z <= LEVEL_MAX_DIM_CHUNKS);
-
-        // TODO: Better hash
-        u32 hashMask = LEVEL_CHUNK_TABLE_SIZE - 1;
-        u32 hash = (Abs(x) * 7 + Abs(y) * Abs(13) + Abs(z) * 23) & hashMask;
-
-        for (u32 offset = 0; offset < LEVEL_CHUNK_TABLE_SIZE; offset++)
-        {
-            u32 index = (hash + offset) & hashMask;
-
-            Chunk* chunk = level->chunkTable[index];
-            if (!chunk)
-            {
-                Chunk* newChunk = PUSH_STRUCT(level->sessionArena, Chunk);
-                if (newChunk)
-                {
-
-                    newChunk->level = level;
-                    newChunk->coord = IV3(x, y, z);
-                    SET_ARRAY(Tile, CHUNK_TILE_COUNT, newChunk->tiles, (i32)TileValue_Empty);
-
-                    ChunkMesh mesh = {};
-                    if (GenChunkMesh(level, newChunk, &mesh))
-                    {
-                        // NOTE: Empty chunk should not allocate any memory for mesh
-                        SOKO_ASSERT(!mesh.blockCount);
-                        LoadedChunkMesh loadedMesh = RendererLoadChunkMesh(&mesh);
-                        if (loadedMesh.gpuHandle)
-                        {
-                            newChunk->loadedMesh = loadedMesh;
-                            newChunk->mesh = mesh;
-                            level->chunkTable[index] = newChunk;
-                            level->loadedChunksCount++;
-                            result = newChunk;
-                            break;
-                        }
-                    }
-                    if (!result)
-                    {
-                        INVALID_CODE_PATH;
-                        // TODO: Free chunk memory in editor
-                        // In game this never should happen!!!
-                    }
-                }
-            }
-        }
-
-        return result;
-    }
-
-    inline Chunk*
-    AddChunk(Level* level, iv3 coord)
-    {
-        Chunk* result = AddChunk(level, coord.x, coord.y, coord.z);
-        return result;
-    }
 
     inline const Tile*
     GetTilePointerInChunkInternal(const Chunk* chunk, u32 x, u32 y, u32 z)
@@ -532,20 +468,11 @@ namespace soko
         bool result = true;
         if (e)
         {
-            for (u32 z = 0; z < e->footprintDim.z; z++)
-            {
-                for (u32 y = 0; y < e->footprintDim.y; y++)
-                {
-                    for (u32 x = 0; x < e->footprintDim.x; x++)
-                    {
-                        iv3 testTile = tile + IV3(x, y, z);
-                        iv3 groundTile = testTile + DirToUnitOffset(Direction_Down);
-                        bool tileFree = CheckTile(level, testTile, TileCheck_Terrain | TileCheck_Entities, e);
-                        bool groundFree = (z == 0) ? TileIsTerrain(level, groundTile) : true;
-                        result = result && tileFree && groundFree;
-                    }
-                }
-            }
+            iv3 testTile = tile;
+            iv3 groundTile = testTile + DirToUnitOffset(Direction_Down);
+            bool tileFree = CheckTile(level, testTile, TileCheck_Terrain | TileCheck_Entities, e);
+            bool groundFree = TileIsTerrain(level, groundTile);
+            result = result && tileFree && groundFree;
         }
         else
         {

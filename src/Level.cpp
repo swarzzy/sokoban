@@ -142,6 +142,70 @@ namespace soko
     }
 
     inline Chunk*
+    AddChunk(Level* level, i32 x, i32 y, i32 z)
+    {
+        Chunk* result = 0;
+
+        SOKO_ASSERT(x >= LEVEL_MIN_DIM_CHUNKS && x <= LEVEL_MAX_DIM_CHUNKS);
+        SOKO_ASSERT(y >= LEVEL_MIN_DIM_CHUNKS && y <= LEVEL_MAX_DIM_CHUNKS);
+        SOKO_ASSERT(z >= LEVEL_MIN_DIM_CHUNKS && z <= LEVEL_MAX_DIM_CHUNKS);
+
+        // TODO: Better hash
+        u32 hashMask = LEVEL_CHUNK_TABLE_SIZE - 1;
+        u32 hash = (Abs(x) * 7 + Abs(y) * Abs(13) + Abs(z) * 23) & hashMask;
+
+        for (u32 offset = 0; offset < LEVEL_CHUNK_TABLE_SIZE; offset++)
+        {
+            u32 index = (hash + offset) & hashMask;
+
+            Chunk* chunk = level->chunkTable[index];
+            if (!chunk)
+            {
+                Chunk* newChunk = PUSH_STRUCT(level->sessionArena, Chunk);
+                if (newChunk)
+                {
+
+                    newChunk->level = level;
+                    newChunk->coord = IV3(x, y, z);
+                    SET_ARRAY(Tile, CHUNK_TILE_COUNT, newChunk->tiles, (i32)TileValue_Empty);
+
+                    ChunkMesh mesh = {};
+                    if (GenChunkMesh(level, newChunk, &mesh))
+                    {
+                        // NOTE: Empty chunk should not allocate any memory for mesh
+                        SOKO_ASSERT(!mesh.blockCount);
+                        LoadedChunkMesh loadedMesh = RendererLoadChunkMesh(&mesh);
+                        if (loadedMesh.gpuHandle)
+                        {
+                            newChunk->loadedMesh = loadedMesh;
+                            newChunk->mesh = mesh;
+                            level->chunkTable[index] = newChunk;
+                            level->loadedChunksCount++;
+                            result = newChunk;
+                            break;
+                        }
+                    }
+                    if (!result)
+                    {
+                        INVALID_CODE_PATH;
+                        // TODO: Free chunk memory in editor
+                        // In game this never should happen!!!
+                    }
+                }
+            }
+        }
+
+        return result;
+    }
+
+    inline Chunk*
+    AddChunk(Level* level, iv3 coord)
+    {
+        Chunk* result = AddChunk(level, coord.x, coord.y, coord.z);
+        return result;
+    }
+
+    inline Chunk*
     GetChunk(Level* level, iv3 coord)
     {
         Chunk* result = GetChunk(level, coord.x, coord.y, coord.z);

@@ -80,6 +80,7 @@ namespace soko
         u32 entityCount;
         u32 deletedEntityCount;
         Entity* entityFreeList;
+        // NOTE: This is chained hash table
         Entity* entities[LEVEL_ENTITY_TABLE_SIZE];
         b32 platePressed;
 

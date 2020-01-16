@@ -333,4 +333,122 @@ namespace soko
     {
         return GetEntity((Level*)level, id);
     }
+
+    inline void
+    ChangeEntityLocation(Level* level, Entity* entity, iv3 destP)
+    {
+        bool result = false;
+        iv3 oldP = entity->pos;
+
+        if (CheckTile(level, destP, TileCheck_Terrain | TileCheck_Entities, entity))
+        {
+            // TODO: Decide how to handle multi-tile entity overlaps
+            UnregisterEntityInTile(level, entity);
+            bool movedAtLeaving = ProcessEntityTileOverlap(level, oldP, entity, EntityOverlapType_Leaving);
+            SOKO_ASSERT(!movedAtLeaving);
+            entity->pos = destP;
+            RegisterEntityInTile(level, entity);
+            bool alreadyMoved = ProcessEntityTileOverlap(level, destP, entity, EntityOverlapType_Entering);
+        }
+    }
+
+    inline bool
+    BeginEntityTransition(Level* level, Entity* e, Direction dir, u32 length, f32 speed, i32 push)
+    {
+        bool result = false;
+        if (!e->inTransition)
+        {
+            iv3 beginP = e->pos;
+            iv3 targetP = e->pos + DirToUnitOffset(dir);
+
+            if (push > 0)
+            {
+                EntityMapIterator it = {};
+                while (true)
+                {
+                    Entity* pe = YieldEntityFromTile(level, targetP, &it);
+                    if (!pe) break;
+                    if (pe != e)
+                    {
+                        if (IsSet(pe, EntityFlag_Collides) && IsSet(pe, EntityFlag_Movable))
+                        {
+                            if (BeginEntityTransition(level, pe, dir, length, speed, push - 1))
+                            {
+                                it = {};
+                            }
+                        }
+                    }
+                }
+            }
+
+            if (CanMove(level, targetP, e))
+            {
+                ChangeEntityLocation(level, e, targetP);
+                e->inTransition = true;
+                e->transitionCount = length;
+                e->transitionPushCount = push;
+                e->transitionDir = dir;
+                e->transitionSpeed = speed;
+                e->transitionFullPath = (v3)DirToUnitOffset(dir) * LEVEL_TILE_SIZE;
+                e->transitionTraveledPath = {};
+                e->transitionOrigin = beginP;
+                e->transitionDest = targetP;
+                e->transitionOffset = {};
+                e->transitionSpeed = speed;
+                result = true;
+            }
+
+            if (push < 0)
+            {
+                iv3 grabP = beginP - DirToUnitOffset(dir);
+
+                EntityMapIterator it = {};
+                while (true)
+                {
+                    Entity* pe = YieldEntityFromTile(level, grabP, &it);
+                    if (!pe) break;
+                    if (pe != e)
+                    {
+                        if (IsSet(pe, EntityFlag_Collides) && IsSet(pe, EntityFlag_Movable))
+                        {
+                            if (BeginEntityTransition(level, pe, dir, length, speed, push + 1))
+                            {
+                                it = {};
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        return result;
+    }
+
+    inline void
+    UpdateEntityTransition(Level* level, Entity* e)
+    {
+        if (e->inTransition)
+        {
+            v3 delta = Normalize(e->transitionFullPath) * e->transitionSpeed * GlobalGameDeltaTime * LEVEL_TILE_SIZE;
+            e->transitionTraveledPath += delta;
+            e->transitionOffset += delta;
+
+            if (LengthSq(e->transitionTraveledPath) > LengthSq(e->transitionFullPath))
+            {
+                v3 pathRemainder = e->transitionFullPath - e->transitionTraveledPath;
+                e->transitionOffset += pathRemainder;
+                e->inTransition = false;
+
+                if (e->transitionCount) e->transitionCount--;
+            }
+
+            if (!e->inTransition)
+            {
+                SOKO_ASSERT(e->transitionDest == e->pos);
+                if (e->transitionCount)
+                {
+                    BeginEntityTransition(level, e, e->transitionDir, e->transitionCount, e->transitionSpeed, e->transitionPushCount);
+                }
+            }
+        }
+    }
 }

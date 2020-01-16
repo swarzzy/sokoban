@@ -531,10 +531,11 @@ namespace soko
         Level* level = gameState->session.level;
 
         BeginTemporaryMemory(gameState->tempArena, true);
-        SimRegion* simRegion = BeginSim(gameState->tempArena,
+        SimRegion _simRegion = BeginSim(gameState->tempArena,
                                         level,
                                         MakeWorldPos(player->pos),
                                         2);
+        auto simRegion = &_simRegion;
 
         UpdateRegion(simRegion);
 
@@ -595,7 +596,6 @@ namespace soko
         FlushRenderGroup(gameState->renderer, gameState->renderGroup);
         RendererEndFrame(gameState->renderer);
 
-        EndSim(gameState->session.level, simRegion);
         EndTemporaryMemory(gameState->tempArena);
 
         SOKO_ASSERT(level->completePlatformCount <= level->platformCount);

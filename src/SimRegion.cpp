@@ -1,308 +1,65 @@
 #include "SimRegion.h"
 namespace soko
 {
-    constant u32 SIM_REGION_MAX_ENTITIES = 256;
-
-    struct SimRegion
+    internal SimRegion
+    BeginSim(MemoryArena* frameArena, Level* level, WorldPos origin, u32 radius)
     {
-        // TODO: Store a little array of pointers to chunk in sim region
-        // And traverse chunks from that array, not by using loops and
-        // GetChunk()
+        SimRegion region = {};
+        region.level = level;
+        i32 actualRadius = radius - 1;
+        SOKO_ASSERT(actualRadius >= 0);
+        iv3 minBound = GetChunkCoord(origin.tile) - actualRadius;
+        iv3 maxBound = GetChunkCoord(origin.tile) + actualRadius;
 
-        Level* level;
-        WorldPos origin;
-        u32 radius;
-        // TODO: Pick size based on entitiesInChunk counter
-        u32 entityCount;
-        Entity* entities[SIM_REGION_MAX_ENTITIES];
-    };
+        i32 regionSpan = 1 + actualRadius * 2;
+        u32 fullChunkCount = regionSpan * regionSpan * regionSpan;
 
-    enum RaycastFlags : u32
-    {
-        Raycast_Tilemap = (1 << 0),
-        Raycast_Entities = (1 << 1),
-    };
+        // NOTE: If some chunks in regions are not exist then not all allocated memory will be used
+        region.chunks = (Chunk**)PUSH_SIZE(frameArena, sizeof(Chunk**) * fullChunkCount);
+        SOKO_ASSERT(region.chunks);
 
-    struct RaycastResult
-    {
-        enum { None = 0, Entity, Tile, Chunk } hit;
-        f32 tMin;
-        union
+        for (i32 z = minBound.z; z <= maxBound.z; z++)
         {
-            struct
+            for (i32 y = minBound.y; y <= maxBound.y; y++)
             {
-                iv3 coord;
-                v3 normal;
-                Direction normalDir;
-            } tile;
-            struct
-            {
-                i32 id;
-                v3 normal;
-                iv3 tile;
-            } entity;
-        };
-    };
-
-    inline Entity**
-    GetRegionEntityHashMapEntry(SimRegion* region, u32 id)
-    {
-        SOKO_STATIC_ASSERT(IsPowerOfTwo(SIM_REGION_MAX_ENTITIES));
-        Entity** result = 0;
-        // TODO: Better hash
-        u32 hashMask = SIM_REGION_MAX_ENTITIES - 1;
-        u32 hash = id & hashMask;
-
-        for (u32 offset = 0; offset < SIM_REGION_MAX_ENTITIES; offset++)
-        {
-            u32 index = (hash + offset) & hashMask;
-            Entity* entry = region->entities[index];
-            if ((entry && entry->id == id) || !entry)
-            {
-                result = region->entities + index;
-                break;
-            }
-        }
-        return result;
-    }
-
-    inline Entity*
-    AddEntityToRegion(SimRegion* region, Entity* e)
-    {
-        Entity* result = 0;
-        if (!e->region)
-        {
-            Entity** entry = GetRegionEntityHashMapEntry(region, e->id);
-            if (entry)
-            {
-                if (!(e->region && e->inTransition))
+                for (i32 x = minBound.x; x <= maxBound.x; x++)
                 {
-                    //SOKO_ASSERT((*entry)->id == 0, "Cloned entities are not allowed!");
-                    *entry = e;
-                    e->region = region;
-                    region->entityCount++;
-                }
-                result = e;
-            }
-        }
-        else
-        {
-            result = e;
-        }
-        return result;
-    }
-
-    inline Entity*
-    GetEntity(SimRegion* region, u32 id)
-    {
-        Entity* result = 0;
-        Entity** entry = GetRegionEntityHashMapEntry(region, id);
-        if (entry && *entry && (*entry)->id)
-        {
-            result = *entry;
-        }
-        return result;
-    }
-
-    internal SimRegion*
-    BeginSim(AB::MemoryArena* frameArena, Level* level, WorldPos origin, u32 radius)
-    {
-        //PrintString("Begin entity gathering...\n");
-        SimRegion* region = PUSH_STRUCT(frameArena, SimRegion);
-        if (region)
-        {
-            region->level = level;
-            i32 actualRadius = radius - 1;
-            SOKO_ASSERT(actualRadius >= 0);
-            iv3 minBound = GetChunkCoord(origin.tile) - actualRadius;
-            iv3 maxBound = GetChunkCoord(origin.tile) + actualRadius;
-
-            region->origin = origin;
-            region->radius = radius;
-
-            //
-            // TODO: IMPORTANT: Optimize this!!!
-            //
-
-            for (i32 z = minBound.z; z <= maxBound.z; z++)
-            {
-                for (i32 y = minBound.y; y <= maxBound.y; y++)
-                {
-                    for (i32 x = minBound.x; x <= maxBound.x; x++)
+                    Chunk* chunk = GetChunk(level, IV3(x, y, z));
+                    if (chunk)
                     {
-                        Chunk* chunk = GetChunk(level, x, y, z);
-                        if (chunk)
-                        {
-                            for (u32 index = 0;
-                                 index < ArrayCount(chunk->entityTable);
-                                 index++)
-                            {
-                                auto block = chunk->entityTable[index];
-                                while (block)
-                                {
-                                    for (u32 entityIndex = 0; entityIndex < block->at; entityIndex++)
-                                    {
-                                        Entity* entity = block->entities[entityIndex];
-                                        bool added = AddEntityToRegion(region, entity);
-                                        //PrintString("Entity with id: %u32 and type: %s gathered at tile with index %u32!\n", entity->id, meta::GetEnumName(entity->type), index);
-                                        SOKO_ASSERT(added);
-                                    }
-                                    block = block->next;
-                                }
-                            }
-                        }
+                        region.chunks[region.chunkCount] = chunk;
+                        region.chunkCount++;
                     }
                 }
             }
         }
-        //PrintString("End entity gathering...\n");
+
+        region.origin = origin;
+        region.radius = radius;
+
         return region;
-    }
-
-    inline void
-    ChangeEntityLocation(Level* level, Entity* entity, iv3 destP)
-    {
-        bool result = false;
-        iv3 oldP = entity->pos;
-
-        if (CheckTile(level, destP, TileCheck_Terrain | TileCheck_Entities, entity))
-        {
-            // TODO: Decide how to handle multi-tile entity overlaps
-            UnregisterEntityInTile(level, entity);
-            bool movedAtLeaving = ProcessEntityTileOverlap(level, oldP, entity, EntityOverlapType_Leaving);
-            SOKO_ASSERT(!movedAtLeaving);
-            entity->pos = destP;
-            RegisterEntityInTile(level, entity);
-            bool alreadyMoved = ProcessEntityTileOverlap(level, destP, entity, EntityOverlapType_Entering);
-        }
-    }
-
-    inline bool
-    BeginEntityTransition(Level* level, Entity* e, Direction dir, u32 length, f32 speed, i32 push)
-    {
-        bool result = false;
-        if (!e->inTransition)
-        {
-            iv3 beginP = e->pos;
-            iv3 targetP = e->pos + DirToUnitOffset(dir);
-
-            if (push > 0)
-            {
-                EntityMapIterator it = {};
-                while (true)
-                {
-                    Entity* pe = YieldEntityFromTile(level, targetP, &it);
-                    if (!pe) break;
-                    if (pe != e)
-                    {
-                        if (IsSet(pe, EntityFlag_Collides) && IsSet(pe, EntityFlag_Movable))
-                        {
-                            if (BeginEntityTransition(level, pe, dir, length, speed, push - 1))
-                            {
-                                it = {};
-                            }
-                        }
-                    }
-                }
-            }
-
-            if (CanMove(level, targetP, e))
-            {
-                ChangeEntityLocation(level, e, targetP);
-                e->inTransition = true;
-                e->transitionCount = length;
-                e->transitionPushCount = push;
-                e->transitionDir = dir;
-                e->transitionSpeed = speed;
-                e->transitionFullPath = (v3)DirToUnitOffset(dir) * LEVEL_TILE_SIZE;
-                e->transitionTraveledPath = {};
-                e->transitionOrigin = beginP;
-                e->transitionDest = targetP;
-                e->transitionOffset = {};
-                e->transitionSpeed = speed;
-                result = true;
-            }
-
-            if (push < 0)
-            {
-                iv3 grabP = beginP - DirToUnitOffset(dir);
-
-                EntityMapIterator it = {};
-                while (true)
-                {
-                    Entity* pe = YieldEntityFromTile(level, grabP, &it);
-                    if (!pe) break;
-                    if (pe != e)
-                    {
-                        if (IsSet(pe, EntityFlag_Collides) && IsSet(pe, EntityFlag_Movable))
-                        {
-                            if (BeginEntityTransition(level, pe, dir, length, speed, push + 1))
-                            {
-                                it = {};
-                            }
-                        }
-                    }
-                }
-            }
-        }
-        return result;
-    }
-
-    inline void
-    UpdateEntityTransition(SimRegion* region, Entity* e)
-    {
-        if (e->inTransition)
-        {
-            v3 delta = Normalize(e->transitionFullPath) * e->transitionSpeed * GlobalGameDeltaTime * LEVEL_TILE_SIZE;
-            e->transitionTraveledPath += delta;
-            e->transitionOffset += delta;
-
-            if (LengthSq(e->transitionTraveledPath) > LengthSq(e->transitionFullPath))
-            {
-                v3 pathRemainder = e->transitionFullPath - e->transitionTraveledPath;
-                e->transitionOffset += pathRemainder;
-                e->inTransition = false;
-
-                if (e->transitionCount) e->transitionCount--;
-            }
-
-            if (!e->inTransition)
-            {
-                SOKO_ASSERT(e->transitionDest == e->pos);
-                if (e->transitionCount)
-                {
-                    BeginEntityTransition(region->level, e, e->transitionDir, e->transitionCount, e->transitionSpeed, e->transitionPushCount);
-                }
-            }
-        }
     }
 
     internal void
     UpdateRegion(SimRegion* region)
     {
-        for (u32 index = 0; index < SIM_REGION_MAX_ENTITIES; index++)
+        for (u32 chunkIndex = 0; chunkIndex < region->chunkCount; chunkIndex++)
         {
-            Entity* e = region->entities[index];
-            if (e)
+            auto chunk = region->chunks[chunkIndex];
+            auto block = chunk->entityArray;
+            // TODO: Nice iterators for that
+            while (block)
             {
-                UpdateEntity(region->level, e);
-            }
-        }
-    }
-
-    internal void
-    EndSim(Level* level, SimRegion* region)
-    {
-        for (u32 index = 0; index < SIM_REGION_MAX_ENTITIES; index++)
-        {
-            Entity* e = region->entities[index];
-            if (e)
-            {
-                if (e->inTransition)
+                for (u32 entityIndex = 0; entityIndex < block->at; entityIndex++)
                 {
-                    UpdateEntityTransition(region, e);
+                    auto entity = block->entities[entityIndex];
+                    UpdateEntity(region->level, entity);
+                    if (entity->inTransition)
+                    {
+                        UpdateEntityTransition(region->level, entity);
+                    }
                 }
-                e->region = 0;
+                block = block->next;
             }
         }
     }
@@ -322,76 +79,72 @@ namespace soko
         RenderGroupPushCommand(gameState->renderGroup,
                                RENDER_COMMAND_BEGIN_CHUNK_MESH_BATCH, 0);
 
-        for (i32 z = minBound.z; z <= maxBound.z; z++)
+        for (u32 chunkIndex = 0; chunkIndex < region->chunkCount; chunkIndex++)
         {
-            for (i32 y = minBound.y; y <= maxBound.y; y++)
-            {
-                for (i32 x = minBound.x; x <= maxBound.x; x++)
-                {
-                    Chunk* chunk = GetChunk(region->level, x, y, z);
-                    if (chunk)
-                    {
-                        WorldPos chunkPos = MakeWorldPos(chunk->coord * CHUNK_DIM);
-                        v3 camOffset = WorldToRH(GetRelPos(camOrigin, chunkPos));
-                        v3 offset = camOffset;
-                        RenderCommandPushChunkMesh c = {};
-                        c.offset = offset;
-                        c.meshIndex = chunk->loadedMesh.gpuHandle;
-                        c.quadCount = chunk->loadedMesh.quadCount;
-                        RenderGroupPushCommand(gameState->renderGroup,
-                                               RENDER_COMMAND_PUSH_CHUNK_MESH, (void*)&c);
-                    }
-
-                }
-            }
+            Chunk* chunk = region->chunks[chunkIndex];
+            WorldPos chunkPos = MakeWorldPos(chunk->coord * CHUNK_DIM);
+            v3 camOffset = WorldToRH(GetRelPos(camOrigin, chunkPos));
+            v3 offset = camOffset;
+            RenderCommandPushChunkMesh c = {};
+            c.offset = offset;
+            c.meshIndex = chunk->loadedMesh.gpuHandle;
+            c.quadCount = chunk->loadedMesh.quadCount;
+            RenderGroupPushCommand(gameState->renderGroup,
+                                   RENDER_COMMAND_PUSH_CHUNK_MESH, (void*)&c);
         }
 
         RenderGroupPushCommand(gameState->renderGroup,
                                RENDER_COMMAND_END_CHUNK_MESH_BATCH, 0);
 
-        for (u32 index = 0; index < SIM_REGION_MAX_ENTITIES; index++)
+        for (u32 chunkIndex = 0; chunkIndex < region->chunkCount; chunkIndex++)
         {
-            Entity* e = region->entities[index];
-            if (e)
+            auto chunk = region->chunks[chunkIndex];
+            auto block = chunk->entityArray;
+            // TODO: Nice iterators for that
+            while (block)
             {
-                v3 wp;
-                if (e->inTransition)
+                for (u32 entityIndex = 0; entityIndex < block->at; entityIndex++)
                 {
-                    wp = GetRelPos(camOrigin, e->transitionOrigin) + e->transitionOffset;
-                }
-                else
-                {
-                    wp = GetRelPos(camOrigin, MakeWorldPos(e->pos));
-                }
-                v3 pos = WorldToRH(wp);
+                    auto e = block->entities[entityIndex];
+                    v3 wp;
+                    if (e->inTransition)
+                    {
+                        wp = GetRelPos(camOrigin, e->transitionOrigin) + e->transitionOffset;
+                    }
+                    else
+                    {
+                        wp = GetRelPos(camOrigin, MakeWorldPos(e->pos));
+                    }
+                    v3 pos = WorldToRH(wp);
 
-                RenderCommandDrawMesh command = {};
-                command.transform = Translation(pos);
-                //SOKO_ASSERT(entity->mesh);
-                //SOKO_ASSERT(entity->material);
-                command.mesh = gameState->meshes + e->mesh;
-                auto material = gameState->materials + e->material;
-                if (material->type == Material::PBR && material->pbr.isCustom)
-                {
-                    Material m = {};
-                    m.type = Material::PBR;
-                    m.pbr.isCustom = true;
-                    m.pbr.custom.albedo = e->materialAlbedo;
-                    m.pbr.custom.roughness = e->materialRoughness;
-                    m.pbr.custom.metalness = e->materialMetallic;
+                    RenderCommandDrawMesh command = {};
+                    command.transform = Translation(pos);
+                    //SOKO_ASSERT(entity->mesh);
+                    //SOKO_ASSERT(entity->material);
+                    command.mesh = gameState->meshes + e->mesh;
+                    auto material = gameState->materials + e->material;
+                    if (material->type == Material::PBR && material->pbr.isCustom)
+                    {
+                        Material m = {};
+                        m.type = Material::PBR;
+                        m.pbr.isCustom = true;
+                        m.pbr.custom.albedo = e->materialAlbedo;
+                        m.pbr.custom.roughness = e->materialRoughness;
+                        m.pbr.custom.metalness = e->materialMetallic;
 
-                    command.material = m;
-                }
-                else
-                {
-                    command.material = *material;
-                }
+                        command.material = m;
+                    }
+                    else
+                    {
+                        command.material = *material;
+                    }
 
-                RenderGroupPushCommand(gameState->renderGroup, RENDER_COMMAND_DRAW_MESH,
-                                       (void*)&command);
+                    RenderGroupPushCommand(gameState->renderGroup, RENDER_COMMAND_DRAW_MESH,
+                                           (void*)&command);
+                }
+                block = block->next;
             }
         }
-
     }
 
     struct IntersectionResult
@@ -580,56 +333,44 @@ namespace soko
         // TODO: Store a little array of pointers to chunk in sim region
         // And traverse chunks from that array, not by using loops and
         // GetChunk()
-        for (i32 chunkZ = minBound.z; chunkZ <= maxBound.z; chunkZ++)
+        for (u32 chunkIndex = 0; chunkIndex < region->chunkCount; chunkIndex++)
         {
-            for (i32 chunkY = minBound.y; chunkY <= maxBound.y; chunkY++)
+            Chunk* chunk = region->chunks[chunkIndex];
+
+            v3 chunkSimPos = GetRelPos(region->origin, chunk->coord * CHUNK_DIM);
+            BBoxAligned chunkBBox = GetChunkAABB(chunkSimPos);
+            v3 tileOff = V3(LEVEL_TILE_RADIUS, LEVEL_TILE_RADIUS, LEVEL_TILE_RADIUS);
+            // NOTE: Subtract tile radius because tile (0, 0, 0) coord is aligned to tile center in camera space
+            chunkBBox.min -= tileOff;
+            chunkBBox.max -= tileOff;
+            auto chunkIntersection = RayAABBIntersectionSlow(from, ray, &chunkBBox);
+
+            if (chunkIntersection.intersects)
             {
-                for (i32 chunkX = minBound.x; chunkX <= maxBound.x; chunkX++)
+                for (u32 z = 0; z < CHUNK_DIM; z++)
                 {
-                    v3 chunkSimPos = GetRelPos(region->origin, IV3(chunkX, chunkY, chunkZ) * CHUNK_DIM);
-                    BBoxAligned chunkBBox = GetChunkAABB(chunkSimPos);
-                    v3 tileOff = V3(LEVEL_TILE_RADIUS, LEVEL_TILE_RADIUS, LEVEL_TILE_RADIUS);
-                    // NOTE: Subtract tile radius because tile (0, 0, 0) coord is aligned to tile center in camera space
-                    chunkBBox.min -= tileOff;
-                    chunkBBox.max -= tileOff;
-                    auto chunkIntersection = RayAABBIntersectionSlow(from, ray, &chunkBBox);
-
-                    if (chunkIntersection.intersects)
+                    for (u32 y = 0; y < CHUNK_DIM; y++)
                     {
-                        Chunk* chunk = GetChunk(region->level, chunkX, chunkY, chunkZ);
-
-                        // TODO: Chunk query may be faster than ray-aabb intersection
-                        // So maybe query chunk before intersection test
-                        // and then if chunk exists do the test
-                        if (chunk)
+                        for (u32 x = 0; x < CHUNK_DIM; x++)
                         {
-                            for (u32 z = 0; z < CHUNK_DIM; z++)
+                            // TODO: Grids
+                            // NOTE: Internal is faster
+                            const Tile* tile = GetTilePointerInChunkInternal(chunk, x, y, z);
+                            SOKO_ASSERT(tile);
+                            // TODO: TileIsFree?
+                            if (TileIsTerrain(tile))
                             {
-                                for (u32 y = 0; y < CHUNK_DIM; y++)
+                                iv3 worldPos = WorldTileFromChunkTile(chunk->coord, {x, y, z});
+                                v3 simPos = GetRelPos(region->origin, worldPos);
+                                BBoxAligned aabb;
+                                aabb.min = simPos - LEVEL_TILE_RADIUS;
+                                aabb.max = simPos + LEVEL_TILE_RADIUS;
+                                auto intersection = RayAABBIntersectionSlow(from, ray, &aabb);
+                                if (intersection.intersects &&
+                                    intersection.tMin < tileResult.tMin)
                                 {
-                                    for (u32 x = 0; x < CHUNK_DIM; x++)
-                                    {
-                                        // TODO: Grids
-                                        // NOTE: Internal is faster
-                                        const Tile* tile = GetTilePointerInChunkInternal(chunk, x, y, z);
-                                        SOKO_ASSERT(tile);
-                                        // TODO: TileIsFree?
-                                        if (TileIsTerrain(tile))
-                                        {
-                                            iv3 worldPos = WorldTileFromChunkTile({chunkX, chunkY, chunkZ}, {x, y, z});
-                                            v3 simPos = GetRelPos(region->origin, worldPos);
-                                            BBoxAligned aabb;
-                                            aabb.min = simPos - LEVEL_TILE_RADIUS;
-                                            aabb.max = simPos + LEVEL_TILE_RADIUS;
-                                            auto intersection = RayAABBIntersectionSlow(from, ray, &aabb);
-                                            if (intersection.intersects &&
-                                                intersection.tMin < tileResult.tMin)
-                                            {
-                                                tileResult = intersection;
-                                                tileResultWorldPos = worldPos;
-                                            }
-                                        }
-                                    }
+                                    tileResult = intersection;
+                                    tileResultWorldPos = worldPos;
                                 }
                             }
                         }
@@ -657,28 +398,49 @@ namespace soko
 
         result.tMin = F32_MAX;
 
-        for (u32 index = 0; index < SIM_REGION_MAX_ENTITIES; index++)
+        for (u32 chunkIndex = 0; chunkIndex < region->chunkCount; chunkIndex++)
         {
-            Entity* entity = region->entities[index];
-            if (entity)
+            auto chunk = region->chunks[chunkIndex];
+
+            v3 chunkSimPos = GetRelPos(region->origin, chunk->coord * CHUNK_DIM);
+            BBoxAligned chunkBBox = GetChunkAABB(chunkSimPos);
+            v3 tileOff = V3(LEVEL_TILE_RADIUS, LEVEL_TILE_RADIUS, LEVEL_TILE_RADIUS);
+            // NOTE: Subtract tile radius because tile (0, 0, 0) coord is aligned to tile center in camera space
+            chunkBBox.min -= tileOff;
+            chunkBBox.max -= tileOff;
+            auto chunkIntersection = RayAABBIntersectionSlow(from, ray, &chunkBBox);
+
+            if (chunkIntersection.intersects)
             {
-                v3 simPos = GetRelPos(region->origin, entity->pos) + entity->offset;
-                BBoxAligned aabb;
-                aabb.min = simPos - LEVEL_TILE_RADIUS;
-                aabb.max = simPos + LEVEL_TILE_RADIUS;
-                auto intersection = RayAABBIntersectionSlow(from, ray, &aabb);
-                if (intersection.intersects &&
-                    intersection.tMin < result.tMin)
+                auto block = chunk->entityArray;
+                // TODO: Nice iterators for that
+                while (block)
                 {
-                    result.hit = RaycastResult::Entity;
-                    result.tMin = intersection.tMin;
-                    result.entity.normal = intersection.normal;
-                    result.entity.id = entity->id;
-                    // TODO: Is using stored position during the simulation allowed?
-                    result.entity.tile = entity->pos;
+                    for (u32 entityIndex = 0; entityIndex < block->at; entityIndex++)
+                    {
+                        auto entity = block->entities[entityIndex];
+
+                        v3 simPos = GetRelPos(region->origin, entity->pos) + entity->offset;
+                        BBoxAligned aabb;
+                        aabb.min = simPos - LEVEL_TILE_RADIUS;
+                        aabb.max = simPos + LEVEL_TILE_RADIUS;
+                        auto intersection = RayAABBIntersectionSlow(from, ray, &aabb);
+                        if (intersection.intersects &&
+                            intersection.tMin < result.tMin)
+                        {
+                            result.hit = RaycastResult::Entity;
+                            result.tMin = intersection.tMin;
+                            result.entity.normal = intersection.normal;
+                            result.entity.id = entity->id;
+                            // TODO: Is using stored position during the simulation allowed?
+                            result.entity.tile = entity->pos;
+                        }
+                    }
+                    block = block->next;
                 }
             }
         }
+
         return result;
     }
 
@@ -704,5 +466,4 @@ namespace soko
         }
         return result;
     }
-
 }

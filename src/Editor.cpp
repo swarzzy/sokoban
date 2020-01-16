@@ -179,7 +179,7 @@ namespace soko
             }
             else
             {
-                Entity* entity = GetEntity(editor->region, editor->selectedEntityID);
+                Entity* entity = GetEntity(editor->region->level, editor->selectedEntityID);
 
                 char buffer[16];
                 FormatString(buffer, 16, "%i32", editor->selectedEntityID);
@@ -595,10 +595,11 @@ namespace soko
         EditorAddAnchorIfChunkEmpty(zeroChunk);
 
         BeginTemporaryMemory(gameState->tempArena, true);
-        SimRegion* simRegion = BeginSim(gameState->tempArena,
+        SimRegion _simRegion = BeginSim(gameState->tempArena,
                                         gameState->session.level,
                                         gameState->session.editorCamera->targetWorldPos,
                                         2);
+        auto simRegion = &_simRegion;
         editor->region = simRegion;
 
         i32 actualRadius = simRegion->radius - 1;
@@ -662,8 +663,6 @@ namespace soko
                                            EntityMesh_Cube, EntityMaterial_Block);
                         if (id)
                         {
-                            bool added = AddEntityToRegion(simRegion, GetEntity(level, id));
-                            SOKO_ASSERT(added);
                             editor->selectedEntityID = id;
                         }
                     }
@@ -914,7 +913,7 @@ namespace soko
         {
             if (editor->selectedEntityID)
             {
-                Entity* entity = GetEntity(simRegion, editor->selectedEntityID);
+                Entity* entity = GetEntity(simRegion->level, editor->selectedEntityID);
                 // TODO: This is correct only while region
                 // origin and camera origin are the same value
                 v3 relP = GetRelPos(camera->targetWorldPos, entity->pos) + entity->offset - V3(LEVEL_TILE_RADIUS);
@@ -951,7 +950,6 @@ namespace soko
         FlushRenderGroup(gameState->renderer, gameState->renderGroup);
         RendererEndFrame(gameState->renderer);
 
-        EndSim(gameState->session.level, simRegion);
         EndTemporaryMemory(gameState->tempArena);
 
         if (editor->ui.exitToMainMenu)
