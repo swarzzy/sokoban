@@ -170,20 +170,18 @@ namespace soko
                     SET_ARRAY(Tile, CHUNK_TILE_COUNT, newChunk->tiles, (i32)TileValue_Empty);
 
                     ChunkMesh mesh = {};
-                    if (GenChunkMesh(level, newChunk, &mesh))
+                    GenChunkMesh(level, newChunk, &mesh);
+                    // NOTE: Empty chunk should not allocate any memory for mesh
+                    SOKO_ASSERT(!mesh.blockCount);
+                    LoadedChunkMesh loadedMesh = RendererLoadChunkMesh(&mesh);
+                    if (loadedMesh.gpuHandle)
                     {
-                        // NOTE: Empty chunk should not allocate any memory for mesh
-                        SOKO_ASSERT(!mesh.blockCount);
-                        LoadedChunkMesh loadedMesh = RendererLoadChunkMesh(&mesh);
-                        if (loadedMesh.gpuHandle)
-                        {
-                            newChunk->loadedMesh = loadedMesh;
-                            newChunk->mesh = mesh;
-                            level->chunkTable[index] = newChunk;
-                            level->loadedChunksCount++;
-                            result = newChunk;
-                            break;
-                        }
+                        newChunk->loadedMesh = loadedMesh;
+                        newChunk->mesh = mesh;
+                        level->chunkTable[index] = newChunk;
+                        level->loadedChunksCount++;
+                        result = newChunk;
+                        break;
                     }
                     if (!result)
                     {
@@ -351,8 +349,7 @@ namespace soko
     inline void
     RemeshChunk(Level* level, Chunk* chunk)
     {
-        bool result = GenChunkMesh(level, chunk, &chunk->mesh);
-        SOKO_ASSERT(result);
+        GenChunkMesh(level, chunk, &chunk->mesh);
         chunk->loadedMesh.quadCount = RendererReloadChunkMesh(&chunk->mesh, chunk->loadedMesh.gpuHandle);
         chunk->dirty = false;
     }
@@ -541,10 +538,8 @@ namespace soko
                     }
                 }
                 ChunkMesh mesh = {};
-                bool meshResult = GenChunkMesh(level, chunk, &mesh);
-                SOKO_ASSERT(meshResult);
+                GenChunkMesh(level, chunk, &mesh);
                 chunk->mesh = mesh;
-                //level->globalChunkMeshBlockCount += mesh.blockCount;
             }
         }
 

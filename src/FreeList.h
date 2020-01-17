@@ -14,6 +14,7 @@ namespace soko
         LinkedBlock<T>* head;
         u32 count;
 
+        // NOTE: Assumed that allocations from arena never fail
         inline T* Get(MemoryArena* arena)
         {
             T* block = 0;

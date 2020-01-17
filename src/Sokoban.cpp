@@ -529,6 +529,8 @@ namespace soko
         DrawOverlay(gameState);
         Entity* player = gameState->session.player;
         Level* level = gameState->session.level;
+        DEBUG_OVERLAY_TRACE(level->globalChunkMeshBlockCount);
+        DEBUG_OVERLAY_TRACE(level->mesherFreeList.count);
 
         BeginTemporaryMemory(gameState->tempArena, true);
         SimRegion _simRegion = BeginSim(gameState->tempArena,

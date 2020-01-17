@@ -369,13 +369,11 @@ namespace soko
                                 SOKO_ASSERT(chunk);
                                 // TODO: Store meshes on the cpu and load on the gpu only when necessary
                                 ChunkMesh mesh = {};
-                                if (GenChunkMesh(editor->session->level, chunk, &mesh))
-                                {
-                                    // TODO: Check if loading failed
-                                    LoadedChunkMesh loadedMesh = RendererLoadChunkMesh(&mesh);
-                                    chunk->loadedMesh = loadedMesh;
-                                    chunk->mesh = mesh;
-                                }
+                                GenChunkMesh(editor->session->level, chunk, &mesh);
+                                // TODO: Check if loading failed
+                                LoadedChunkMesh loadedMesh = RendererLoadChunkMesh(&mesh);
+                                chunk->loadedMesh = loadedMesh;
+                                chunk->mesh = mesh;
 
                             }
                             ImGui::PopID();
@@ -578,11 +576,9 @@ namespace soko
         auto editor = gameState->session.editor;
         auto level = gameState->session.level;
 
-        DEBUG_OVERLAY_TRACE((u32)IsKeyboradCapturedByUI());
-        DEBUG_OVERLAY_TRACE((u32)IsMouseCapturedByUI());
-        DEBUG_OVERLAY_TRACE(editor->tilePlacerDeleteMode);
-        DEBUG_OVERLAY_TRACE(GlobalInput.mouseButtons[MBUTTON_LEFT].pressedNow);
-        DEBUG_OVERLAY_TRACE(GlobalInput.mouseButtons[MBUTTON_RIGHT].pressedNow);
+        DEBUG_OVERLAY_TRACE(level->globalChunkMeshBlockCount);
+        DEBUG_OVERLAY_TRACE(level->mesherFreeList.count);
+
 
         // TODO: Not here
         if (!IsKeyboradCapturedByUI())

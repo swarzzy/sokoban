@@ -90,6 +90,7 @@ namespace soko
         u32 platformCount;
         u32 completePlatformCount;
 
+        FreeList<ChunkMeshVertexBlock> mesherFreeList;
         FreeList<ChunkEntityBlock> freeChunkEntityBlocks;
         FreeList<EntityArrayBlock> chunkEntityArrayBlockFreeList;
     };

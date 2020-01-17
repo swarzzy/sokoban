@@ -1,10 +1,9 @@
 #pragma once
+#include "FreeList.h"
 
 namespace soko
 {
     struct Chunk;
-
-    constant u32 CHUNK_MESH_VERTEX_BLOCK_CAPACITY = 4096;
 
 #pragma pack(push, 1)
     struct ChunkMeshVertex
@@ -15,14 +14,13 @@ namespace soko
     };
 #pragma pack(pop)
 
-    struct ChunkMeshVertexBlock
+    struct ChunkMeshVertexBlock : LinkedBlock<ChunkMeshVertexBlock>
     {
-        ChunkMeshVertexBlock* nextBlock;
         ChunkMeshVertexBlock* prevBlock;
         u32 at;
-        v3 positions[CHUNK_MESH_VERTEX_BLOCK_CAPACITY];
-        v3 normals[CHUNK_MESH_VERTEX_BLOCK_CAPACITY];
-        byte tileIds[CHUNK_MESH_VERTEX_BLOCK_CAPACITY];
+        v3 positions[MESH_GEN_VERTEX_BLOCK_CAPACITY];
+        v3 normals[MESH_GEN_VERTEX_BLOCK_CAPACITY];
+        byte tileIds[MESH_GEN_VERTEX_BLOCK_CAPACITY];
     };
 
     struct ChunkMesh
@@ -32,9 +30,8 @@ namespace soko
         u32 blockCount;
         ChunkMeshVertexBlock* head;
         ChunkMeshVertexBlock* tail;
-        ChunkMeshVertexBlock* free;
     };
 
     struct Level;
-    internal bool GenChunkMesh(Level* level, Chunk* chunk, ChunkMesh* outMesh);
+    void GenChunkMesh(Level* level, Chunk* chunk, ChunkMesh* outMesh);
 }

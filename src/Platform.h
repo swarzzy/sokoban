@@ -24,6 +24,7 @@
 #define null nullptr
 
 #define foreach(collection) for(auto& it : collection)
+#define CASE(expr, ...) case expr: {__VA_ARGS__;} break
 
 #define SOKO_STATIC_ASSERT static_assert
 
