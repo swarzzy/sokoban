@@ -1,5 +1,6 @@
 #pragma once
 #include "Platform.h"
+#include "FreeList.h"
 
 namespace soko
 {
@@ -24,20 +25,19 @@ namespace soko
         TileValue value;
     };
 
-    struct ChunkEntityBlock
+    struct ChunkEntityBlock : public LinkedBlock<ChunkEntityBlock>
     {
         u32 at;
         Entity* entities[8];
-        ChunkEntityBlock* next;
     };
 
-    struct EntityArrayBlock
+    struct EntityArrayBlock : public LinkedBlock<EntityArrayBlock>
     {
         u32 at;
-        // NOTE: Size must be power of two
         Entity* entities[16];
-        EntityArrayBlock* next;
     };
+
+    SOKO_STATIC_ASSERT(IsPowerOfTwo(ArrayCount(DeclMember(EntityArrayBlock, entities))));
 
     struct ChunkEntityArrayIter
     {

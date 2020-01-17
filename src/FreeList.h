@@ -2,11 +2,16 @@
 
 namespace soko
 {
-    // NOTE: Requires "next" ptr in T
+    template<typename T>
+    struct LinkedBlock
+    {
+        T* next;
+    };
+
     template<typename T>
     struct FreeList
     {
-        T* head;
+        LinkedBlock<T>* head;
         u32 count;
 
         inline T* Get(MemoryArena* arena)
@@ -14,7 +19,7 @@ namespace soko
             T* block = 0;
             if (this->head)
             {
-                block = this->head;
+                block = static_cast<T*>(this->head);
                 this->head = block->next;
                 this->count--;
                 block->next = 0;
@@ -28,9 +33,9 @@ namespace soko
             return block;
         }
 
-        inline void Push(T* block)
+        inline void Push(LinkedBlock<T>* block)
         {
-            block->next = this->head;
+            block->next = static_cast<T*>(this->head);
             this->head = block;
             this->count++;
         }

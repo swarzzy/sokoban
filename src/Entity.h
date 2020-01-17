@@ -30,7 +30,7 @@ namespace soko
     };
 
     struct SimRegion;
-    struct Entity
+    struct Entity : LinkedBlock<Entity>
     {
         u32 id;
         EntityType type;
@@ -72,9 +72,6 @@ namespace soko
         f32 materialRoughness;
         f32 materialMetallic;
 
-        // NOTE: next in level hash table
-        // Used in FreeList
-        Entity* next;
         ChunkEntityArrayIndex chunkEntityArrayIndex;
     };
 
