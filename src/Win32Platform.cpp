@@ -1143,7 +1143,7 @@ namespace AB
         return result;
     }
 
-    MemoryArena* AllocateArena(uptr size)
+    MemoryArena* AllocateArena(uptr size, bool isTemp)
     {
         uptr headerSize = sizeof(MemoryArena);
         void* mem = VirtualAlloc(0, size + headerSize,
@@ -1153,10 +1153,9 @@ namespace AB
         AB_CORE_ASSERT((uptr)mem % 128 == 0, "Memory aligment violation");
         MemoryArena header = {};
         header.free = size;
-        header.offset = 0;
-        header.begin = (void*)((byte*)mem + headerSize);
-        header.stackMark = nullptr;
         header.size = size;
+        header.isTemporary = isTemp;
+        header.begin = (void*)((byte*)mem + headerSize);
         COPY_STRUCT(MemoryArena, mem, &header);
         return (MemoryArena*)mem;
     }
@@ -1198,7 +1197,6 @@ namespace AB
 
         UINT sleepGranularityMs = 1;
         auto granularityWasSet = (timeBeginPeriod(sleepGranularityMs) == TIMERR_NOERROR);
-        AB_CORE_INFO("Granularity was set: %i32", (i32)granularityWasSet);
 
         QueryPerformanceFrequency(&GlobalPerformanceFrequency);
 
@@ -1208,7 +1206,7 @@ namespace AB
 
         Win32Initialize(app);
 
-        app->wglSwapIntervalEXT(0);
+        app->wglSwapIntervalEXT(1);
 
         LoadFunctionsResult glResult = OpenGLLoadFunctions(app->mainArena);
         AB_CORE_ASSERT(glResult.success, "Failed to load OpenGL functions");
@@ -1248,7 +1246,7 @@ namespace AB
         b32 codeLoaded = UpdateGameCode(&app->gameLib);
         AB_CORE_ASSERT(codeLoaded, "Failed to load game lib");
 
-        app->gameArena = AllocateSubArena(app->mainArena, GAME_ARENA_SIZE);
+        app->gameArena = AllocateSubArena(app->mainArena, GAME_ARENA_SIZE, false);
 
         IMGUI_CHECKVERSION();
         ImGui::SetAllocatorFunctions(AllocForImGui, FreeForImGui, (void*)&app->imGuiHeap);
@@ -1361,7 +1359,7 @@ WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance,
 int main()
 #endif
 {
-    AB::MemoryArena* arena = AB::AllocateArena(AB::MAIN_ARENA_SIZE);
+    AB::MemoryArena* arena = AB::AllocateArena(AB::MAIN_ARENA_SIZE, false);
     AB::Application* app = nullptr;
     app = (AB::Application*)AB::PushSize(arena, sizeof(AB::Application), 0);
     AB::GlobalApplication = app;

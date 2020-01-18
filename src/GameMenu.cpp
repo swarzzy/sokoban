@@ -57,12 +57,11 @@ namespace soko
     {
         MainMenuState nextState = MainMenu_EditorConf;
         uptr arenaSize = CalcLevelArenaSize(&menu->levelMetaInfo, ENTITY_MEMORY_SIZE_FOR_LEVEL);
-        MemoryArena* levelArena = PLATFORM_QUERY_NEW_ARENA(arenaSize);
+        MemoryArena* levelArena = PLATFORM_QUERY_NEW_ARENA(arenaSize, false);
         SOKO_ASSERT(levelArena);
         // TODO: Maybe stop using gameState's temp arena for that
-        BeginTemporaryMemory(gameState->tempArena);
+        auto tempMem = ScopedTempMemory::make(BeginTemporaryMemory(gameState->tempArena));
         Level* level = LoadLevel(menu->wLevelPathBuffer, levelArena, gameState->tempArena);
-        EndTemporaryMemory(gameState->tempArena);
         if (level)
         {
             // TODO: Player spawn position
@@ -84,7 +83,7 @@ namespace soko
         MainMenuState nextState = MainMenu_EditorConf;
         // TODO: Dynamically growing arenas
         uptr arenaSize = MEGABYTES(16);
-        MemoryArena* levelArena = PLATFORM_QUERY_NEW_ARENA(arenaSize);
+        MemoryArena* levelArena = PLATFORM_QUERY_NEW_ARENA(arenaSize, false);
         SOKO_ASSERT(levelArena);
         // TODO: Remove level from GameState
         Level* level = CreateLevel(levelArena);
@@ -171,9 +170,10 @@ namespace soko
     MenuSingleSelectLevel(GameMenu* menu, AB::MemoryArena* tempArena)
     {
         MainMenuState nextState = MainMenu_SingleSelectLevel;
+        TempMemory tempMem = {};;
         if (!menu->levelCache.initialized)
         {
-            BeginTemporaryMemory(tempArena);
+            tempMem = BeginTemporaryMemory(tempArena);
             FillLevelCache(&menu->levelCache, tempArena);
         }
 
@@ -223,7 +223,7 @@ namespace soko
         if (menu->state != MainMenu_SingleSelectLevel)
         {
             menu->levelCache = {};
-            EndTemporaryMemory(tempArena);
+            EndTemporaryMemory(&tempMem);
         }
     }
 
@@ -232,12 +232,11 @@ namespace soko
     {
         MainMenuState nextState = MainMenu_SingleSelectLevel;
         uptr arenaSize = CalcLevelArenaSize(&menu->levelMetaInfo, ENTITY_MEMORY_SIZE_FOR_LEVEL);
-        MemoryArena* levelArena = PLATFORM_QUERY_NEW_ARENA(arenaSize);
+        MemoryArena* levelArena = PLATFORM_QUERY_NEW_ARENA(arenaSize, false);
         SOKO_ASSERT(levelArena);
         // TODO: Maybe stop using gameState's temp arena for that
-        BeginTemporaryMemory(gameState->tempArena);
+        auto tempMem = ScopedTempMemory::make(BeginTemporaryMemory(gameState->tempArena));
         Level* level = LoadLevel(menu->wLevelPathBuffer, levelArena, gameState->tempArena);
-        EndTemporaryMemory(gameState->tempArena);
         if (level)
         {
             menu->session.sessionArena = levelArena;

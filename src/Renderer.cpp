@@ -390,7 +390,7 @@ namespace soko
     {
         CubeTexture texture = {};
 
-        BeginTemporaryMemory(tempArena);
+        auto tempMem = BeginTemporaryMemory(tempArena);
 
         i32 backWidth, backHeight, backBpp;
         unsigned char* backData = stbi_load(back, &backWidth, &backHeight, &backBpp, 3);
@@ -443,7 +443,7 @@ namespace soko
         RendererLoadCubeTexture(&texture);
         SOKO_ASSERT(texture.gpuHandle);
 
-        EndTemporaryMemory(tempArena);
+        EndTemporaryMemory(&tempMem);
 
         return texture;
     }
@@ -473,7 +473,7 @@ namespace soko
     {
         CubeTexture texture = {};
 
-        BeginTemporaryMemory(tempArena);
+        auto tempMem = BeginTemporaryMemory(tempArena);
 
         i32 backWidth, backHeight, backBpp;
         f32* backData = stbi_loadf(back, &backWidth, &backHeight, &backBpp, 3);
@@ -529,7 +529,7 @@ namespace soko
         RendererLoadCubeTexture(&texture);
         SOKO_ASSERT(texture.gpuHandle);
 
-        EndTemporaryMemory(tempArena);
+        EndTemporaryMemory(&tempMem);
 
         return texture;
     }
@@ -541,7 +541,8 @@ namespace soko
                 TextureFilter filter = TextureFilter_Bilinear)
     {
         Texture t = {};
-        BeginTemporaryMemory(tempArena);
+        auto tempMem = BeginTemporaryMemory(tempArena);
+
         i32 width;
         i32 height;
         i32 bpp;
@@ -585,7 +586,7 @@ namespace soko
         RendererLoadTexture(&t);
         SOKO_ASSERT(t.gpuHandle);
 
-        EndTemporaryMemory(tempArena);
+        EndTemporaryMemory(&tempMem);
 
         return t;
     }
@@ -1297,7 +1298,7 @@ namespace soko
         i32 width;
         i32 height;
         i32 bpp;
-        BeginTemporaryMemory(tempArena);
+        auto tempMem = BeginTemporaryMemory(tempArena);
         unsigned char* bitmap = stbi_load("../res/tile.png", &width, &height, &bpp, 3);
 
         i32 stoneW;
@@ -1346,7 +1347,7 @@ namespace soko
         glTexParameterf(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_LOD_BIAS, -0.1f); // -0.86 for trilinear
         glTexParameterf(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_MAX_ANISOTROPY_EXT, renderer->maxAnisotropy);
 
-        EndTemporaryMemory(tempArena);
+        EndTemporaryMemory(&tempMem);
         glBindTexture(GL_TEXTURE_2D_ARRAY, 0);
         renderer->tileTexArrayHandle = terrainTexArray;
 
@@ -1400,9 +1401,10 @@ namespace soko
         if (brdfLUTSize)
         {
             SOKO_ASSERT(brdfLUTSize == sizeof(f32) * 2 * 512 * 512);
-            BeginTemporaryMemory(tempArena);
+            auto tempMem = BeginTemporaryMemory(tempArena);
             void* brdfBitmap = PUSH_SIZE(tempArena, brdfLUTSize);
             auto loadedSize = DebugReadFile(brdfBitmap, brdfLUTSize, L"brdf_lut.aab");
+            EndTemporaryMemory(&tempMem);
             if (loadedSize == brdfLUTSize)
             {
                 Texture t = LoadTexture(512, 512, brdfBitmap, GL_RG16F, GL_CLAMP_TO_EDGE, TextureFilter_Bilinear);
@@ -1411,7 +1413,6 @@ namespace soko
                     renderer->BRDFLutHandle = t.gpuHandle;
                 }
             }
-            EndTemporaryMemory(tempArena);
         }
         if (!renderer->BRDFLutHandle)
         {
@@ -1419,12 +1420,12 @@ namespace soko
             SOKO_ASSERT(t.gpuHandle);
             GenBRDFLut(renderer, &t);
             renderer->BRDFLutHandle = t.gpuHandle;
-            BeginTemporaryMemory(tempArena);
+            auto tempMem = BeginTemporaryMemory(tempArena);
             void* bitmap = PUSH_SIZE(tempArena, sizeof(f32) * 2 * 512 * 512);
             glBindTexture(GL_TEXTURE_2D, renderer->BRDFLutHandle);
             glGetTexImage(GL_TEXTURE_2D, 0, GL_RG, GL_FLOAT, bitmap);
             DebugWriteFile(L"brdf_lut.aab", bitmap, sizeof(f32) * 2 * 512 * 512);
-            EndTemporaryMemory(tempArena);
+            EndTemporaryMemory(&tempMem);
         }
 
         return renderer;

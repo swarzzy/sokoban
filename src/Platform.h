@@ -302,7 +302,7 @@ namespace AB
     typedef void(LogFn)(LogLevel level, const char* file, const char* func, u32 line, const char* fmt, ...);
     typedef void(LogAssertVFn)(LogLevel level, const char* file, const char* func, u32 line, const char* assertStr, const char* fmt, va_list* args);
 
-    typedef MemoryArena*(QueryNewArenaFn)(uptr size);
+    typedef MemoryArena*(QueryNewArenaFn)(uptr size, bool isTemp);
     typedef void(FreeArenaFn)(MemoryArena* arena);
 
     typedef f64(GetTimeStampFn)();

@@ -55,8 +55,8 @@ namespace soko
 #define GetTimeStamp SOKO_PLATFORM_FUNCTION(GetTimeStamp)
 #define EnumerateFilesInDirectory SOKO_PLATFORM_FUNCTION(EnumerateFilesInDirectory)
 
-#define PLATFORM_QUERY_NEW_ARENA(size) QueryNewArena(size)
-#define PLATFORM_FREE_ARENA(arena) FreeArena(arena)
+#define PLATFORM_QUERY_NEW_ARENA QueryNewArena
+#define PLATFORM_FREE_ARENA FreeArena
 
         inline void
         LogAssert(AB::LogLevel level, const char* file, const char* func, u32 line,
@@ -381,7 +381,7 @@ namespace soko
 
         _GlobalPlatform->gameSpeed = 1.0f;
 
-        auto* tempArena = AllocateSubArena(arena, arena->size / 2);
+        auto* tempArena = AllocateSubArena(arena, arena->size / 2, true);
         SOKO_ASSERT(tempArena, "Failed to allocate tempArena.");
         _GlobalStaticStorage->gameState = PUSH_STRUCT(arena, GameState);
         SOKO_ASSERT(_GlobalStaticStorage->gameState, "");
@@ -413,7 +413,7 @@ namespace soko
 
         gameState->renderer->clearColor = V4(0.8f, 0.8f, 0.8f, 1.0f);
 
-        BeginTemporaryMemory(gameState->tempArena);
+        auto tempMem = BeginTemporaryMemory(gameState->tempArena);
         gameState->meshes[EntityMesh_Sphere] = LoadMesh(gameState->tempArena, L"../res/mesh/sphere.aab");
 //        gameState->meshes[EntityMesh_Gun] = LoadMesh(gameState->tempArena, L"../res/mesh/gun.aab");
         gameState->meshes[EntityMesh_Cube] = LoadMesh(gameState->tempArena, L"../res/mesh/cube.aab");
@@ -425,7 +425,7 @@ namespace soko
         gameState->meshes[EntityMesh_Altar] = LoadMesh(gameState->tempArena, L"../res/mesh/altar.aab");
         gameState->meshes[EntityMesh_Cat] = LoadMesh(gameState->tempArena, L"../res/mesh/cat.aab");
 
-        EndTemporaryMemory(gameState->tempArena);
+        EndTemporaryMemory(&tempMem);
 
         stbi_set_flip_vertically_on_load(1);
 
@@ -532,7 +532,7 @@ namespace soko
         DEBUG_OVERLAY_TRACE(level->globalChunkMeshBlockCount);
         DEBUG_OVERLAY_TRACE(level->mesherFreeList.count);
 
-        BeginTemporaryMemory(gameState->tempArena, true);
+        auto tempMemory = BeginTemporaryMemory(gameState->tempArena);
         SimRegion _simRegion = BeginSim(gameState->tempArena,
                                         level,
                                         MakeWorldPos(player->pos),
@@ -598,7 +598,7 @@ namespace soko
         FlushRenderGroup(gameState->renderer, gameState->renderGroup);
         RendererEndFrame(gameState->renderer);
 
-        EndTemporaryMemory(gameState->tempArena);
+        EndTemporaryMemory(&tempMemory);
 
         SOKO_ASSERT(level->completePlatformCount <= level->platformCount);
 
@@ -634,6 +634,7 @@ namespace soko
         default:
         {
             SessionUpdateAndRender(gameState);
+            CheckTempArena(gameState->tempArena);
             if (gameState->globalGameMode == GAME_MODE_MENU)
             {
                 DestroyGameSession(&gameState->session);

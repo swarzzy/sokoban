@@ -494,7 +494,7 @@ namespace soko
     internal bool
     GenTestLevel(AB::MemoryArena* tempArena)
     {
-        BeginTemporaryMemory(tempArena, true);
+        auto tempMem = BeginTemporaryMemory(tempArena);
         bool result = 0;
         Level* level = CreateLevel(tempArena);
         for (i32 chunkX = LEVEL_MIN_DIM_CHUNKS; chunkX <= LEVEL_MAX_DIM_CHUNKS; chunkX++)
@@ -628,7 +628,7 @@ namespace soko
         {
             result = 1;
         }
-        EndTemporaryMemory(tempArena);
+        EndTemporaryMemory(&tempMem);
         return result;
     }
 }

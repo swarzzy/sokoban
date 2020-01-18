@@ -32,8 +32,8 @@ namespace AB
 
     const u32 WINDOW_TITLE_SIZE = 32;
 
-    const uptr MAIN_ARENA_SIZE = MEGABYTES(256);
-    const uptr GAME_ARENA_SIZE = MEGABYTES(200);
+    const uptr MAIN_ARENA_SIZE = MEGABYTES(512);
+    const uptr GAME_ARENA_SIZE = MEGABYTES(500);
 
     const ConsoleColor CONSOLE_DEFAULT_TEXT_COLOR = CONSOLE_COLOR_DARKWHITE;
     const ConsoleColor CONSOLE_DEFAULT_BACK_COLOR = CONSOLE_COLOR_BLACK;
@@ -78,7 +78,7 @@ namespace AB
         HANDLE imGuiHeap;
     };
 
-    MemoryArena* AllocateArena(uptr size);
+    MemoryArena* AllocateArena(uptr size, bool isTemp);
     Application* AppCreate(MemoryArena* sysMemory);
     void AppRun(Application* app);
 

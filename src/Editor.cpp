@@ -590,7 +590,7 @@ namespace soko
         Chunk* zeroChunk = GetChunk(level, 0, 0, 0);
         EditorAddAnchorIfChunkEmpty(zeroChunk);
 
-        BeginTemporaryMemory(gameState->tempArena, true);
+        auto tempMemory = BeginTemporaryMemory(gameState->tempArena);
         SimRegion _simRegion = BeginSim(gameState->tempArena,
                                         gameState->session.level,
                                         gameState->session.editorCamera->targetWorldPos,
@@ -946,7 +946,7 @@ namespace soko
         FlushRenderGroup(gameState->renderer, gameState->renderGroup);
         RendererEndFrame(gameState->renderer);
 
-        EndTemporaryMemory(gameState->tempArena);
+        EndTemporaryMemory(&tempMemory);
 
         if (editor->ui.exitToMainMenu)
         {

@@ -2,6 +2,12 @@
 #include "Platform.h"
 #include <cstring>
 
+// TODO: Temporary solution.
+// Resolve asserts mess and use normal asserts
+#include <assert.h>
+#define ASSERT assert
+
+
 #define KILOBYTES(kb) ((kb) * 1024llu)
 #define MEGABYTES(mb) ((mb) * 1024llu * 1024llu)
 
@@ -27,62 +33,82 @@ namespace AB
 
     struct alignas(DEFAULT_ALIGMENT) MemoryArena
     {
-        uptr free;
+        void* begin;
         uptr offset;
         uptr size;
-        void* stackMark;
-        void* begin;
-        b32 clearTmp;
-        b32 isTmpAllocated;
-        // NOTE(new): aignas solves that problem actually
-        // TODO: Set paddind propperly on 32-bit machines
-        // So that arena memory aligned at 16 bytes boundary
+        uptr free;
+        b32 isTemporary;
+        i32 tempCount;
     };
 
-    inline uptr CalculatePadding(uptr offset, uptr aligment)
+    enum MemoryArenaFlags : u32
     {
-        // TODO: Calculate padding properly
-        // TODO: @Important: enable asserts here
-        //AB_CORE_ASSERT(aligment, "Aligment is zero.");
-        // TODO: IMPORTANT: FIXME: Fix the padding it is not correct.
-#if 1
-        uptr padding = (aligment - offset % aligment) % aligment;
+        MemoryArenaFlag_None = 0,
+        MemoryArenaFlag_ClearTemp = (1 << 0)
+    };
+
+    struct TempMemory
+    {
+        MemoryArena* arena;
+        uptr offset;
+    };
+
+    inline TempMemory
+    BeginTemporaryMemory(MemoryArena* arena, MemoryArenaFlags flags = MemoryArenaFlag_None)
+    {
+        ASSERT(arena->isTemporary);
+
+        arena->tempCount++;
+        return TempMemory { arena, arena->offset };
+    }
+
+    inline void EndTemporaryMemory(TempMemory* frame)
+    {
+        if (frame->arena)
+        {
+            auto arena = frame->arena;
+            if (frame->offset < arena->offset)
+            {
+                uptr markOffset = frame->offset;
+                arena->free += arena->offset - frame->offset;
+                arena->offset = frame->offset;
+            }
+            arena->tempCount--;
+            ASSERT(arena->tempCount >= 0);
+            *frame = {};
+        }
+    }
+
+    struct ScopedTempMemory
+    {
+        TempMemory frame;
+        static inline ScopedTempMemory make(TempMemory frame) { return ScopedTempMemory {frame.arena, frame.offset}; }
+        ~ScopedTempMemory() { EndTemporaryMemory(&this->frame); }
+    };
+
+    inline bool CheckTempArena(const MemoryArena* arena)
+    {
+        ASSERT(arena->isTemporary);
+        bool result = (arena->tempCount == 0) && (arena->offset == 0);
+        return result;
+    }
+
+    inline uptr CalculatePadding(uptr offset, uptr alignment)
+    {
+        uptr padding = 0;
+        auto alignmentMask = alignment - 1;
+        if (offset & alignmentMask)
+        {
+            padding = alignment - (offset & alignmentMask);
+        }
         return padding;
-#else
-        uptr mul = (offset / aligment) + 1;
-        uptr aligned = mul * aligment;
-        uptr padding = aligned - offset;
-        return padding;
-#endif
     }
 
-    inline void
-    BeginTemporaryMemory(MemoryArena* arena, b32 clearToZero = false)
+    inline void* PushSizeInternal(MemoryArena* arena, uptr size, uptr aligment)
     {
-        arena->stackMark = (void*)((byte*)arena->begin + arena->offset);
-        arena->isTmpAllocated = true;
-        arena->clearTmp = clearToZero;
-    }
-
-    inline void EndTemporaryMemory(MemoryArena* arena)
-    {
-        // TODO: @Important: enable asserts here
-        //AB_CORE_ASSERT(arena->stackMark,
-        //             "Calling EndTemporaryMemory without BeginTemporaryMemory");
-        uptr markOffset = (uptr)arena->stackMark - (uptr)arena->begin;
-        arena->free += arena->offset - markOffset;
-        arena->offset = markOffset;
-        arena->stackMark = nullptr;
-        arena->isTmpAllocated = false;
-    }
-
-    inline void* PushSize(MemoryArena* arena, uptr size, uptr aligment = 0)
-    {
-        uptr nextAdress = 0;
         uptr padding = 0;
         uptr useAligment = 0;
-        uptr currentOffset = arena->offset;
-        uptr currentAddress = (uptr)arena->begin + currentOffset;
+        uptr currentAddress = (uptr)arena->begin + arena->offset;
 
         if (aligment == 0)
         {
@@ -93,30 +119,32 @@ namespace AB
             useAligment = aligment;
         }
 
-        if (currentOffset % useAligment != 0)
+        if (arena->offset % useAligment != 0)
         {
             padding = CalculatePadding(currentAddress, useAligment);
         }
 
-        if (size + padding <= arena->free)
-        {
-            // TODO: Why +1 is here?
-            arena->offset += size + padding + 1;
-            arena->free -= size + padding + 1;
-            nextAdress = currentAddress + padding;
-            // TODO: Padding!!!!!!
-            //AB_CORE_ASSERT(nextAdress % useAligment == 0, "Wrong aligment");
-        }
-
-        if (arena->isTmpAllocated && arena->clearTmp)
-        {
-            ZERO_SIZE(size, (void*)nextAdress);
-        }
+        // TODO: Grow!
+        ASSERT(size + padding <= arena->free);
+        uptr nextAdress = (uptr)((byte*)arena->begin + arena->offset + padding);
+        ASSERT(nextAdress % useAligment == 0);
+        arena->offset += size + padding;
+        arena->free -= size + padding;
 
         return (void*)nextAdress;
     }
 
-    inline MemoryArena* AllocateSubArena(MemoryArena* arena, uptr size)
+    inline void* PushSize(MemoryArena* arena, uptr size, u32 flags = MemoryArenaFlag_ClearTemp, uptr aligment = 0)
+    {
+        void* mem = PushSizeInternal(arena, size, aligment);
+        if (arena->isTemporary && (flags & MemoryArenaFlag_ClearTemp))
+        {
+            Memset(mem, 0, size);
+        }
+        return mem;
+    }
+
+    inline MemoryArena* AllocateSubArena(MemoryArena* arena, uptr size, bool isTemporary)
     {
         MemoryArena* result = nullptr;
         uptr chunkSize = size + sizeof(arena);
@@ -125,9 +153,8 @@ namespace AB
         {
             MemoryArena header = {};
             header.free = size;
-            header.offset = 0;
-            header.stackMark = nullptr;
             header.size = size;
+            header.isTemporary = isTemporary;
             header.begin = (void*)((byte*)chunk + sizeof(MemoryArena));
             COPY_STRUCT(MemoryArena, chunk, &header);
             result = (MemoryArena*)chunk;
