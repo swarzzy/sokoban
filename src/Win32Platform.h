@@ -40,6 +40,7 @@ namespace AB
 
     const DWORD IMGUI_HEAP_FLAGS = HEAP_GENERATE_EXCEPTIONS;
 
+    const f64 SECONDS_PER_TICK = 1.0 / 60.0;
 
     struct Application
     {
@@ -56,7 +57,7 @@ namespace AB
         HGLRC OpenGLRC;
         WINDOWPLACEMENT wpPrev;
 
-        i64 runningTime;
+        //i64 runningTime;
 
         TRACKMOUSEEVENT Win32MouseTrackEvent;
 
@@ -70,17 +71,12 @@ namespace AB
         // TODO: @Important: Get rid of max path constant
         LibraryData gameLib;
 
-        LARGE_INTEGER performanceFrequency;
-
         InputMode inputMode;
 
         ImGuiMouseCursor imguiLastMouseCursor;
 
         HANDLE imGuiHeap;
     };
-
-    static const i64 UPDATE_INTERVAL = 16000;
-    static const i64 SECOND_INTERVAL = 1000000;
 
     MemoryArena* AllocateArena(uptr size);
     Application* AppCreate(MemoryArena* sysMemory);

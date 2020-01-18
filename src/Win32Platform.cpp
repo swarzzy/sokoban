@@ -6,6 +6,8 @@
 
 #include <tchar.h>
 
+#include <timeapi.h>
+
 #include <cstdlib>
 
 #include "imgui/imgui_impl_soko_win32.h"
@@ -51,6 +53,8 @@ extern "C" { __declspec(dllexport) DWORD AmdPowerXpressRequestHighPerformance = 
 
 namespace AB
 {
+    // NOTE: Global variables
+    static LARGE_INTEGER GlobalPerformanceFrequency = {};
 
     inline static void
     ProcessMButtonEvent(InputState* input, MouseButton button, b32 state)
@@ -126,8 +130,7 @@ namespace AB
         MSG message;
         BOOL result;
         while (app->running &&
-               (result = PeekMessage(&message, app->win32WindowHandle,
-                                     0, 0, PM_REMOVE)) != 0)
+               (result = PeekMessage(&message, 0, 0, 0, PM_REMOVE)) != 0)
         {
             if (result == -1)
             {
@@ -306,10 +309,6 @@ namespace AB
 
         SetFocus(app->win32WindowHandle);
 
-        LARGE_INTEGER perfFrequency = {};
-        QueryPerformanceFrequency(&perfFrequency);
-        AB_CORE_ASSERT(perfFrequency.QuadPart);
-        app->performanceFrequency = perfFrequency;
     }
 
     // NOTE: Stealing this from imgui win32 implementation!
@@ -333,8 +332,7 @@ namespace AB
             Application* app = (Application*)data->lpCreateParams;
             if (app)
             {
-                SetWindowLongPtr(windowHandle,
-                                 GWLP_USERDATA, (LONG_PTR)app);
+                SetWindowLongPtr(windowHandle, GWLP_USERDATA, (LONG_PTR)app);
                 app->running = true;
             }
             return result;
@@ -347,7 +345,6 @@ namespace AB
             Application* app = (Application*)ptr;
 
             // NOTE: IMPORTANT: Always checking for nullptr
-            // TODO: Play with some _optional_ type implementation just for fun
             ImGuiIO* io = nullptr;
             if (ImGui::GetCurrentContext())
             {
@@ -567,8 +564,7 @@ namespace AB
                     app->state.input.textBuffer + textBufferCount;
                 // NOTE: Reserve last character because wcstombs
                 // null terminates strings
-                u32 textBufferFree =
-                    PLATFORM_TEXT_INPUT_BUFFER_SIZE - textBufferCount - 1;
+                u32 textBufferFree = PLATFORM_TEXT_INPUT_BUFFER_SIZE - textBufferCount - 1;
                 // TODO: wcstombs implementation
                 if (textBufferFree)
                 {
@@ -836,20 +832,16 @@ namespace AB
         GetModuleFileName(NULL, buffer, bufferSizeBytes / sizeof(TCHAR));
     }
 
-    i64 GetTimeStamp()
+    f64 GetTimeStamp()
     {
-        i64 time = 0;
-
+        f64 time = 0.0;
         LARGE_INTEGER currentTime = {};
         if (QueryPerformanceCounter(&currentTime))
         {
-            // TODO: Stop querying frequency here
-            LARGE_INTEGER frequency;
-            QueryPerformanceFrequency(&frequency);
-            if (currentTime.QuadPart)
-            {
-                time = (currentTime.QuadPart * 1000000) / frequency.QuadPart;
-            }
+            // NOTE: Check that performance was set
+            AB_CORE_ASSERT(GlobalPerformanceFrequency.QuadPart);
+
+            time = (f64)(currentTime.QuadPart) / (f64)GlobalPerformanceFrequency.QuadPart;
         }
         return time;
     }
@@ -1204,7 +1196,11 @@ namespace AB
     {
         AB_CORE_INFO("Aberration engine");
 
-        app->runningTime = AB::GetTimeStamp() + 1;
+        UINT sleepGranularityMs = 1;
+        auto granularityWasSet = (timeBeginPeriod(sleepGranularityMs) == TIMERR_NOERROR);
+        AB_CORE_INFO("Granularity was set: %i32", (i32)granularityWasSet);
+
+        QueryPerformanceFrequency(&GlobalPerformanceFrequency);
 
         _tcscpy(app->windowTitle, TEXT("Sokoban"));
         app->state.windowWidth = 1280;
@@ -1212,7 +1208,7 @@ namespace AB
 
         Win32Initialize(app);
 
-        app->wglSwapIntervalEXT(1);
+        app->wglSwapIntervalEXT(0);
 
         LoadFunctionsResult glResult = OpenGLLoadFunctions(app->mainArena);
         AB_CORE_ASSERT(glResult.success, "Failed to load OpenGL functions");
@@ -1267,7 +1263,7 @@ namespace AB
         auto imResult = ImGui_ImplOpenGL3_Init("#version 330 core");
         AB_CORE_ASSERT(imResult);
 
-        f32 tickTimer = 1.0f;
+        f64 tickTimer = 1.0f;
         u32 updatesSinceLastTick = 0;
 
         app->state.localTime = AB::GetLocalTime();
@@ -1277,12 +1273,13 @@ namespace AB
 
         while (app->running)
         {
+            auto tickStartTime = GetTimeStamp();
+
             WindowPollEvents(app);
 
             ImGui_ImplOpenGL3_NewFrame();
             soko::ImGui::ImplSokoWin32_NewFrame(app);
             ImGui::NewFrame();
-
 
             if (tickTimer <= 0)
             {
@@ -1291,7 +1288,6 @@ namespace AB
                 updatesSinceLastTick= 0;
             }
 
-            // TODO: move to render frequency?
             app->state.localTime = AB::GetLocalTime();
 
             bool codeReloaded = UpdateGameCode(&app->gameLib);
@@ -1333,24 +1329,26 @@ namespace AB
 
             app->state.input.textBufferCount = 0;
 
-            // TODO: This is complete mess. Need better timestep code
-            i64 currentTime = GetTimeStamp();
-            // TODO: Is that accurate enough
-            app->state.absDeltaTime = (f32)(currentTime - app->runningTime) / 1000000.0f;
-            app->runningTime = currentTime;
-            tickTimer -= app->state.absDeltaTime;
+            auto tickEndTime = GetTimeStamp();
+            auto timeElapsed = tickEndTime - tickStartTime;
+            while (timeElapsed < SECONDS_PER_TICK)
+            {
+                if (granularityWasSet)
+                {
+                    auto waitTime = (DWORD)(SECONDS_PER_TICK - timeElapsed) * 1000;
+                    if (waitTime)
+                    {
+                        Sleep(waitTime);
+                    }
+                }
+                auto nowTime = GetTimeStamp();
+                timeElapsed = nowTime - tickStartTime;
+            }
+
+            tickTimer -= timeElapsed;
+            app->state.absDeltaTime = (f32)timeElapsed;
             app->state.fps = (i32)(1.0f / app->state.absDeltaTime);
             app->state.gameDeltaTime = app->state.absDeltaTime * app->state.gameSpeed;
-
-#if 0
-            // NOTE : Temporary clamping delta time in order to avoid
-            // glitches in time based code when frame time is too long
-            if (app->state.absDeltaTime > 0.6f)
-            {
-                app->state.absDeltaTime = 0.6f;
-            }
-#endif
-
         }
     }
 

@@ -149,7 +149,7 @@ namespace soko
 
         case RENDER_COMMAND_DRAW_LINE_END:
         {
-            group->pendingLineBatchCommandHeader = null;
+            group->pendingLineBatchCommandHeader = 0;
         } break;
 
         case RENDER_COMMAND_BEGIN_CHUNK_MESH_BATCH:
@@ -178,7 +178,7 @@ namespace soko
 
         case RENDER_COMMAND_END_CHUNK_MESH_BATCH:
         {
-            group->pendingChunkMeshBatchHeader = null;
+            group->pendingChunkMeshBatchHeader = 0;
         } break;
 
         INVALID_DEFAULT_CASE;

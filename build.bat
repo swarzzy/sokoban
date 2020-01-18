@@ -23,7 +23,7 @@ set CommonDefines=/D_CRT_SECURE_NO_WARNINGS /DWIN32_LEAN_AND_MEAN /DAB_PLATFORM_
 set CommonCompilerFlags=/Gm- /fp:fast /GR- /nologo /diagnostics:classic /WX /std:c++17
 set DebugCompilerFlags=/Zi /Od /RTC1 /MTd /Fd%BinOutDir% /DSOKO_DEBUG
 set ReleaseCompilerFlags=/O2 /MT /Oi /MT /Zi
-set PlatformLinkerFlags=/INCREMENTAL:NO /OPT:REF /MACHINE:X64 /NOIMPLIB user32.lib gdi32.lib opengl32.lib /OUT:%BinOutDir%\Soko.exe /PDB:%BinOutDir%\Soko.pdb
+set PlatformLinkerFlags=/INCREMENTAL:NO /OPT:REF /MACHINE:X64 /NOIMPLIB user32.lib gdi32.lib opengl32.lib winmm.lib /OUT:%BinOutDir%\Soko.exe /PDB:%BinOutDir%\Soko.pdb
 set GameLinkerFlags=/INCREMENTAL:NO /OPT:REF /MACHINE:X64 /DLL /OUT:%BinOutDir%\SokoGame.dll Ws2_32.lib /PDB:%BinOutDir%\SokoGame_%PdbMangleVal%.pdb
 rem set RendererLinkerFlags=/INCREMENTAL:NO /OPT:REF /MACHINE:X64 /DLL /OUT:%BinOutDir%\SokoRenderer.dll /PDB:%BinOutDir%\SokoRenderer_%PdbMangleVal%.pdb
 

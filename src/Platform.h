@@ -10,8 +10,19 @@
 #error Unsupported compiler
 #endif
 
-#define AB_LITTLE_ENDIAN 4321
-#define AB_BIG_ENDIAN 1234
+#if defined(AB_PLATFORM_WINDOWS)
+#define GAME_CODE_ENTRY __declspec(dllexport)
+#elif defined(AB_PLATFORM_LINUX)
+#define GAME_CODE_ENTRY
+#else
+#error Unsupported OS
+#endif
+
+#if defined(AB_PLATFORM_WINDOWS)
+#define AB_DEBUG_BREAK() __debugbreak()
+#elif defined(AB_PLATFORM_LINUX)
+#define AB_DEBUG_BREAK() __builtin_debugtrap()
+#endif
 
 #define constant static constexpr
 
@@ -20,8 +31,6 @@
 
 #define ArrayCount(arr) (sizeof(arr) / sizeof(arr[0]))
 #define DeclMember(type, member) (((type*)0)->member)
-
-#define null nullptr
 
 #define foreach(collection) for(auto& it : collection)
 #define CASE(expr, ...) case expr: {__VA_ARGS__;} break
@@ -117,27 +126,12 @@ namespace AB
 
     enum LogLevel
     {
-    LOG_FATAL = 0,
-    LOG_ERROR,
-    LOG_WARN,
-    LOG_INFO,
+        LOG_FATAL = 0,
+        LOG_ERROR,
+        LOG_WARN,
+        LOG_INFO,
     };
-
 }
-
-#if defined(AB_PLATFORM_WINDOWS)
-#define GAME_CODE_ENTRY __declspec(dllexport)
-#elif defined(AB_PLATFORM_LINUX)
-#define GAME_CODE_ENTRY
-#else
-#error Unsupported OS
-#endif
-
-#if defined(AB_PLATFORM_WINDOWS)
-#define AB_DEBUG_BREAK() __debugbreak()
-#elif defined(AB_PLATFORM_LINUX)
-#define AB_DEBUG_BREAK() __builtin_debugtrap()
-#endif
 
 #include "OpenGL.h"
 
@@ -311,7 +305,7 @@ namespace AB
     typedef MemoryArena*(QueryNewArenaFn)(uptr size);
     typedef void(FreeArenaFn)(MemoryArena* arena);
 
-    typedef i64(GetTimeStampFn)();
+    typedef f64(GetTimeStampFn)();
 
     typedef DirectoryContents(EnumerateFilesInDirectoryFn)(const wchar_t* dirName, MemoryArena* tempArena);
 

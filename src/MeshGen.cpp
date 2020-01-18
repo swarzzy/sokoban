@@ -95,7 +95,7 @@ namespace soko
     internal void
     GenChunkMesh(Level* level, Chunk* chunk, ChunkMesh* outMesh)
     {
-        i64 beginTime = GetTimeStamp();
+        auto beginTime = GetTimeStamp();
 
         if (outMesh->vertexCount)
         {
@@ -127,6 +127,11 @@ namespace soko
 
                     if (TileIsTerrain(testTile))
                     {
+                        // NOTE: Using unsigned int wrapping here.
+                        // Wrapping is UB according to C++ spec
+                        // But it seems that on most compilers
+                        // (including msvc, clang, gcc)
+                        // Wrapping has well defined behavior
                         const Tile* upTile = GetTileInChunk(chunk, tileX, tileY, tileZ + 1);
                         const Tile* dnTile = GetTileInChunk(chunk, tileX, tileY, tileZ - 1);
                         const Tile* lTile = GetTileInChunk(chunk, tileX - 1, tileY, tileZ);
@@ -151,8 +156,8 @@ namespace soko
                 }
             }
         }
-        i64 timeElapsed = GetTimeStamp() - beginTime;
-        SOKO_INFO("Generated mesh for chunk (x: %i32, y:%i32, z:%i32). Time: %i64 us",
+        auto timeElapsed = GetTimeStamp() - beginTime;
+        SOKO_INFO("Generated mesh for chunk (x: %i32, y:%i32, z:%i32). Time: %f64 us",
                   chunk->coord.x, chunk->coord.y, chunk->coord.z, timeElapsed);
     }
 }

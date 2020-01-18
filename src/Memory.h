@@ -20,12 +20,10 @@
 #define PUSH_STRUCT(arena, type) (type*)PushSize(arena, sizeof(type), alignof(type))
 #define PUSH_ARRAY(arena, type, count) (type*)PushSize(arena, sizeof(type) * count, alignof(type))
 #define PUSH_SIZE(arena, size) PushSize(arena, size, 0)
+
 namespace AB
 {
-
-    // Using 16 byte aligment as default as malloc does (according to specs)
-    // There are crashes when using 8 byte aligment and optimizations are enabled
-    static const u64 DEFAULT_ALIGMENT = 16;//alignof(std::max_align_t);
+    constant u64 DEFAULT_ALIGMENT = 16;
 
     struct alignas(DEFAULT_ALIGMENT) MemoryArena
     {
