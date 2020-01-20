@@ -308,8 +308,8 @@ uniform sampler2D uNormalMap;
 
 uniform int uCustomMaterial;
 uniform vec3 uCustomAlbedo;
-uniform float uCustomRoughness;
-uniform float uCustomMetalness;
+uniform float uCustomRoughness, uCustomMetalness;
+//uniform float uCustomMetalness;
 
 uniform int uDebugF;
 uniform int uDebugG;
@@ -919,7 +919,7 @@ void main()
 
     vec3 diffSample;
     float alpha;
-    diffSample = texture(u_TerrainAtlas, vec3(v_UV.x, v_UV.y, v_TileId)).rgb;
+    diffSample = texture(u_TerrainAtlas, vec3(v_UV.x, v_UV.y, tileID)).rgb;
     alpha = 1.0f;
 
     vec3 directional = CalcDirectionalLight(u_DirLight, normal, viewDir, diffSample);

@@ -7,6 +7,166 @@
 
 using namespace AB;
 
+struct Tokenizer
+{
+    char* text;
+    char* at;
+    b32 eof;
+
+    Tokenizer Clone()
+    {
+        Tokenizer result = {};
+        result.eof = this->eof;
+        auto length = StrLength(this->text) + 1;
+        result.text = (char*)malloc(length);
+        auto offset = this->text - this->at;
+        result.at = result.text + offset;
+        memcpy(result.text, this->text, length);
+        return result;
+    }
+};
+
+inline bool
+MatchStrings(const char* str1, const char* str2)
+{
+    bool result = true;
+    while (*str2)
+    {
+        if (*str1 == 0)
+        {
+            result = false;
+            break;
+        }
+        if (*str1 != *str2)
+        {
+            result = false;
+            break;
+        }
+        str1++;
+        str2++;
+    }
+    return result;
+}
+
+inline bool
+IsSpace(char c)
+{
+    bool result;
+    result = (c == ' '  ||
+              c == '\n' ||
+              c == '\r' ||
+              c == '\t' ||
+              c == '\v' ||
+              c == '\f');
+    return result;
+}
+
+inline char* EatLine(char* at);
+inline char* EatMultiLineComment(char* at);
+
+inline char*
+EatSpace(char* at)
+{
+    char* result = 0;
+    while (*at)
+    {
+        if (MatchStrings(at, "//"))
+        {
+            at = EatLine(at);
+        }
+        else if (MatchStrings(at, "/*"))
+        {
+            at = EatMultiLineComment(at);
+        }
+        else if (IsSpace(*at))
+        {
+            at++;
+        }
+        else
+        {
+            result = at;
+            return result;
+        }
+    }
+    result = at;
+    return result;
+}
+
+inline char*
+EatSpaceBackwards(char* at)
+{
+    char* result = 0;
+    while (*at)
+    {
+        if (MatchStrings(at, "//"))
+        {
+            at = EatLine(at);
+        }
+        else if (MatchStrings(at, "/*"))
+        {
+            at = EatMultiLineComment(at);
+        }
+        else if (IsSpace(*at))
+        {
+            at--;
+        }
+        else
+        {
+            result = at;
+            return result;
+        }
+    }
+    result = at;
+    return result;
+}
+
+inline char* EatLine(char* at)
+{
+    char* result = 0;
+    while (*at)
+    {
+        // NOTE: Supporting only LF and CRLF
+        if (*at == '\n')
+        {
+            result = EatSpace(at);
+            return result;
+        }
+        at++;
+    }
+    result = at;
+    return result;
+}
+
+inline char* EatMultiLineComment(char* at)
+{
+    char* result = 0;
+    u32 opened = 0;
+    u32 closed = 0;
+
+    while (*at)
+    {
+        if (*at == '/' && *(at + 1) == '*')
+        {
+            opened++;
+        }
+        else if (*at == '*' && *(at + 1) == '/')
+        {
+            closed++;
+        }
+        if (opened == closed)
+        {
+            result = at + 2;
+            return result;
+        }
+        at++;
+    }
+
+    result = at;
+    printf("Error: Unbalanced multiline comment found\n");
+
+    return result;
+}
+
 inline u32
 SafeTruncateU64U32(u64 val)
 {

@@ -68,6 +68,9 @@ namespace AB
 
     typedef float               f32;
     typedef double              f64;
+
+    typedef u32 u32x;
+    typedef i32 i32x;
 /*
     // TODO: Error here
     const u32 UINT32_MAX = 0xffffffff;
