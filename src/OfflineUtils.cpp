@@ -27,7 +27,7 @@ struct Tokenizer
 };
 
 inline bool
-MatchStrings(const char* str1, const char* str2)
+Match(const char* str1, const char* str2)
 {
     bool result = true;
     while (*str2)
@@ -45,6 +45,13 @@ MatchStrings(const char* str1, const char* str2)
         str1++;
         str2++;
     }
+    return result;
+}
+
+inline bool
+Match(const char* str, char c)
+{
+    bool result = (*str == c);
     return result;
 }
 
@@ -70,11 +77,11 @@ EatSpace(char* at)
     char* result = 0;
     while (*at)
     {
-        if (MatchStrings(at, "//"))
+        if (Match(at, "//"))
         {
             at = EatLine(at);
         }
-        else if (MatchStrings(at, "/*"))
+        else if (Match(at, "/*"))
         {
             at = EatMultiLineComment(at);
         }
@@ -98,11 +105,11 @@ EatSpaceBackwards(char* at)
     char* result = 0;
     while (*at)
     {
-        if (MatchStrings(at, "//"))
+        if (Match(at, "//"))
         {
             at = EatLine(at);
         }
-        else if (MatchStrings(at, "/*"))
+        else if (Match(at, "/*"))
         {
             at = EatMultiLineComment(at);
         }

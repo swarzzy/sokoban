@@ -1,16 +1,42 @@
+// NOTE:
+// Maybe someday I should get rid of this crappy parser
+// and use opengl functions for getting info about shaders and uniforms
+// (glGetActiveAttrib, glGetActiveUniform) ???
 #include <assert.h>
-#include <string>
 #include <vector>
-#include <algorithm>
+
+#include <stdlib.h>
 
 #include "../OfflineUtils.cpp"
 
+#undef ERROR
+#define ERROR(...) (printf(__VA_ARGS__), exit(EXIT_FAILURE))
+
+enum class BuiltinType
+{
+    Unknown = 0,
+    Bool,
+    Float,
+    Int,
+    Vec2,
+    Vec3,
+    Vec4,
+    Mat3,
+    Mat4,
+    sampler2D,
+    samplerCube,
+    sampler2DArray
+};
 
 struct Uniform
 {
     char* type;
     char* name;
+    u32 arrayCount;
     i32 samplerSlot = -1;
+    b32 isBuiltinType;
+    BuiltinType builtinType;
+    i32 userTypeIndex = -1;
 
     static const char* SamplerDecls[3];
 };
@@ -21,11 +47,26 @@ const char* Uniform::SamplerDecls[3] = {
     "sampler2DArray"
 };
 
+const char* BuiltinTypeNames[] = {
+    "bool",
+    "float",
+    "int",
+    "vec2",
+    "vec3",
+    "vec4",
+    "mat3",
+    "mat4",
+    "sampler2D",
+    "samplerCube",
+    "sampler2DArray"
+};
+
 struct VertexAttrib
 {
     enum Type
     {
         Unknown = 0,
+        Bool,
         Float,
         Int,
         Vec2,
@@ -42,6 +83,7 @@ struct VertexAttrib
 };
 
 const char* VertexAttrib::Types[] = {
+    "bool"
     "float",
     "int",
     "vec2",
@@ -51,16 +93,48 @@ const char* VertexAttrib::Types[] = {
     "mat4",
 };
 
+struct StructMember
+{
+    char* name;
+    char* typeName;
+    u32 arrayCount;
+    b32 isBuiltinType;
+    i32 userTypeIndex = -1;
+    BuiltinType builtinType;
+};
+
+struct Struct
+{
+    b32 used;
+    const char* name;
+    std::vector<StructMember> members;
+};
+
+struct ProgramConfig
+{
+    char* name;
+    char* vertexPath;
+    char* fragmentPath;
+};
 
 struct Shader
 {
     enum Type {Unknown = 0, Vertex, Fragment} type;
-    char* name;
+    const char* filename;
     std::vector<Uniform> uniforms;
     std::vector<VertexAttrib> vertexAttribs;
+    std::vector<Struct> userTypes;
+};
+
+struct Program
+{
+    ProgramConfig config;
+    Shader vertex;
+    Shader fragment;
 };
 
 constant char* DELIMETERS = " \f\n\r\t\v";
+constant char* EOL_MARKERS = " \n\r";
 constant char* WORD_PARSE_ERROR_MARKERS = ",;{} \f\n\r\t\v=+-";
 
 char* EatUntilSpace(char* at)
@@ -68,6 +142,18 @@ char* EatUntilSpace(char* at)
     while (*at && !IsSpace(*at)) at++;
     return at;
 }
+
+char* Offset(char* at, u32x count)
+{
+    for (u32x i = 0 ; i < count; i++)
+    {
+        if (!*at) break;
+        at++;
+    }
+    return at;
+}
+
+#define OffsetByLiteral(at, literal) Offset(at, (sizeof(literal) - 1))
 
 bool OneOf(char c, const char* t)
 {
@@ -118,70 +204,49 @@ char* Advance1(char* at)
     return at;
 }
 
-struct ShaderDecl
+// NOTE: end is a one past last string character
+char* ExtractString(char* beg, char* end)
 {
-    Shader::Type type;
-    char* name;
-};
-
-ShaderDecl FindTypeDecl(Tokenizer* t)
-{
-    ShaderDecl decl = {};
-    while (*t->at)
-    {
-        t->at = EatSpace(t->at);
-        if (*t->at == '#')
-        {
-            u32x offset = 0;
-            if (MatchStrings(t->at, "#vertex"))
-            {
-                decl.type = Shader::Vertex;
-                offset = sizeof("#vertex") - 1;
-            }
-            else if (MatchStrings(t->at, "#fragment"))
-            {
-                decl.type = Shader::Fragment;
-                offset = sizeof("#fragment") - 1;
-            }
-
-            if (offset)
-            {
-                t->at += offset;
-                t->at = EatSpace(t->at);
-                decl.name = t->at;
-                t->at = EatUntilSpace(t->at);
-                *t->at = 0;
-                t->at = Advance1(t->at);
-                break;
-            }
-        }
-    }
-    return decl;
+    assert((uptr)beg < (uptr)end);
+    auto size = end - beg + 1;
+    char* string = (char*)malloc(size);
+    memcpy(string, beg, size - 1);
+    string[size - 1] = 0;
+    return string;
 }
 
 Uniform FindNextUniform(Tokenizer* t)
 {
-    // TODO: Read comma-separated uniform declarations
+    // TODO: Read comma-separated member declarations
     Uniform decl = {};
     while (*t->at)
     {
         t->at = EatSpace(t->at);
-        if (MatchStrings(t->at, "uniform"))
+        if (Match(t->at, "uniform"))
         {
-            t->at += sizeof("uniform") - 1;
+            t->at = OffsetByLiteral(t->at, "uniform");
             t->at = EatSpace(t->at);
-            decl.type = t->at;
+            auto typeBegin = t->at;
             t->at = EatUntilSpace(t->at);
-            *t->at = 0;
-            t->at = Advance1(t->at);
+            decl.type = ExtractString(typeBegin, t->at);
             t->at = EatSpace(t->at);
-            decl.name = t->at;
-            t->at = EatUntilOneOf(t->at, ";,", DELIMETERS);
-            *t->at = 0;
-            t->at = Advance1(t->at);
+
+            auto nameBegin = t->at;
+            t->at = EatUntilOneOf(t->at, ";,[", DELIMETERS);
+            auto nameEnd = t->at;
+            decl.name = ExtractString(nameBegin, nameEnd);
+
+            t->at = EatSpace(t->at);
+            if (Match(t->at, '['))
+            {
+                decl.arrayCount = atoi(t->at + 1);
+            }
             break;
         }
-        t->at++;
+        else
+        {
+            t->at++;
+        }
     }
     return decl;
 }
@@ -191,7 +256,7 @@ VertexAttrib::Type MatchAttribType(Tokenizer* tok)
     auto type = VertexAttrib::Unknown;
     for (u32x i = 0; i < ArrayCount(VertexAttrib::Types); i++)
     {
-        if (MatchStrings(tok->at, VertexAttrib::Types[i]))
+        if (Match(tok->at, VertexAttrib::Types[i]))
         {
             type = (VertexAttrib::Type)(i + 1);
             tok->at += StrLength(VertexAttrib::Types[i]);
@@ -206,19 +271,10 @@ void ParseVertexAttribTypeAndName(Tokenizer* t, VertexAttrib* attrib)
     t->at = EatSpace(t->at);
     attrib->type = MatchAttribType(t);
     t->at = EatSpace(t->at);
-    attrib->name = t->at;
+    auto begin = t->at;
     t->at = EatUntilOneOf(t->at, ";", DELIMETERS);
-    *t->at = 0;
-    t->at = Advance1(t->at);
+    attrib->name = ExtractString(begin, t->at);
 }
-
-char* OffsetUnsafe(char* at, u32x count)
-{
-    at += count;
-    return at;
-}
-
-#define OffsetByLiteral(at, literal) OffsetUnsafe(at, (sizeof(literal) - 1))
 
 VertexAttrib FindNextAttrib(Tokenizer* t)
 {
@@ -230,14 +286,14 @@ VertexAttrib FindNextAttrib(Tokenizer* t)
         // This is true at leat on my nvidia driver. This makes parsing much easier
         // because we don't need to check cases when "in" used as variable name or smth.
         // TODO: Check this on glsl reference compiler
-        auto foundIn = MatchStrings(t->at, "in") && OneOf(*(t->at + sizeof("in") - 1), DELIMETERS);
+        auto foundIn = Match(t->at, "in") && OneOf(*(t->at + sizeof("in") - 1), DELIMETERS);
         if (foundIn)
         {
             t->at = OffsetByLiteral(t->at, "in");
             ParseVertexAttribTypeAndName(t, &decl);
             break;
         }
-        if (MatchStrings(t->at, "layout"))
+        if (Match(t->at, "layout"))
         {
             bool succesfullyParseLocation = false;
             t->at = OffsetByLiteral(t->at, "layout");
@@ -246,11 +302,11 @@ VertexAttrib FindNextAttrib(Tokenizer* t)
             {
                 t->at = OffsetByLiteral(t->at, "(");
                 t->at = EatSpace(t->at);
-                if (MatchStrings(t->at, "location"))
+                if (Match(t->at, "location"))
                 {
                     t->at = OffsetByLiteral(t->at, "location");
                     t->at = EatSpace(t->at);
-                    if (MatchStrings(t->at, "="))
+                    if (Match(t->at, "="))
                     {
                         t->at = OffsetByLiteral(t->at, "=");
                         t->at = EatSpace(t->at);
@@ -264,7 +320,7 @@ VertexAttrib FindNextAttrib(Tokenizer* t)
             }
             if (succesfullyParseLocation)
             {
-                if (MatchStrings(t->at, "in"))
+                if (Match(t->at, "in"))
                 {
                     t->at = OffsetByLiteral(t->at, "in");
                     ParseVertexAttribTypeAndName(t, &decl);
@@ -272,201 +328,475 @@ VertexAttrib FindNextAttrib(Tokenizer* t)
             }
             break;
         }
-        t->at++;
+        else
+        {
+            t->at++;
+        }
     }
     return decl;
 }
 
-int main(int argCount, char** args)
+Struct FindNextStruct(Tokenizer* t)
 {
-    //assert(argCount > 1);
-    const char* filename = "../src/TestShader.glsl";
+    // TODO: Read comma-separated member declarations
+    Struct decl = {};
+    while (*t->at)
+    {
+        t->at = EatSpace(t->at);
+        if (Match(t->at, "struct"))
+        {
+            t->at = OffsetByLiteral(t->at, "struct");
+            t->at = EatSpace(t->at);
+            auto nameBegin = t->at;
+            t->at = EatUntilOneOf(t->at, "{", DELIMETERS);
+            decl.name = ExtractString(nameBegin, t->at);
 
+            if (Match(t->at, "{"))
+            {
+                t->at = OffsetByLiteral(t->at, "{");
+            }
+            else
+            {
+                t->at = EatUntilOneOf(t->at, "{");
+                t->at = OffsetByLiteral(t->at, "{");
+            }
+            t->at = EatSpace(t->at);
+
+            while (true)
+            {
+                if (Match(t->at, '}')) goto end;
+                StructMember member = {};
+                auto typeNameBegin = t->at;
+                // TODO: Eat by words
+                t->at = EatUntilSpace(t->at);
+                member.typeName = ExtractString(typeNameBegin, t->at);
+                t->at = EatSpace(t->at);
+                auto nameBegin = t->at;
+                t->at = EatUntilOneOf(t->at, ";,[", DELIMETERS);
+                member.name = ExtractString(nameBegin, t->at);
+                if (Match(t->at, ";"))
+                {
+                    t->at = Advance1(t->at);
+                }
+                if (Match(t->at, ","))
+                {
+                    ERROR("Error: Comma separated struct member declarations are not supported.\n");
+                }
+                t->at = EatSpace(t->at);
+                if (Match(t->at, '['))
+                {
+                    member.arrayCount = atoi(t->at + 1);
+                    t->at = EatUntilOneOf(t->at, "]");
+                    t->at = OffsetByLiteral(t->at, "]");
+                    // TODO: Comma ceparated member declarations not allowen for now
+                    t->at = Advance1(t->at);
+                }
+                t->at = EatSpace(t->at);
+                decl.members.push_back(member);
+            }
+        }
+        else
+        {
+            t->at++;
+        }
+    }
+end:
+    return decl;
+}
+
+BuiltinType GetUniformBuiltinType(const char* str)
+{
+    BuiltinType result = {};
+    for (u32x i = 0; i < ArrayCount(BuiltinTypeNames); i++)
+    {
+        if (Match(str, BuiltinTypeNames[i]))
+        {
+            result = (BuiltinType)(i + 1);
+            break;
+        }
+    }
+    return result;
+}
+
+ProgramConfig GetNextProgConfig(Tokenizer* t)
+{
+    ProgramConfig result = {};
+    while (*t->at)
+    {
+        t->at = EatSpace(t->at);
+        if (Match(t->at, "#program"))
+        {
+            t->at = OffsetByLiteral(t->at, "#program");
+            t->at = EatSpace(t->at);
+
+            auto nameBegin = t->at;
+            result.name = t->at;
+            t->at = EatUntilSpace(t->at);
+            result.name = ExtractString(nameBegin, t->at);
+            t->at = EatSpace(t->at);
+
+            while (*t->at)
+            {
+                t->at = EatSpace(t->at);
+                if (Match(t->at, "vertex"))
+                {
+                    t->at = OffsetByLiteral(t->at, "vertex");
+                    t->at = EatUntilOneOf(t->at, ":");
+                    t->at = EatUntilOneOf(t->at, "\"");
+                    t->at = OffsetByLiteral(t->at, "\"");
+                    auto pathBegin = t->at;
+                    t->at = EatUntilOneOf(t->at, "\"");
+                    result.vertexPath = ExtractString(pathBegin, t->at);
+                    t->at = Advance1(t->at);
+                }
+                else if (Match(t->at, "fragment"))
+                {
+                    t->at = OffsetByLiteral(t->at, "fragment");
+                    t->at = EatUntilOneOf(t->at, ":");
+                    t->at = EatUntilOneOf(t->at, "\"");
+                    t->at = OffsetByLiteral(t->at, "\"");
+                    auto pathBegin = t->at;
+                    t->at = EatUntilOneOf(t->at, "\"");
+                    result.fragmentPath = ExtractString(pathBegin, t->at);
+                    t->at = Advance1(t->at);
+                }
+                else if (Match(t->at, "#program"))
+                {
+                    goto end;
+                }
+                else
+                {
+                    t->at++;
+                }
+            }
+        }
+        else
+        {
+            t->at++;
+        }
+    }
+end:
+    return result;
+}
+
+void ParseConfigFile(const char* filename, std::vector<Program>* programs)
+{
     u32 size;
-    auto shaderSorce = ReadEntireFileAsText(filename, &size);
+    auto source = ReadEntireFileAsText(filename, &size);
 
-    Tokenizer uniformTokenizer = {};
-    uniformTokenizer.text = shaderSorce;
-    uniformTokenizer.at = shaderSorce;
-
-    auto attribsTokenizer = uniformTokenizer.Clone();
-
-    Shader shader = {};
-
-    auto decl = FindTypeDecl(&uniformTokenizer);
-
-    if (decl.type == Shader::Unknown)
-    {
-        printf("Error: Unknown shader type\n");
-        return -1;
-    }
-    if (!StrLength(decl.name))
-    {
-        printf("Error: Found a shader without a name\n");
-        return -1;
-    }
-
-    shader.type = decl.type;
-    shader.name = decl.name;
+    Tokenizer tokenzier = {};
+    tokenzier.text = source;
+    tokenzier.at = source;
 
     while (true)
     {
-        auto uniform = FindNextUniform(&uniformTokenizer);
-        if (!*uniformTokenizer.at) break;
+        auto conf = GetNextProgConfig(&tokenzier);
 
-        if (!StrLength(uniform.type))
+        if (!conf.name || !StrLength(conf.name))
         {
-            printf("Error: a uniform of unknown type\n");
-            return -1;
+            ERROR("Error: Found program declaration without a name\n");
         }
-        if (!StrLength(uniform.name))
+
+        if (!conf.vertexPath || !StrLength(conf.vertexPath))
         {
-            printf("Error: Found a uniform without a name\n");
-            return -1;
+            ERROR("Error: Found program declaration with no vertex path specified\n");
+        }
+
+        if (!conf.fragmentPath || !StrLength(conf.fragmentPath))
+        {
+            ERROR("Error: Found program declaration with no fragment path specified\n");
+        }
+
+        for (auto& it : *programs)
+        {
+            if (strcmp(it.config.name, conf.name) == 0)
+            {
+                ERROR("Error: Found two of more program declarations with the same name: %s\n", it.config.name);
+            }
+        }
+
+        programs->emplace_back();
+        programs->back().config = conf;
+
+        if (!*tokenzier.at) break;
+    }
+    //free(source);
+}
+
+void ParseShaderFile(const char* filename, Shader::Type type, Shader* shader)
+{
+    u32 size;
+    auto source = ReadEntireFileAsText(filename, &size);
+
+    Tokenizer tokenizer = {};
+    tokenizer.text = source;
+    tokenizer.at = source;
+
+    assert(type != Shader::Unknown);
+
+    shader->type = type;
+    shader->filename = filename;
+
+    while (true)
+    {
+        auto uniform = FindNextUniform(&tokenizer);
+        if (!*tokenizer.at) break;
+
+        if (!uniform.type || !StrLength(uniform.type))
+        {
+            ERROR("Error: a uniform of unknown type\n");
+        }
+        if (!uniform.name || !StrLength(uniform.name))
+        {
+            ERROR("Error: Found a uniform without a name\n");
         }
         if (ContainsOneOf(uniform.name, WORD_PARSE_ERROR_MARKERS))
         {
-            printf("Error: Failed to parse uniform name\n");
-            return -1;
+            ERROR("Error: Failed to parse uniform name\n");
         }
         if (ContainsOneOf(uniform.type, WORD_PARSE_ERROR_MARKERS))
         {
-            printf("Error: Failed to parse uniform type\n");
-            return -1;
+            ERROR("Error: Failed to parse uniform type\n");
         }
 
-        shader.uniforms.push_back(uniform);
+        shader->uniforms.push_back(uniform);
+    }
+
+    tokenizer.at = tokenizer.text;
+
+    if (shader->type == Shader::Vertex)
+    {
+        while (true)
+        {
+            auto attrib = FindNextAttrib(&tokenizer);
+            if (!*tokenizer.at) break;
+
+            if (attrib.type == VertexAttrib::Type::Unknown)
+            {
+                ERROR("Error: Found a vertex attribute of unknown type\n");
+            }
+            if (!attrib.name || !StrLength(attrib.name))
+            {
+                ERROR("Error: Found a vertex attribute without a name\n");
+            }
+            if (ContainsOneOf(attrib.name, WORD_PARSE_ERROR_MARKERS))
+            {
+                ERROR("Error: Failed to parse a vertex attribute name\n");
+            }
+
+            shader->vertexAttribs.push_back(attrib);
+        }
+    }
+
+    tokenizer.at = tokenizer.text;
+
+    while (true)
+    {
+        auto userType = FindNextStruct(&tokenizer);
+        if (!*tokenizer.at) break;
+
+        if (!userType.name || !StrLength(userType.name))
+        {
+            ERROR("Error: Found a struct without a name\n");
+        }
+
+        if (!userType.members.size())
+        {
+            ERROR("Error: Struct can not have zero members\n");
+        }
+
+        for (auto& it : userType.members)
+        {
+            if (!it.name || !StrLength(it.name))
+            {
+                ERROR("Error: Found a struct member without a name\n");
+            }
+            if (!it.typeName || !StrLength(it.typeName))
+            {
+                ERROR("Error: Found a struct member with an unknown type\n");
+            }
+
+        }
+
+        shader->userTypes.push_back(userType);
+    }
+
+    for (auto& type : shader->userTypes)
+    {
+        for (auto& member: type.members)
+        {
+            auto type = GetUniformBuiltinType(member.typeName);
+            if (type != BuiltinType::Unknown)
+            {
+                member.isBuiltinType = true;
+                member.builtinType = type;
+            }
+            else
+            {
+                // NOTE: User defined type
+                for (u32x i = 0; i < shader->userTypes.size(); i++)
+                {
+                    if (Match(shader->userTypes[i].name, member.typeName))
+                    {
+                        shader->userTypes[i].used = true;
+                        member.userTypeIndex = i;
+                        break;
+                    }
+                }
+                if (member.userTypeIndex == -1)
+                {
+                    ERROR("Error: Cannot find definition for type: %s of uniform %s\n", member.typeName, member.name);
+                }
+            }
+        }
     }
 
     // TODO: Check that it less than max GL_TEXTUREX
     u32x samplerCount = 0;
 
-    foreach (shader.uniforms)
+    for (auto& it : shader->uniforms)
     {
         for (u32x i = 0; i < ArrayCount(Uniform::SamplerDecls); i++)
         {
-            if (MatchStrings(it.type, Uniform::SamplerDecls[i]))
+            if (Match(it.type, Uniform::SamplerDecls[i]))
             {
                 it.samplerSlot = samplerCount;
                 samplerCount++;
             }
+
+            auto type = GetUniformBuiltinType(it.type);
+            if (type != BuiltinType::Unknown)
+            {
+                it.isBuiltinType = true;
+                it.builtinType = type;
+            }
+            else
+            {
+                // NOTE: User defined type
+                for (u32x i = 0; i < shader->userTypes.size(); i++)
+                {
+                    if (Match(shader->userTypes[i].name, it.type))
+                    {
+                        shader->userTypes[i].used = true;
+                        it.userTypeIndex = i;
+                        break;
+                    }
+                }
+                if (it.userTypeIndex == -1)
+                {
+                    ERROR("Error: Cannot find definition for type: %s of uniform %s\n", it.type, it.name);
+                }
+            }
         }
     }
+    //free(source);
+}
 
-    if (shader.type == Shader::Vertex)
+int main(int argCount, char** args)
+{
+    //assert(argCount > 1);
+    const char* configFileName = "../src/ShaderConfig.txt";
+
+    std::vector<Program> programs;
+    ParseConfigFile(configFileName, &programs);
+
+    // TODO: Shader cache
+
+    for (auto& it : programs)
     {
-        while (true)
-        {
-            auto attrib = FindNextAttrib(&attribsTokenizer);
-            if (!*attribsTokenizer.at) break;
-
-            if (attrib.type == VertexAttrib::Type::Unknown)
-            {
-                printf("Error: Found a vertex attribute of unknown type\n");
-                return -1;
-            }
-            if (!StrLength(attrib.name))
-            {
-                printf("Error: Found a vertex attribute without a name\n");
-                return -1;
-            }
-            if (ContainsOneOf(attrib.name, WORD_PARSE_ERROR_MARKERS))
-            {
-                printf("Error: Failed to parse a vertex attribute name\n");
-                return -1;
-            }
-
-            shader.vertexAttribs.push_back(attrib);
-        }
+        ParseShaderFile(it.config.vertexPath, Shader::Vertex, &it.vertex);
+        ParseShaderFile(it.config.fragmentPath, Shader::Fragment, &it.fragment);
     }
-
-    int asa = 0;
-
 
 #if 0
+    FILE* outFile = fopen("Shaders_Generated.cpp", "w");
+    assert(outFile);
+#undef OUT
+#define OUTLN(...) do {for (i32x i = 0; i < identLevel; i++) fprintf(outFile, "\t"); fprintf(outFile, __VA_ARGS__);} while(false)
+#define OUT(...) fprintf(outFile, __VA_ARGS__)
+#define IDENT_PUSH() identLevel++
+#define IDENT_POP() identLevel--
+    i32x identLevel = 0;
 
-    auto shaderSource = std::string(_shaderSrc);
-
-    Shader shader = {};
-
-
-    const char* typeDirectives[] = {
-        "#vertex",
-        "#fragment"
-    };
-
-    const Shader::Type typeIDs[] = {
-        Shader::Vertex,
-        Shader::Fragment
-    };
-
-    StrPos at;
-
-    for (u32 i = 0; i < ArrayCount(typeDirectives); i++)
+    OUTLN("// This file was generated by a glsl preprocessor\n\n");
+    OUTLN("namespace soko\n{\n");
+    IDENT_PUSH();
+    OUTLN("struct %s\n", shader.name);
+    OUTLN("{\n");
+    IDENT_PUSH();
+    for (auto& type : shader.userTypes)
     {
-        auto index = shaderSource.find(typeDirectives[i]);
-        if (index != std::string::npos)
+        OUTLN("struct %s\n", type.name);
+        OUTLN("{\n");
+        IDENT_PUSH();
+        for (auto& member : type.members)
         {
-            at = i;
-            shader.type = typeIDs[i];
-            break;
+            if (member.isBuiltinType)
+            {
+                OUTLN("GLint %s", member.name);
+                if (member.arrayCount > 0)
+                {
+                    OUT("[%d]", member.arrayCount);
+                }
+            }
+            else
+            {
+                auto& type = shader.userTypes[member.userTypeIndex];
+                OUTLN("%s %s", type.name, member.name);
+                if (member.arrayCount > 0)
+                {
+                    OUT("[%d]", member.arrayCount);
+                }
+            }
+            OUT(";\n");
+        }
+        IDENT_POP();
+        OUTLN("};\n\n");
+    }
+    OUTLN("struct Uniforms\n");
+    OUTLN("{\n");
+    IDENT_PUSH();
+    for (auto& it : shader.uniforms)
+    {
+        if (!it.isBuiltinType)
+        {
+            auto& type = shader.userTypes[it.userTypeIndex];
+            OUTLN("%s %s", type.name, it.name);
+        }
+        else
+        {
+            OUTLN("GLint %s", it.name);
+        }
+
+        if (it.arrayCount > 0)
+        {
+            OUT("[%d];\n", it.arrayCount);
+        }
+        else
+        {
+            OUT(";\n");
         }
     }
-
-    assert(shader.type);
-
-    shader.name = GetNextWord(shaderSource, &at);
-
-    StrPos index = at;
-    do
+    IDENT_POP();
+    OUTLN("} uniforms;\n");
+    if (shader.type == Shader::Vertex)
     {
-        index = shaderSource.find("uniform", index);
-        if (index == std::string::npos) break;
-
-        index = NextWord(shaderSource, index);
-
-        auto type = ParseType(shaderSource, &index);
-        if (type == Type::Unknown)
+        OUT("\n");
+        OUTLN("enum class VertexAttribs : GLuint\n");
+        OUTLN("{\n");
+        IDENT_PUSH();
+        for (auto& attrib : shader.vertexAttribs)
         {
-            printf("Error: Found uniform of unknown type.\n");
-            continue;
+            OUTLN("%s = %d,\n", attrib.name, attrib.location);
         }
-
-        index = NextWord(shaderSource, index);
-
-        while (true)
-        {
-            Uniform uniform;
-
-            index = EatSpace(shaderSource, index);
-
-            auto nameEnd = shaderSource.find_first_of(",;", index);
-            auto nameLen = nameEnd - index;
-            if (index == std::string::npos || !nameLen)
-            {
-                PANIC("Error: Unexpected end of file.");
-            }
-            auto nameStr = shaderSource.substr(index, nameLen);
-
-            while (isspace((unsigned char)(nameStr[nameStr.length() - 1]))) nameStr.pop_back();
-
-            uniform.type = type;
-            uniform.name =  nameStr;
-
-            shader.uniforms.push_back(std::move(uniform));
-
-            index = nameEnd;
-            if (nameEnd == std::string::npos) break;
-            if (shaderSource[nameEnd] == ';') break;
-            nameEnd++;
-            if (nameEnd >= shaderSource.length())
-            {
-                index = std::string::npos;
-                break;
-            }
-            index = nameEnd;
-        }
-        if (index == std::string::npos) break;
-    } while (true);
+        IDENT_POP();
+        OUTLN("};\n");
+    }
+    IDENT_POP();
+    OUTLN("};\n");
+    OUT("\n");
+    OUTLN("%s CompileShader_%s()\n", shader.name, shader.name);
+    IDENT_POP();
+    OUTLN("}");
 #endif
 }
