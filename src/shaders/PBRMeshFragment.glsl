@@ -27,8 +27,8 @@ uniform sampler2D uNormalMap;
 
 uniform int uCustomMaterial;
 uniform vec3 uCustomAlbedo;
-uniform float uCustomRoughness, uCustomMetalness;
-//uniform float uCustomMetalness;
+uniform float uCustomRoughness;
+uniform float uCustomMetalness;
 
 uniform int uDebugF;
 uniform int uDebugG;

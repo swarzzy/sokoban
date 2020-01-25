@@ -29,6 +29,7 @@ namespace soko
                 } vertexAttribs;
 
             } vertex;
+
             struct FragmentShader
             {
                 struct DirLight
@@ -51,6 +52,7 @@ namespace soko
                     GLint uCustomMaterial;
                     GLint uCustomAlbedo;
                     GLint uCustomRoughness;
+                    GLint uCustomMetalness;
                     GLint uDebugF;
                     GLint uDebugG;
                     GLint uDebugD;
@@ -70,7 +72,369 @@ namespace soko
                 } samplers;
 
             } fragment;
+
         } PbrMesh;
+
+        struct Info_BRDFIntegrator
+        {
+            static const char* VertexSource;
+            static const char* FragmentSource;
+            
+            GLuint handle;
+            
+            struct VertexShader
+            {
+                struct Uniforms
+                {
+                } uniforms;
+
+                struct VertexAttribs
+                {
+                } vertexAttribs;
+
+            } vertex;
+
+            struct FragmentShader
+            {
+                struct Uniforms
+                {
+                } uniforms;
+
+                struct Samplers
+                {
+                } samplers;
+
+            } fragment;
+
+        } BRDFIntegrator;
+
+        struct Info_EnvMapPrefilter
+        {
+            static const char* VertexSource;
+            static const char* FragmentSource;
+            
+            GLuint handle;
+            
+            struct VertexShader
+            {
+                struct Uniforms
+                {
+                    GLint u_ViewMatrix;
+                    GLint u_ProjMatrix;
+                } uniforms;
+
+                struct VertexAttribs
+                {
+                } vertexAttribs;
+
+            } vertex;
+
+            struct FragmentShader
+            {
+                struct Uniforms
+                {
+                    GLint uSourceCubemap;
+                    GLint uRoughness;
+                    GLint uResolution;
+                } uniforms;
+
+                struct Samplers
+                {
+                    Sampler uSourceCubemap = { 0, GL_TEXTURE0 };
+                } samplers;
+
+            } fragment;
+
+        } EnvMapPrefilter;
+
+        struct Info_IrradanceConvolver
+        {
+            static const char* VertexSource;
+            static const char* FragmentSource;
+            
+            GLuint handle;
+            
+            struct VertexShader
+            {
+                struct Uniforms
+                {
+                    GLint u_ViewMatrix;
+                    GLint u_ProjMatrix;
+                } uniforms;
+
+                struct VertexAttribs
+                {
+                } vertexAttribs;
+
+            } vertex;
+
+            struct FragmentShader
+            {
+                struct Uniforms
+                {
+                    GLint uSourceCubemap;
+                } uniforms;
+
+                struct Samplers
+                {
+                    Sampler uSourceCubemap = { 0, GL_TEXTURE0 };
+                } samplers;
+
+            } fragment;
+
+        } IrradanceConvolver;
+
+        struct Info_FXAA
+        {
+            static const char* VertexSource;
+            static const char* FragmentSource;
+            
+            GLuint handle;
+            
+            struct VertexShader
+            {
+                struct Uniforms
+                {
+                } uniforms;
+
+                struct VertexAttribs
+                {
+                } vertexAttribs;
+
+            } vertex;
+
+            struct FragmentShader
+            {
+                struct Uniforms
+                {
+                    GLint u_ColorSourcePerceptual;
+                    GLint u_InvScreenSize;
+                } uniforms;
+
+                struct Samplers
+                {
+                    Sampler u_ColorSourcePerceptual = { 0, GL_TEXTURE0 };
+                } samplers;
+
+            } fragment;
+
+        } FXAA;
+
+        struct Info_PostFX
+        {
+            static const char* VertexSource;
+            static const char* FragmentSource;
+            
+            GLuint handle;
+            
+            struct VertexShader
+            {
+                struct Uniforms
+                {
+                } uniforms;
+
+                struct VertexAttribs
+                {
+                } vertexAttribs;
+
+            } vertex;
+
+            struct FragmentShader
+            {
+                struct Uniforms
+                {
+                    GLint u_Gamma;
+                    GLint u_Exposure;
+                    GLint u_ColorSourceLinear;
+                } uniforms;
+
+                struct Samplers
+                {
+                    Sampler u_ColorSourceLinear = { 0, GL_TEXTURE0 };
+                } samplers;
+
+            } fragment;
+
+        } PostFX;
+
+        struct Info_Skybox
+        {
+            static const char* VertexSource;
+            static const char* FragmentSource;
+            
+            GLuint handle;
+            
+            struct VertexShader
+            {
+                struct Uniforms
+                {
+                    GLint u_ViewMatrix;
+                    GLint u_ProjMatrix;
+                } uniforms;
+
+                struct VertexAttribs
+                {
+                } vertexAttribs;
+
+            } vertex;
+
+            struct FragmentShader
+            {
+                struct Uniforms
+                {
+                    GLint uLod;
+                    GLint u_CubeTexture;
+                } uniforms;
+
+                struct Samplers
+                {
+                    Sampler u_CubeTexture = { 0, GL_TEXTURE0 };
+                } samplers;
+
+            } fragment;
+
+        } Skybox;
+
+        struct Info_Line
+        {
+            static const char* VertexSource;
+            static const char* FragmentSource;
+            
+            GLuint handle;
+            
+            struct VertexShader
+            {
+                struct Uniforms
+                {
+                    GLint u_ViewProjMatrix;
+                    GLint u_Color;
+                } uniforms;
+
+                struct VertexAttribs
+                {
+                    GLuint v_Pos = 0;
+                } vertexAttribs;
+
+            } vertex;
+
+            struct FragmentShader
+            {
+                struct Uniforms
+                {
+                } uniforms;
+
+                struct Samplers
+                {
+                } samplers;
+
+            } fragment;
+
+        } Line;
+
+        struct Info_Mesh
+        {
+            static const char* VertexSource;
+            static const char* FragmentSource;
+            
+            GLuint handle;
+            
+            struct VertexShader
+            {
+                struct Uniforms
+                {
+                    GLint u_ViewProjMatrix;
+                    GLint u_ModelMatrix;
+                    GLint u_NormalMatrix;
+                } uniforms;
+
+                struct VertexAttribs
+                {
+                    GLuint attr_Pos = 0;
+                    GLuint attr_Normal = 1;
+                    GLuint attr_UV = 2;
+                } vertexAttribs;
+
+            } vertex;
+
+            struct FragmentShader
+            {
+                struct DirLight
+                {
+                    GLint dir;
+                    GLint ambient;
+                    GLint diffuse;
+                    GLint specular;
+                };
+
+                struct Uniforms
+                {
+                    DirLight u_DirLight;
+                    GLint u_ViewPos;
+                    GLint u_DiffMap;
+                    GLint u_SpecMap;
+                } uniforms;
+
+                struct Samplers
+                {
+                    Sampler u_DiffMap = { 0, GL_TEXTURE0 };
+                    Sampler u_SpecMap = { 1, GL_TEXTURE1 };
+                } samplers;
+
+            } fragment;
+
+        } Mesh;
+
+        struct Info_Chunk
+        {
+            static const char* VertexSource;
+            static const char* FragmentSource;
+            
+            GLuint handle;
+            
+            struct VertexShader
+            {
+                struct Uniforms
+                {
+                    GLint u_ModelMatrix;
+                    GLint u_NormalMatrix;
+                    GLint u_ViewProjMatrix;
+                } uniforms;
+
+                struct VertexAttribs
+                {
+                    GLuint a_Position = 0;
+                    GLuint a_Normal = 1;
+                    GLuint a_TileId = 2;
+                } vertexAttribs;
+
+            } vertex;
+
+            struct FragmentShader
+            {
+                struct DirLight
+                {
+                    GLint dir;
+                    GLint ambient;
+                    GLint diffuse;
+                    GLint specular;
+                };
+
+                struct Uniforms
+                {
+                    DirLight u_DirLight;
+                    GLint u_ViewPos;
+                    GLint u_TerrainAtlas;
+                } uniforms;
+
+                struct Samplers
+                {
+                    Sampler u_TerrainAtlas = { 1, GL_TEXTURE1 };
+                } samplers;
+
+            } fragment;
+
+        } Chunk;
+
     };
 
     ShaderInfo::Info_PbrMesh CompileProgram_PbrMesh()
@@ -99,6 +463,7 @@ namespace soko
             result.fragment.uniforms.uCustomMaterial = glGetUniformLocation(handle, "uCustomMaterial");
             result.fragment.uniforms.uCustomAlbedo = glGetUniformLocation(handle, "uCustomAlbedo");
             result.fragment.uniforms.uCustomRoughness = glGetUniformLocation(handle, "uCustomRoughness");
+            result.fragment.uniforms.uCustomMetalness = glGetUniformLocation(handle, "uCustomMetalness");
             result.fragment.uniforms.uDebugF = glGetUniformLocation(handle, "uDebugF");
             result.fragment.uniforms.uDebugG = glGetUniformLocation(handle, "uDebugG");
             result.fragment.uniforms.uDebugD = glGetUniformLocation(handle, "uDebugD");
@@ -119,27 +484,297 @@ namespace soko
         return result;
     }
 
+    ShaderInfo::Info_BRDFIntegrator CompileProgram_BRDFIntegrator()
+    {
+        ShaderInfo::Info_BRDFIntegrator result = {};
+        auto handle = CreateProgram(ShaderInfo::Info_BRDFIntegrator::VertexSource, ShaderInfo::Info_BRDFIntegrator::FragmentSource);
+        if (handle)
+        {
+            result.handle = handle;
+            // NOTE: Assign vertex shader uniforms
+
+            // NOTE: Assign fragment shader uniforms
+
+            //NOTE: Setting samplers
+            glUseProgram(handle);
+            glUseProgram(0);
+        }
+        return result;
+    }
+
+    ShaderInfo::Info_EnvMapPrefilter CompileProgram_EnvMapPrefilter()
+    {
+        ShaderInfo::Info_EnvMapPrefilter result = {};
+        auto handle = CreateProgram(ShaderInfo::Info_EnvMapPrefilter::VertexSource, ShaderInfo::Info_EnvMapPrefilter::FragmentSource);
+        if (handle)
+        {
+            result.handle = handle;
+            // NOTE: Assign vertex shader uniforms
+            result.vertex.uniforms.u_ViewMatrix = glGetUniformLocation(handle, "u_ViewMatrix");
+            result.vertex.uniforms.u_ProjMatrix = glGetUniformLocation(handle, "u_ProjMatrix");
+
+            // NOTE: Assign fragment shader uniforms
+            result.fragment.uniforms.uSourceCubemap = glGetUniformLocation(handle, "uSourceCubemap");
+            result.fragment.uniforms.uRoughness = glGetUniformLocation(handle, "uRoughness");
+            result.fragment.uniforms.uResolution = glGetUniformLocation(handle, "uResolution");
+
+            //NOTE: Setting samplers
+            glUseProgram(handle);
+            glUniform1i(result.fragment.uniforms.uSourceCubemap, (GLint)result.fragment.samplers.uSourceCubemap.sampler);
+            glUseProgram(0);
+        }
+        return result;
+    }
+
+    ShaderInfo::Info_IrradanceConvolver CompileProgram_IrradanceConvolver()
+    {
+        ShaderInfo::Info_IrradanceConvolver result = {};
+        auto handle = CreateProgram(ShaderInfo::Info_IrradanceConvolver::VertexSource, ShaderInfo::Info_IrradanceConvolver::FragmentSource);
+        if (handle)
+        {
+            result.handle = handle;
+            // NOTE: Assign vertex shader uniforms
+            result.vertex.uniforms.u_ViewMatrix = glGetUniformLocation(handle, "u_ViewMatrix");
+            result.vertex.uniforms.u_ProjMatrix = glGetUniformLocation(handle, "u_ProjMatrix");
+
+            // NOTE: Assign fragment shader uniforms
+            result.fragment.uniforms.uSourceCubemap = glGetUniformLocation(handle, "uSourceCubemap");
+
+            //NOTE: Setting samplers
+            glUseProgram(handle);
+            glUniform1i(result.fragment.uniforms.uSourceCubemap, (GLint)result.fragment.samplers.uSourceCubemap.sampler);
+            glUseProgram(0);
+        }
+        return result;
+    }
+
+    ShaderInfo::Info_FXAA CompileProgram_FXAA()
+    {
+        ShaderInfo::Info_FXAA result = {};
+        auto handle = CreateProgram(ShaderInfo::Info_FXAA::VertexSource, ShaderInfo::Info_FXAA::FragmentSource);
+        if (handle)
+        {
+            result.handle = handle;
+            // NOTE: Assign vertex shader uniforms
+
+            // NOTE: Assign fragment shader uniforms
+            result.fragment.uniforms.u_ColorSourcePerceptual = glGetUniformLocation(handle, "u_ColorSourcePerceptual");
+            result.fragment.uniforms.u_InvScreenSize = glGetUniformLocation(handle, "u_InvScreenSize");
+
+            //NOTE: Setting samplers
+            glUseProgram(handle);
+            glUniform1i(result.fragment.uniforms.u_ColorSourcePerceptual, (GLint)result.fragment.samplers.u_ColorSourcePerceptual.sampler);
+            glUseProgram(0);
+        }
+        return result;
+    }
+
+    ShaderInfo::Info_PostFX CompileProgram_PostFX()
+    {
+        ShaderInfo::Info_PostFX result = {};
+        auto handle = CreateProgram(ShaderInfo::Info_PostFX::VertexSource, ShaderInfo::Info_PostFX::FragmentSource);
+        if (handle)
+        {
+            result.handle = handle;
+            // NOTE: Assign vertex shader uniforms
+
+            // NOTE: Assign fragment shader uniforms
+            result.fragment.uniforms.u_Gamma = glGetUniformLocation(handle, "u_Gamma");
+            result.fragment.uniforms.u_Exposure = glGetUniformLocation(handle, "u_Exposure");
+            result.fragment.uniforms.u_ColorSourceLinear = glGetUniformLocation(handle, "u_ColorSourceLinear");
+
+            //NOTE: Setting samplers
+            glUseProgram(handle);
+            glUniform1i(result.fragment.uniforms.u_ColorSourceLinear, (GLint)result.fragment.samplers.u_ColorSourceLinear.sampler);
+            glUseProgram(0);
+        }
+        return result;
+    }
+
+    ShaderInfo::Info_Skybox CompileProgram_Skybox()
+    {
+        ShaderInfo::Info_Skybox result = {};
+        auto handle = CreateProgram(ShaderInfo::Info_Skybox::VertexSource, ShaderInfo::Info_Skybox::FragmentSource);
+        if (handle)
+        {
+            result.handle = handle;
+            // NOTE: Assign vertex shader uniforms
+            result.vertex.uniforms.u_ViewMatrix = glGetUniformLocation(handle, "u_ViewMatrix");
+            result.vertex.uniforms.u_ProjMatrix = glGetUniformLocation(handle, "u_ProjMatrix");
+
+            // NOTE: Assign fragment shader uniforms
+            result.fragment.uniforms.uLod = glGetUniformLocation(handle, "uLod");
+            result.fragment.uniforms.u_CubeTexture = glGetUniformLocation(handle, "u_CubeTexture");
+
+            //NOTE: Setting samplers
+            glUseProgram(handle);
+            glUniform1i(result.fragment.uniforms.u_CubeTexture, (GLint)result.fragment.samplers.u_CubeTexture.sampler);
+            glUseProgram(0);
+        }
+        return result;
+    }
+
+    ShaderInfo::Info_Line CompileProgram_Line()
+    {
+        ShaderInfo::Info_Line result = {};
+        auto handle = CreateProgram(ShaderInfo::Info_Line::VertexSource, ShaderInfo::Info_Line::FragmentSource);
+        if (handle)
+        {
+            result.handle = handle;
+            // NOTE: Assign vertex shader uniforms
+            result.vertex.uniforms.u_ViewProjMatrix = glGetUniformLocation(handle, "u_ViewProjMatrix");
+            result.vertex.uniforms.u_Color = glGetUniformLocation(handle, "u_Color");
+
+            // NOTE: Assign fragment shader uniforms
+
+            //NOTE: Setting samplers
+            glUseProgram(handle);
+            glUseProgram(0);
+        }
+        return result;
+    }
+
+    ShaderInfo::Info_Mesh CompileProgram_Mesh()
+    {
+        ShaderInfo::Info_Mesh result = {};
+        auto handle = CreateProgram(ShaderInfo::Info_Mesh::VertexSource, ShaderInfo::Info_Mesh::FragmentSource);
+        if (handle)
+        {
+            result.handle = handle;
+            // NOTE: Assign vertex shader uniforms
+            result.vertex.uniforms.u_ViewProjMatrix = glGetUniformLocation(handle, "u_ViewProjMatrix");
+            result.vertex.uniforms.u_ModelMatrix = glGetUniformLocation(handle, "u_ModelMatrix");
+            result.vertex.uniforms.u_NormalMatrix = glGetUniformLocation(handle, "u_NormalMatrix");
+
+            // NOTE: Assign fragment shader uniforms
+            result.fragment.uniforms.u_DirLight.dir = glGetUniformLocation(handle, "u_DirLight.dir");
+            result.fragment.uniforms.u_DirLight.ambient = glGetUniformLocation(handle, "u_DirLight.ambient");
+            result.fragment.uniforms.u_DirLight.diffuse = glGetUniformLocation(handle, "u_DirLight.diffuse");
+            result.fragment.uniforms.u_DirLight.specular = glGetUniformLocation(handle, "u_DirLight.specular");
+            result.fragment.uniforms.u_ViewPos = glGetUniformLocation(handle, "u_ViewPos");
+            result.fragment.uniforms.u_DiffMap = glGetUniformLocation(handle, "u_DiffMap");
+            result.fragment.uniforms.u_SpecMap = glGetUniformLocation(handle, "u_SpecMap");
+
+            //NOTE: Setting samplers
+            glUseProgram(handle);
+            glUniform1i(result.fragment.uniforms.u_DiffMap, (GLint)result.fragment.samplers.u_DiffMap.sampler);
+            glUniform1i(result.fragment.uniforms.u_SpecMap, (GLint)result.fragment.samplers.u_SpecMap.sampler);
+            glUseProgram(0);
+        }
+        return result;
+    }
+
+    ShaderInfo::Info_Chunk CompileProgram_Chunk()
+    {
+        ShaderInfo::Info_Chunk result = {};
+        auto handle = CreateProgram(ShaderInfo::Info_Chunk::VertexSource, ShaderInfo::Info_Chunk::FragmentSource);
+        if (handle)
+        {
+            result.handle = handle;
+            // NOTE: Assign vertex shader uniforms
+            result.vertex.uniforms.u_ModelMatrix = glGetUniformLocation(handle, "u_ModelMatrix");
+            result.vertex.uniforms.u_NormalMatrix = glGetUniformLocation(handle, "u_NormalMatrix");
+            result.vertex.uniforms.u_ViewProjMatrix = glGetUniformLocation(handle, "u_ViewProjMatrix");
+
+            // NOTE: Assign fragment shader uniforms
+            result.fragment.uniforms.u_DirLight.dir = glGetUniformLocation(handle, "u_DirLight.dir");
+            result.fragment.uniforms.u_DirLight.ambient = glGetUniformLocation(handle, "u_DirLight.ambient");
+            result.fragment.uniforms.u_DirLight.diffuse = glGetUniformLocation(handle, "u_DirLight.diffuse");
+            result.fragment.uniforms.u_DirLight.specular = glGetUniformLocation(handle, "u_DirLight.specular");
+            result.fragment.uniforms.u_ViewPos = glGetUniformLocation(handle, "u_ViewPos");
+            result.fragment.uniforms.u_TerrainAtlas = glGetUniformLocation(handle, "u_TerrainAtlas");
+
+            //NOTE: Setting samplers
+            glUseProgram(handle);
+            glUniform1i(result.fragment.uniforms.u_TerrainAtlas, (GLint)result.fragment.samplers.u_TerrainAtlas.sampler);
+            glUseProgram(0);
+        }
+        return result;
+    }
+
     ShaderInfo LoadShaders()
     {
         ShaderInfo info = {};
         info.PbrMesh = CompileProgram_PbrMesh();
-        SOKO_ASSERT(info.PbrMesh.handle);
+        if (!info.PbrMesh.handle) SOKO_WARN("ShaderManager: Failed to load shader program PbrMesh");
+        info.BRDFIntegrator = CompileProgram_BRDFIntegrator();
+        if (!info.BRDFIntegrator.handle) SOKO_WARN("ShaderManager: Failed to load shader program BRDFIntegrator");
+        info.EnvMapPrefilter = CompileProgram_EnvMapPrefilter();
+        if (!info.EnvMapPrefilter.handle) SOKO_WARN("ShaderManager: Failed to load shader program EnvMapPrefilter");
+        info.IrradanceConvolver = CompileProgram_IrradanceConvolver();
+        if (!info.IrradanceConvolver.handle) SOKO_WARN("ShaderManager: Failed to load shader program IrradanceConvolver");
+        info.FXAA = CompileProgram_FXAA();
+        if (!info.FXAA.handle) SOKO_WARN("ShaderManager: Failed to load shader program FXAA");
+        info.PostFX = CompileProgram_PostFX();
+        if (!info.PostFX.handle) SOKO_WARN("ShaderManager: Failed to load shader program PostFX");
+        info.Skybox = CompileProgram_Skybox();
+        if (!info.Skybox.handle) SOKO_WARN("ShaderManager: Failed to load shader program Skybox");
+        info.Line = CompileProgram_Line();
+        if (!info.Line.handle) SOKO_WARN("ShaderManager: Failed to load shader program Line");
+        info.Mesh = CompileProgram_Mesh();
+        if (!info.Mesh.handle) SOKO_WARN("ShaderManager: Failed to load shader program Mesh");
+        info.Chunk = CompileProgram_Chunk();
+        if (!info.Chunk.handle) SOKO_WARN("ShaderManager: Failed to load shader program Chunk");
         return info;
     }
     
 
     void UnloadShaders(ShaderInfo* info)
     {
+        glFinish();
         if (info->PbrMesh.handle)
         {
             glDeleteShader(info->PbrMesh.handle);
             info->PbrMesh.handle = 0;
         }
+        if (info->BRDFIntegrator.handle)
+        {
+            glDeleteShader(info->BRDFIntegrator.handle);
+            info->BRDFIntegrator.handle = 0;
+        }
+        if (info->EnvMapPrefilter.handle)
+        {
+            glDeleteShader(info->EnvMapPrefilter.handle);
+            info->EnvMapPrefilter.handle = 0;
+        }
+        if (info->IrradanceConvolver.handle)
+        {
+            glDeleteShader(info->IrradanceConvolver.handle);
+            info->IrradanceConvolver.handle = 0;
+        }
+        if (info->FXAA.handle)
+        {
+            glDeleteShader(info->FXAA.handle);
+            info->FXAA.handle = 0;
+        }
+        if (info->PostFX.handle)
+        {
+            glDeleteShader(info->PostFX.handle);
+            info->PostFX.handle = 0;
+        }
+        if (info->Skybox.handle)
+        {
+            glDeleteShader(info->Skybox.handle);
+            info->Skybox.handle = 0;
+        }
+        if (info->Line.handle)
+        {
+            glDeleteShader(info->Line.handle);
+            info->Line.handle = 0;
+        }
+        if (info->Mesh.handle)
+        {
+            glDeleteShader(info->Mesh.handle);
+            info->Mesh.handle = 0;
+        }
+        if (info->Chunk.handle)
+        {
+            glDeleteShader(info->Chunk.handle);
+            info->Chunk.handle = 0;
+        }
     }
 
-    const char* ShaderInfo::Info_PbrMesh::VertexSource = R"(
-
-#version 330 core
+    const char* ShaderInfo::Info_PbrMesh::VertexSource = R"(#version 330 core
 layout (location = 0) in vec3 aPos;
 layout (location = 1) in vec3 aNormal;
 layout (location = 2) in vec2 aUV;
@@ -169,9 +804,7 @@ void main()
     vTBN = tbn;
 })";
 
-    const char* ShaderInfo::Info_PbrMesh::FragmentSource = R"(
-
-#version 330 core
+    const char* ShaderInfo::Info_PbrMesh::FragmentSource = R"(#version 330 core
 out vec4 resultColor;
 
 in vec3 vFragPos;
@@ -200,8 +833,8 @@ uniform sampler2D uNormalMap;
 
 uniform int uCustomMaterial;
 uniform vec3 uCustomAlbedo;
-uniform float uCustomRoughness, uCustomMetalness;
-//uniform float uCustomMetalness;
+uniform float uCustomRoughness;
+uniform float uCustomMetalness;
 
 uniform int uDebugF;
 uniform int uDebugG;
@@ -343,6 +976,745 @@ void main()
     else if (uDebugG == 1) resultColor = vec4(G, G, G, 1.0f);
     else if (uDebugD == 1) resultColor = vec4(D, D, D, 1.0f);
     else if (uDebugNormals == 1) resultColor = vec4(N, 1.0f);
+})";
+
+    const char* ShaderInfo::Info_BRDFIntegrator::VertexSource = R"(#version 330 core
+vec2 VERTICES[] = vec2[](vec2(-1.0f, -1.0f),
+                         vec2(1.0f, -1.0f),
+                         vec2(1.0f, 1.0f),
+                         vec2(1.0f, 1.0f),
+                         vec2(-1.0f, 1.0f),
+                         vec2(-1.0f, -1.0f));
+out vec2 v_UV;
+
+void main()
+{
+    vec4 vertexPos = vec4(VERTICES[min(gl_VertexID, 6)], 0.0f, 1.0f);
+    gl_Position = vertexPos;
+    v_UV = vertexPos.xy / 2.0f + 0.5f;
+})";
+
+    const char* ShaderInfo::Info_BRDFIntegrator::FragmentSource = R"(#version 330 core
+
+in vec2 v_UV;
+out vec4 ResultColor;
+
+const uint SAMPLE_COUNT = 1024u;
+
+const float PI_32 = 3.14159265358979323846f;
+
+// NOTE: http://holger.dammertz.org/stuff/notes_HammersleyOnHemisphere.html
+float RadicalInverse_VdC(uint bits)
+{
+    bits = (bits << 16u) | (bits >> 16u);
+    bits = ((bits & 0x55555555u) << 1u) | ((bits & 0xAAAAAAAAu) >> 1u);
+    bits = ((bits & 0x33333333u) << 2u) | ((bits & 0xCCCCCCCCu) >> 2u);
+    bits = ((bits & 0x0F0F0F0Fu) << 4u) | ((bits & 0xF0F0F0F0u) >> 4u);
+    bits = ((bits & 0x00FF00FFu) << 8u) | ((bits & 0xFF00FF00u) >> 8u);
+    return float(bits) * 2.3283064365386963e-10;
+}
+
+vec2 Hammersley(uint i, uint n)
+{
+    return vec2(float(i) / float(n), RadicalInverse_VdC(i));
+}
+
+vec3 ImportanceSampleGGX(vec2 p, vec3 N, float a)
+{
+    // NOTE: Epic Games GGX
+    float aSq = a * a;
+    float phi = 2.0f * PI_32 * p.x;
+    float cosTheta = sqrt((1.0f - p.y) / (1.0f + (aSq * aSq - 1.0f) * p.y));
+    float sinTheta = sqrt(1.0f - cosTheta * cosTheta);
+
+    // NOTE: To cartesian
+    vec3 d;
+    d.x = cos(phi) * sinTheta;
+    d.y = sin(phi) * sinTheta;
+    d.z = cosTheta;
+
+    // NOTE: From tangent space to world
+    vec3 up = abs(N.z) < 0.999f ? vec3(0.0f, 0.0f, 1.0f) : vec3(1.0f, 0.0f, 0.0f); // ?????
+    vec3 right = normalize(cross(up, N));
+    up = cross(N, right);
+
+    vec3 sampleVec = right * d.x + up * d.y + N * d.z;
+    return normalize(sampleVec);
+}
+
+float GeometrySchlickGGX(float NdotV, float a)
+{
+    float k = (a * a) / 1.0f;
+    float nom = NdotV;
+    float denom = NdotV * (1.0f - k) + k;
+    return nom / denom;
+}
+
+float GeometrySmith(vec3 N, vec3 V, vec3 L, float a)
+{
+    float NdotV = max(dot(N, V), 0.0f);
+    float NdotL = max(dot(N, L), 0.0f);
+    float ggx2 = GeometrySchlickGGX(NdotV, a);
+    float ggx1 = GeometrySchlickGGX(NdotL, a);
+    return ggx1 * ggx2;
+}
+
+vec2 IntegrateBRDF(float NdotV, float roughness)
+{
+    vec3 V;
+    V.x = sqrt(1.0f - NdotV * NdotV);
+    V.y = 0.0f;
+    V.z = NdotV;
+
+    float A = 0.0f;
+    float B = 0.0f;
+
+    vec3 N = vec3(0.0f, 0.0f, 1.0f);
+
+    for (uint i = 0u; i < SAMPLE_COUNT; i++)
+    {
+        vec2 Xi = Hammersley(i, SAMPLE_COUNT);
+        vec3 H = ImportanceSampleGGX(Xi, N, roughness);
+        vec3 L = normalize(2.0f * dot(V, H) * H - V);
+
+        float NdotL = max(L.z, 0.0f);
+        float NdotH = max(H.z, 0.0f);
+        float VdotH = max(dot(V, H), 0.0f);
+
+        if (NdotL > 0.0f)
+        {
+            float G = GeometrySmith(N, V, L, roughness);
+            float G_Vis = (G * VdotH) / (NdotH * NdotV);
+            float Fc = pow(1.0f - VdotH, 5.0f);
+
+            A += (1.0f - Fc) * G_Vis;
+            B += Fc * G_Vis;
+        }
+    }
+    A /= float(SAMPLE_COUNT);
+    B /= float(SAMPLE_COUNT);
+
+    return vec2(A, B);
+}
+
+void main()
+{
+    ResultColor = vec4(IntegrateBRDF(v_UV.x, v_UV.y), 0.0f, 1.0f);
+})";
+
+    const char* ShaderInfo::Info_EnvMapPrefilter::VertexSource = R"(#version 330 core
+
+uniform mat4 u_ViewMatrix;
+uniform mat4 u_ProjMatrix;
+
+out vec3 v_UV;
+
+vec2 VERTICES[] = vec2[](vec2(-1.0f, -1.0f),
+                         vec2(1.0f, -1.0f),
+                         vec2(1.0f, 1.0f),
+                         vec2(1.0f, 1.0f),
+                         vec2(-1.0f, 1.0f),
+                         vec2(-1.0f, -1.0f));
+
+void main()
+{
+    vec4 vertexPos = vec4(VERTICES[min(gl_VertexID, 6)], 0.0f, 1.0f);
+    gl_Position = vertexPos;
+    gl_Position = gl_Position.xyww;
+    v_UV = mat3(inverse(u_ViewMatrix)) * (inverse(u_ProjMatrix) * gl_Position).xyz;
+})";
+
+    const char* ShaderInfo::Info_EnvMapPrefilter::FragmentSource = R"(#version 330 core
+
+in vec3 v_UV;
+out vec4 resultColor;
+
+uniform samplerCube uSourceCubemap;
+uniform float uRoughness;
+uniform int uResolution;
+
+const float PI_32 = 3.14159265358979323846f;
+
+// NOTE: http://holger.dammertz.org/stuff/notes_HammersleyOnHemisphere.html
+float RadicalInverse_VdC(uint bits)
+{
+    bits = (bits << 16u) | (bits >> 16u);
+    bits = ((bits & 0x55555555u) << 1u) | ((bits & 0xAAAAAAAAu) >> 1u);
+    bits = ((bits & 0x33333333u) << 2u) | ((bits & 0xCCCCCCCCu) >> 2u);
+    bits = ((bits & 0x0F0F0F0Fu) << 4u) | ((bits & 0xF0F0F0F0u) >> 4u);
+    bits = ((bits & 0x00FF00FFu) << 8u) | ((bits & 0xFF00FF00u) >> 8u);
+    return float(bits) * 2.3283064365386963e-10;
+}
+
+vec2 Hammersley(uint i, uint n)
+{
+    return vec2(float(i) / float(n), RadicalInverse_VdC(i));
+}
+
+vec3 ImportanceSampleGGX(vec2 p, vec3 N, float a)
+{
+    // NOTE: Epic Games GGX
+    float aSq = a * a;
+    float phi = 2.0f * PI_32 * p.x;
+    float cosTheta = sqrt((1.0f - p.y) / (1.0f + (aSq * aSq - 1.0f) * p.y));
+    float sinTheta = sqrt(1.0f - cosTheta * cosTheta);
+
+    // NOTE: To cartesian
+    vec3 d;
+    d.x = cos(phi) * sinTheta;
+    d.y = sin(phi) * sinTheta;
+    d.z = cosTheta;
+
+    // NOTE: From tangent space to world
+    vec3 up = abs(N.z) < 0.999f ? vec3(0.0f, 0.0f, 1.0f) : vec3(1.0f, 0.0f, 0.0f); // ?????
+    vec3 right = normalize(cross(up, N));
+    up = cross(N, right);
+
+    vec3 sampleVec = right * d.x + up * d.y + N * d.z;
+    return normalize(sampleVec);
+}
+
+float DistributionGGX(vec3 N, vec3 H, float a)
+{
+    float a4 = a * a * a * a;
+    float NdotH = max(dot(N, H), 0.0f);
+    float NdotHSq = NdotH * NdotH;
+
+    float num = a4;
+    float denom = (NdotHSq * (a4 - 1.0f) + 1.0f);
+    denom = PI_32 * denom * denom;
+
+    return num / max(denom, 0.001f);
+}
+
+const uint SAMPLES = 4096u;
+
+void main()
+{
+    vec3 N = normalize(v_UV);
+    vec3 R = N;
+    vec3 V = R;
+
+    float totalWeight = 0.0f;
+    vec3 prefColor = vec3(0.0f);
+
+    for (uint i = 0u; i < SAMPLES; i++)
+    {
+        vec2 p = Hammersley(i, SAMPLES);
+        vec3 H = ImportanceSampleGGX(p, N, uRoughness);
+        vec3 L = normalize(2.0f * dot(V, H) * H - V);
+
+        float NdotL = max(dot(N, L), 0.0f);
+        if (NdotL > 0.0f)
+        {
+            float D = DistributionGGX(N, H, uRoughness);
+            float NdotH = max(dot(N, H), 0.0f);
+            float HdotV = max(dot(H, V), 0.0f);
+            float PDF = D * NdotH / (4.0f * HdotV) + 0.0001;
+            float saTexel = 4.0f * PI_32 / (6.0f * uResolution * uResolution);
+            float saSample = 1.0f / (float(SAMPLES) * PDF + 0.0001f);
+            float mipLevel = uRoughness == 0.0f ? 0.0f : 0.5f * log2(saSample / saTexel);
+            prefColor += textureLod(uSourceCubemap, L, mipLevel).rgb * NdotL;
+            totalWeight += NdotL;
+        }
+    }
+
+    prefColor = prefColor / totalWeight;
+
+    resultColor = vec4(prefColor, 1.0f);
+})";
+
+    const char* ShaderInfo::Info_IrradanceConvolver::VertexSource = R"(#version 330 core
+
+uniform mat4 u_ViewMatrix;
+uniform mat4 u_ProjMatrix;
+
+out vec3 v_UV;
+
+vec2 VERTICES[] = vec2[](vec2(-1.0f, -1.0f),
+                         vec2(1.0f, -1.0f),
+                         vec2(1.0f, 1.0f),
+                         vec2(1.0f, 1.0f),
+                         vec2(-1.0f, 1.0f),
+                         vec2(-1.0f, -1.0f));
+
+void main()
+{
+    vec4 vertexPos = vec4(VERTICES[min(gl_VertexID, 6)], 0.0f, 1.0f);
+    gl_Position = vertexPos;
+    gl_Position = gl_Position.xyww;
+    v_UV = mat3(inverse(u_ViewMatrix)) * (inverse(u_ProjMatrix) * gl_Position).xyz;
+})";
+
+    const char* ShaderInfo::Info_IrradanceConvolver::FragmentSource = R"(#version 330 core
+
+in vec3 v_UV;
+out vec4 resultColor;
+
+uniform samplerCube uSourceCubemap;
+
+const float PI_32 = 3.14159265358979323846f;
+
+void main()
+{
+    vec3 normal = normalize(v_UV);
+    vec3 irradance = vec3(0.0f);
+
+    vec3 up = vec3(0.0f, 1.0f, 0.0f);
+    vec3 right = cross(up, normal);
+    up = cross(normal, right);
+
+    float sampleDelta = 0.025f;
+    int sampleCount = 0;
+    for (float phi = 0.0f; phi < (2.0f * PI_32); phi += sampleDelta)
+    {
+        for (float theta = 0.0f; theta < (0.5f * PI_32); theta += sampleDelta)
+        {
+            vec3 tgSample = vec3(sin(theta) * cos(phi), sin(theta) * sin(phi), cos(theta));
+            vec3 sampleDir = tgSample.x * right + tgSample.y * up + tgSample.z * normal;
+            irradance += texture(uSourceCubemap, sampleDir).xyz * cos(theta) * sin(theta);
+            sampleCount++;
+        }
+    }
+
+    irradance = PI_32 * irradance * (1.0f / float(sampleCount));
+
+    resultColor = vec4(irradance, 1.0f);
+})";
+
+    const char* ShaderInfo::Info_FXAA::VertexSource = R"(#version 330 core
+vec2 VERTICES[] = vec2[](vec2(-1.0f, -1.0f),
+                         vec2(1.0f, -1.0f),
+                         vec2(1.0f, 1.0f),
+                         vec2(1.0f, 1.0f),
+                         vec2(-1.0f, 1.0f),
+                         vec2(-1.0f, -1.0f));
+out vec2 v_UV;
+
+void main()
+{
+    vec4 vertexPos = vec4(VERTICES[min(gl_VertexID, 6)], 0.0f, 1.0f);
+    gl_Position = vertexPos;
+    v_UV = vertexPos.xy / 2.0f + 0.5f;
+})";
+
+    const char* ShaderInfo::Info_FXAA::FragmentSource = R"(#version 330 core
+in vec2 v_UV;
+out vec4 fragColorResult;
+
+uniform sampler2D u_ColorSourcePerceptual;
+uniform vec2 u_InvScreenSize;
+
+float Luma(vec3 rgb)
+{
+    float result = dot(rgb, vec3(0.299f, 0.587f, 0.114f));
+    return result;
+}
+
+#define EDGE_MIN_THRESHOLD 0.0625f  //0.0312f
+#define EDGE_MAX_THRESHOLD 0.0625f  //0.125f
+#define ITERATIONS 12
+#define SUBPIXEL_QUALITY 0.75f
+
+float STEPS[6] = float[](1.0f, 1.5f, 2.0f, 2.0f, 2.0f, 8.0f);
+#define QUALITY(i) (STEPS[min(0, max(5, i))])
+
+void main()
+{
+    // STUDY: Dependent texture reads
+    vec3 sampleCenter = texture(u_ColorSourcePerceptual, v_UV).xyz;
+
+    float lumaCenter = Luma(sampleCenter);
+    float lumaDown = Luma(textureOffset(u_ColorSourcePerceptual, v_UV, ivec2(0, -1)).xyz);
+    float lumaUp = Luma(textureOffset(u_ColorSourcePerceptual, v_UV, ivec2(0, 1)).xyz);
+    float lumaLeft = Luma(textureOffset(u_ColorSourcePerceptual, v_UV, ivec2(-1, 0)).xyz);
+    float lumaRight = Luma(textureOffset(u_ColorSourcePerceptual, v_UV, ivec2(1, 0)).xyz);
+
+    float lumaMin = min(lumaCenter, min(min(lumaDown, lumaUp), min(lumaLeft, lumaRight)));
+    float lumaMax = max(lumaCenter, max(max(lumaDown, lumaUp), max(lumaLeft, lumaRight)));
+    float lumaRange = lumaMax - lumaMin;
+
+    if (lumaRange >= max(EDGE_MIN_THRESHOLD, lumaMax * EDGE_MAX_THRESHOLD))
+    {
+        float lumaDownLeft = Luma(textureOffset(u_ColorSourcePerceptual, v_UV, ivec2(-1, -1)).xyz);
+        float lumaUpRight = Luma(textureOffset(u_ColorSourcePerceptual, v_UV, ivec2(1, 1)).xyz);
+        float lumaUpLeft = Luma(textureOffset(u_ColorSourcePerceptual, v_UV, ivec2(-1, 1)).xyz);
+        float lumaDownRight = Luma(textureOffset(u_ColorSourcePerceptual, v_UV, ivec2(1, -1)).xyz);
+
+        float lumaDownUp = lumaDown + lumaUp;
+        float lumaLeftRight = lumaLeft + lumaRight;
+        float lumaLeftCorners = lumaDownLeft + lumaUpLeft;
+        float lumaDownCorners = lumaDownLeft + lumaDownRight;
+        float lumaRightCorners = lumaDownRight + lumaUpRight;
+        float lumaUpCorners = lumaUpRight + lumaUpLeft;
+
+        float gradH = abs(-2.0f * lumaLeft + lumaLeftCorners) + abs(-2.0f * lumaCenter + lumaDownUp) * 2.0f + abs(-2.0 * lumaRight + lumaRightCorners);
+        float gradV = abs(-2.0f * lumaUp + lumaUpCorners) + abs(-2.0f * lumaCenter + lumaLeftRight) * 2.0f + abs(-2.0f * lumaDown + lumaDownCorners);
+        bool isHorizontal = (gradH >= gradV);
+
+        float luma1 = isHorizontal ? lumaDown : lumaLeft;
+        float luma2 = isHorizontal ? lumaUp : lumaRight;
+        float grad1 = abs(luma1 - lumaCenter);
+        float grad2 = abs(luma2 - lumaCenter);
+        bool is1Steepest = grad1 >= grad2;
+        float gradScaled = 0.25f * max(grad1, grad2);
+
+        // TODO: dFdx() dFdy() ?
+        float stepLength = isHorizontal ? u_InvScreenSize.y : u_InvScreenSize.x;
+        float lumaLocalAvg = 0.0f;
+        if (is1Steepest)
+        {
+            stepLength = -stepLength;
+            lumaLocalAvg = 0.5f * (luma1 + lumaCenter);
+        }
+        else
+        {
+            lumaLocalAvg = 0.5f * (luma2 + lumaCenter);
+        }
+
+        vec2 currUV = v_UV;
+        isHorizontal ? (currUV.y = currUV.y + stepLength * 0.5f) : (currUV.x = currUV.x + stepLength * 0.5f);
+
+        vec2 offset = isHorizontal ? vec2(u_InvScreenSize.x, 0.0f) : vec2(0.0f, u_InvScreenSize.y);
+        vec2 uv1 = currUV - offset;
+        vec2 uv2 = currUV + offset;
+
+        float lumaEnd1 = Luma(texture(u_ColorSourcePerceptual, uv1).xyz);
+        float lumaEnd2 = Luma(texture(u_ColorSourcePerceptual, uv2).xyz);
+        lumaEnd1 -= lumaLocalAvg;
+        lumaEnd2 -= lumaLocalAvg;
+        bool reached1 = abs(lumaEnd1) >= gradScaled;
+        bool reached2 = abs(lumaEnd2) >= gradScaled;
+        bool reachedBoth = reached1 && reached2;
+        if (!reached1) uv1 -= offset;
+        if (!reached2) uv2 += offset;
+
+        if (!reachedBoth)
+        {
+            for (int i = 1; i < ITERATIONS; i++)
+            {
+                if (!reached1)
+                {
+                    lumaEnd1 = Luma(texture(u_ColorSourcePerceptual, uv1).xyz);
+                    lumaEnd1 -= lumaLocalAvg;
+                }
+                if (!reached2)
+                {
+                    lumaEnd2 = Luma(texture(u_ColorSourcePerceptual, uv2).xyz);
+                    lumaEnd2 -= lumaLocalAvg;
+                }
+                reached1 = abs(lumaEnd1) >= gradScaled;
+                reached2 = abs(lumaEnd2) >= gradScaled;
+                reachedBoth = reached1 && reached2;
+                if (!reached1) uv1 -= offset * QUALITY(i);
+                if (!reached2) uv2 += offset * QUALITY(i);
+                if (reachedBoth) break;
+            }
+        }
+
+        float dist1 = isHorizontal ? (v_UV.x - uv1.x) : (v_UV.y - uv1.y);
+        float dist2 = isHorizontal ? (uv2.x - v_UV.x) : (uv2.y - v_UV.y);
+
+        bool isDir1 = (dist1 < dist2);
+        float minDist = min(dist1, dist2);
+        float edgeLen = (dist1 + dist2);
+
+        float pixelOffset = -minDist / edgeLen + 0.5f;
+
+        bool isLumaCenterSmaller = lumaCenter < lumaLocalAvg;
+        bool correctVariation = ((isDir1 ? lumaEnd1 : lumaEnd2) < 0.0f) != isLumaCenterSmaller;
+        pixelOffset = correctVariation ? pixelOffset : 0.0f;
+
+        vec2 resultUV = v_UV;
+        isHorizontal ? (resultUV.y = resultUV.y + pixelOffset * stepLength) : (resultUV.x = resultUV.x + pixelOffset * stepLength);
+
+        float lumaAvg = (1.0f / 12.0f) * (2.0f * (lumaDownUp + lumaLeftRight) + lumaLeftCorners + lumaRightCorners);
+        float subPixelOffset1 = clamp(abs(lumaAvg - lumaCenter) / lumaRange, 0.0f, 1.0f);
+        float subPixelOffset2 = (-2.0f * subPixelOffset1 + 3.0f) + subPixelOffset1 * subPixelOffset1;
+        float subPixelOffsetResult = subPixelOffset2 * subPixelOffset2 * SUBPIXEL_QUALITY;
+        pixelOffset = max(pixelOffset, subPixelOffsetResult);
+
+        fragColorResult = vec4(texture(u_ColorSourcePerceptual, resultUV).xyz, 1.0f);
+    }
+    else
+    {
+        fragColorResult = vec4(sampleCenter, 1.0f);
+    }
+    //fragColorResult = vec4(sampleCenter, 1.0f);
+})";
+
+    const char* ShaderInfo::Info_PostFX::VertexSource = R"(#version 330 core
+vec2 VERTICES[] = vec2[](vec2(-1.0f, -1.0f),
+                         vec2(1.0f, -1.0f),
+                         vec2(1.0f, 1.0f),
+                         vec2(1.0f, 1.0f),
+                         vec2(-1.0f, 1.0f),
+                         vec2(-1.0f, -1.0f));
+out vec2 v_UV;
+
+void main()
+{
+    vec4 vertexPos = vec4(VERTICES[min(gl_VertexID, 6)], 0.0f, 1.0f);
+    gl_Position = vertexPos;
+    v_UV = vertexPos.xy / 2.0f + 0.5f;
+})";
+
+    const char* ShaderInfo::Info_PostFX::FragmentSource = R"(#version 330 core
+in vec2 v_UV;
+out vec4 fragColorResult;
+
+uniform float u_Gamma = 2.4f;
+// TODO: Tonemapping
+uniform float u_Exposure = 1.0f;
+
+uniform sampler2D u_ColorSourceLinear;
+
+float D3DX_FLOAT_to_SRGB(float val)
+{
+    if (val < 0.0031308f)
+    {
+        val *= 12.92f;
+    }
+    else
+    {
+        val = 1.055f * pow(val, 1.0f / u_Gamma) - 0.055f;
+    }
+    return val;
+}
+
+vec3 D3DX_RGB_to_SRGB(vec3 rgb)
+{
+    rgb.r = D3DX_FLOAT_to_SRGB(rgb.r);
+    rgb.g = D3DX_FLOAT_to_SRGB(rgb.g);
+    rgb.b = D3DX_FLOAT_to_SRGB(rgb.b);
+    return rgb;
+}
+
+void main()
+{
+    vec3 hdrSample = texture(u_ColorSourceLinear, v_UV).xyz;
+    //vec3 ldrSample = hdrSample / (hdrSample + vec3(1.0f))
+    vec3 ldrSample = vec3(1.0f) - exp(-hdrSample * u_Exposure);
+    vec3 resultSample = D3DX_RGB_to_SRGB(ldrSample);
+    fragColorResult = vec4(resultSample, 1.0f);
+})";
+
+    const char* ShaderInfo::Info_Skybox::VertexSource = R"(#version 330 core
+
+uniform mat4 u_ViewMatrix;
+uniform mat4 u_ProjMatrix;
+
+out vec3 v_UV;
+
+vec2 VERTICES[] = vec2[](vec2(-1.0f, -1.0f),
+                         vec2(1.0f, -1.0f),
+                         vec2(1.0f, 1.0f),
+                         vec2(1.0f, 1.0f),
+                         vec2(-1.0f, 1.0f),
+                         vec2(-1.0f, -1.0f));
+
+void main()
+{
+    vec4 vertexPos = vec4(VERTICES[min(gl_VertexID, 6)], 0.0f, 1.0f);
+    gl_Position = vertexPos;
+    gl_Position = gl_Position.xyww;
+    v_UV = mat3(inverse(u_ViewMatrix)) * (inverse(u_ProjMatrix) * gl_Position).xyz;
+})";
+
+    const char* ShaderInfo::Info_Skybox::FragmentSource = R"(#version 330 core
+in vec3 v_UV;
+
+out vec4 f_Color;
+uniform float uLod = 1.0f;
+
+uniform samplerCube u_CubeTexture;
+void main()
+{
+    f_Color = textureLod(u_CubeTexture, v_UV, uLod);
+})";
+
+    const char* ShaderInfo::Info_Line::VertexSource = R"(#version 330 core
+layout (location = 0) in vec3 v_Pos;
+
+out vec3 f_Color;
+
+uniform mat4 u_ViewProjMatrix;
+uniform vec3 u_Color;
+
+void main()
+{
+    gl_Position = u_ViewProjMatrix * vec4(v_Pos, 1.0f);
+    f_Color = u_Color;
+})";
+
+    const char* ShaderInfo::Info_Line::FragmentSource = R"(#version 330 core
+out vec4 fragColor;
+
+in vec3 f_Color;
+
+void main()
+{
+    fragColor = vec4(f_Color, 1.0f);
+})";
+
+    const char* ShaderInfo::Info_Mesh::VertexSource = R"(#version 330 core
+layout (location = 0) in vec3 attr_Pos;
+layout (location = 1) in vec3 attr_Normal;
+layout (location = 2) in vec2 attr_UV;
+
+uniform mat4 u_ViewProjMatrix;
+uniform mat4 u_ModelMatrix;
+uniform mat3 u_NormalMatrix;
+
+out vec3 vout_FragPos;
+out vec3 vout_Normal;
+out vec2 vout_UV;
+
+void main()
+{
+    gl_Position = u_ViewProjMatrix * u_ModelMatrix * vec4(attr_Pos, 1.0f);
+    vout_FragPos = (u_ModelMatrix * vec4(attr_Pos, 1.0f)).xyz; //gl_Position.xyz;
+    vout_UV = attr_UV;
+    vout_Normal = u_NormalMatrix * attr_Normal;
+})";
+
+    const char* ShaderInfo::Info_Mesh::FragmentSource = R"(#version 330 core
+out vec4 out_Color;
+
+in vec3 vout_FragPos;
+in vec3 vout_Normal;
+in vec2 vout_UV;
+
+struct DirLight
+{
+    vec3 dir;
+    vec3 ambient;
+    vec3 diffuse;
+    vec3 specular;
+};
+
+uniform DirLight u_DirLight;
+
+uniform vec3 u_ViewPos;
+
+uniform sampler2D u_DiffMap;
+uniform sampler2D u_SpecMap;
+
+void main()
+{
+    vec3 normal = normalize(vout_Normal);
+    vec4 diffSamle = texture(u_DiffMap, vout_UV);
+    vec4 specSample = texture(u_SpecMap, vout_UV);
+    specSample.a = 1.0f;
+    vec3 lightDir = normalize(-u_DirLight.dir);
+    float kDiff = max(dot(normal, lightDir), 0.0f);
+    vec3 viewDir = normalize(u_ViewPos - vout_FragPos);
+    vec3 rFromLight = reflect(-lightDir, normal);
+    float kSpec = pow(max(dot(viewDir, rFromLight), 0.0f), 32.0f);
+    vec4 ambient = diffSamle * vec4(u_DirLight.ambient, 1.0f);
+    vec4 diffuse = diffSamle * kDiff * vec4(u_DirLight.diffuse, 1.0f);
+    vec4 specular = specSample * kSpec * vec4(u_DirLight.specular, 1.0f);
+    out_Color = ambient + diffuse + specular;
+})";
+
+    const char* ShaderInfo::Info_Chunk::VertexSource = R"(#version 330 core
+layout (location = 0) in vec3 a_Position;
+layout (location = 1) in vec3 a_Normal;
+layout (location = 2) in int a_TileId;
+
+out vec3 v_Position;
+out vec3 v_MeshSpacePos;
+//out vec4 v_LightSpacePosition;
+flat out int v_TileId;
+out vec3 v_Normal;
+out vec2 v_UV;
+
+uniform mat4 u_ModelMatrix;
+uniform mat3 u_NormalMatrix;
+uniform mat4 u_ViewProjMatrix;
+//uniform mat4 u_LightSpaceMatrix;
+
+#define TERRAIN_TEX_ARRAY_NUM_LAYERS 32
+#define INDICES_PER_CHUNK_QUAD 6
+#define VERTICES_PER_QUAD 4
+
+vec2 UV[] = vec2[](vec2(0.0f, 0.0f),
+                   vec2(1.0f, 0.0f),
+                   vec2(1.0f, 1.0f),
+                   vec2(0.0f, 1.0f));
+
+void main()
+{
+    // TODO: Pass ints as vertex attrib
+    // This problem will be solved when we switch to using
+    // packed vertex attributes
+
+    int vertIndexInQuad = gl_VertexID % 4;
+
+    v_UV = UV[min(vertIndexInQuad, VERTICES_PER_QUAD - 1)];
+
+    v_TileId = a_TileId;
+    v_MeshSpacePos = a_Position;
+    v_Position = (u_ModelMatrix * vec4(a_Position, 1.0f)).xyz;
+    v_Normal = u_NormalMatrix * a_Normal;
+    //v_LightSpacePosition = u_LightSpaceMatrix * modelMatrix * vec4(a_Position, 1.0f);
+    gl_Position = u_ViewProjMatrix * u_ModelMatrix * vec4(a_Position, 1.0f);
+})";
+
+    const char* ShaderInfo::Info_Chunk::FragmentSource = R"(#version 330 core
+in vec3 v_Position;
+in vec3 v_MeshSpacePos;
+//in vec4 v_LightSpacePosition;
+flat in int v_TileId;
+in vec3 v_Normal;
+in vec2 v_UV;
+
+out vec4 color;
+
+struct DirLight
+{
+    vec3 dir;
+    vec3 ambient;
+    vec3 diffuse;
+    vec3 specular;
+};
+
+uniform DirLight u_DirLight;
+uniform vec3 u_ViewPos;
+uniform sampler2DArray u_TerrainAtlas;
+
+vec3 CalcDirectionalLight(DirLight light, vec3 normal,
+                          vec3 viewDir,
+                          vec3 diffSample)
+{
+    vec3 lightDir = normalize(-light.dir);
+    vec3 lightDirReflected = reflect(-lightDir, normal);
+
+    float Kd = max(dot(normal, lightDir), 0.0);
+
+    vec3 ambient = light.ambient * diffSample;
+    vec3 diffuse = Kd * light.diffuse * diffSample;
+    return ambient + diffuse;
+}
+
+#define TERRAIN_TEX_ARRAY_NUM_LAYERS 32
+
+void main()
+{
+    vec3 normal = normalize(v_Normal);
+    vec3 viewDir = normalize(u_ViewPos - v_Position);
+
+    int tileID = clamp(v_TileId, 0, TERRAIN_TEX_ARRAY_NUM_LAYERS);
+
+    vec3 diffSample;
+    float alpha;
+    diffSample = texture(u_TerrainAtlas, vec3(v_UV.x, v_UV.y, tileID)).rgb;
+    alpha = 1.0f;
+
+    vec3 directional = CalcDirectionalLight(u_DirLight, normal, viewDir, diffSample);
+    //directional = diffSample;
+
+    color = vec4(directional, alpha);
 })";
 
 }

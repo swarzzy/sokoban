@@ -935,8 +935,8 @@ void OutShader(const Shader* shader)
     O("} ");
     switch (shader->type)
     {
-        CASE(Shader::Vertex, A("vertex;\n"));
-        CASE(Shader::Fragment, A("fragment;\n"));
+        CASE(Shader::Vertex, A("vertex;\n\n"));
+        CASE(Shader::Fragment, A("fragment;\n\n"));
         INVALID_DEFAULT_CASE();
     };
 
@@ -1121,7 +1121,7 @@ int main(int argCount, char** args)
         OutShader(prog.vertex);
         OutShader(prog.fragment);
         IDENT_POP();
-        L("} %s;", prog.config.name);
+        L("} %s;\n", prog.config.name);
     }
 
     IDENT_POP();
@@ -1175,7 +1175,7 @@ int main(int argCount, char** args)
     for (auto& it : programs)
     {
         L("info.%s = CompileProgram_%s();", it.config.name, it.config.name);
-        L("SOKO_ASSERT(info.%s.handle);", it.config.name);
+        L("if (!info.%s.handle) SOKO_WARN(\"ShaderManager: Failed to load shader program %s\");", it.config.name, it.config.name);
     }
     L("return info;");
     IDENT_POP();
@@ -1185,6 +1185,7 @@ int main(int argCount, char** args)
     L("void UnloadShaders(ShaderInfo* info)");
     L("{");
     IDENT_PUSH();
+    L("glFinish();");
     for (auto& it : programs)
     {
         L("if (info->%s.handle)", it.config.name);
@@ -1200,11 +1201,11 @@ int main(int argCount, char** args)
 
     for (auto& prog : programs)
     {
-        L("const char* ShaderInfo::Info_%s::VertexSource = R\"(\n", prog.config.name);
+        O("const char* ShaderInfo::Info_%s::VertexSource = R\"(", prog.config.name);
         A("%s", prog.vertex->source);
         A(")\";\n\n");
 
-        L("const char* ShaderInfo::Info_%s::FragmentSource = R\"(\n", prog.config.name);
+        O("const char* ShaderInfo::Info_%s::FragmentSource = R\"(", prog.config.name);
         A("%s", prog.fragment->source);
         A(")\";\n\n");
     }

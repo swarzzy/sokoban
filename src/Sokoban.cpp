@@ -509,7 +509,8 @@ namespace soko
                                      _GlobalPlatform->functions.FreeForImGui,
                                      _GlobalPlatform->imGuiAllocatorData);
         ImGui::SetCurrentContext(_GlobalPlatform->imGuiContext);
-        RendererRecompileShaders(_GlobalStaticStorage->gameState->renderer);
+        UnloadShaders(&_GlobalStaticStorage->gameState->renderer->shaders);
+        _GlobalStaticStorage->gameState->renderer->shaders = LoadShaders();
     }
 
     void

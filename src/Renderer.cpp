@@ -1,168 +1,9 @@
 #include "Renderer.h"
 
-#include "Shaders.cpp"
 #include "ShaderManager.cpp"
 
 namespace soko
 {
-    struct BRDFIntegrationProgram
-    {
-        GLint handle;
-    };
-
-    struct EnvMapPrefilterProgram
-    {
-        GLint handle;
-        GLint projLoc;
-        GLint viewLoc;
-        GLint roughnessLoc;
-        GLint sourceCubemapLoc;
-        GLint uResolution;
-        u32 sourceCubemapSampler;
-        GLenum sourceCubemapSlot;
-    };
-
-    struct IrradanceConvolutionProgram
-    {
-        GLint handle;
-        GLint projLoc;
-        GLint viewLoc;
-        GLint sourceCubemapLoc;
-        u32 sourceCubemapSampler;
-        GLenum sourceCubemapSlot;
-    };
-
-    struct PBRMeshProgram
-    {
-        GLint handle;
-
-        u32 albedoSampler;
-        GLenum albedoSlot;
-        GLint albedoLoc;
-
-        u32 roughnessSampler;
-        GLenum roughnessSlot;
-        GLint roughnessLoc;
-
-        u32 metalnessSampler;
-        GLenum metalnessSlot;
-        GLint metalnessLoc;
-
-        u32 normalSampler;
-        GLenum normalSlot;
-        GLint normalLoc;
-
-        u32 irradanceMapSampler;
-        GLenum irradanceMapSlot;
-        GLint irradanceMapLoc;
-
-        u32 envMapSampler;
-        GLenum envMapSlot;
-        GLint envMapLoc;
-
-        u32 BRDFLutSampler;
-        GLenum BRDFLutSlot;
-        GLint BRDFLutLoc;
-
-        GLint uCustomMaterial;
-        GLint uCustomAlbedo;
-        GLint uCustomRoughness;
-        GLint uCustomMetalness;
-
-        GLint uDebugF;
-        GLint uDebugG;
-        GLint uDebugD;
-        GLint uDebugNormals;
-
-        GLint viewPosLoc;
-        GLint viewProjLoc;
-        GLint modelMtxLoc;
-        GLint normalMtxLoc;
-        GLint dirLightDirLoc;
-        GLint dirLightColorLoc;
-        GLint aoLoc;
-    };
-
-    struct FxaaProgram
-    {
-        GLint handle;
-
-        //GLint iterationsLoc;
-        //GLint edgeMinLoc;
-        //GLint edgeMaxLoc;
-        //GLint subpixelQualityLoc;
-
-        GLint invScreenSizeLoc;
-        GLint colorSourceLoc;
-        u32 colorSourceSampler;
-        GLenum colorSourceSlot;
-    };
-
-    struct PostfxProgram
-    {
-        GLint handle;
-        GLint gammaLoc;
-        GLint expLoc;
-        GLint colorSourceLoc;
-        u32 colorSourceSampler;
-        GLenum colorSourceSlot;
-    };
-
-    struct SkyboxProgram
-    {
-        b32 usesEqurectUV;
-        GLint handle;
-        GLint viewMatrixLoc;
-        GLint projMatrixLoc;
-        GLint cubeTextureLoc;
-        GLint lodLoc;
-        u32 cubeTextureSampler;
-        GLenum cubeTextureSlot;
-    };
-
-    struct LineProgram
-    {
-        GLuint handle;
-        GLint viewProjLocation;
-        GLint colorLocation;
-    };
-
-    struct MeshProgram
-    {
-        GLint handle;
-        u32 diffMapSampler;
-        u32 specMapSampler;
-        GLenum diffMapSlot;
-        GLenum specMapSlot;
-        GLint viewPosLocation;
-        GLint viewProjLocation;
-        GLint modelMtxLocation;
-        GLint normalMtxLocation;
-        GLint dirLightDirLoc;
-        GLint dirLightAmbLoc;
-        GLint dirLightDiffLoc;
-        GLint dirLightSpecLoc;
-        GLint diffMapLocation;
-        GLint specMapLocation;
-    };
-
-    struct ChunkProgram
-    {
-        GLint handle;
-        u32 atlasSampler;
-        GLenum atlasSlot;
-        GLint viewPosLocation;
-        GLint viewProjLocation;
-        GLint modelMtxLocation;
-        GLint normalMtxLocation;
-        GLint dirLightDirLoc;
-        GLint dirLightAmbLoc;
-        GLint dirLightDiffLoc;
-        GLint dirLightSpecLoc;
-        GLint terrainAtlasLoc;
-        GLint aoDistribLoc;
-    };
-
     // TODO: Cleanup tile values and terrain textures
     enum TerrainTexture
     {
@@ -179,17 +20,7 @@ namespace soko
 
     struct Renderer
     {
-        ShaderInfo info;
-        LineProgram lineProgram;
-        MeshProgram meshProgram;
-        ChunkProgram chunkProgram;
-        SkyboxProgram skyboxProgram;
-        PostfxProgram postfxProgram;
-        FxaaProgram fxaaProgram;
-        PBRMeshProgram pbrMeshProgram;
-        IrradanceConvolutionProgram irradanceConvProgram;
-        EnvMapPrefilterProgram envMapPrefilterProgram;
-        BRDFIntegrationProgram brdfIntegrationProgram;
+        ShaderInfo shaders;
 
         GLuint tileTexArrayHandle;
 
@@ -706,424 +537,6 @@ namespace soko
         return material;
     }
 
-    internal LineProgram
-    CreateLineProgram()
-    {
-        LineProgram result = {};
-        auto handle = CreateProgram(LINE_VERTEX_SOURCE, LINE_FRAG_SOURCE);
-        if (handle)
-        {
-            result.handle = handle;
-            result.viewProjLocation = glGetUniformLocation(handle, "u_ViewProjMatrix");
-            result.colorLocation = glGetUniformLocation(handle, "u_Color");
-        }
-        return result;
-    }
-
-    internal BRDFIntegrationProgram
-    CreateBRDFIntegrationProgram()
-    {
-        BRDFIntegrationProgram result = {};
-        auto handle = CreateProgram(SS_VERTEX_SOURCE, BRDF_INTERGATION_SHADER);
-        if (handle)
-        {
-            result.handle = handle;
-        }
-        return result;
-    }
-
-    internal EnvMapPrefilterProgram
-    CreateEnvMapPrefilterProgram()
-    {
-        EnvMapPrefilterProgram result = {};
-        auto handle = CreateProgram(SKYBOX_VERTEX_SOURCE, ENV_MAP_PREFILTER_FRAG_SOURCE);
-        if (handle)
-        {
-            result.handle = handle;
-            result.viewLoc = glGetUniformLocation(handle, "u_ViewMatrix");
-            result.projLoc = glGetUniformLocation(handle, "u_ProjMatrix");
-            result.sourceCubemapLoc = glGetUniformLocation(handle, "uSourceCubemap");
-            result.roughnessLoc = glGetUniformLocation(handle, "uRoughness");
-            result.uResolution = glGetUniformLocation(handle, "uResolution");
-
-            result.sourceCubemapSampler = 0;
-            result.sourceCubemapSlot = GL_TEXTURE0;
-
-            glUseProgram(handle);
-
-            glUniform1i(result.sourceCubemapLoc, result.sourceCubemapSampler);
-
-            glUseProgram(0);
-        }
-        return result;
-    }
-
-    internal IrradanceConvolutionProgram
-    CreateIrradanceConvolutionProgram()
-    {
-        IrradanceConvolutionProgram result = {};
-        auto handle = CreateProgram(SKYBOX_VERTEX_SOURCE, IRRADANCE_CONVOLUTION_FRAG_SOURCE);
-        if (handle)
-        {
-            result.handle = handle;
-            result.viewLoc = glGetUniformLocation(handle, "u_ViewMatrix");
-            result.projLoc = glGetUniformLocation(handle, "u_ProjMatrix");
-            result.sourceCubemapLoc = glGetUniformLocation(handle, "uSourceCubemap");
-
-            result.sourceCubemapSampler = 0;
-            result.sourceCubemapSlot = GL_TEXTURE0;
-
-            glUseProgram(handle);
-
-            glUniform1i(result.sourceCubemapLoc, result.sourceCubemapSampler);
-
-            glUseProgram(0);
-        }
-        return result;
-    }
-
-
-    internal PBRMeshProgram
-    CreatePBRMeshProgram()
-    {
-        PBRMeshProgram result = {};
-        auto handle = CreateProgram(PBR_MESH_VERTEX_SOURCE, PBR_MESH_FRAG_SOURCE);
-        if (handle)
-        {
-            result.handle = handle;
-            result.viewPosLoc = glGetUniformLocation(handle, "uViewPos");
-            result.viewProjLoc = glGetUniformLocation(handle, "uViewProjMatrix");
-            result.modelMtxLoc = glGetUniformLocation(handle, "uModelMatrix");
-            result.normalMtxLoc = glGetUniformLocation(handle, "uNormalMatrix");
-            result.dirLightDirLoc = glGetUniformLocation(handle, "uDirLight.dir");
-            result.dirLightColorLoc = glGetUniformLocation(handle, "uDirLight.color");
-            result.aoLoc = glGetUniformLocation(handle, "uAO");
-            result.irradanceMapLoc = glGetUniformLocation(handle, "uIrradanceMap");
-            result.envMapLoc = glGetUniformLocation(handle, "uEnviromentMap");
-            result.BRDFLutLoc = glGetUniformLocation(handle, "uBRDFLut");
-
-            result.albedoLoc = glGetUniformLocation(handle, "uAlbedoMap");
-            result.roughnessLoc = glGetUniformLocation(handle, "uRoughnessMap");
-            result.metalnessLoc = glGetUniformLocation(handle, "uMetalnessMap");
-            result.normalLoc = glGetUniformLocation(handle, "uNormalMap");
-
-            result.uCustomMaterial = glGetUniformLocation(handle, "uCustomMaterial");
-            result.uCustomAlbedo = glGetUniformLocation(handle, "uCustomAlbedo");
-            result.uCustomRoughness = glGetUniformLocation(handle, "uCustomRoughness");
-            result.uCustomMetalness = glGetUniformLocation(handle, "uCustomMetalness");
-
-            result.uDebugF = glGetUniformLocation(handle, "uDebugF");
-            result.uDebugG = glGetUniformLocation(handle, "uDebugG");
-            result.uDebugD = glGetUniformLocation(handle, "uDebugD");
-            result.uDebugNormals = glGetUniformLocation(handle, "uDebugNormals");
-
-            result.albedoSampler = 0;
-            result.albedoSlot = GL_TEXTURE0;
-
-            result.irradanceMapSampler = 1;
-            result.irradanceMapSlot = GL_TEXTURE1;
-
-            result.envMapSampler = 2;
-            result.envMapSlot = GL_TEXTURE2;
-
-            result.BRDFLutSampler = 3;
-            result.BRDFLutSlot = GL_TEXTURE3;
-
-            result.roughnessSampler = 4;
-            result.roughnessSlot = GL_TEXTURE4;
-
-            result.metalnessSampler = 5;
-            result.metalnessSlot = GL_TEXTURE5;
-
-            result.normalSampler = 6;
-            result.normalSlot = GL_TEXTURE6;
-
-            glUseProgram(handle);
-
-            glUniform1i(result.albedoLoc, result.albedoSampler);
-            glUniform1i(result.roughnessLoc, result.roughnessSampler);
-            glUniform1i(result.metalnessLoc, result.metalnessSampler);
-            glUniform1i(result.normalLoc, result.normalSampler);
-
-            glUniform1i(result.irradanceMapLoc, result.irradanceMapSampler);
-            glUniform1i(result.envMapLoc, result.envMapSampler);
-            glUniform1i(result.BRDFLutLoc, result.BRDFLutSampler);
-
-            glUseProgram(0);
-        }
-        return result;
-    }
-
-
-    internal MeshProgram
-    CreateMeshProgram()
-    {
-        MeshProgram result = {};
-        auto handle = CreateProgram(MESH_VERTEX_SOURCE, MESH_FRAG_SOURCE);
-        if (handle)
-        {
-            result.handle = handle;
-            result.viewProjLocation = glGetUniformLocation(handle, "u_ViewProjMatrix");
-            result.modelMtxLocation = glGetUniformLocation(handle, "u_ModelMatrix");
-            result.normalMtxLocation = glGetUniformLocation(handle, "u_NormalMatrix");
-            result.dirLightDirLoc = glGetUniformLocation(handle, "u_DirLight.dir");
-            result.dirLightAmbLoc = glGetUniformLocation(handle, "u_DirLight.ambient");
-            result.dirLightDiffLoc = glGetUniformLocation(handle, "u_DirLight.diffuse");
-            result.dirLightSpecLoc = glGetUniformLocation(handle, "u_DirLight.specular");
-            result.diffMapLocation = glGetUniformLocation(handle, "u_DiffMap");
-            result.viewPosLocation = glGetUniformLocation(handle, "u_ViewPos");
-            result.specMapLocation = glGetUniformLocation(handle, "u_SpecMap");
-
-            result.diffMapSampler = 0;
-            result.specMapSampler = 1;
-            result.diffMapSlot = GL_TEXTURE0;
-            result.specMapSlot = GL_TEXTURE1;
-
-            glUseProgram(handle);
-
-            glUniform1i(result.diffMapLocation, result.diffMapSampler);
-            glUniform1i(result.specMapLocation, result.specMapSampler);
-
-            glUseProgram(0);
-        }
-        return result;
-    }
-
-    internal ChunkProgram
-    CreateChunkProgram()
-    {
-        ChunkProgram result = {};
-        auto handle = CreateProgram(CHUNK_VERTEX_SOURCE, CHUNK_FRAG_SOURCE);
-        if (handle)
-        {
-            result.handle = handle;
-            result.viewProjLocation = glGetUniformLocation(handle, "u_ViewProjMatrix");
-            result.modelMtxLocation = glGetUniformLocation(handle, "u_ModelMatrix");
-            result.normalMtxLocation = glGetUniformLocation(handle, "u_NormalMatrix");
-            result.dirLightDirLoc = glGetUniformLocation(handle, "u_DirLight.dir");
-            result.dirLightAmbLoc = glGetUniformLocation(handle, "u_DirLight.ambient");
-            result.dirLightDiffLoc = glGetUniformLocation(handle, "u_DirLight.diffuse");
-            result.dirLightSpecLoc = glGetUniformLocation(handle, "u_DirLight.specular");
-            result.viewPosLocation = glGetUniformLocation(handle, "u_ViewPos");
-            result.terrainAtlasLoc = glGetUniformLocation(handle, "u_TerrainAtlas");
-            result.aoDistribLoc = glGetUniformLocation(handle, "u_AODistrib");
-
-            result.atlasSampler = 0;
-            result.atlasSlot = GL_TEXTURE0;
-
-            glUseProgram(handle);
-
-            glUniform1i(result.terrainAtlasLoc, result.atlasSampler);
-
-            glUseProgram(0);
-        }
-        return result;
-    }
-
-    internal SkyboxProgram
-    CreateSkyboxProgram(bool useEquirectUV = false)
-    {
-        SkyboxProgram result = {};
-        GLuint handle;
-        if (useEquirectUV)
-        {
-            handle = CreateProgram(SKYBOX_EQUIRECT_VERTEX_SOURCE, SKYBOX_EQUIRECT_FRAG_SOURCE);
-        }
-        else
-        {
-            handle = CreateProgram(SKYBOX_VERTEX_SOURCE, SKYBOX_FRAG_SOURCE);
-        }
-        if (handle)
-        {
-            result.handle = handle;
-            result.viewMatrixLoc = glGetUniformLocation(handle, "u_ViewMatrix");
-            result.projMatrixLoc = glGetUniformLocation(handle, "u_ProjMatrix");
-            result.cubeTextureLoc = glGetUniformLocation(handle, "u_CubeTexture");
-            result.lodLoc = glGetUniformLocation(handle, "uLod");
-
-            result.cubeTextureSampler = 0;
-            result.cubeTextureSlot = GL_TEXTURE0;
-
-            glUseProgram(handle);
-
-            glUniform1i(result.cubeTextureLoc, result.cubeTextureSampler);
-
-            glUseProgram(0);
-        }
-        return result;
-    }
-
-    internal PostfxProgram
-    CreatePostfxProgram()
-    {
-        PostfxProgram result = {};
-        auto handle = CreateProgram(SS_VERTEX_SOURCE, POSTFX_FRAG_SOURCE);
-        if (handle)
-        {
-            result.handle = handle;
-            result.gammaLoc = glGetUniformLocation(handle, "u_Gamma");
-            result.expLoc = glGetUniformLocation(handle, "u_Exposure");
-            result.colorSourceLoc = glGetUniformLocation(handle, "u_ColorSourceLinear");
-
-            result.colorSourceSampler = 0;
-            result.colorSourceSlot = GL_TEXTURE0;
-
-            glUseProgram(handle);
-
-            glUniform1i(result.colorSourceLoc, result.colorSourceSampler);
-
-            glUseProgram(0);
-        }
-        return result;
-    }
-
-    internal FxaaProgram
-    CreateFxaaProgram()
-    {
-        FxaaProgram result = {};
-        auto handle = CreateProgram(SS_VERTEX_SOURCE, FXAA_FRAG_SOURCE);
-        if (handle)
-        {
-            result.handle = handle;
-            result.invScreenSizeLoc = glGetUniformLocation(handle, "u_InvScreenSize");
-
-            //result.iterationsLoc = glGetUniformLocation(handle, "ITERATIONS");
-            //result.edgeMinLoc = glGetUniformLocation(handle, "EDGE_MIN_THRESHOLD");
-            //result.edgeMaxLoc = glGetUniformLocation(handle, "EDGE_MAX_THRESHOLD");
-            //result.subpixelQualityLoc = glGetUniformLocation(handle, "SUBPIXEL_QUALITY");
-
-            result.colorSourceLoc = glGetUniformLocation(handle, "u_ColorSourcePerceptual");
-
-            result.colorSourceSampler = 0;
-            result.colorSourceSlot = GL_TEXTURE0;
-
-            glUseProgram(handle);
-
-            glUniform1i(result.colorSourceLoc, result.colorSourceSampler);
-
-            glUseProgram(0);
-        }
-        return result;
-    }
-
-    internal void
-    RendererRecompileShaders(Renderer* renderer)
-    {
-        // TODO: Is this makes any sence?
-        glFinish();
-
-        {
-            auto prog = CreateLineProgram();
-            if (prog.handle)
-            {
-                if (renderer->lineProgram.handle)
-                {
-                    glDeleteProgram(renderer->lineProgram.handle);
-                }
-                renderer->lineProgram = prog;
-            }
-        }
-        {
-            auto prog = CreateMeshProgram();
-            if (prog.handle)
-            {
-                if (renderer->meshProgram.handle)
-                {
-                    glDeleteProgram(renderer->meshProgram.handle);
-                }
-                renderer->meshProgram = prog;
-            }
-        }
-        {
-            auto prog = CreateChunkProgram();
-            if (prog.handle)
-            {
-                if (renderer->chunkProgram.handle)
-                {
-                    glDeleteProgram(renderer->chunkProgram.handle);
-                }
-                renderer->chunkProgram = prog;
-            }
-        }
-        {
-            auto prog = CreateSkyboxProgram();
-            if (prog.handle)
-            {
-                if (renderer->skyboxProgram.handle)
-                {
-                    glDeleteProgram(renderer->skyboxProgram.handle);
-                }
-                renderer->skyboxProgram = prog;
-            }
-        }
-        {
-            auto prog = CreatePostfxProgram();
-            if (prog.handle)
-            {
-                if (renderer->postfxProgram.handle)
-                {
-                    glDeleteProgram(renderer->postfxProgram.handle);
-                }
-                renderer->postfxProgram = prog;
-            }
-        }
-        {
-            auto prog = CreateFxaaProgram();
-            if (prog.handle)
-            {
-                if (renderer->fxaaProgram.handle)
-                {
-                    glDeleteProgram(renderer->fxaaProgram.handle);
-                }
-                renderer->fxaaProgram = prog;
-            }
-        }
-        {
-            auto prog = CreatePBRMeshProgram();
-            if (prog.handle)
-            {
-                if (renderer->pbrMeshProgram.handle)
-                {
-                    glDeleteProgram(renderer->pbrMeshProgram.handle);
-                }
-                renderer->pbrMeshProgram = prog;
-            }
-        }
-        {
-            auto prog = CreateIrradanceConvolutionProgram();
-            if (prog.handle)
-            {
-                if (renderer->irradanceConvProgram.handle)
-                {
-                    glDeleteProgram(renderer->irradanceConvProgram.handle);
-                }
-                renderer->irradanceConvProgram = prog;
-            }
-        }
-        {
-            auto prog = CreateEnvMapPrefilterProgram();
-            if (prog.handle)
-            {
-                if (renderer->envMapPrefilterProgram.handle)
-                {
-                    glDeleteProgram(renderer->envMapPrefilterProgram.handle);
-                }
-                renderer->envMapPrefilterProgram = prog;
-            }
-        }
-        {
-            auto prog = CreateBRDFIntegrationProgram();
-            if (prog.handle)
-            {
-                if (renderer->brdfIntegrationProgram.handle)
-                {
-                    glDeleteProgram(renderer->brdfIntegrationProgram.handle);
-                }
-                renderer->brdfIntegrationProgram = prog;
-            }
-        }
-    }
-
     internal void
     GenBRDFLut(const Renderer* renderer, Texture* t)
     {
@@ -1132,7 +545,7 @@ namespace soko
         SOKO_ASSERT(t->filter == TextureFilter_Bilinear);
         SOKO_ASSERT(t->format = GL_RGB16F);
 
-        auto prog = &renderer->brdfIntegrationProgram;
+        auto prog = &renderer->shaders.BRDFIntegrator;
         glUseProgram(prog->handle);
 
         glViewport(0, 0, t->width, t->height);
@@ -1157,7 +570,7 @@ namespace soko
         SOKO_ASSERT(renderer);
         *renderer = {};
 
-        renderer->info = LoadShaders();
+        renderer->shaders = LoadShaders();
 
         GLfloat maxAnisotropy;
         glGetFloatv(GL_MAX_TEXTURE_MAX_ANISOTROPY_EXT, &maxAnisotropy);
@@ -1166,18 +579,6 @@ namespace soko
         renderer->gamma = 2.4f;
         renderer->exposure = 1.0f;
         renderer->renderRes = renderRes;
-
-        RendererRecompileShaders(renderer);
-        SOKO_ASSERT(renderer->lineProgram.handle);
-        SOKO_ASSERT(renderer->meshProgram.handle);
-        SOKO_ASSERT(renderer->chunkProgram.handle);
-        SOKO_ASSERT(renderer->skyboxProgram.handle);
-        SOKO_ASSERT(renderer->postfxProgram.handle);
-        SOKO_ASSERT(renderer->fxaaProgram.handle);
-        SOKO_ASSERT(renderer->pbrMeshProgram.handle);
-        SOKO_ASSERT(renderer->irradanceConvProgram.handle);
-        SOKO_ASSERT(renderer->envMapPrefilterProgram.handle);
-        SOKO_ASSERT(renderer->brdfIntegrationProgram.handle);
 
         GLuint lineBufferHandle;
         glGenBuffers(1, &lineBufferHandle);
@@ -1429,12 +830,12 @@ namespace soko
                      renderer->clearColor.a);
 
         glClear(GL_COLOR_BUFFER_BIT);
-        auto prog = &renderer->postfxProgram;
+        auto prog = &renderer->shaders.PostFX;
         glUseProgram(prog->handle);
-        glUniform1f(prog->gammaLoc, renderer->gamma);
-        glUniform1f(prog->expLoc, renderer->exposure);
+        glUniform1f(prog->fragment.uniforms.u_Gamma, renderer->gamma);
+        glUniform1f(prog->fragment.uniforms.u_Exposure, renderer->exposure);
 
-        glActiveTexture(prog->colorSourceSlot);
+        glActiveTexture(prog->fragment.samplers.u_ColorSourceLinear.slot);
         glBindTexture(GL_TEXTURE_2D, renderer->offscreenColorTarget);
 
         glDrawArrays(GL_TRIANGLES, 0, 6);
@@ -1453,12 +854,12 @@ namespace soko
 
             glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-            auto fxaaProg = &renderer->fxaaProgram;
+            auto fxaaProg = &renderer->shaders.FXAA;
             glUseProgram(fxaaProg->handle);
             v2 invScreenSize = V2(1.0f / renderer->renderRes.x, 1.0f / renderer->renderRes.y);
-            glUniform2fv(fxaaProg->invScreenSizeLoc, 1, invScreenSize.data);
+            glUniform2fv(fxaaProg->fragment.uniforms.u_InvScreenSize, 1, invScreenSize.data);
 
-            glActiveTexture(fxaaProg->colorSourceSlot);
+            glActiveTexture(fxaaProg->fragment.uniforms.u_ColorSourcePerceptual);
             glBindTexture(GL_TEXTURE_2D, renderer->srgbColorTarget);
 
             glDrawArrays(GL_TRIANGLES, 0, 6);
@@ -1496,19 +897,19 @@ namespace soko
             LookAtRH(V3(0.0f), V3(0.0f, 0.0f, -1.0f), V3(0.0f, -1.0f, 0.0f)),
         };
 
-        auto prog = &renderer->irradanceConvProgram;
+        auto prog = &renderer->shaders.IrradanceConvolver;
         glUseProgram(prog->handle);
-        glUniformMatrix4fv(prog->projLoc, 1, GL_FALSE, capProj.data);
+        glUniformMatrix4fv(prog->vertex.uniforms.u_ProjMatrix, 1, GL_FALSE, capProj.data);
         glDisable(GL_DEPTH_TEST);
         glBindFramebuffer(GL_DRAW_FRAMEBUFFER, renderer->captureFramebuffer);
 
-        glActiveTexture(prog->sourceCubemapSlot);
+        glActiveTexture(prog->fragment.samplers.uSourceCubemap.slot);
         glBindTexture(GL_TEXTURE_CUBE_MAP, sourceHandle);
 
         for (u32 i = 0; i < 6; i++)
         {
             glViewport(0, 0, t->images[i].width, t->images[i].height);
-            glUniformMatrix4fv(prog->viewLoc, 1, GL_FALSE, capViews[i].data);
+            glUniformMatrix4fv(prog->vertex.uniforms.u_ViewMatrix, 1, GL_FALSE, capViews[i].data);
             glFramebufferTexture2D(GL_DRAW_FRAMEBUFFER, GL_COLOR_ATTACHMENT0,
                                    GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, t->gpuHandle, 0);
             glClear(GL_COLOR_BUFFER_BIT);
@@ -1543,16 +944,16 @@ namespace soko
                 LookAtRH(V3(0.0f), V3(0.0f, 0.0f, -1.0f), V3(0.0f, -1.0f, 0.0f)),
             };
 
-        auto prog = &renderer->envMapPrefilterProgram;
+        auto prog = &renderer->shaders.EnvMapPrefilter;
         glUseProgram(prog->handle);
-        glUniformMatrix4fv(prog->projLoc, 1, GL_FALSE, capProj.data);
+        glUniformMatrix4fv(prog->vertex.uniforms.u_ProjMatrix, 1, GL_FALSE, capProj.data);
         glDisable(GL_DEPTH_TEST);
         glBindFramebuffer(GL_DRAW_FRAMEBUFFER, renderer->captureFramebuffer);
 
         SOKO_ASSERT(t->images[0].width == t->images[0].height);
-        glUniform1i(prog->uResolution, t->images[0].width);
+        glUniform1i(prog->fragment.uniforms.uResolution, t->images[0].width);
 
-        glActiveTexture(prog->sourceCubemapSlot);
+        glActiveTexture(prog->fragment.samplers.uSourceCubemap.slot);
         glBindTexture(GL_TEXTURE_CUBE_MAP, sourceHandle);
 
         // TODO: There are still visible seams on low mip levels
@@ -1566,11 +967,11 @@ namespace soko
 
             glViewport(0, 0, w, h);
             f32 roughness = (f32)mipLevel / (f32)(mipLevels - 1);
-            glUniform1f(prog->roughnessLoc, roughness);
+            glUniform1f(prog->fragment.uniforms.uRoughness, roughness);
 
             for (u32 i = 0; i < 6; i++)
             {
-                glUniformMatrix4fv(prog->viewLoc, 1, GL_FALSE, capViews[i].data);
+                glUniformMatrix4fv(prog->vertex.uniforms.u_ViewMatrix, 1, GL_FALSE, capViews[i].data);
                 glFramebufferTexture2D(GL_DRAW_FRAMEBUFFER, GL_COLOR_ATTACHMENT0,
                                        GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, t->gpuHandle, mipLevel);
                 glClear(GL_COLOR_BUFFER_BIT);
@@ -1590,18 +991,16 @@ namespace soko
         //glDisable(GL_CULL_FACE);
         glDepthMask(GL_FALSE);
 
-        auto prog = &renderer->skyboxProgram;
+        auto prog = &renderer->shaders.Skybox;
         glUseProgram(prog->handle);
 
-        glUniformMatrix4fv(prog->viewMatrixLoc,
-                           1, GL_FALSE, view->data);
-        glUniformMatrix4fv(prog->projMatrixLoc,
-                           1, GL_FALSE, proj->data);
+        glUniformMatrix4fv(prog->vertex.uniforms.u_ViewMatrix, 1, GL_FALSE, view->data);
+        glUniformMatrix4fv(prog->vertex.uniforms.u_ProjMatrix, 1, GL_FALSE, proj->data);
         local_persist f32 lod = 1.0f;
         DEBUG_OVERLAY_SLIDER(lod, 0.0f, 5.0f);
 
-        glUniform1f(prog->lodLoc, lod);
-        glActiveTexture(prog->cubeTextureSlot);
+        glUniform1f(prog->fragment.uniforms.uLod, lod);
+        glActiveTexture(prog->fragment.samplers.u_CubeTexture.slot);
         glBindTexture(GL_TEXTURE_CUBE_MAP, group->skyboxHandle);
 
         glDrawArrays(GL_TRIANGLES, 0, 6);
@@ -1624,11 +1023,11 @@ namespace soko
             bool firstMeshShaderInvocation = true;
             bool firstChunkMeshShaderInvocation = true;
 
-            glUseProgram(renderer->pbrMeshProgram.handle);
-            glUniform1i(renderer->pbrMeshProgram.uDebugF, (i32)renderer->debugF);
-            glUniform1i(renderer->pbrMeshProgram.uDebugG, (i32)renderer->debugG);
-            glUniform1i(renderer->pbrMeshProgram.uDebugD, (i32)renderer->debugD);
-            glUniform1i(renderer->pbrMeshProgram.uDebugNormals, (i32)renderer->debugNormals);
+            glUseProgram(renderer->shaders.PbrMesh.handle);
+            glUniform1i(renderer->shaders.PbrMesh.fragment.uniforms.uDebugF, (i32)renderer->debugF);
+            glUniform1i(renderer->shaders.PbrMesh.fragment.uniforms.uDebugG, (i32)renderer->debugG);
+            glUniform1i(renderer->shaders.PbrMesh.fragment.uniforms.uDebugD, (i32)renderer->debugD);
+            glUniform1i(renderer->shaders.PbrMesh.fragment.uniforms.uDebugNormals, (i32)renderer->debugNormals);
 
             for (u32 i = 0; i < group->commandQueueAt; i++)
             {
@@ -1640,17 +1039,15 @@ namespace soko
                 {
                     auto* data = (RenderCommandDrawLineBegin*)(group->renderBuffer + command->rbOffset);
 
-                    glUseProgram(renderer->lineProgram.handle);
+                    glUseProgram(renderer->shaders.Line.handle);
                     // TODO: Store info about command queue contents and set uniforms at the beginning
                     if (firstLineShaderInvocation)
                     {
                         firstLineShaderInvocation = false;
-                        glUniformMatrix4fv(renderer->lineProgram.viewProjLocation,
-                                           1, GL_FALSE, viewProj.data);
+                        glUniformMatrix4fv(renderer->shaders.Line.vertex.uniforms.u_ViewProjMatrix, 1, GL_FALSE, viewProj.data);
                     }
 
-                    glUniform3fv(renderer->lineProgram.colorLocation,
-                                 1, data->color.data);
+                    glUniform3fv(renderer->shaders.Line.vertex.uniforms.u_Color, 1, data->color.data);
 
                     uptr bufferSize = command->instanceCount * sizeof(RenderCommandPushLineVertex);
                     void* instanceData = (void*)((byte*)data + sizeof(RenderCommandDrawLineBegin));
@@ -1679,23 +1076,21 @@ namespace soko
                     auto* data = (RenderCommandDrawMesh*)(group->renderBuffer + command->rbOffset);
                     if (data->material.type == Material::Legacy)
                     {
-                        auto* meshProg = &renderer->meshProgram;
+                        auto* meshProg = &renderer->shaders.Mesh;
                         glUseProgram(meshProg->handle);
 
                         if (firstMeshShaderInvocation)
                         {
                             firstMeshShaderInvocation = false;
-                            glUniformMatrix4fv(meshProg->viewProjLocation,
-                                               1, GL_FALSE, viewProj.data);
-                            glUniform3fv(meshProg->dirLightDirLoc, 1, group->dirLight.dir.data);
-                            glUniform3fv(meshProg->dirLightAmbLoc, 1, group->dirLight.ambient.data);
-                            glUniform3fv(meshProg->dirLightDiffLoc, 1, group->dirLight.diffuse.data);
-                            glUniform3fv(meshProg->dirLightSpecLoc, 1, group->dirLight.specular.data);
-                            glUniform3fv(meshProg->viewPosLocation, 1, group->cameraConfig.position.data);
+                            glUniformMatrix4fv(meshProg->vertex.uniforms.u_ViewProjMatrix, 1, GL_FALSE, viewProj.data);
+                            glUniform3fv(meshProg->fragment.uniforms.u_DirLight.dir, 1, group->dirLight.dir.data);
+                            glUniform3fv(meshProg->fragment.uniforms.u_DirLight.ambient, 1, group->dirLight.ambient.data);
+                            glUniform3fv(meshProg->fragment.uniforms.u_DirLight.diffuse, 1, group->dirLight.diffuse.data);
+                            glUniform3fv(meshProg->fragment.uniforms.u_DirLight.specular, 1, group->dirLight.specular.data);
+                            glUniform3fv(meshProg->fragment.uniforms.u_ViewPos, 1, group->cameraConfig.position.data);
                         }
 
-                        glUniformMatrix4fv(meshProg->modelMtxLocation,
-                                           1, GL_FALSE, data->transform.data);
+                        glUniformMatrix4fv(meshProg->vertex.uniforms.u_ModelMatrix, 1, GL_FALSE, data->transform.data);
 
                         m4x4 invModel = data->transform;
                         bool inverted = Inverse(&invModel);
@@ -1703,15 +1098,14 @@ namespace soko
                         m4x4 transModel = Transpose(&invModel);
                         m3x3 normalMatrix = M3x3(&transModel);
 
-                        glUniformMatrix3fv(meshProg->normalMtxLocation,
-                                           1, GL_FALSE, normalMatrix.data);
+                        glUniformMatrix3fv(meshProg->vertex.uniforms.u_NormalMatrix, 1, GL_FALSE, normalMatrix.data);
 
                         auto* mesh = data->mesh;
 
-                        glActiveTexture(meshProg->diffMapSlot);
+                        glActiveTexture(meshProg->fragment.samplers.u_DiffMap.slot);
                         glBindTexture(GL_TEXTURE_2D, data->material.legacy.diffMap.gpuHandle);
 
-                        glActiveTexture(meshProg->specMapSlot);
+                        glActiveTexture(meshProg->fragment.samplers.u_SpecMap.slot);
                         glBindTexture(GL_TEXTURE_2D, data->material.legacy.specMap.gpuHandle);
 
 
@@ -1735,23 +1129,21 @@ namespace soko
                     else if (data->material.type == Material::PBR)
                     {
                         SOKO_ASSERT(group->irradanceMapHandle);
-                        auto* meshProg = &renderer->pbrMeshProgram;
+                        auto* meshProg = &renderer->shaders.PbrMesh;
                         glUseProgram(meshProg->handle);
 
                         //  if (firstMeshShaderInvocation)
                         {
                             // firstMeshShaderInvocation = false;
-                            glUniformMatrix4fv(meshProg->viewProjLoc,
-                                               1, GL_FALSE, viewProj.data);
-                            glUniform3fv(meshProg->dirLightDirLoc, 1, group->dirLight.dir.data);
-                            glUniform3fv(meshProg->dirLightColorLoc, 1, group->dirLight.diffuse.data);
-                            glUniform3fv(meshProg->viewPosLoc, 1, group->cameraConfig.position.data);
+                            glUniformMatrix4fv(meshProg->vertex.uniforms.uViewProjMatrix, 1, GL_FALSE, viewProj.data);
+                            glUniform3fv(meshProg->fragment.uniforms.uDirLight.dir, 1, group->dirLight.dir.data);
+                            glUniform3fv(meshProg->fragment.uniforms.uDirLight.color, 1, group->dirLight.diffuse.data);
+                            glUniform3fv(meshProg->fragment.uniforms.uViewPos, 1, group->cameraConfig.position.data);
                         }
 
                         //glUniform1f(meshProg->aoLoc, data->material.pbr.ao);
 
-                        glUniformMatrix4fv(meshProg->modelMtxLoc,
-                                           1, GL_FALSE, data->transform.data);
+                        glUniformMatrix4fv(meshProg->vertex.uniforms.uModelMatrix, 1, GL_FALSE, data->transform.data);
 
                         m4x4 invModel = data->transform;
                         bool inverted = Inverse(&invModel);
@@ -1759,8 +1151,7 @@ namespace soko
                         m4x4 transModel = Transpose(&invModel);
                         m3x3 normalMatrix = M3x3(&transModel);
 
-                        glUniformMatrix3fv(meshProg->normalMtxLoc,
-                                           1, GL_FALSE, normalMatrix.data);
+                        glUniformMatrix3fv(meshProg->vertex.uniforms.uNormalMatrix, 1, GL_FALSE, normalMatrix.data);
 
                         auto* mesh = data->mesh;
 
@@ -1768,35 +1159,35 @@ namespace soko
 
                         if (!m->pbr.isCustom)
                         {
-                            glUniform1i(meshProg->uCustomMaterial, 0);
+                            glUniform1i(meshProg->fragment.uniforms.uCustomMaterial, 0);
 
-                            glActiveTexture(meshProg->albedoSlot);
+                            glActiveTexture(meshProg->fragment.samplers.uAlbedoMap.slot);
                             glBindTexture(GL_TEXTURE_2D, m->pbr.map.albedo.gpuHandle);
 
-                            glActiveTexture(meshProg->roughnessSlot);
+                            glActiveTexture(meshProg->fragment.samplers.uRoughnessMap.slot);
                             glBindTexture(GL_TEXTURE_2D, m->pbr.map.roughness.gpuHandle);
 
-                            glActiveTexture(meshProg->metalnessSlot);
+                            glActiveTexture(meshProg->fragment.samplers.uMetalnessMap.slot);
                             glBindTexture(GL_TEXTURE_2D, m->pbr.map.metalness.gpuHandle);
 
-                            glActiveTexture(meshProg->normalSlot);
+                            glActiveTexture(meshProg->fragment.samplers.uNormalMap.slot);
                             glBindTexture(GL_TEXTURE_2D, m->pbr.map.normals.gpuHandle);
                         }
                         else
                         {
-                            glUniform1i(meshProg->uCustomMaterial, 1);
-                            glUniform3fv(meshProg->uCustomAlbedo, 1, m->pbr.custom.albedo.data);
-                            glUniform1f(meshProg->uCustomRoughness, m->pbr.custom.roughness);
-                            glUniform1f(meshProg->uCustomMetalness, m->pbr.custom.metalness);
+                            glUniform1i(meshProg->fragment.uniforms.uCustomMaterial, 1);
+                            glUniform3fv(meshProg->fragment.uniforms.uCustomAlbedo, 1, m->pbr.custom.albedo.data);
+                            glUniform1f(meshProg->fragment.uniforms.uCustomRoughness, m->pbr.custom.roughness);
+                            glUniform1f(meshProg->fragment.uniforms.uCustomMetalness, m->pbr.custom.metalness);
                         }
 
-                        glActiveTexture(meshProg->irradanceMapSlot);
+                        glActiveTexture(meshProg->fragment.samplers.uIrradanceMap.slot);
                         glBindTexture(GL_TEXTURE_CUBE_MAP, group->irradanceMapHandle);
 
-                        glActiveTexture(meshProg->envMapSlot);
+                        glActiveTexture(meshProg->fragment.samplers.uEnviromentMap.slot);
                         glBindTexture(GL_TEXTURE_CUBE_MAP, group->envMapHandle);
 
-                        glActiveTexture(meshProg->BRDFLutSlot);
+                        glActiveTexture(meshProg->fragment.samplers.uBRDFLut.slot);
                         glBindTexture(GL_TEXTURE_2D, renderer->BRDFLutHandle);
 
                         glBindBuffer(GL_ARRAY_BUFFER, mesh->gpuVertexBufferHandle);
@@ -1828,9 +1219,9 @@ namespace soko
                 case RENDER_COMMAND_BEGIN_CHUNK_MESH_BATCH:
                 {
                     //glFrontFace(GL_CCW);
-                    auto* chunkProg = &renderer->chunkProgram;
+                    auto* chunkProg = &renderer->shaders.Chunk;
                     glUseProgram(chunkProg->handle);
-                    glActiveTexture(chunkProg->atlasSlot);
+                    glActiveTexture(chunkProg->fragment.samplers.u_TerrainAtlas.slot);
                     glBindTexture(GL_TEXTURE_2D_ARRAY, renderer->tileTexArrayHandle);
                     local_persist f32 bias = -0.1f;
                     DEBUG_OVERLAY_SLIDER(bias, -1.0f, 1.0f);
@@ -1840,13 +1231,12 @@ namespace soko
                     if (firstChunkMeshShaderInvocation)
                     {
                         firstChunkMeshShaderInvocation = false;
-                        glUniformMatrix4fv(chunkProg->viewProjLocation,
-                                           1, GL_FALSE, viewProj.data);
-                        glUniform3fv(chunkProg->dirLightDirLoc, 1, group->dirLight.dir.data);
-                        glUniform3fv(chunkProg->dirLightAmbLoc, 1, group->dirLight.ambient.data);
-                        glUniform3fv(chunkProg->dirLightDiffLoc, 1, group->dirLight.diffuse.data);
-                        glUniform3fv(chunkProg->dirLightSpecLoc, 1, group->dirLight.specular.data);
-                        glUniform3fv(chunkProg->viewPosLocation, 1, group->cameraConfig.position.data);
+                        glUniformMatrix4fv(chunkProg->vertex.uniforms.u_ViewProjMatrix, 1, GL_FALSE, viewProj.data);
+                        glUniform3fv(chunkProg->fragment.uniforms.u_DirLight.dir, 1, group->dirLight.dir.data);
+                        glUniform3fv(chunkProg->fragment.uniforms.u_DirLight.ambient, 1, group->dirLight.ambient.data);
+                        glUniform3fv(chunkProg->fragment.uniforms.u_DirLight.diffuse, 1, group->dirLight.diffuse.data);
+                        glUniform3fv(chunkProg->fragment.uniforms.u_DirLight.specular, 1, group->dirLight.specular.data);
+                        glUniform3fv(chunkProg->fragment.uniforms.u_ViewPos, 1, group->cameraConfig.position.data);
                     }
 
                     for (u32 i = 0; i < command->instanceCount; i++)
@@ -1854,8 +1244,7 @@ namespace soko
                         auto* data = ((RenderCommandPushChunkMesh*)(group->renderBuffer + command->rbOffset)) + i;
 
                         m4x4 world = Translation(data->offset);
-                        glUniformMatrix4fv(chunkProg->modelMtxLocation,
-                                           1, GL_FALSE, world.data);
+                        glUniformMatrix4fv(chunkProg->vertex.uniforms.u_ModelMatrix, 1, GL_FALSE, world.data);
 
                         m4x4 invModel = world;
                         bool inverted = Inverse(&invModel);
@@ -1863,8 +1252,7 @@ namespace soko
                         m4x4 transModel = Transpose(&invModel);
                         m3x3 normalMatrix = M3x3(&transModel);
 
-                        glUniformMatrix3fv(chunkProg->normalMtxLocation,
-                                           1, GL_FALSE, normalMatrix.data);
+                        glUniformMatrix3fv(chunkProg->vertex.uniforms.u_NormalMatrix, 1, GL_FALSE, normalMatrix.data);
 
                         glBindBuffer(GL_ARRAY_BUFFER, data->meshIndex);
 
