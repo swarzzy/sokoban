@@ -318,6 +318,40 @@ ReadEntireFileAsText(const char* filename, u32* bytesRead)
     return  result;
 }
 
+internal char*
+ReadEntireFileAsTextCRT(const char* filename, u32* bytesRead)
+{
+    char* result = 0;
+    *bytesRead = 0;
+    FILE* file = fopen(filename, "r");
+    if (file)
+    {
+        fseek(file, 0, SEEK_END);
+        auto size = ftell(file);
+
+        fseek(file, 0, SEEK_SET);
+
+        char* buffer = (char*)malloc(sizeof(char) * size + 1);
+        if (buffer)
+        {
+            auto read = fread(buffer, sizeof(char), size, file);
+            if (read == size)
+            {
+                // NOTE: Success
+                result = buffer;
+                buffer[size] = 0;
+                *bytesRead = size;
+            }
+            else
+            {
+                free(buffer);
+            }
+        }
+        fclose(file);
+    }
+    return result;
+}
+
 internal b32
 WriteFile(const char* filename, void* data, u32 dataSize)
 {

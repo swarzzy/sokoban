@@ -28,6 +28,7 @@
 
 #define internal static
 #define local_persist static
+#define global_variable static
 
 #define ArrayCount(arr) (sizeof(arr) / sizeof(arr[0]))
 #define DeclMember(type, member) (((type*)0)->member)

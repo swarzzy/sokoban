@@ -1,0 +1,7 @@
+#shaders
+vertex: PbrMeshVertex -> "../src/shaders/PBRMeshVertex.glsl"
+fragment: PbrMeshFragment -> "../src/shaders/PBRMeshFragment.glsl"
+
+#program PbrMesh
+vertex: PbrMeshVertex
+fragment: PbrMeshFragment

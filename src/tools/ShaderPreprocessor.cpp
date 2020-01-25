@@ -4,13 +4,31 @@
 // (glGetActiveAttrib, glGetActiveUniform) ???
 #include <assert.h>
 #include <vector>
+#include <string>
+#include <unordered_map>
 
 #include <stdlib.h>
 
 #include "../OfflineUtils.cpp"
 
+#define CONCAT(a, b) a##b
+#define INVALID_DEFAULT_CASE() assert(false)
+
 #undef ERROR
 #define ERROR(...) (printf(__VA_ARGS__), exit(EXIT_FAILURE))
+
+global_variable i32x _IDENT_LEVEL = 0;
+#define IDENT_PUSH() (_IDENT_LEVEL++)
+#define IDENT_POP() (_IDENT_LEVEL--)
+#define IDENT_RESET() (_IDENT_LEVEL = 0)
+global_variable FILE* OutFile = 0;
+// NOTE: Out line
+#define L(format,...) do {assert(_IDENT_LEVEL >= 0); for (i32x i = 0; i < _IDENT_LEVEL; i++) fprintf(OutFile, "    "); fprintf(OutFile, CONCAT(format, "\n"), __VA_ARGS__);} while(false)
+// NOTE: Out line no eol
+#define O(format, ...) do {assert(_IDENT_LEVEL >= 0); for (i32x i = 0; i < _IDENT_LEVEL; i++) fprintf(OutFile, "    "); fprintf(OutFile, format, __VA_ARGS__);} while(false)
+// NOTE: Append line
+#define A(...) fprintf(OutFile, __VA_ARGS__)
+
 
 enum class BuiltinType
 {
@@ -113,14 +131,15 @@ struct Struct
 struct ProgramConfig
 {
     char* name;
-    char* vertexPath;
-    char* fragmentPath;
+    char* vertexName;
+    char* fragmentName;
 };
 
 struct Shader
 {
     enum Type {Unknown = 0, Vertex, Fragment} type;
-    const char* filename;
+    const char* source;
+    const char* name;
     std::vector<Uniform> uniforms;
     std::vector<VertexAttrib> vertexAttribs;
     std::vector<Struct> userTypes;
@@ -129,8 +148,8 @@ struct Shader
 struct Program
 {
     ProgramConfig config;
-    Shader vertex;
-    Shader fragment;
+    Shader* vertex;
+    Shader* fragment;
 };
 
 constant char* DELIMETERS = " \f\n\r\t\v";
@@ -442,25 +461,27 @@ ProgramConfig GetNextProgConfig(Tokenizer* t)
                 {
                     t->at = OffsetByLiteral(t->at, "vertex");
                     t->at = EatUntilOneOf(t->at, ":");
-                    t->at = EatUntilOneOf(t->at, "\"");
-                    t->at = OffsetByLiteral(t->at, "\"");
-                    auto pathBegin = t->at;
-                    t->at = EatUntilOneOf(t->at, "\"");
-                    result.vertexPath = ExtractString(pathBegin, t->at);
+                    t->at = OffsetByLiteral(t->at, ":");
+                    t->at = EatSpace(t->at);
+
+                    auto nameBegin = t->at;
+                    t->at = EatUntilOneOf(t->at, DELIMETERS);
+                    result.vertexName = ExtractString(nameBegin, t->at);
                     t->at = Advance1(t->at);
                 }
                 else if (Match(t->at, "fragment"))
                 {
                     t->at = OffsetByLiteral(t->at, "fragment");
                     t->at = EatUntilOneOf(t->at, ":");
-                    t->at = EatUntilOneOf(t->at, "\"");
-                    t->at = OffsetByLiteral(t->at, "\"");
-                    auto pathBegin = t->at;
-                    t->at = EatUntilOneOf(t->at, "\"");
-                    result.fragmentPath = ExtractString(pathBegin, t->at);
+                    t->at = OffsetByLiteral(t->at, ":");
+                    t->at = EatSpace(t->at);
+
+                    auto nameBegin = t->at;
+                    t->at = EatUntilOneOf(t->at, DELIMETERS);
+                    result.fragmentName = ExtractString(nameBegin, t->at);
                     t->at = Advance1(t->at);
                 }
-                else if (Match(t->at, "#program"))
+                else if (Match(t->at, "#"))
                 {
                     goto end;
                 }
@@ -479,14 +500,109 @@ end:
     return result;
 }
 
-void ParseConfigFile(const char* filename, std::vector<Program>* programs)
+struct ShaderDecl
+{
+    Shader::Type type;
+    char* name;
+    char* path;
+};
+
+void ExtractShaderDeclarations(Tokenizer* t, std::vector<ShaderDecl>* decls)
+{
+    while (*t->at)
+    {
+        t->at = EatSpace(t->at);
+        if (Match(t->at, "#shaders"))
+        {
+            t->at = OffsetByLiteral(t->at, "#shaders");
+            t->at = EatSpace(t->at);
+
+            while (*t->at)
+            {
+                ShaderDecl decl = {};
+                t->at = EatSpace(t->at);
+                if (Match(t->at, "#")) break;
+                bool found = false;
+                if (Match(t->at, "vertex"))
+                {
+                    decl.type = Shader::Vertex;
+                    t->at = OffsetByLiteral(t->at, "vertex");
+                    found = true;
+                }
+                else if (Match(t->at, "fragment"))
+                {
+                    decl.type = Shader::Fragment;
+                    t->at = OffsetByLiteral(t->at, "fragment");
+                    found = true;
+                }
+                if (found)
+                {
+                    t->at = EatUntilOneOf(t->at, ":");
+                    t->at = OffsetByLiteral(t->at, ":");
+                    t->at = EatSpace(t->at);
+                    auto nameBegin = t->at;
+                    t->at = EatUntilOneOf(t->at, DELIMETERS);
+                    decl.name = ExtractString(nameBegin, t->at);
+                    while (!Match(t->at, "->"))
+                    {
+                        if (!*t->at) break;
+                        t->at++;
+                    }
+                    t->at = OffsetByLiteral(t->at, "->");
+                    t->at = EatUntilOneOf(t->at, "\"");
+                    t->at = OffsetByLiteral(t->at, "\"");
+                    auto pathBegin = t->at;
+                    t->at = EatUntilOneOf(t->at, "\"");
+                    decl.path = ExtractString(pathBegin, t->at);
+                    t->at = Advance1(t->at);
+                    decls->push_back(decl);
+                }
+                else
+                {
+                    t->at++;
+                }
+            }
+        }
+        else
+        {
+            t->at++;
+        }
+    }
+}
+
+void ParseConfigFile(const char* filename, std::vector<ShaderDecl>* shaderDecls, std::vector<ProgramConfig>* programDecls)
 {
     u32 size;
     auto source = ReadEntireFileAsText(filename, &size);
+    if (!source)
+    {
+        ERROR("Error: failed to open config file %s\n", filename);
+    }
 
     Tokenizer tokenzier = {};
     tokenzier.text = source;
     tokenzier.at = source;
+
+    ExtractShaderDeclarations(&tokenzier, shaderDecls);
+
+    tokenzier.at = source;
+
+    for (auto& decl : *shaderDecls)
+    {
+        if (decl.type == Shader::Unknown)
+        {
+            ERROR("Error: Found unknown shader type\n");
+        }
+        if (!decl.name || !StrLength(decl.name))
+        {
+            ERROR("Error: Found shader declaration without a name\n");
+        }
+
+        if (!decl.path || !StrLength(decl.path))
+        {
+            ERROR("Error: Found shader declaration with no path specified\n");
+        }
+    }
 
     while (true)
     {
@@ -497,26 +613,25 @@ void ParseConfigFile(const char* filename, std::vector<Program>* programs)
             ERROR("Error: Found program declaration without a name\n");
         }
 
-        if (!conf.vertexPath || !StrLength(conf.vertexPath))
+        if (!conf.vertexName || !StrLength(conf.vertexName))
         {
             ERROR("Error: Found program declaration with no vertex path specified\n");
         }
 
-        if (!conf.fragmentPath || !StrLength(conf.fragmentPath))
+        if (!conf.fragmentName || !StrLength(conf.fragmentName))
         {
             ERROR("Error: Found program declaration with no fragment path specified\n");
         }
 
-        for (auto& it : *programs)
+        for (auto& it : *programDecls)
         {
-            if (strcmp(it.config.name, conf.name) == 0)
+            if (strcmp(it.name, conf.name) == 0)
             {
-                ERROR("Error: Found two of more program declarations with the same name: %s\n", it.config.name);
+                ERROR("Error: Found two of more program declarations with the same name: %s\n", it.name);
             }
         }
 
-        programs->emplace_back();
-        programs->back().config = conf;
+        programDecls->emplace_back(conf);
 
         if (!*tokenzier.at) break;
     }
@@ -527,6 +642,12 @@ void ParseShaderFile(const char* filename, Shader::Type type, Shader* shader)
 {
     u32 size;
     auto source = ReadEntireFileAsText(filename, &size);
+    if (!source)
+    {
+        ERROR("Error: failed to open shader file %s\n", filename);
+    }
+
+    shader->source = source;
 
     Tokenizer tokenizer = {};
     tokenizer.text = source;
@@ -535,7 +656,6 @@ void ParseShaderFile(const char* filename, Shader::Type type, Shader* shader)
     assert(type != Shader::Unknown);
 
     shader->type = type;
-    shader->filename = filename;
 
     while (true)
     {
@@ -557,6 +677,10 @@ void ParseShaderFile(const char* filename, Shader::Type type, Shader* shader)
         if (ContainsOneOf(uniform.type, WORD_PARSE_ERROR_MARKERS))
         {
             ERROR("Error: Failed to parse uniform type\n");
+        }
+        if (uniform.samplerSlot != -1 && uniform.arrayCount > 0)
+        {
+            ERROR("Error: Arrays of samplers are not supported\n");
         }
 
         shader->uniforms.push_back(uniform);
@@ -652,6 +776,7 @@ void ParseShaderFile(const char* filename, Shader::Type type, Shader* shader)
     }
 
     // TODO: Check that it less than max GL_TEXTUREX
+    // NOTE: Samplers only available in fragment shaders
     u32x samplerCount = 0;
 
     for (auto& it : shader->uniforms)
@@ -663,7 +788,14 @@ void ParseShaderFile(const char* filename, Shader::Type type, Shader* shader)
                 it.samplerSlot = samplerCount;
                 samplerCount++;
             }
+        }
+    }
 
+
+    for (auto& it : shader->uniforms)
+    {
+        for (u32x i = 0; i < ArrayCount(Uniform::SamplerDecls); i++)
+        {
             auto type = GetUniformBuiltinType(it.type);
             if (type != BuiltinType::Unknown)
             {
@@ -692,111 +824,390 @@ void ParseShaderFile(const char* filename, Shader::Type type, Shader* shader)
     //free(source);
 }
 
-int main(int argCount, char** args)
+void OutUserType(const Struct* type, const Shader* shader)
 {
-    //assert(argCount > 1);
-    const char* configFileName = "../src/ShaderConfig.txt";
-
-    std::vector<Program> programs;
-    ParseConfigFile(configFileName, &programs);
-
-    // TODO: Shader cache
-
-    for (auto& it : programs)
+    L("struct %s", type->name);
+    L("{");
+    IDENT_PUSH();
+    for (auto& member : type->members)
     {
-        ParseShaderFile(it.config.vertexPath, Shader::Vertex, &it.vertex);
-        ParseShaderFile(it.config.fragmentPath, Shader::Fragment, &it.fragment);
+        if (member.isBuiltinType)
+        {
+            O("GLint %s", member.name);
+            if (member.arrayCount > 0)
+            {
+                A("[%d]", member.arrayCount);
+            }
+        }
+        else
+        {
+            auto subType = &shader->userTypes[member.userTypeIndex];
+            O("%s %s", subType->name, member.name);
+            if (member.arrayCount > 0)
+            {
+                A("[%d]", member.arrayCount);
+            }
+        }
+        A(";\n");
+    }
+    IDENT_POP();
+    L("};\n");
+}
+
+void OutUniform(const Uniform* uni, const Shader* shader)
+{
+    if (!uni->isBuiltinType)
+    {
+        auto* type = &shader->userTypes[uni->userTypeIndex];
+        O("%s %s", type->name, uni->name);
+    }
+    else
+    {
+        O("GLint %s", uni->name);
     }
 
-#if 0
-    FILE* outFile = fopen("Shaders_Generated.cpp", "w");
-    assert(outFile);
-#undef OUT
-#define OUTLN(...) do {for (i32x i = 0; i < identLevel; i++) fprintf(outFile, "\t"); fprintf(outFile, __VA_ARGS__);} while(false)
-#define OUT(...) fprintf(outFile, __VA_ARGS__)
-#define IDENT_PUSH() identLevel++
-#define IDENT_POP() identLevel--
-    i32x identLevel = 0;
-
-    OUTLN("// This file was generated by a glsl preprocessor\n\n");
-    OUTLN("namespace soko\n{\n");
-    IDENT_PUSH();
-    OUTLN("struct %s\n", shader.name);
-    OUTLN("{\n");
-    IDENT_PUSH();
-    for (auto& type : shader.userTypes)
+    if (uni->arrayCount > 0)
     {
-        OUTLN("struct %s\n", type.name);
-        OUTLN("{\n");
+        A("[%d];\n", uni->arrayCount);
+    }
+    else
+    {
+        A(";\n");
+    }
+}
+
+void OutShader(const Shader* shader)
+{
+    switch (shader->type)
+    {
+        CASE(Shader::Vertex, L("struct VertexShader"));
+        CASE(Shader::Fragment, L("struct FragmentShader"));
+        INVALID_DEFAULT_CASE();
+    };
+    L("{");
+    IDENT_PUSH();
+    for (auto& type : shader->userTypes)
+    {
+        OutUserType(&type, shader);
+    }
+    L("struct Uniforms");
+    L("{");
+    IDENT_PUSH();
+    for (auto& it : shader->uniforms)
+    {
+        OutUniform(&it, shader);
+    }
+    IDENT_POP();
+    L("} uniforms;\n");
+
+    switch(shader->type)
+    {
+    case Shader::Vertex:
+    {
+        L("struct VertexAttribs");
+        L("{");
         IDENT_PUSH();
-        for (auto& member : type.members)
+        for (auto& attrib : shader->vertexAttribs)
         {
-            if (member.isBuiltinType)
+            L("GLuint %s = %d;", attrib.name, attrib.location);
+        }
+        IDENT_POP();
+        L("} vertexAttribs;\n");
+    } break;
+    case Shader::Fragment:
+    {
+        L("struct Samplers");
+        L("{");
+        IDENT_PUSH();
+        for (auto& it : shader->uniforms)
+        {
+            if (it.samplerSlot != -1)
             {
-                OUTLN("GLint %s", member.name);
-                if (member.arrayCount > 0)
-                {
-                    OUT("[%d]", member.arrayCount);
-                }
+                L("Sampler %s = { %d, GL_TEXTURE%d };", it.name, it.samplerSlot, it.samplerSlot);
+            }
+        }
+        IDENT_POP();
+        L("} samplers;\n");
+    } break;
+    INVALID_DEFAULT_CASE();
+    };
+    IDENT_POP();
+    O("} ");
+    switch (shader->type)
+    {
+        CASE(Shader::Vertex, A("vertex;\n"));
+        CASE(Shader::Fragment, A("fragment;\n"));
+        INVALID_DEFAULT_CASE();
+    };
+
+}
+
+using namespace std::literals::string_literals;
+void OutUniformAccessorInternal(Shader* shader, Struct* type, const char* prefix, std::string& buffer)
+{
+    const char* shaderType;
+    switch(shader->type)
+    {
+        CASE(Shader::Vertex, shaderType = "vertex");
+        CASE(Shader::Fragment, shaderType = "fragment");
+        INVALID_DEFAULT_CASE();
+    }
+
+    for (auto& member : type->members)
+    {
+        if (member.isBuiltinType)
+        {
+            if (member.arrayCount == 0)
+            {
+                O("%s", prefix);
+                A("%s.%s = glGetUniformLocation(handle, \"%s.%s\");\n", buffer.c_str(), member.name, buffer.c_str(), member.name);
             }
             else
             {
-                auto& type = shader.userTypes[member.userTypeIndex];
-                OUTLN("%s %s", type.name, member.name);
-                if (member.arrayCount > 0)
+                for (u32x i = 0; i < member.arrayCount; i++)
                 {
-                    OUT("[%d]", member.arrayCount);
+                    O("%s", prefix);
+                    A("%s.%s[%d] = glGetUniformLocation(handle, \"%s.%s[%d]\");\n", buffer.c_str(), member.name, i, buffer.c_str(), member.name, i);
                 }
             }
-            OUT(";\n");
-        }
-        IDENT_POP();
-        OUTLN("};\n\n");
-    }
-    OUTLN("struct Uniforms\n");
-    OUTLN("{\n");
-    IDENT_PUSH();
-    for (auto& it : shader.uniforms)
-    {
-        if (!it.isBuiltinType)
-        {
-            auto& type = shader.userTypes[it.userTypeIndex];
-            OUTLN("%s %s", type.name, it.name);
         }
         else
         {
-            OUTLN("GLint %s", it.name);
+            if (member.arrayCount == 0)
+            {
+                std::string str = buffer;
+                str += "."s + member.name;
+                auto newType = &shader->userTypes[member.userTypeIndex];
+                OutUniformAccessorInternal(shader, newType, prefix, str);
+            }
+            else
+            {
+                for (u32x i = 0; i < member.arrayCount; i++)
+                {
+                    std::string str = buffer;
+                    str += "."s + member.name + "["s + std::to_string(i) + "]"s;
+                    auto newType = &shader->userTypes[member.userTypeIndex];
+                    OutUniformAccessorInternal(shader, newType, prefix, str);
+                }
+            }
+        }
+    }
+}
+
+
+void OutUniformAccessor(Shader* shader, Uniform* uni)
+{
+    const char* shaderType;
+    switch(shader->type)
+    {
+        CASE(Shader::Vertex, shaderType = "vertex");
+        CASE(Shader::Fragment, shaderType = "fragment");
+        INVALID_DEFAULT_CASE();
+    }
+    if (uni->isBuiltinType)
+    {
+        if (uni->arrayCount == 0)
+        {
+            L("result.%s.uniforms.%s = glGetUniformLocation(handle, \"%s\");", shaderType, uni->name, uni->name);
+        }
+        else
+        {
+            for (u32x i = 0; i < uni->arrayCount; i++)
+            {
+                L("result.%s.uniforms.%s[%d] = glGetUniformLocation(handle, \"%s[%d]\");", shaderType, uni->name, i,  uni->name, i);
+            }
+        }
+    }
+    else
+    {
+        std::string buffer;
+        std::string prefix;
+        auto type = &shader->userTypes[uni->userTypeIndex];
+        if (uni->arrayCount == 0)
+        {
+            prefix = "result."s + shaderType + ".uniforms."s;
+            buffer = uni->name;
+            OutUniformAccessorInternal(shader, type, prefix.c_str(), buffer);
+        }
+        else
+        {
+            prefix = "result."s + shaderType + ".uniforms."s;
+            for (u32x i = 0; i < uni->arrayCount; i++)
+            {
+                buffer = uni->name + "["s + std::to_string(i) + "]"s;
+                OutUniformAccessorInternal(shader, type, prefix.c_str(), buffer);
+            }
+        }
+    }
+}
+
+int main(int argCount, char** args)
+{
+    assert(argCount > 1);
+    const char* configFileName = args[1];
+
+    std::vector<ShaderDecl> shaderDecls;
+    std::vector<ProgramConfig> programDecls;
+    ParseConfigFile(configFileName, &shaderDecls, &programDecls);
+
+    std::unordered_map<std::string, Shader*> shaders;
+
+    // TODO: Test for name collisions
+
+    for (auto& it : shaderDecls)
+    {
+        Shader* shader = new Shader();
+        shader->name = it.name;
+        switch(it.type)
+        {
+            CASE(Shader::Vertex, ParseShaderFile(it.path, Shader::Vertex, shader));
+            CASE(Shader::Fragment, ParseShaderFile(it.path, Shader::Fragment, shader));
+            INVALID_DEFAULT_CASE();
+        }
+        shaders[std::string(shader->name)] = shader;
+    }
+
+    std::vector<Program> programs;
+    for (auto& it : programDecls)
+    {
+        Program prog = {};
+        prog.config = it;
+        programs.push_back(std::move(prog));
+    }
+
+    for (auto& it : programs)
+    {
+        std::string vertexName = it.config.vertexName;
+        std::string fragmentName = it.config.fragmentName;
+
+        auto resultVertex = shaders.find(vertexName);
+        if (resultVertex == shaders.end())
+        {
+            ERROR("Error: Program uses undeclared shader\n");
+        }
+        it.vertex = resultVertex->second;
+
+        auto resultFragment = shaders.find(fragmentName);
+        if (resultFragment == shaders.end())
+        {
+            ERROR("Error: Program uses undeclared shader\n");
+        }
+        it.fragment = resultFragment->second;
+    }
+
+    // TODO: Deal with CRLF and LF stuff!
+    OutFile = fopen("Shaders_Generated.cpp", "wb");
+    assert(OutFile);
+    IDENT_RESET();
+    L("// Thise file was generated by a glsl preprocessor\n");
+    L("namespace soko");
+    L("{");
+    IDENT_PUSH();
+
+    L("struct ShaderInfo");
+    L("{");
+    IDENT_PUSH();
+
+    for (auto& prog : programs)
+    {
+        L("struct Info_%s", prog.config.name);
+        L("{");
+        IDENT_PUSH();
+        L("static const char* VertexSource;");
+        L("static const char* FragmentSource;");
+        L("");
+        L("GLuint handle;");
+        L("");
+        OutShader(prog.vertex);
+        OutShader(prog.fragment);
+        IDENT_POP();
+        L("} %s;", prog.config.name);
+    }
+
+    IDENT_POP();
+    L("};\n");
+
+    for (auto& prog : programs)
+    {
+        L("ShaderInfo::Info_%s CompileProgram_%s()", prog.config.name, prog.config.name);
+        L("{");
+        IDENT_PUSH();
+        L("ShaderInfo::Info_%s result = {};", prog.config.name);
+        L("auto handle = CreateProgram(ShaderInfo::Info_%s::VertexSource, ShaderInfo::Info_%s::FragmentSource);", prog.config.name, prog.config.name);
+        L("if (handle)");
+        L("{");
+        IDENT_PUSH();
+        L("result.handle = handle;");
+        L("// NOTE: Assign vertex shader uniforms");
+        for (auto& it : prog.vertex->uniforms)
+        {
+            OutUniformAccessor(prog.vertex, &it);
+        }
+        A("\n");
+        L("// NOTE: Assign fragment shader uniforms");
+        for (auto& it : prog.fragment->uniforms)
+        {
+            OutUniformAccessor(prog.fragment, &it);
         }
 
-        if (it.arrayCount > 0)
+        A("\n");
+        L("//NOTE: Setting samplers");
+        L("glUseProgram(handle);");
+        for (auto& it : prog.fragment->uniforms)
         {
-            OUT("[%d];\n", it.arrayCount);
+            if (it.samplerSlot >= 0)
+            {
+                L("glUniform1i(result.fragment.uniforms.%s, (GLint)result.fragment.samplers.%s.sampler);", it.name, it.name);
+            }
         }
-        else
-        {
-            OUT(";\n");
-        }
-    }
-    IDENT_POP();
-    OUTLN("} uniforms;\n");
-    if (shader.type == Shader::Vertex)
-    {
-        OUT("\n");
-        OUTLN("enum class VertexAttribs : GLuint\n");
-        OUTLN("{\n");
-        IDENT_PUSH();
-        for (auto& attrib : shader.vertexAttribs)
-        {
-            OUTLN("%s = %d,\n", attrib.name, attrib.location);
-        }
+        L("glUseProgram(0);");
         IDENT_POP();
-        OUTLN("};\n");
+        L("}");
+        L("return result;");
+        IDENT_POP();
+        L("}\n");
+    }
+
+    L("ShaderInfo LoadShaders()");
+    L("{");
+    IDENT_PUSH();
+    L("ShaderInfo info = {};");
+    for (auto& it : programs)
+    {
+        L("info.%s = CompileProgram_%s();", it.config.name, it.config.name);
+        L("SOKO_ASSERT(info.%s.handle);", it.config.name);
+    }
+    L("return info;");
+    IDENT_POP();
+    L("}");
+    L("\n");
+
+    L("void UnloadShaders(ShaderInfo* info)");
+    L("{");
+    IDENT_PUSH();
+    for (auto& it : programs)
+    {
+        L("if (info->%s.handle)", it.config.name);
+        L("{");
+        IDENT_PUSH();
+        L("glDeleteShader(info->%s.handle);", it.config.name);
+        L("info->%s.handle = 0;", it.config.name);
+        IDENT_POP();
+        L("}");
     }
     IDENT_POP();
-    OUTLN("};\n");
-    OUT("\n");
-    OUTLN("%s CompileShader_%s()\n", shader.name, shader.name);
+    L("}\n");
+
+    for (auto& prog : programs)
+    {
+        L("const char* ShaderInfo::Info_%s::VertexSource = R\"(\n", prog.config.name);
+        A("%s", prog.vertex->source);
+        A(")\";\n\n");
+
+        L("const char* ShaderInfo::Info_%s::FragmentSource = R\"(\n", prog.config.name);
+        A("%s", prog.fragment->source);
+        A(")\";\n\n");
+    }
     IDENT_POP();
-    OUTLN("}");
-#endif
+    L("}");
 }
