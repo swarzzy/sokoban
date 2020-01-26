@@ -1000,8 +1000,9 @@ namespace hpm
             + m._13 * m._21 * m._32 - m._13 * m._22 * m._31;
     }
 
-    inline Matrix4 OrthogonalRH(f32 left, f32 right,
-                                f32 bottom, f32 top, f32 n, f32 f)
+    // NOTE: Reference https://www.khronos.org/registry/OpenGL-Refpages/gl2.1/xhtml/glOrtho.xml
+    // TODO: Check is depth range in a corect OpenGL format
+    inline Matrix4 OrthogonalOpenGLRH(f32 left, f32 right, f32 bottom, f32 top, f32 n, f32 f)
     {
         Matrix4 result = {};
 

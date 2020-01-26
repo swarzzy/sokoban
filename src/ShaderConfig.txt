@@ -5,6 +5,7 @@ vertex: SkyboxVertex -> "../src/shaders/SkyboxVertex.glsl"
 vertex: LineVertex -> "../src/shaders/LineVertex.glsl"
 vertex: MeshVertex -> "../src/shaders/MeshVertex.glsl"
 vertex: ChunkVertex -> "../src/shaders/ChunkVertex.glsl"
+vertex: ShadowVertex -> "../src/shaders/ShadowVertex.glsl"
 fragment: PbrMeshFragment -> "../src/shaders/PBRMeshFragment.glsl"
 fragment: BRDFIntegrationFragment -> "../src/shaders/BRDFIntegrationFragment.glsl"
 fragment: EnvMapPrefilterFragment -> "../src/shaders/EnvMapPrefilterFragment.glsl"
@@ -15,6 +16,7 @@ fragment: SkyboxFragment -> "../src/shaders/SkyboxFragment.glsl"
 fragment: LineFragment -> "../src/shaders/LineFragment.glsl"
 fragment: MeshFragment -> "../src/shaders/MeshFragment.glsl"
 fragment: ChunkFragment -> "../src/shaders/ChunkFragment.glsl"
+fragment: ShadowFragment -> "../src/shaders/ShadowFragment.glsl"
 
 #program PbrMesh
 vertex: PbrMeshVertex
@@ -55,3 +57,7 @@ fragment: MeshFragment
 #program Chunk
 vertex: ChunkVertex
 fragment: ChunkFragment
+
+#program Shadow
+vertex: ShadowVertex
+fragment: ShadowFragment

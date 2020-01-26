@@ -435,6 +435,42 @@ namespace soko
 
         } Chunk;
 
+        struct Info_Shadow
+        {
+            static const char* VertexSource;
+            static const char* FragmentSource;
+            
+            GLuint handle;
+            
+            struct VertexShader
+            {
+                struct Uniforms
+                {
+                    GLint modelMatrix;
+                    GLint viewProjMatrix;
+                } uniforms;
+
+                struct VertexAttribs
+                {
+                    GLuint position = 0;
+                } vertexAttribs;
+
+            } vertex;
+
+            struct FragmentShader
+            {
+                struct Uniforms
+                {
+                } uniforms;
+
+                struct Samplers
+                {
+                } samplers;
+
+            } fragment;
+
+        } Shadow;
+
     };
 
     ShaderInfo::Info_PbrMesh CompileProgram_PbrMesh()
@@ -692,6 +728,26 @@ namespace soko
         return result;
     }
 
+    ShaderInfo::Info_Shadow CompileProgram_Shadow()
+    {
+        ShaderInfo::Info_Shadow result = {};
+        auto handle = CreateProgram(ShaderInfo::Info_Shadow::VertexSource, ShaderInfo::Info_Shadow::FragmentSource);
+        if (handle)
+        {
+            result.handle = handle;
+            // NOTE: Assign vertex shader uniforms
+            result.vertex.uniforms.modelMatrix = glGetUniformLocation(handle, "modelMatrix");
+            result.vertex.uniforms.viewProjMatrix = glGetUniformLocation(handle, "viewProjMatrix");
+
+            // NOTE: Assign fragment shader uniforms
+
+            //NOTE: Setting samplers
+            glUseProgram(handle);
+            glUseProgram(0);
+        }
+        return result;
+    }
+
     ShaderInfo LoadShaders()
     {
         ShaderInfo info = {};
@@ -715,6 +771,8 @@ namespace soko
         if (!info.Mesh.handle) SOKO_WARN("ShaderManager: Failed to load shader program Mesh");
         info.Chunk = CompileProgram_Chunk();
         if (!info.Chunk.handle) SOKO_WARN("ShaderManager: Failed to load shader program Chunk");
+        info.Shadow = CompileProgram_Shadow();
+        if (!info.Shadow.handle) SOKO_WARN("ShaderManager: Failed to load shader program Shadow");
         return info;
     }
     
@@ -771,6 +829,11 @@ namespace soko
         {
             glDeleteShader(info->Chunk.handle);
             info->Chunk.handle = 0;
+        }
+        if (info->Shadow.handle)
+        {
+            glDeleteShader(info->Shadow.handle);
+            info->Shadow.handle = 0;
         }
     }
 
@@ -1716,5 +1779,25 @@ void main()
 
     color = vec4(directional, alpha);
 })";
+
+    const char* ShaderInfo::Info_Shadow::VertexSource = R"(#version 330 core
+layout (location = 0) in vec3 position;
+
+uniform mat4 modelMatrix;
+uniform mat4 viewProjMatrix;
+
+void main()
+{
+    gl_Position = viewProjMatrix * modelMatrix * vec4(position, 1.0f);
+})";
+
+    const char* ShaderInfo::Info_Shadow::FragmentSource = R"(#version 330 core
+out vec4 color;
+
+void main()
+{
+    color = vec4(gl_FragCoord.z, gl_FragCoord.z, gl_FragCoord.z, 1.0f);
+}
+)";
 
 }

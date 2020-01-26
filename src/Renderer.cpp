@@ -36,6 +36,10 @@ namespace soko
         GLuint offscreenColorTarget;
         GLuint offscreenDepthTarget;
 
+        GLuint shadowMapFramebuffer;
+        GLuint shadowMapDepthTarget;
+        u32 shadowMapRes;
+
         GLuint srgbBufferHandle;
         GLuint srgbColorTarget;
 
@@ -51,6 +55,51 @@ namespace soko
         b32 debugNormals;
     };
 
+    GLuint CreateTexture2D(GLenum wrapS, GLenum wrapT, GLenum minFilter, GLenum magFilter)
+    {
+        GLuint handle = 0;
+        glGenTextures(1, &handle);
+        if (handle)
+        {
+            glBindTexture(GL_TEXTURE_2D, handle);
+            defer { glBindTexture(GL_TEXTURE_2D, 0); };
+
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, wrapS);
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, wrapT);
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, minFilter);
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, magFilter);
+        }
+        return handle;
+    }
+
+    void AllocTexture2D(GLuint handle, u32x width, u32x height, u32x mipLevel, GLenum format, void* data = 0, GLenum customType = 0)
+    {
+        GLenum secondaryFormat;
+        GLenum type;
+        switch (format)
+        {
+        case GL_SRGB8_ALPHA8: { secondaryFormat = GL_RGBA; type = GL_UNSIGNED_BYTE; } break;
+        case GL_SRGB8: { secondaryFormat = GL_RGB; type = GL_UNSIGNED_BYTE; } break;
+        case GL_RGB8: { secondaryFormat = GL_RGB; type = GL_UNSIGNED_BYTE; } break;
+        case GL_RGB16F: { secondaryFormat = GL_RGB; type = GL_FLOAT; } break;
+        case GL_RG16F: { secondaryFormat = GL_RG, type = GL_FLOAT; } break;
+        case GL_R8: { secondaryFormat = GL_RED, type = GL_UNSIGNED_BYTE; } break;
+        case GL_DEPTH_COMPONENT32F: { secondaryFormat = GL_DEPTH_COMPONENT, type = GL_FLOAT; } break;
+        case GL_DEPTH_COMPONENT32: { secondaryFormat = GL_DEPTH_COMPONENT, type = GL_FLOAT; } break;
+        case GL_DEPTH_COMPONENT24: { secondaryFormat = GL_DEPTH_COMPONENT, type = GL_FLOAT; } break;
+        case GL_DEPTH_COMPONENT16: { secondaryFormat = GL_DEPTH_COMPONENT, type = GL_FLOAT; } break;
+            INVALID_DEFAULT();
+        }
+
+        if (customType) type = customType;
+
+        glBindTexture(GL_TEXTURE_2D, handle);
+        defer { glBindTexture(GL_TEXTURE_2D, 0); };
+
+        glTexImage2D(GL_TEXTURE_2D, mipLevel, format, width, height, 0, secondaryFormat, type, data);
+    }
+
+    // TODO: Refactor these
     internal void
     RendererLoadTexture(Texture* texture)
     {
@@ -632,9 +681,6 @@ namespace soko
         glGenTextures(1, &terrainTexArray);
         glBindTexture(GL_TEXTURE_2D_ARRAY, terrainTexArray);
 
-        // NOTE: https://www.khronos.org/opengl/wiki/Common_Mistakes#Automatic_mipmap_generation
-        glEnable(GL_TEXTURE_2D_ARRAY);
-
         // TODO : STUDY: glTexStorage and glTexSubImage
         glTexImage3D(GL_TEXTURE_2D_ARRAY, 0, GL_SRGB8,
                      RENDERER_TILE_TEX_DIM, RENDERER_TILE_TEX_DIM,
@@ -712,6 +758,22 @@ namespace soko
 
         glGenFramebuffers(1, &renderer->captureFramebuffer);
         SOKO_ASSERT(renderer->captureFramebuffer);
+
+        // NOTE: Init shadow framebuffer
+        glGenFramebuffers(1, &renderer->shadowMapFramebuffer);
+        SOKO_ASSERT(renderer->shadowMapFramebuffer);
+        renderer->shadowMapDepthTarget = CreateTexture2D(GL_CLAMP_TO_EDGE, GL_CLAMP_TO_EDGE, GL_LINEAR, GL_LINEAR);
+        SOKO_ASSERT(renderer->shadowMapDepthTarget);
+        // TODO: Set this propperly
+        renderer->shadowMapRes = 2048;
+        AllocTexture2D(renderer->shadowMapDepthTarget, renderer->shadowMapRes, renderer->shadowMapRes, 0, GL_DEPTH_COMPONENT32);
+        glBindFramebuffer(GL_FRAMEBUFFER, renderer->shadowMapFramebuffer);
+        glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, renderer->shadowMapDepthTarget, 0);
+        glDrawBuffer(GL_NONE);
+        glReadBuffer(GL_NONE);
+        SOKO_ASSERT(glCheckFramebufferStatus(GL_FRAMEBUFFER) == GL_FRAMEBUFFER_COMPLETE);
+        glBindFramebuffer(GL_FRAMEBUFFER, 0);
+
 
         u32 brdfLUTSize = DebugGetFileSize(L"brdf_lut.aab");
         if (brdfLUTSize)
@@ -837,6 +899,7 @@ namespace soko
 
         glActiveTexture(prog->fragment.samplers.u_ColorSourceLinear.slot);
         glBindTexture(GL_TEXTURE_2D, renderer->offscreenColorTarget);
+        //glBindTexture(GL_TEXTURE_2D, renderer->shadowMapDepthTarget);
 
         glDrawArrays(GL_TRIANGLES, 0, 6);
 
@@ -859,7 +922,7 @@ namespace soko
             v2 invScreenSize = V2(1.0f / renderer->renderRes.x, 1.0f / renderer->renderRes.y);
             glUniform2fv(fxaaProg->fragment.uniforms.u_InvScreenSize, 1, invScreenSize.data);
 
-            glActiveTexture(fxaaProg->fragment.uniforms.u_ColorSourcePerceptual);
+            glActiveTexture(fxaaProg->fragment.samplers.u_ColorSourcePerceptual.slot);
             glBindTexture(GL_TEXTURE_2D, renderer->srgbColorTarget);
 
             glDrawArrays(GL_TRIANGLES, 0, 6);
@@ -1007,6 +1070,79 @@ namespace soko
         glDepthMask(GL_TRUE);
     }
 
+    void ShadowPass(Renderer* renderer, RenderGroup* group)
+    {
+        if (group->commandQueueAt)
+        {
+            glBindFramebuffer(GL_DRAW_FRAMEBUFFER, renderer->shadowMapFramebuffer);
+            defer { glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0); };
+            glViewport(0, 0, (GLsizei)renderer->shadowMapRes, (GLsizei)renderer->shadowMapRes);
+            glClear(GL_DEPTH_BUFFER_BIT);
+            glEnable(GL_DEPTH_TEST);
+
+            auto* light = &group->dirLight;
+            m4x4 lookAt = LookAtDirRH(light->from, light->dir, V3(0.0f, 1.0f, 0.0f));
+            m4x4 projection = OrthogonalOpenGLRH(0.0f, 100.0f, 0.0f, 100.0f, 1.0f, 100.0f);
+            m4x4 viewProj = MulM4M4(&projection, &lookAt);
+
+            auto shader = &renderer->shaders.Shadow;
+            glUseProgram(shader->handle);
+            defer { glUseProgram(0); };
+            glUniformMatrix4fv(shader->vertex.uniforms.viewProjMatrix, 1, GL_FALSE, viewProj.data);
+
+            for (u32 i = 0; i < group->commandQueueAt; i++)
+            {
+                CommandQueueEntry* command = group->commandQueue + i;
+
+                switch (command->type)
+                {
+                case RENDER_COMMAND_DRAW_LINE_BEGIN:
+                {
+                } break;
+                case RENDER_COMMAND_DRAW_MESH:
+                {
+                    auto* data = (RenderCommandDrawMesh*)(group->renderBuffer + command->rbOffset);
+                    glUniformMatrix4fv(shader->vertex.uniforms.modelMatrix, 1, GL_FALSE, data->transform.data);
+
+                    auto* mesh = data->mesh;
+
+                    glBindBuffer(GL_ARRAY_BUFFER, mesh->gpuVertexBufferHandle);
+
+                    auto posAttrLoc = shader->vertex.vertexAttribs.position;
+                    glEnableVertexAttribArray(posAttrLoc);
+                    glVertexAttribPointer(posAttrLoc, 3, GL_FLOAT, GL_FALSE, 0, 0);
+
+                    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, mesh->gpuIndexBufferHandle);
+                    glDrawElements(GL_TRIANGLES, mesh->indexCount, GL_UNSIGNED_INT, 0);
+                } break;
+
+                case RENDER_COMMAND_BEGIN_CHUNK_MESH_BATCH:
+                {
+                    for (u32 i = 0; i < command->instanceCount; i++)
+                    {
+                        auto* data = ((RenderCommandPushChunkMesh*)(group->renderBuffer + command->rbOffset)) + i;
+
+                        m4x4 world = Translation(data->offset);
+                        glUniformMatrix4fv(shader->vertex.uniforms.modelMatrix, 1, GL_FALSE, world.data);
+
+                        glBindBuffer(GL_ARRAY_BUFFER, data->meshIndex);
+
+                        GLsizei stride = sizeof(ChunkMeshVertex);
+                        auto posAttrLoc = shader->vertex.vertexAttribs.position;
+                        glEnableVertexAttribArray(posAttrLoc);
+                        glVertexAttribPointer(posAttrLoc, 3, GL_FLOAT, GL_FALSE, stride, (void*)0);
+
+                        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, renderer->chunkIndexBuffer);
+
+                        GLsizei numIndices = (GLsizei)(data->quadCount * RENDERER_INDICES_PER_CHUNK_QUAD);
+                        glDrawElements(GL_TRIANGLES, numIndices, GL_UNSIGNED_INT, 0);
+                    }
+                } break;
+                }
+            }
+        }
+    }
+
     internal void
     FlushRenderGroup(Renderer* renderer, RenderGroup* group)
     {
@@ -1019,6 +1155,8 @@ namespace soko
 
         if (group->commandQueueAt)
         {
+            glBindFramebuffer(GL_DRAW_FRAMEBUFFER, renderer->offscreenBufferHandle);
+
             bool firstLineShaderInvocation = true;
             bool firstMeshShaderInvocation = true;
             bool firstChunkMeshShaderInvocation = true;

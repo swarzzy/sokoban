@@ -40,6 +40,7 @@ extern "C" { __declspec(dllexport) DWORD AmdPowerXpressRequestHighPerformance = 
 #define WGL_CONTEXT_PROFILE_MASK_ARB      0x9126
 #define WGL_CONTEXT_CORE_PROFILE_BIT_ARB  0x00000001
 #define WGL_CONTEXT_COMPATIBILITY_PROFILE_BIT_ARB 0x00000002
+#define WGL_CONTEXT_DEBUG_BIT_ARB         0x0001
 
 #define GL_SHADING_LANGUAGE_VERSION       0x8B8C
 
@@ -275,13 +276,15 @@ namespace AB
         AB_CORE_ASSERT(resultDPF, "Failed to initialize OpenGL extended context.");
         SetPixelFormat(actualWindowDC, actualPixelFormatID, &actualPixelFormat);
 
-        int contextAttribs[] =
-            {
+        int contextAttribs[] = {
             WGL_CONTEXT_MAJOR_VERSION_ARB, OPENGL_MAJOR_VERSION,
             WGL_CONTEXT_MINOR_VERSION_ARB, OPENGL_MINOR_VERSION,
             WGL_CONTEXT_PROFILE_MASK_ARB, WGL_CONTEXT_CORE_PROFILE_BIT_ARB,
+#if defined(AB_DEBUG_OPENGL)
+            WGL_CONTEXT_FLAGS_ARB, WGL_CONTEXT_DEBUG_BIT_ARB,
+#endif
             0
-            };
+        };
 
         HGLRC actualGLRC = app->wglCreateContextAttribsARB(actualWindowDC,
                                                            0, contextAttribs);

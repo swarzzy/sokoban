@@ -214,6 +214,8 @@ inline void* ReallocForSTBI(void* p, uptr oldSize, uptr newSize)
 #define glFinish GL_FUNCTION(glFinish)
 #define glGetTexImage GL_FUNCTION(glGetTexImage)
 #define glFlush GL_FUNCTION(glFlush)
+#define glDrawBuffer GL_FUNCTION(glDrawBuffer)
+#define glReadBuffer GL_FUNCTION(glReadBuffer)
 
 // NOTE: Functions used by ImGUI
 #define glGetIntegerv GL_FUNCTION(glGetIntegerv)
@@ -584,6 +586,7 @@ namespace soko
         v3 beg = gameState->session.camera.conf.position;
 
         DirectionalLight light = {};
+        light.from = beg;
         light.dir = Normalize(V3(-0.3f, -1.0f, -1.0f));
         light.ambient = V3(0.3f);
         light.diffuse = V3(0.8f);
@@ -595,6 +598,7 @@ namespace soko
 
         DrawRegion(simRegion, gameState, gameState->session.camera.worldPos);
 
+        ShadowPass(gameState->renderer, gameState->renderGroup);
         RendererBeginFrame(gameState->renderer, V2(PlatformGlobals.windowWidth, PlatformGlobals.windowHeight));
         FlushRenderGroup(gameState->renderer, gameState->renderGroup);
         RendererEndFrame(gameState->renderer);

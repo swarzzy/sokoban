@@ -22,6 +22,7 @@ namespace AB
 
 #define AB_ENABLE_CONSOLE_WINDOW
 #define AB_DISCRETE_GRAPHICS_DEFAULT
+#define AB_DEBUG_OPENGL
 
     const WORD WINSOCK_VER = 0x202;
 

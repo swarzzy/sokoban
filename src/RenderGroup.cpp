@@ -110,7 +110,7 @@ namespace soko
         case RENDER_COMMAND_SET_DIR_LIGHT:
         {
             RenderCommandSetDirLight* renderData = (RenderCommandSetDirLight*)data;
-            group->dirLightEnabled = true;
+            //group->dirLightEnabled = true;
             group->dirLight = renderData->light;
         } break;
 
@@ -197,7 +197,7 @@ namespace soko
         group->commandQueueAt = 0;
         group->renderBufferAt = group->renderBuffer;
         group->renderBufferFree = group->renderBufferSize;
-        group->dirLightEnabled = false;
+        //group->dirLightEnabled = false;
     }
 #if 0
     void

@@ -75,6 +75,7 @@ namespace soko
     struct RenderCommandPushChunkMesh
     {
         v3 offset;
+        // NOTE: Index to vbo
         u32 meshIndex;
         u64 quadCount;
     };
@@ -100,7 +101,7 @@ namespace soko
     {
         CameraConfig cameraConfig;
 
-        b32 dirLightEnabled;
+        //b32 dirLightEnabled;
         DirectionalLight dirLight;
 
         byte* renderBuffer;

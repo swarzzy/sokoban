@@ -382,6 +382,21 @@ namespace AB
 #if defined(AB_PLATFORM_WINDOWS)
 #include <Windows.h>
 
+    void* LoadOpenGLExtFunction(const char* name)
+    {
+        auto result = wglGetProcAddress(name);
+        if (result == 0 ||
+            result == (void*)0x1 ||
+            result == (void*)0x2 ||
+            result == (void*)0x3 ||
+            result == (void*)-1)
+        {
+            // NOTE: Failed
+            result = 0;
+        }
+        return (void*)result;
+    }
+
     LoadFunctionsResult OpenGLLoadFunctions(MemoryArena* memoryArena)
     {
         GLFuncTable* funcTable = (GLFuncTable*)PushSize(memoryArena,
@@ -406,14 +421,12 @@ namespace AB
                 }
                 if (glLibHandle)
                 {
-                    funcTable->procs[i] =
-                        (AB_GLFUNCPTR)GetProcAddress(glLibHandle, procNames[i]);
+                    funcTable->procs[i] = (AB_GLFUNCPTR)GetProcAddress(glLibHandle, procNames[i]);
                 }
                 else
                 {
                     funcTable->procs[i] = NULL;
-                    AB_CORE_ERROR("ERROR: Failed to load OpenGL procedure: %s\n",
-                                  procNames[i]);
+                    AB_CORE_ERROR("ERROR: Failed to load OpenGL procedure: %s\n", procNames[i]);
                     success = 0;
                 }
             }
@@ -423,19 +436,30 @@ namespace AB
         {
             GLint numExtensions;
             funcTable->_glGetIntegerv(GL_NUM_EXTENSIONS, &numExtensions);
-            b32 ARB_texture_filter_anisotropic = false;
             for (i32 i = 0; i < numExtensions; i++)
             {
                 const GLubyte* extensionString;
                 extensionString = funcTable->_glGetStringi(GL_EXTENSIONS, i);
-                PrintString("%s\n", (const char*)extensionString);
                 if (strcmp((const char*)extensionString, "GL_EXT_texture_filter_anisotropic") == 0)
                 {
-                    ARB_texture_filter_anisotropic = true;
+                    funcTable->EXT_texture_filter_anisotropic = true;
+                }
+                if (strcmp((const char*)extensionString, "GL_ARB_debug_output") == 0)
+                {
+                    funcTable->arbDebugOutput._glDebugMessageCallbackARB = (glDebugMessageCallbackARBFn*)LoadOpenGLExtFunction("glDebugMessageCallbackARB");
+                    funcTable->arbDebugOutput._glDebugMessageControlARB = (glDebugMessageControlARBFn*)LoadOpenGLExtFunction("glDebugMessageControlARB");
+                    if (funcTable->arbDebugOutput._glDebugMessageCallbackARB && funcTable->arbDebugOutput._glDebugMessageControlARB)
+                    {
+                        funcTable->ARB_debug_output = true;
+                    }
+                }
+                if (funcTable->EXT_texture_filter_anisotropic &&
+                    funcTable->ARB_debug_output)
+                {
                     break;
                 }
             }
-            AB_CORE_ASSERT(ARB_texture_filter_anisotropic);
+            AB_CORE_ASSERT(funcTable->EXT_texture_filter_anisotropic);
         }
 
         return {funcTable, success};
@@ -499,6 +523,47 @@ namespace AB
     }
 #endif
 
+    void OpenglDebugCallback(GLenum source, GLenum type, GLuint id, GLenum severity, GLsizei length, const GLchar* message, const GLvoid* userParam)
+    {
+        const char* sourceStr;
+        const char* typeStr;
+        const char* severityStr;
+
+        switch (source)
+        {
+        case GL_DEBUG_SOURCE_API_ARB: { sourceStr = "API"; } break;
+        case GL_DEBUG_SOURCE_WINDOW_SYSTEM_ARB: { sourceStr = "window system"; } break;
+        case GL_DEBUG_SOURCE_SHADER_COMPILER_ARB: { sourceStr = "shader compiler"; } break;
+        case GL_DEBUG_SOURCE_THIRD_PARTY_ARB: { sourceStr = "third party"; } break;
+        case GL_DEBUG_SOURCE_APPLICATION_ARB: { sourceStr = "application"; } break;
+        case GL_DEBUG_SOURCE_OTHER_ARB: { sourceStr = "other"; } break;
+            INVALID_DEFAULT();
+        }
+
+        switch (type)
+        {
+        case GL_DEBUG_TYPE_ERROR_ARB: { typeStr = "error"; } break;
+        case GL_DEBUG_TYPE_DEPRECATED_BEHAVIOR_ARB: { typeStr = "deprecated behavior"; } break;
+        case GL_DEBUG_TYPE_UNDEFINED_BEHAVIOR_ARB: { typeStr = "undefined behavior"; } break;
+        case GL_DEBUG_TYPE_PORTABILITY_ARB: { typeStr = "portability problem"; } break;
+        case GL_DEBUG_TYPE_PERFORMANCE_ARB: { typeStr = "performance problem"; } break;
+        case GL_DEBUG_TYPE_OTHER_ARB: { typeStr = "other"; } break;
+            INVALID_DEFAULT();
+        }
+
+        switch (severity)
+        {
+        case GL_DEBUG_SEVERITY_HIGH_ARB: { severityStr = "high"; } break;
+        case GL_DEBUG_SEVERITY_MEDIUM_ARB: { severityStr = "medium"; } break;
+        case GL_DEBUG_SEVERITY_LOW_ARB: { severityStr = "low"; } break;
+        case GL_DEBUG_SEVERITY_NOTIFICATION_ARB: { severityStr = "notification"; } break;
+        default: { severityStr = "unknown"; } break;
+        }
+        PrintString("OpenGL debug message (source: %s, type: %s, severity: %s): %s\n", sourceStr, typeStr, severityStr, message);
+        AB_DEBUG_BREAK();
+    }
+
+
     void InitOpenGL(GLFuncTable* funcTable)
     {
         u32 globalVAO;
@@ -513,5 +578,13 @@ namespace AB
         funcTable->_glCullFace(GL_BACK);
         funcTable->_glFrontFace(GL_CCW);
         funcTable->_glEnable(GL_TEXTURE_CUBE_MAP_SEAMLESS);
+
+#if defined(AB_DEBUG_OPENGL)
+        funcTable->_glEnable(GL_DEBUG_OUTPUT_SYNCHRONOUS_ARB);
+        funcTable->arbDebugOutput._glDebugMessageCallbackARB(OpenglDebugCallback, 0);
+        funcTable->arbDebugOutput._glDebugMessageControlARB(GL_DONT_CARE, GL_DONT_CARE, GL_DONT_CARE, 0, 0, GL_TRUE);
+        funcTable->arbDebugOutput._glDebugMessageControlARB(GL_DONT_CARE, GL_DONT_CARE, GL_DEBUG_SEVERITY_NOTIFICATION_ARB, 0, 0, GL_FALSE);
+        funcTable->arbDebugOutput._glDebugMessageControlARB(GL_DONT_CARE, GL_DEBUG_TYPE_OTHER_ARB, GL_DEBUG_SEVERITY_LOW_ARB, 0, 0, GL_FALSE);
+#endif
     }
 }
