@@ -7,7 +7,7 @@ popd
 goto end
 )
 
-set BuildShaderPreprocessor=false
+set BuildShaderPreprocessor=true
 
 set ObjOutDir=build\obj\
 set BinOutDir=build\
@@ -54,7 +54,7 @@ rem cl /W3 /Fo%ObjOutDir% /D_CRT_SECURE_NO_WARNINGS  %CommonCompilerFlags% %Conf
 
 if %BuildShaderPreprocessor% equ true (
 echo Building shader preprocessor...
-cl /W3 /wd4530 /Gm- /GR- /O2 /MT /nologo /diagnostics:classic /WX /std:c++17 /Fo%ObjOutDir% /D_CRT_SECURE_NO_WARNINGS /DWIN32_LEAN_AND_MEAN  src/tools/ShaderPreprocessor.cpp /link /INCREMENTAL:NO /OPT:REF /MACHINE:X64 /OUT:%BinOutDir%\ShaderPreprocessor.exe /PDB:%BinOutDir%\ShaderPreprocessor.pdb
+cl /W3 /wd4530 /Gm- /GR- /Od /Zi /MT /nologo /diagnostics:classic /WX /std:c++17 /Fo%ObjOutDir% /D_CRT_SECURE_NO_WARNINGS /DWIN32_LEAN_AND_MEAN  src/tools/ShaderPreprocessor.cpp /link /INCREMENTAL:NO /OPT:REF /MACHINE:X64 /OUT:%BinOutDir%\ShaderPreprocessor.exe /PDB:%BinOutDir%\ShaderPreprocessor.pdb
 )
 
 echo Preprocessing shaders...

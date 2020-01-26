@@ -560,7 +560,7 @@ namespace AB
         default: { severityStr = "unknown"; } break;
         }
         PrintString("OpenGL debug message (source: %s, type: %s, severity: %s): %s\n", sourceStr, typeStr, severityStr, message);
-        AB_DEBUG_BREAK();
+        //AB_DEBUG_BREAK();
     }
 
 

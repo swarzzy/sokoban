@@ -56,7 +56,7 @@ namespace soko
     {
         CameraConfig conf = {};
         conf.position = V3(0.0f);
-        conf.front = V3(0.0f, 0.0f, -1.0f);
+        conf.front = V3(0.0f, 0.0f, 1.0f);
         conf.fovDeg = 45.0f;
         conf.aspectRatio = 16.0f / 9.0f;
         conf.nearPlane = 0.1f;
@@ -70,6 +70,7 @@ namespace soko
 
         camera->conf = conf;
         camera->targetWorldPos = targetPos;
+        camera->targetDistance = 1.0f;
         camera->longSmooth = 30.0f;
         camera->latSmooth = 30.0f;
         camera->distSmooth = 30.0f;
@@ -224,6 +225,8 @@ namespace soko
         m4x4 lookAt = LookAtDirRH(camera->conf.position, camera->conf.front, V3(0.0f, 1.0f, 0.0f));
         m4x4 proj = PerspectiveOpenGLRH(camera->conf.fovDeg, camera->conf.aspectRatio,
                                         camera->conf.nearPlane, camera->conf.farPlane);
+        DEBUG_OVERLAY_TRACE(camera->conf.position);
+        DEBUG_OVERLAY_TRACE(camera->conf.front);
         m4x4 invLookAt = lookAt;
         bool inv = Inverse(&invLookAt);
         SOKO_ASSERT(inv);

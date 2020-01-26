@@ -1,7 +1,7 @@
 #version 330 core
-in vec3 v_Position;
+in vec4 v_Position;
 in vec3 v_MeshSpacePos;
-//in vec4 v_LightSpacePosition;
+in vec4 v_LightSpacePos;
 flat in int v_TileId;
 in vec3 v_Normal;
 in vec2 v_UV;
@@ -19,6 +19,18 @@ struct DirLight
 uniform DirLight u_DirLight;
 uniform vec3 u_ViewPos;
 uniform sampler2DArray u_TerrainAtlas;
+// TODO: Use shadow sampler and sampling with comparsion
+uniform sampler2D u_ShadowMap;
+
+float Shadow()
+{
+    vec3 coord = v_LightSpacePos.xyz / v_LightSpacePos.w;
+    coord = coord * 0.5f + 0.5f;
+    float currentDepth = coord.z;
+    float bias = 0.001f;
+    float shadowDepth = texture(u_ShadowMap, coord.xy).r + bias;
+    return (currentDepth < shadowDepth ? 1.0f : 0.0f);
+}
 
 vec3 CalcDirectionalLight(DirLight light, vec3 normal,
                           vec3 viewDir,
@@ -28,9 +40,9 @@ vec3 CalcDirectionalLight(DirLight light, vec3 normal,
     vec3 lightDirReflected = reflect(-lightDir, normal);
 
     float Kd = max(dot(normal, lightDir), 0.0);
-
+    float Kshadow = Shadow();
     vec3 ambient = light.ambient * diffSample;
-    vec3 diffuse = Kd * light.diffuse * diffSample;
+    vec3 diffuse = Kd * light.diffuse * diffSample * Kshadow;
     return ambient + diffuse;
 }
 
@@ -39,7 +51,7 @@ vec3 CalcDirectionalLight(DirLight light, vec3 normal,
 void main()
 {
     vec3 normal = normalize(v_Normal);
-    vec3 viewDir = normalize(u_ViewPos - v_Position);
+    vec3 viewDir = normalize(u_ViewPos - v_Position.xyz);
 
     int tileID = clamp(v_TileId, 0, TERRAIN_TEX_ARRAY_NUM_LAYERS);
 

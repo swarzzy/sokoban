@@ -398,6 +398,7 @@ namespace soko
                     GLint u_ModelMatrix;
                     GLint u_NormalMatrix;
                     GLint u_ViewProjMatrix;
+                    GLint u_LightSpaceMatrix;
                 } uniforms;
 
                 struct VertexAttribs
@@ -424,11 +425,13 @@ namespace soko
                     DirLight u_DirLight;
                     GLint u_ViewPos;
                     GLint u_TerrainAtlas;
+                    GLint u_ShadowMap;
                 } uniforms;
 
                 struct Samplers
                 {
                     Sampler u_TerrainAtlas = { 1, GL_TEXTURE1 };
+                    Sampler u_ShadowMap = { 2, GL_TEXTURE2 };
                 } samplers;
 
             } fragment;
@@ -711,6 +714,7 @@ namespace soko
             result.vertex.uniforms.u_ModelMatrix = glGetUniformLocation(handle, "u_ModelMatrix");
             result.vertex.uniforms.u_NormalMatrix = glGetUniformLocation(handle, "u_NormalMatrix");
             result.vertex.uniforms.u_ViewProjMatrix = glGetUniformLocation(handle, "u_ViewProjMatrix");
+            result.vertex.uniforms.u_LightSpaceMatrix = glGetUniformLocation(handle, "u_LightSpaceMatrix");
 
             // NOTE: Assign fragment shader uniforms
             result.fragment.uniforms.u_DirLight.dir = glGetUniformLocation(handle, "u_DirLight.dir");
@@ -719,10 +723,12 @@ namespace soko
             result.fragment.uniforms.u_DirLight.specular = glGetUniformLocation(handle, "u_DirLight.specular");
             result.fragment.uniforms.u_ViewPos = glGetUniformLocation(handle, "u_ViewPos");
             result.fragment.uniforms.u_TerrainAtlas = glGetUniformLocation(handle, "u_TerrainAtlas");
+            result.fragment.uniforms.u_ShadowMap = glGetUniformLocation(handle, "u_ShadowMap");
 
             //NOTE: Setting samplers
             glUseProgram(handle);
             glUniform1i(result.fragment.uniforms.u_TerrainAtlas, (GLint)result.fragment.samplers.u_TerrainAtlas.sampler);
+            glUniform1i(result.fragment.uniforms.u_ShadowMap, (GLint)result.fragment.samplers.u_ShadowMap.sampler);
             glUseProgram(0);
         }
         return result;
@@ -782,57 +788,57 @@ namespace soko
         glFinish();
         if (info->PbrMesh.handle)
         {
-            glDeleteShader(info->PbrMesh.handle);
+            glDeleteProgram(info->PbrMesh.handle);
             info->PbrMesh.handle = 0;
         }
         if (info->BRDFIntegrator.handle)
         {
-            glDeleteShader(info->BRDFIntegrator.handle);
+            glDeleteProgram(info->BRDFIntegrator.handle);
             info->BRDFIntegrator.handle = 0;
         }
         if (info->EnvMapPrefilter.handle)
         {
-            glDeleteShader(info->EnvMapPrefilter.handle);
+            glDeleteProgram(info->EnvMapPrefilter.handle);
             info->EnvMapPrefilter.handle = 0;
         }
         if (info->IrradanceConvolver.handle)
         {
-            glDeleteShader(info->IrradanceConvolver.handle);
+            glDeleteProgram(info->IrradanceConvolver.handle);
             info->IrradanceConvolver.handle = 0;
         }
         if (info->FXAA.handle)
         {
-            glDeleteShader(info->FXAA.handle);
+            glDeleteProgram(info->FXAA.handle);
             info->FXAA.handle = 0;
         }
         if (info->PostFX.handle)
         {
-            glDeleteShader(info->PostFX.handle);
+            glDeleteProgram(info->PostFX.handle);
             info->PostFX.handle = 0;
         }
         if (info->Skybox.handle)
         {
-            glDeleteShader(info->Skybox.handle);
+            glDeleteProgram(info->Skybox.handle);
             info->Skybox.handle = 0;
         }
         if (info->Line.handle)
         {
-            glDeleteShader(info->Line.handle);
+            glDeleteProgram(info->Line.handle);
             info->Line.handle = 0;
         }
         if (info->Mesh.handle)
         {
-            glDeleteShader(info->Mesh.handle);
+            glDeleteProgram(info->Mesh.handle);
             info->Mesh.handle = 0;
         }
         if (info->Chunk.handle)
         {
-            glDeleteShader(info->Chunk.handle);
+            glDeleteProgram(info->Chunk.handle);
             info->Chunk.handle = 0;
         }
         if (info->Shadow.handle)
         {
-            glDeleteShader(info->Shadow.handle);
+            glDeleteProgram(info->Shadow.handle);
             info->Shadow.handle = 0;
         }
     }
@@ -1185,6 +1191,7 @@ void main()
     gl_Position = vertexPos;
     gl_Position = gl_Position.xyww;
     v_UV = mat3(inverse(u_ViewMatrix)) * (inverse(u_ProjMatrix) * gl_Position).xyz;
+    //v_UV = (gl_Position * inverse(u_ViewMatrix) * inverse(u_ProjMatrix)).xyz;
 })";
 
     const char* ShaderInfo::Info_EnvMapPrefilter::FragmentSource = R"(#version 330 core
@@ -1307,6 +1314,7 @@ void main()
     gl_Position = vertexPos;
     gl_Position = gl_Position.xyww;
     v_UV = mat3(inverse(u_ViewMatrix)) * (inverse(u_ProjMatrix) * gl_Position).xyz;
+    //v_UV = (gl_Position * inverse(u_ViewMatrix) * inverse(u_ProjMatrix)).xyz;
 })";
 
     const char* ShaderInfo::Info_IrradanceConvolver::FragmentSource = R"(#version 330 core
@@ -1582,6 +1590,7 @@ void main()
     gl_Position = vertexPos;
     gl_Position = gl_Position.xyww;
     v_UV = mat3(inverse(u_ViewMatrix)) * (inverse(u_ProjMatrix) * gl_Position).xyz;
+    //v_UV = (gl_Position * inverse(u_ViewMatrix) * inverse(u_ProjMatrix)).xyz;
 })";
 
     const char* ShaderInfo::Info_Skybox::FragmentSource = R"(#version 330 core
@@ -1685,9 +1694,9 @@ layout (location = 0) in vec3 a_Position;
 layout (location = 1) in vec3 a_Normal;
 layout (location = 2) in int a_TileId;
 
-out vec3 v_Position;
+out vec4 v_Position;
 out vec3 v_MeshSpacePos;
-//out vec4 v_LightSpacePosition;
+out vec4 v_LightSpacePos;
 flat out int v_TileId;
 out vec3 v_Normal;
 out vec2 v_UV;
@@ -1695,7 +1704,7 @@ out vec2 v_UV;
 uniform mat4 u_ModelMatrix;
 uniform mat3 u_NormalMatrix;
 uniform mat4 u_ViewProjMatrix;
-//uniform mat4 u_LightSpaceMatrix;
+uniform mat4 u_LightSpaceMatrix;
 
 #define TERRAIN_TEX_ARRAY_NUM_LAYERS 32
 #define INDICES_PER_CHUNK_QUAD 6
@@ -1718,16 +1727,16 @@ void main()
 
     v_TileId = a_TileId;
     v_MeshSpacePos = a_Position;
-    v_Position = (u_ModelMatrix * vec4(a_Position, 1.0f)).xyz;
+    v_Position = (u_ModelMatrix * vec4(a_Position, 1.0f));
     v_Normal = u_NormalMatrix * a_Normal;
-    //v_LightSpacePosition = u_LightSpaceMatrix * modelMatrix * vec4(a_Position, 1.0f);
+    v_LightSpacePos = u_LightSpaceMatrix * u_ModelMatrix * vec4(a_Position, 1.0f);
     gl_Position = u_ViewProjMatrix * u_ModelMatrix * vec4(a_Position, 1.0f);
 })";
 
     const char* ShaderInfo::Info_Chunk::FragmentSource = R"(#version 330 core
-in vec3 v_Position;
+in vec4 v_Position;
 in vec3 v_MeshSpacePos;
-//in vec4 v_LightSpacePosition;
+in vec4 v_LightSpacePos;
 flat in int v_TileId;
 in vec3 v_Normal;
 in vec2 v_UV;
@@ -1745,6 +1754,18 @@ struct DirLight
 uniform DirLight u_DirLight;
 uniform vec3 u_ViewPos;
 uniform sampler2DArray u_TerrainAtlas;
+// TODO: Use shadow sampler and sampling with comparsion
+uniform sampler2D u_ShadowMap;
+
+float Shadow()
+{
+    vec3 coord = v_LightSpacePos.xyz / v_LightSpacePos.w;
+    coord = coord * 0.5f + 0.5f;
+    float currentDepth = coord.z;
+    float bias = 0.001f;
+    float shadowDepth = texture(u_ShadowMap, coord.xy).r + bias;
+    return (currentDepth < shadowDepth ? 1.0f : 0.0f);
+}
 
 vec3 CalcDirectionalLight(DirLight light, vec3 normal,
                           vec3 viewDir,
@@ -1754,9 +1775,9 @@ vec3 CalcDirectionalLight(DirLight light, vec3 normal,
     vec3 lightDirReflected = reflect(-lightDir, normal);
 
     float Kd = max(dot(normal, lightDir), 0.0);
-
+    float Kshadow = Shadow();
     vec3 ambient = light.ambient * diffSample;
-    vec3 diffuse = Kd * light.diffuse * diffSample;
+    vec3 diffuse = Kd * light.diffuse * diffSample * Kshadow;
     return ambient + diffuse;
 }
 
@@ -1765,7 +1786,7 @@ vec3 CalcDirectionalLight(DirLight light, vec3 normal,
 void main()
 {
     vec3 normal = normalize(v_Normal);
-    vec3 viewDir = normalize(u_ViewPos - v_Position);
+    vec3 viewDir = normalize(u_ViewPos - v_Position.xyz);
 
     int tileID = clamp(v_TileId, 0, TERRAIN_TEX_ARRAY_NUM_LAYERS);
 

@@ -1081,8 +1081,8 @@ namespace soko
             glEnable(GL_DEPTH_TEST);
 
             auto* light = &group->dirLight;
-            m4x4 lookAt = LookAtDirRH(light->from, light->dir, V3(0.0f, 1.0f, 0.0f));
-            m4x4 projection = OrthogonalOpenGLRH(0.0f, 100.0f, 0.0f, 100.0f, 1.0f, 100.0f);
+            m4x4 lookAt = LookAtRH(light->from, light->from + light->dir, V3(0.0f, 1.0f, 0.0f));
+            m4x4 projection = OrthogonalOpenGLRH(-32.0f, 32.0f, -32.0f, 32.0f, 0.1f, 50.0f);
             m4x4 viewProj = MulM4M4(&projection, &lookAt);
 
             auto shader = &renderer->shaders.Shadow;
@@ -1155,6 +1155,11 @@ namespace soko
 
         if (group->commandQueueAt)
         {
+            auto* light = &group->dirLight;
+            m4x4 lightLookAt = LookAtRH(light->from, light->from + light->dir, V3(0.0f, 1.0f, 0.0f));
+            m4x4 lightProjection = OrthogonalOpenGLRH(-32.0f, 32.0f, -32.0f, 32.0f, 0.1f, 50.0f);
+            m4x4 lightViewProj = MulM4M4(&lightProjection, &lightLookAt);
+
             glBindFramebuffer(GL_DRAW_FRAMEBUFFER, renderer->offscreenBufferHandle);
 
             bool firstLineShaderInvocation = true;
@@ -1356,20 +1361,19 @@ namespace soko
 
                 case RENDER_COMMAND_BEGIN_CHUNK_MESH_BATCH:
                 {
-                    //glFrontFace(GL_CCW);
                     auto* chunkProg = &renderer->shaders.Chunk;
                     glUseProgram(chunkProg->handle);
                     glActiveTexture(chunkProg->fragment.samplers.u_TerrainAtlas.slot);
                     glBindTexture(GL_TEXTURE_2D_ARRAY, renderer->tileTexArrayHandle);
-                    local_persist f32 bias = -0.1f;
-                    DEBUG_OVERLAY_SLIDER(bias, -1.0f, 1.0f);
-                    glTexParameterf(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_LOD_BIAS, bias);
 
+                    glActiveTexture(chunkProg->fragment.samplers.u_ShadowMap.slot);
+                    glBindTexture(GL_TEXTURE_2D, renderer->shadowMapDepthTarget);
 
                     if (firstChunkMeshShaderInvocation)
                     {
                         firstChunkMeshShaderInvocation = false;
                         glUniformMatrix4fv(chunkProg->vertex.uniforms.u_ViewProjMatrix, 1, GL_FALSE, viewProj.data);
+                        glUniformMatrix4fv(chunkProg->vertex.uniforms.u_LightSpaceMatrix, 1, GL_FALSE, lightViewProj.data);
                         glUniform3fv(chunkProg->fragment.uniforms.u_DirLight.dir, 1, group->dirLight.dir.data);
                         glUniform3fv(chunkProg->fragment.uniforms.u_DirLight.ambient, 1, group->dirLight.ambient.data);
                         glUniform3fv(chunkProg->fragment.uniforms.u_DirLight.diffuse, 1, group->dirLight.diffuse.data);

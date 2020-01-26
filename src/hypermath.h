@@ -60,7 +60,7 @@ namespace hpm
     };
 
     inline BitScanResult
-    FindLeastSignificantBitSet(u32 value)
+        FindLeastSignificantBitSet(u32 value)
     {
         BitScanResult result;
 #if defined(_MSC_VER)
@@ -74,7 +74,7 @@ namespace hpm
 
     // NOTE: https://graphics.stanford.edu/~seander/bithacks.html#RoundUpPowerOf2
     inline constexpr u32
-    NextPowerOfTwo(u32 v)
+        NextPowerOfTwo(u32 v)
     {
         v--;
         v |= v >> 1;
@@ -1017,6 +1017,7 @@ namespace hpm
         return result;
     }
 
+#if 0
     inline Matrix4 PerspectiveRH(f32 fovDeg, f32 aspectRatio, f32 n, f32 f)
     {
         Matrix4 result = {};
@@ -1032,9 +1033,9 @@ namespace hpm
 
         return result;
     }
+#endif
 
-    inline Matrix4 PerspectiveOpenGLRH(f32 fovDeg, f32 aspectRatio,
-                                       f32 n, f32 f)
+    inline Matrix4 PerspectiveOpenGLRH(f32 fovDeg, f32 aspectRatio, f32 n, f32 f)
     {
         Matrix4 result = {};
 
@@ -1728,9 +1729,9 @@ namespace hpm
         return minor1 - minor2 + minor3 - minor4;
     }
 
-    Matrix4 LookAtRH(Vector3 from, Vector3 at, Vector3 up)
+    Matrix4 LookAtDirRH(Vector3 from, Vector3 dir, Vector3 up)
     {
-        Vector3 zAxis = Normalize(SubV3V3(from, at));
+        Vector3 zAxis = Normalize(-dir);
         Vector3 xAxis = Normalize(Cross(up, zAxis));
         Vector3 yAxis = Cross(zAxis, xAxis);
 
@@ -1758,7 +1759,15 @@ namespace hpm
         return result;
     }
 
+    Matrix4 LookAtRH(Vector3 from, Vector3 at, Vector3 up)
+    {
+        auto dir = at - from;
+        auto result = LookAtDirRH(from, dir, up);
+        return result;
+    }
 
+
+    // TODO: This might be wrong
     Matrix4 LookAtLH(Vector3 from, Vector3 at, Vector3 up)
     {
         Vector3 zAxis = Normalize(SubV3V3(at, from));
@@ -1780,37 +1789,6 @@ namespace hpm
         result._32 = zAxis.y;
         result._33 = zAxis.z;
         result._34 = -Dot(zAxis, from);
-
-        result._41 = 0.0f;
-        result._42 = 0.0f;
-        result._43 = 0.0f;
-        result._44 = 1.0f;
-
-        return result;
-    }
-
-
-    Matrix4 LookAtDirRH(Vector3 position, Vector3 dir, Vector3 up)
-    {
-        Vector3 zAxis = Normalize(dir);
-        Vector3 xAxis = Normalize(Cross(zAxis, up));
-        Vector3 yAxis = Cross(xAxis, zAxis);
-
-        Matrix4 result;
-        result._11 = xAxis.x;
-        result._12 = xAxis.y;
-        result._13 = xAxis.z;
-        result._14 = -Dot(xAxis, position);
-
-        result._21 = yAxis.x;
-        result._22 = yAxis.y;
-        result._23 = yAxis.z;
-        result._24 = -Dot(yAxis, position);
-
-        result._31 = -zAxis.x;
-        result._32 = -zAxis.y;
-        result._33 = -zAxis.z;
-        result._34 = Dot(zAxis, position);
 
         result._41 = 0.0f;
         result._42 = 0.0f;

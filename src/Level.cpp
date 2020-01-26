@@ -35,8 +35,8 @@ namespace soko
     {
         v3 result;
         result.x = v.x;
-        result.y = -v.z;
-        result.z = v.y;
+        result.y = v.z;
+        result.z = -v.y;
         return result;
     }
 

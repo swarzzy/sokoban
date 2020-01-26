@@ -18,4 +18,5 @@ void main()
     gl_Position = vertexPos;
     gl_Position = gl_Position.xyww;
     v_UV = mat3(inverse(u_ViewMatrix)) * (inverse(u_ProjMatrix) * gl_Position).xyz;
+    //v_UV = (gl_Position * inverse(u_ViewMatrix) * inverse(u_ProjMatrix)).xyz;
 }

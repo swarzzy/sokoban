@@ -11,7 +11,6 @@
 
 #include "../OfflineUtils.cpp"
 
-#define CONCAT(a, b) a##b
 #define INVALID_DEFAULT_CASE() assert(false)
 
 #undef ERROR
@@ -43,7 +42,8 @@ enum class BuiltinType
     Mat4,
     sampler2D,
     samplerCube,
-    sampler2DArray
+    sampler2DArray,
+    sampler2DShadow
 };
 
 struct Uniform
@@ -56,13 +56,14 @@ struct Uniform
     BuiltinType builtinType;
     i32 userTypeIndex = -1;
 
-    static const char* SamplerDecls[3];
+    static const char* SamplerDecls[4];
 };
 
-const char* Uniform::SamplerDecls[3] = {
+const char* Uniform::SamplerDecls[4] = {
     "sampler2D",
     "samplerCube",
-    "sampler2DArray"
+    "sampler2DArray",
+    "sampler2DShadow"
 };
 
 const char* BuiltinTypeNames[] = {
@@ -76,7 +77,8 @@ const char* BuiltinTypeNames[] = {
     "mat4",
     "sampler2D",
     "samplerCube",
-    "sampler2DArray"
+    "sampler2DArray",
+    "sampler2DShadow"
 };
 
 struct VertexAttrib
@@ -1191,7 +1193,7 @@ int main(int argCount, char** args)
         L("if (info->%s.handle)", it.config.name);
         L("{");
         IDENT_PUSH();
-        L("glDeleteShader(info->%s.handle);", it.config.name);
+        L("glDeleteProgram(info->%s.handle);", it.config.name);
         L("info->%s.handle = 0;", it.config.name);
         IDENT_POP();
         L("}");
