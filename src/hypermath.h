@@ -52,6 +52,17 @@ namespace hpm
         return result;
     }
 
+    struct RandomSeries
+    {
+        // TODO: Random
+    };
+
+    inline f32 RandomUnilateral(RandomSeries* series)
+    {
+        f32 result = (f32)rand() / (f32)RAND_MAX;
+        return result;
+    }
+
     // TODO: intrinsics file
     struct BitScanResult
     {

@@ -38,7 +38,13 @@ namespace soko
 
         GLuint shadowMapFramebuffer;
         GLuint shadowMapDepthTarget;
-        u32 shadowMapRes;
+        u32 shadowMapRes = 4096;
+        GLuint randomValuesTexture;
+        constant u32 RandomValuesTextureSize = 1024;
+
+        f32 shadowConstantBias;
+        f32 shadowSlopeBiasScale;
+        f32 shadowNormalBiasScale;
 
         GLuint srgbBufferHandle;
         GLuint srgbColorTarget;
@@ -763,9 +769,11 @@ namespace soko
         glGenFramebuffers(1, &renderer->shadowMapFramebuffer);
         SOKO_ASSERT(renderer->shadowMapFramebuffer);
         renderer->shadowMapDepthTarget = CreateTexture2D(GL_CLAMP_TO_EDGE, GL_CLAMP_TO_EDGE, GL_LINEAR, GL_LINEAR);
+        glBindTexture(GL_TEXTURE_2D, renderer->shadowMapDepthTarget);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_COMPARE_MODE, GL_COMPARE_REF_TO_TEXTURE);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_COMPARE_FUNC, GL_LEQUAL);
         SOKO_ASSERT(renderer->shadowMapDepthTarget);
         // TODO: Set this propperly
-        renderer->shadowMapRes = 2048;
         AllocTexture2D(renderer->shadowMapDepthTarget, renderer->shadowMapRes, renderer->shadowMapRes, 0, GL_DEPTH_COMPONENT32);
         glBindFramebuffer(GL_FRAMEBUFFER, renderer->shadowMapFramebuffer);
         glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, renderer->shadowMapDepthTarget, 0);
@@ -773,6 +781,27 @@ namespace soko
         glReadBuffer(GL_NONE);
         SOKO_ASSERT(glCheckFramebufferStatus(GL_FRAMEBUFFER) == GL_FRAMEBUFFER_COMPLETE);
         glBindFramebuffer(GL_FRAMEBUFFER, 0);
+
+        glGenTextures(1, &renderer->randomValuesTexture);
+        SOKO_ASSERT(renderer->randomValuesTexture);
+        {
+            glBindTexture(GL_TEXTURE_1D, renderer->randomValuesTexture);
+            defer { glBindTexture(GL_TEXTURE_1D, 0); };
+
+            auto tempMem = BeginTemporaryMemory(tempArena);
+            defer { EndTemporaryMemory(&tempMem); };
+
+            u8* randomTextureBuffer = (u8*)PUSH_SIZE(tempArena, sizeof(u8) * Renderer::RandomValuesTextureSize);
+            RandomSeries series = {};
+            for (u32x i = 0; i < Renderer::RandomValuesTextureSize; i++)
+            {
+                randomTextureBuffer[i] = (u8)(RandomUnilateral(&series) * 255.0f);
+            }
+            glTexImage1D(GL_TEXTURE_1D, 0, GL_R8, Renderer::RandomValuesTextureSize, 0, GL_RED, GL_UNSIGNED_BYTE, randomTextureBuffer);
+            glTexParameteri(GL_TEXTURE_1D, GL_TEXTURE_WRAP_S, GL_REPEAT);
+            glTexParameteri(GL_TEXTURE_1D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+            glTexParameteri(GL_TEXTURE_1D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+        }
 
 
         u32 brdfLUTSize = DebugGetFileSize(L"brdf_lut.aab");
@@ -1070,10 +1099,34 @@ namespace soko
         glDepthMask(GL_TRUE);
     }
 
+    m3x3 MakeNormalMatrix(m4x4 model)
+    {
+        bool inverted = Inverse(&model);
+        SOKO_ASSERT(inverted);
+        model = Transpose(&model);
+        m3x3 normal = M3x3(&model);
+        return normal;
+    }
+
     void ShadowPass(Renderer* renderer, RenderGroup* group)
     {
         if (group->commandQueueAt)
         {
+            local_persist f32 slopeBiasScale = 0.0f;
+            local_persist f32 constBias = 0.001f;
+            local_persist f32 normalBiasScale = 0.0f;
+
+            DEBUG_OVERLAY_SLIDER(slopeBiasScale, 0.0f, 2.5f);
+            DEBUG_OVERLAY_SLIDER(constBias, 0.0f, 0.5f);
+            DEBUG_OVERLAY_SLIDER(normalBiasScale, 0.0f, 2.0f);
+
+            renderer->shadowConstantBias = constBias;
+            renderer->shadowSlopeBiasScale = slopeBiasScale;
+            renderer->shadowNormalBiasScale = normalBiasScale;
+
+            glEnable(GL_POLYGON_OFFSET_FILL);
+            defer { glDisable(GL_POLYGON_OFFSET_FILL); };
+            glPolygonOffset(renderer->shadowSlopeBiasScale, 0.0f);
             glBindFramebuffer(GL_DRAW_FRAMEBUFFER, renderer->shadowMapFramebuffer);
             defer { glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0); };
             glViewport(0, 0, (GLsizei)renderer->shadowMapRes, (GLsizei)renderer->shadowMapRes);
@@ -1088,7 +1141,11 @@ namespace soko
             auto shader = &renderer->shaders.Shadow;
             glUseProgram(shader->handle);
             defer { glUseProgram(0); };
-            glUniformMatrix4fv(shader->vertex.uniforms.viewProjMatrix, 1, GL_FALSE, viewProj.data);
+            glUniformMatrix4fv(shader->vertex.uniforms.ViewProjMatrix, 1, GL_FALSE, viewProj.data);
+            glUniform1f(shader->vertex.uniforms.ShadowNormalBiasScale, renderer->shadowNormalBiasScale);
+            glUniform1f(shader->fragment.uniforms.ConstantShadowBias, renderer->shadowConstantBias);
+            glUniform3fv(shader->vertex.uniforms.LightPos, 1, light->from.data);
+
 
             for (u32 i = 0; i < group->commandQueueAt; i++)
             {
@@ -1102,13 +1159,17 @@ namespace soko
                 case RENDER_COMMAND_DRAW_MESH:
                 {
                     auto* data = (RenderCommandDrawMesh*)(group->renderBuffer + command->rbOffset);
-                    glUniformMatrix4fv(shader->vertex.uniforms.modelMatrix, 1, GL_FALSE, data->transform.data);
+
+                    glUniformMatrix4fv(shader->vertex.uniforms.ModelMatrix, 1, GL_FALSE, data->transform.data);
+
+                    auto normalMatrix = MakeNormalMatrix(data->transform);
+                    glUniformMatrix3fv(shader->vertex.uniforms.NormalMatrix, 1, GL_FALSE, normalMatrix.data);
 
                     auto* mesh = data->mesh;
 
                     glBindBuffer(GL_ARRAY_BUFFER, mesh->gpuVertexBufferHandle);
 
-                    auto posAttrLoc = shader->vertex.vertexAttribs.position;
+                    auto posAttrLoc = shader->vertex.vertexAttribs.Position;
                     glEnableVertexAttribArray(posAttrLoc);
                     glVertexAttribPointer(posAttrLoc, 3, GL_FLOAT, GL_FALSE, 0, 0);
 
@@ -1123,14 +1184,20 @@ namespace soko
                         auto* data = ((RenderCommandPushChunkMesh*)(group->renderBuffer + command->rbOffset)) + i;
 
                         m4x4 world = Translation(data->offset);
-                        glUniformMatrix4fv(shader->vertex.uniforms.modelMatrix, 1, GL_FALSE, world.data);
+                        glUniformMatrix4fv(shader->vertex.uniforms.ModelMatrix, 1, GL_FALSE, world.data);
+
+                        auto normalMatrix = MakeNormalMatrix(world);
+                        glUniformMatrix3fv(shader->vertex.uniforms.NormalMatrix, 1, GL_FALSE, normalMatrix.data);
 
                         glBindBuffer(GL_ARRAY_BUFFER, data->meshIndex);
 
                         GLsizei stride = sizeof(ChunkMeshVertex);
-                        auto posAttrLoc = shader->vertex.vertexAttribs.position;
+                        auto posAttrLoc = shader->vertex.vertexAttribs.Position;
+                        auto normalAttrLoc = shader->vertex.vertexAttribs.Normal;
                         glEnableVertexAttribArray(posAttrLoc);
+                        glEnableVertexAttribArray(normalAttrLoc);
                         glVertexAttribPointer(posAttrLoc, 3, GL_FLOAT, GL_FALSE, stride, (void*)0);
+                        glVertexAttribPointer(normalAttrLoc, 3, GL_FLOAT, GL_FALSE, stride, (void*)(sizeof(v3)));
 
                         glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, renderer->chunkIndexBuffer);
 
@@ -1159,6 +1226,10 @@ namespace soko
             m4x4 lightLookAt = LookAtRH(light->from, light->from + light->dir, V3(0.0f, 1.0f, 0.0f));
             m4x4 lightProjection = OrthogonalOpenGLRH(-32.0f, 32.0f, -32.0f, 32.0f, 0.1f, 50.0f);
             m4x4 lightViewProj = MulM4M4(&lightProjection, &lightLookAt);
+
+            local_persist f32 shadowFilterScale = 1.0f;
+            DEBUG_OVERLAY_SLIDER(shadowFilterScale, 0.1f, 5.0f);
+
 
             glBindFramebuffer(GL_DRAW_FRAMEBUFFER, renderer->offscreenBufferHandle);
 
@@ -1235,11 +1306,7 @@ namespace soko
 
                         glUniformMatrix4fv(meshProg->vertex.uniforms.u_ModelMatrix, 1, GL_FALSE, data->transform.data);
 
-                        m4x4 invModel = data->transform;
-                        bool inverted = Inverse(&invModel);
-                        SOKO_ASSERT(inverted, "");
-                        m4x4 transModel = Transpose(&invModel);
-                        m3x3 normalMatrix = M3x3(&transModel);
+                        m3x3 normalMatrix = MakeNormalMatrix(data->transform);
 
                         glUniformMatrix3fv(meshProg->vertex.uniforms.u_NormalMatrix, 1, GL_FALSE, normalMatrix.data);
 
@@ -1369,6 +1436,9 @@ namespace soko
                     glActiveTexture(chunkProg->fragment.samplers.u_ShadowMap.slot);
                     glBindTexture(GL_TEXTURE_2D, renderer->shadowMapDepthTarget);
 
+                    glActiveTexture(chunkProg->fragment.samplers.randomTexture.slot);
+                    glBindTexture(GL_TEXTURE_1D, renderer->randomValuesTexture);
+
                     if (firstChunkMeshShaderInvocation)
                     {
                         firstChunkMeshShaderInvocation = false;
@@ -1379,6 +1449,7 @@ namespace soko
                         glUniform3fv(chunkProg->fragment.uniforms.u_DirLight.diffuse, 1, group->dirLight.diffuse.data);
                         glUniform3fv(chunkProg->fragment.uniforms.u_DirLight.specular, 1, group->dirLight.specular.data);
                         glUniform3fv(chunkProg->fragment.uniforms.u_ViewPos, 1, group->cameraConfig.position.data);
+                        glUniform1f(chunkProg->fragment.uniforms.shadowFilterSampleScale, shadowFilterScale);
                     }
 
                     for (u32 i = 0; i < command->instanceCount; i++)

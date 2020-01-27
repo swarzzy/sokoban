@@ -43,7 +43,8 @@ enum class BuiltinType
     sampler2D,
     samplerCube,
     sampler2DArray,
-    sampler2DShadow
+    sampler2DShadow,
+    sampler1D
 };
 
 struct Uniform
@@ -56,14 +57,15 @@ struct Uniform
     BuiltinType builtinType;
     i32 userTypeIndex = -1;
 
-    static const char* SamplerDecls[4];
+    static const char* SamplerDecls[5];
 };
 
-const char* Uniform::SamplerDecls[4] = {
+const char* Uniform::SamplerDecls[5] = {
     "sampler2D",
     "samplerCube",
     "sampler2DArray",
-    "sampler2DShadow"
+    "sampler2DShadow",
+    "sampler1D"
 };
 
 const char* BuiltinTypeNames[] = {
@@ -78,7 +80,8 @@ const char* BuiltinTypeNames[] = {
     "sampler2D",
     "samplerCube",
     "sampler2DArray",
-    "sampler2DShadow"
+    "sampler2DShadow",
+    "sampler1D"
 };
 
 struct VertexAttrib

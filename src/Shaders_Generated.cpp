@@ -426,12 +426,15 @@ namespace soko
                     GLint u_ViewPos;
                     GLint u_TerrainAtlas;
                     GLint u_ShadowMap;
+                    GLint shadowFilterSampleScale;
+                    GLint randomTexture;
                 } uniforms;
 
                 struct Samplers
                 {
                     Sampler u_TerrainAtlas = { 1, GL_TEXTURE1 };
-                    Sampler u_ShadowMap = { 2, GL_TEXTURE2 };
+                    Sampler u_ShadowMap = { 3, GL_TEXTURE3 };
+                    Sampler randomTexture = { 4, GL_TEXTURE4 };
                 } samplers;
 
             } fragment;
@@ -449,13 +452,17 @@ namespace soko
             {
                 struct Uniforms
                 {
-                    GLint modelMatrix;
-                    GLint viewProjMatrix;
+                    GLint ModelMatrix;
+                    GLint ViewProjMatrix;
+                    GLint NormalMatrix;
+                    GLint LightPos;
+                    GLint ShadowNormalBiasScale;
                 } uniforms;
 
                 struct VertexAttribs
                 {
-                    GLuint position = 0;
+                    GLuint Position = 0;
+                    GLuint Normal = 1;
                 } vertexAttribs;
 
             } vertex;
@@ -464,6 +471,7 @@ namespace soko
             {
                 struct Uniforms
                 {
+                    GLint ConstantShadowBias;
                 } uniforms;
 
                 struct Samplers
@@ -724,11 +732,14 @@ namespace soko
             result.fragment.uniforms.u_ViewPos = glGetUniformLocation(handle, "u_ViewPos");
             result.fragment.uniforms.u_TerrainAtlas = glGetUniformLocation(handle, "u_TerrainAtlas");
             result.fragment.uniforms.u_ShadowMap = glGetUniformLocation(handle, "u_ShadowMap");
+            result.fragment.uniforms.shadowFilterSampleScale = glGetUniformLocation(handle, "shadowFilterSampleScale");
+            result.fragment.uniforms.randomTexture = glGetUniformLocation(handle, "randomTexture");
 
             //NOTE: Setting samplers
             glUseProgram(handle);
             glUniform1i(result.fragment.uniforms.u_TerrainAtlas, (GLint)result.fragment.samplers.u_TerrainAtlas.sampler);
             glUniform1i(result.fragment.uniforms.u_ShadowMap, (GLint)result.fragment.samplers.u_ShadowMap.sampler);
+            glUniform1i(result.fragment.uniforms.randomTexture, (GLint)result.fragment.samplers.randomTexture.sampler);
             glUseProgram(0);
         }
         return result;
@@ -742,10 +753,14 @@ namespace soko
         {
             result.handle = handle;
             // NOTE: Assign vertex shader uniforms
-            result.vertex.uniforms.modelMatrix = glGetUniformLocation(handle, "modelMatrix");
-            result.vertex.uniforms.viewProjMatrix = glGetUniformLocation(handle, "viewProjMatrix");
+            result.vertex.uniforms.ModelMatrix = glGetUniformLocation(handle, "ModelMatrix");
+            result.vertex.uniforms.ViewProjMatrix = glGetUniformLocation(handle, "ViewProjMatrix");
+            result.vertex.uniforms.NormalMatrix = glGetUniformLocation(handle, "NormalMatrix");
+            result.vertex.uniforms.LightPos = glGetUniformLocation(handle, "LightPos");
+            result.vertex.uniforms.ShadowNormalBiasScale = glGetUniformLocation(handle, "ShadowNormalBiasScale");
 
             // NOTE: Assign fragment shader uniforms
+            result.fragment.uniforms.ConstantShadowBias = glGetUniformLocation(handle, "ConstantShadowBias");
 
             //NOTE: Setting samplers
             glUseProgram(handle);
@@ -1754,18 +1769,148 @@ struct DirLight
 uniform DirLight u_DirLight;
 uniform vec3 u_ViewPos;
 uniform sampler2DArray u_TerrainAtlas;
-// TODO: Use shadow sampler and sampling with comparsion
-uniform sampler2D u_ShadowMap;
+uniform sampler2DShadow u_ShadowMap;
 
+uniform float shadowFilterSampleScale = 1.0f;
+uniform sampler1D randomTexture;
+
+#define PI (3.14159265359)
+
+// NOTE: Reference: https://github.com/TheRealMJP/Shadows/blob/master/Shadows/PCFKernels.hlsl
+const vec2 PoissonSamples[64] = vec2[64]
+(
+    vec2(-0.5119625f, -0.4827938f),
+    vec2(-0.2171264f, -0.4768726f),
+    vec2(-0.7552931f, -0.2426507f),
+    vec2(-0.7136765f, -0.4496614f),
+    vec2(-0.5938849f, -0.6895654f),
+    vec2(-0.3148003f, -0.7047654f),
+    vec2(-0.42215f, -0.2024607f),
+    vec2(-0.9466816f, -0.2014508f),
+    vec2(-0.8409063f, -0.03465778f),
+    vec2(-0.6517572f, -0.07476326f),
+    vec2(-0.1041822f, -0.02521214f),
+    vec2(-0.3042712f, -0.02195431f),
+    vec2(-0.5082307f, 0.1079806f),
+    vec2(-0.08429877f, -0.2316298f),
+    vec2(-0.9879128f, 0.1113683f),
+    vec2(-0.3859636f, 0.3363545f),
+    vec2(-0.1925334f, 0.1787288f),
+    vec2(0.003256182f, 0.138135f),
+    vec2(-0.8706837f, 0.3010679f),
+    vec2(-0.6982038f, 0.1904326f),
+    vec2(0.1975043f, 0.2221317f),
+    vec2(0.1507788f, 0.4204168f),
+    vec2(0.3514056f, 0.09865579f),
+    vec2(0.1558783f, -0.08460935f),
+    vec2(-0.0684978f, 0.4461993f),
+    vec2(0.3780522f, 0.3478679f),
+    vec2(0.3956799f, -0.1469177f),
+    vec2(0.5838975f, 0.1054943f),
+    vec2(0.6155105f, 0.3245716f),
+    vec2(0.3928624f, -0.4417621f),
+    vec2(0.1749884f, -0.4202175f),
+    vec2(0.6813727f, -0.2424808f),
+    vec2(-0.6707711f, 0.4912741f),
+    vec2(0.0005130528f, -0.8058334f),
+    vec2(0.02703013f, -0.6010728f),
+    vec2(-0.1658188f, -0.9695674f),
+    vec2(0.4060591f, -0.7100726f),
+    vec2(0.7713396f, -0.4713659f),
+    vec2(0.573212f, -0.51544f),
+    vec2(-0.3448896f, -0.9046497f),
+    vec2(0.1268544f, -0.9874692f),
+    vec2(0.7418533f, -0.6667366f),
+    vec2(0.3492522f, 0.5924662f),
+    vec2(0.5679897f, 0.5343465f),
+    vec2(0.5663417f, 0.7708698f),
+    vec2(0.7375497f, 0.6691415f),
+    vec2(0.2271994f, -0.6163502f),
+    vec2(0.2312844f, 0.8725659f),
+    vec2(0.4216993f, 0.9002838f),
+    vec2(0.4262091f, -0.9013284f),
+    vec2(0.2001408f, -0.808381f),
+    vec2(0.149394f, 0.6650763f),
+    vec2(-0.09640376f, 0.9843736f),
+    vec2(0.7682328f, -0.07273844f),
+    vec2(0.04146584f, 0.8313184f),
+    vec2(0.9705266f, -0.1143304f),
+    vec2(0.9670017f, 0.1293385f),
+    vec2(0.9015037f, -0.3306949f),
+    vec2(-0.5085648f, 0.7534177f),
+    vec2(0.9055501f, 0.3758393f),
+    vec2(0.7599946f, 0.1809109f),
+    vec2(-0.2483695f, 0.7942952f),
+    vec2(-0.4241052f, 0.5581087f),
+    vec2(-0.1020106f, 0.6724468f)
+);
+
+//#define RANDOM_DISC_PCF 1
+#define RANDOMIZE_OFFSETS 1
+#define DUMMY_PCF 1
+
+#if DUMMY_PCF
 float Shadow()
 {
     vec3 coord = v_LightSpacePos.xyz / v_LightSpacePos.w;
     coord = coord * 0.5f + 0.5f;
     float currentDepth = coord.z;
-    float bias = 0.001f;
-    float shadowDepth = texture(u_ShadowMap, coord.xy).r + bias;
-    return (currentDepth < shadowDepth ? 1.0f : 0.0f);
+
+    float Kshadow = 0.0f;
+    vec2 sampleScale = (1.0f / textureSize(u_ShadowMap, 0)) * shadowFilterSampleScale;
+    int sampleCount = 0;
+    for (int y = -2; y <= 1; y++)
+    {
+        for (int x = -2; x <= 1; x++)
+        {
+            vec3 uv = vec3(coord.xy + vec2(x, y) * sampleScale, currentDepth);
+            Kshadow += texture(u_ShadowMap, uv);
+            sampleCount++;
+        }
+    }
+    Kshadow /= sampleCount;
+    return Kshadow;
 }
+#endif
+#if RANDOM_DISC_PCF
+float Shadow()
+{
+    float result = 0.0f;
+
+    vec3 coord = v_LightSpacePos.xyz / v_LightSpacePos.w;
+    coord = coord * 0.5f + 0.5f;
+    float currentDepth = coord.z;
+
+    vec2 sampleScale = (1.0f / textureSize(u_ShadowMap, 0)) * shadowFilterSampleScale;
+
+#if RANDOMIZE_OFFSETS
+    int randomTextureSize = textureSize(randomTexture, 0);
+    // TODO: Better random here
+    int randomSamplePos = int(gl_FragCoord.x + 845.0f * gl_FragCoord.y) % randomTextureSize;
+    float theta = texelFetch(randomTexture, randomSamplePos, 0).r * 2.0f * PI;
+    mat2 randomRotationMtx;
+    randomRotationMtx[0] = vec2(cos(theta), sin(theta));
+    randomRotationMtx[1] = vec2(-sin(theta), cos(theta));
+    //randomRotationMtx[0] = vec2(cos(theta), -sin(theta));
+    //randomRotationMtx[1] = vec2(sin(theta), cos(theta));
+#endif
+
+    const int sampleCount = 16;
+
+    for (int i = 0; i < sampleCount; i++)
+    {
+#if RANDOMIZE_OFFSETS
+        vec2 sampleOffset = (randomRotationMtx * PoissonSamples[i]) * sampleScale;
+#else
+        vec2 sampleOffset = PoissonSamples[i] *  sampleScale;
+#endif
+        vec3 uv = vec3(coord.xy + sampleOffset, currentDepth);
+        result += texture(u_ShadowMap, uv);
+    }
+    result /= sampleCount;
+    return result;
+}
+#endif
 
 vec3 CalcDirectionalLight(DirLight light, vec3 normal,
                           vec3 viewDir,
@@ -1802,21 +1947,33 @@ void main()
 })";
 
     const char* ShaderInfo::Info_Shadow::VertexSource = R"(#version 330 core
-layout (location = 0) in vec3 position;
+layout (location = 0) in vec3 Position;
+layout (location = 1) in vec3 Normal;
 
-uniform mat4 modelMatrix;
-uniform mat4 viewProjMatrix;
+uniform mat4 ModelMatrix;
+uniform mat4 ViewProjMatrix;
+uniform mat3 NormalMatrix;
+uniform vec3 LightPos;
+
+uniform float ShadowNormalBiasScale = 0.0f;
 
 void main()
 {
-    gl_Position = viewProjMatrix * modelMatrix * vec4(position, 1.0f);
+    vec3 normal = normalize(NormalMatrix * normalize(Normal));
+    float NdotL = dot(normal, LightPos);
+    vec3 p = (ModelMatrix * vec4(Position, 1.0f)).xyz;
+    //p += normal * ShadowNormalBiasScale;
+    gl_Position = ViewProjMatrix * vec4(p, 1.0f);
 })";
 
     const char* ShaderInfo::Info_Shadow::FragmentSource = R"(#version 330 core
 out vec4 color;
 
+uniform float ConstantShadowBias = 0.0f;
+
 void main()
 {
+    gl_FragDepth = gl_FragCoord.z + ConstantShadowBias;
     color = vec4(gl_FragCoord.z, gl_FragCoord.z, gl_FragCoord.z, 1.0f);
 }
 )";

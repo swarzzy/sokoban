@@ -216,6 +216,8 @@ inline void* ReallocForSTBI(void* p, uptr oldSize, uptr newSize)
 #define glFlush GL_FUNCTION(glFlush)
 #define glDrawBuffer GL_FUNCTION(glDrawBuffer)
 #define glReadBuffer GL_FUNCTION(glReadBuffer)
+#define glPolygonOffset GL_FUNCTION(glPolygonOffset)
+#define glTexImage1D GL_FUNCTION(glTexImage1D)
 
 // NOTE: Functions used by ImGUI
 #define glGetIntegerv GL_FUNCTION(glGetIntegerv)
@@ -233,53 +235,53 @@ inline void* ReallocForSTBI(void* p, uptr oldSize, uptr newSize)
 #define glDetachShader GL_FUNCTION(glDetachShader)
 #define glDeleteProgram GL_FUNCTION(glDeleteProgram)
 
-            namespace soko
-            {
+                namespace soko
+                {
 
 // TODO: Bounds checking of using enum classes
-                inline bool
-                JustPressed(AB::KeyCode code)
-                {
-                    bool result = GlobalInput.keys[(u32)code].pressedNow && !GlobalInput.keys[(u32)code].wasPressed;
-                    return result;
-                }
+                    inline bool
+                    JustPressed(AB::KeyCode code)
+                    {
+                        bool result = GlobalInput.keys[(u32)code].pressedNow && !GlobalInput.keys[(u32)code].wasPressed;
+                        return result;
+                    }
 
-                inline bool
-                JustReleased(AB::KeyCode code)
-                {
-                    bool result = !GlobalInput.keys[(u32)code].pressedNow && GlobalInput.keys[(u32)code].wasPressed;
-                    return result;
-                }
+                    inline bool
+                    JustReleased(AB::KeyCode code)
+                    {
+                        bool result = !GlobalInput.keys[(u32)code].pressedNow && GlobalInput.keys[(u32)code].wasPressed;
+                        return result;
+                    }
 
-                inline bool
-                IsDown(AB::KeyCode code)
-                {
-                    bool result = GlobalInput.keys[(u32)code].pressedNow;
-                    return result;
-                }
+                    inline bool
+                    IsDown(AB::KeyCode code)
+                    {
+                        bool result = GlobalInput.keys[(u32)code].pressedNow;
+                        return result;
+                    }
 
-                inline bool
-                JustPressed(AB::MouseButton button)
-                {
-                    bool result = GlobalInput.mouseButtons[(u32)button].pressedNow && !GlobalInput.mouseButtons[(u32)button].wasPressed;
-                    return result;
-                }
+                    inline bool
+                    JustPressed(AB::MouseButton button)
+                    {
+                        bool result = GlobalInput.mouseButtons[(u32)button].pressedNow && !GlobalInput.mouseButtons[(u32)button].wasPressed;
+                        return result;
+                    }
 
-                inline bool
-                JustReleased(AB::MouseButton button)
-                {
-                    bool result = !GlobalInput.mouseButtons[(u32)button].pressedNow && GlobalInput.mouseButtons[(u32)button].wasPressed;
-                    return result;
-                }
+                    inline bool
+                    JustReleased(AB::MouseButton button)
+                    {
+                        bool result = !GlobalInput.mouseButtons[(u32)button].pressedNow && GlobalInput.mouseButtons[(u32)button].wasPressed;
+                        return result;
+                    }
 
-                inline bool
-                IsDown(AB::MouseButton button)
-                {
-                    bool result = GlobalInput.mouseButtons[(u32)button].pressedNow;
-                    return result;
-                }
+                    inline bool
+                    IsDown(AB::MouseButton button)
+                    {
+                        bool result = GlobalInput.mouseButtons[(u32)button].pressedNow;
+                        return result;
+                    }
 
-            }
+                }
 
 #include "imgui/imgui.h"
 //#include "imgui/imgui_internal.h"
@@ -513,6 +515,7 @@ namespace soko
         ImGui::SetCurrentContext(_GlobalPlatform->imGuiContext);
         UnloadShaders(&_GlobalStaticStorage->gameState->renderer->shaders);
         _GlobalStaticStorage->gameState->renderer->shaders = LoadShaders();
+        SOKO_INFO("Game code was reloaded");
     }
 
     void
@@ -562,6 +565,8 @@ namespace soko
             camConf = &gameState->session.camera.conf;
         }
 
+        // TODO: This crashes the game
+#if 0
         if (JustPressed(MBUTTON_LEFT))
         {
             v3 from = RHToWorld(camera->conf.position);
@@ -580,7 +585,7 @@ namespace soko
                 }
             }
         }
-
+#endif
         RenderGroupSetCamera(gameState->renderGroup, camConf);
 
         v3 beg = gameState->session.camera.conf.position;
