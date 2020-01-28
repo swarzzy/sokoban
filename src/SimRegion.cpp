@@ -128,8 +128,7 @@ namespace soko
                     command.material = *material;
                 }
 
-                RenderGroupPushCommand(gameState->renderGroup, RENDER_COMMAND_DRAW_MESH,
-                                       (void*)&command);
+                RenderGroupPushCommand(gameState->renderGroup, RENDER_COMMAND_DRAW_MESH, (void*)&command);
             }
         }
     }

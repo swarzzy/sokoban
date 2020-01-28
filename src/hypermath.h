@@ -1158,6 +1158,11 @@ namespace hpm
         return r;
     }
 
+    inline Vector4 operator*(const Matrix4& m, const Vector4& v)
+    {
+        return MulM4V4(m, v);
+    }
+
     inline Quaternion Quat(f32 x, f32 y, f32 z, f32 w)
     {
         return Quaternion{x, y, z, w};

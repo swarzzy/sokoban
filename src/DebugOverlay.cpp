@@ -56,6 +56,7 @@ namespace soko
                          ImGuiWindowFlags_NoSavedSettings |
                          ImGuiWindowFlags_NoFocusOnAppearing |
                          ImGuiWindowFlags_NoNav))
+
         {
         }
         ImGui::End();

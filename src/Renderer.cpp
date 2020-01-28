@@ -2,6 +2,8 @@
 
 #include "ShaderManager.cpp"
 
+#include "Frustum.cpp"
+
 namespace soko
 {
     // TODO: Cleanup tile values and terrain textures
@@ -36,8 +38,10 @@ namespace soko
         GLuint offscreenColorTarget;
         GLuint offscreenDepthTarget;
 
+        BBoxAligned shadowMapBounds;
         GLuint shadowMapFramebuffer;
         GLuint shadowMapDepthTarget;
+        GLuint shadowMapDebugColorTarget;
         u32 shadowMapRes = 4096;
         GLuint randomValuesTexture;
         constant u32 RandomValuesTextureSize = 1024;
@@ -769,16 +773,19 @@ namespace soko
         glGenFramebuffers(1, &renderer->shadowMapFramebuffer);
         SOKO_ASSERT(renderer->shadowMapFramebuffer);
         renderer->shadowMapDepthTarget = CreateTexture2D(GL_CLAMP_TO_EDGE, GL_CLAMP_TO_EDGE, GL_LINEAR, GL_LINEAR);
+        renderer->shadowMapDebugColorTarget = CreateTexture2D(GL_CLAMP_TO_EDGE, GL_CLAMP_TO_EDGE, GL_LINEAR, GL_LINEAR);
         glBindTexture(GL_TEXTURE_2D, renderer->shadowMapDepthTarget);
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_COMPARE_MODE, GL_COMPARE_REF_TO_TEXTURE);
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_COMPARE_FUNC, GL_LEQUAL);
         SOKO_ASSERT(renderer->shadowMapDepthTarget);
         // TODO: Set this propperly
         AllocTexture2D(renderer->shadowMapDepthTarget, renderer->shadowMapRes, renderer->shadowMapRes, 0, GL_DEPTH_COMPONENT32);
+        AllocTexture2D(renderer->shadowMapDebugColorTarget, renderer->shadowMapRes, renderer->shadowMapRes, 0, GL_R8);
         glBindFramebuffer(GL_FRAMEBUFFER, renderer->shadowMapFramebuffer);
         glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, renderer->shadowMapDepthTarget, 0);
-        glDrawBuffer(GL_NONE);
-        glReadBuffer(GL_NONE);
+        glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, renderer->shadowMapDebugColorTarget, 0);
+        //glDrawBuffer(GL_NONE);
+        //glReadBuffer(GL_NONE);
         SOKO_ASSERT(glCheckFramebufferStatus(GL_FRAMEBUFFER) == GL_FRAMEBUFFER_COMPLETE);
         glBindFramebuffer(GL_FRAMEBUFFER, 0);
 
@@ -966,6 +973,12 @@ namespace soko
                               GL_COLOR_BUFFER_BIT, GL_LINEAR);
 
         }
+
+        glBindFramebuffer(GL_READ_FRAMEBUFFER, renderer->shadowMapFramebuffer);
+        glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
+
+        glBlitFramebuffer(0, 0, renderer->shadowMapRes, renderer->shadowMapRes,
+                          0, 0, 512, 512, GL_COLOR_BUFFER_BIT, GL_LINEAR);
     }
 
     internal void
@@ -1130,13 +1143,61 @@ namespace soko
             glBindFramebuffer(GL_DRAW_FRAMEBUFFER, renderer->shadowMapFramebuffer);
             defer { glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0); };
             glViewport(0, 0, (GLsizei)renderer->shadowMapRes, (GLsizei)renderer->shadowMapRes);
-            glClear(GL_DEPTH_BUFFER_BIT);
+            glClear(GL_DEPTH_BUFFER_BIT | GL_COLOR_BUFFER_BIT);
             glEnable(GL_DEPTH_TEST);
 
-            auto* light = &group->dirLight;
-            m4x4 lookAt = LookAtRH(light->from, light->from + light->dir, V3(0.0f, 1.0f, 0.0f));
-            m4x4 projection = OrthogonalOpenGLRH(-32.0f, 32.0f, -32.0f, 32.0f, 0.1f, 50.0f);
-            m4x4 viewProj = MulM4M4(&projection, &lookAt);
+            auto light = &group->dirLight;
+            auto camera = &group->cameraConfig;
+
+            // TODO: Fix the mess with lookAt matrices
+            Basis cameraBasis;
+            cameraBasis.zAxis = Normalize(camera->front);
+            cameraBasis.xAxis = Normalize(Cross(V3(0.0f, 1.0f, 0.0), cameraBasis.zAxis));
+            cameraBasis.yAxis = Cross(cameraBasis.zAxis, cameraBasis.xAxis);
+            cameraBasis.p = camera->position;
+
+            auto camFrustumCorners = GetFrustumCorners(cameraBasis, camera->fovDeg, camera->aspectRatio, camera->nearPlane, camera->farPlane);
+
+            v3 min = V3(F32_MAX);
+            v3 max = V3(-F32_MAX);
+
+            m4x4 lightLookAt = LookAtDirRH(light->from, light->dir, V3(0.0f, 1.0f, 0.0f));
+
+            for (u32x i = 0; i < ArrayCount(camFrustumCorners.corners); i++)
+            {
+                auto corner = (lightLookAt * V4(camFrustumCorners.corners[i], 1.0f)).xyz;
+                //auto corner = camFrustumCorners.corners[i];
+                if (corner.x < min.x) min.x = corner.x;
+                if (corner.x > max.x) max.x = corner.x;
+                if (corner.y < min.y) min.y = corner.y;
+                if (corner.y > max.y) max.y = corner.y;
+                if (corner.z < min.z) min.z = corner.z;
+                if (corner.z > max.z) max.z = corner.z;
+            }
+
+
+            //min = (lightLookAt * V4(min, 1.0f)).xyz;
+            //max = (lightLookAt * V4(max, 1.0f)).xyz;
+
+            v3 minViewSpace = min;//V3(Min(min.x, max.x), Min(min.y, max.y), Min(min.z, max.z));
+            v3 maxViewSpace = max;//V3(Max(min.x, max.x), Max(min.y, max.y), Max(min.z, max.z));
+
+            // TODO: Z!
+
+            auto tmp = minViewSpace.z;
+            minViewSpace.z = -maxViewSpace.z;
+            maxViewSpace.z = -tmp;
+
+            renderer->shadowMapBounds.min = minViewSpace;
+            renderer->shadowMapBounds.max = maxViewSpace;
+
+
+            DEBUG_OVERLAY_TRACE(minViewSpace);
+            DEBUG_OVERLAY_TRACE(maxViewSpace);
+
+            m4x4 projection = OrthogonalOpenGLRH(minViewSpace.x, maxViewSpace.x, minViewSpace.y, maxViewSpace.y, minViewSpace.z, maxViewSpace.z);
+            //m4x4 projection = OrthogonalOpenGLRH(-30.0, 30.0f, -30.0f, 30.0f, 5.0f, 50.0f);
+            m4x4 viewProj = MulM4M4(&projection, &lightLookAt);
 
             auto shader = &renderer->shaders.Shadow;
             glUseProgram(shader->handle);
@@ -1222,9 +1283,10 @@ namespace soko
 
         if (group->commandQueueAt)
         {
-            auto* light = &group->dirLight;
+            auto light = &group->dirLight;
+            auto shadowAABB = renderer->shadowMapBounds;
             m4x4 lightLookAt = LookAtRH(light->from, light->from + light->dir, V3(0.0f, 1.0f, 0.0f));
-            m4x4 lightProjection = OrthogonalOpenGLRH(-32.0f, 32.0f, -32.0f, 32.0f, 0.1f, 50.0f);
+            m4x4 lightProjection = OrthogonalOpenGLRH(shadowAABB.min.x, shadowAABB.max.x, shadowAABB.min.y, shadowAABB.max.y, shadowAABB.min.z, shadowAABB.max.z);
             m4x4 lightViewProj = MulM4M4(&lightProjection, &lightLookAt);
 
             local_persist f32 shadowFilterScale = 1.0f;

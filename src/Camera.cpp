@@ -60,7 +60,7 @@ namespace soko
         conf.fovDeg = 45.0f;
         conf.aspectRatio = 16.0f / 9.0f;
         conf.nearPlane = 0.1f;
-        conf.farPlane = 100.0f;
+        conf.farPlane = 40.0f;
 
         debugCamera->conf = conf;
         debugCamera->moveSpeed = 7.0f;
@@ -209,6 +209,7 @@ namespace soko
 
         //camera->worldOffset = -camera->targetPos;
         camera->conf.position = V3(x, y, z);
+        // NOTE: It's pointing backwards
         camera->conf.front = -Normalize(V3(x, y, z));
 
         v2 normMousePos;

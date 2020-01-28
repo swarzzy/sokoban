@@ -628,8 +628,8 @@ namespace soko
             {
                 gameState->globalGameMode = GAME_MODE_MENU;
             }
-            DebugOverlayEndCustom();
         }
+        DebugOverlayEndCustom();
     }
 
     internal void
