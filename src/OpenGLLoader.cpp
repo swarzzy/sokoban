@@ -559,7 +559,7 @@ namespace AB
         case GL_DEBUG_SEVERITY_NOTIFICATION_ARB: { severityStr = "notification"; } break;
         default: { severityStr = "unknown"; } break;
         }
-        PrintString("OpenGL debug message (source: %s, type: %s, severity: %s): %s\n", sourceStr, typeStr, severityStr, message);
+        //PrintString("OpenGL debug message (source: %s, type: %s, severity: %s): %s\n", sourceStr, typeStr, severityStr, message);
         //AB_DEBUG_BREAK();
     }
 

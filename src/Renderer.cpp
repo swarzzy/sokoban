@@ -44,6 +44,7 @@ namespace soko
         GLuint shadowMapDebugColorTarget;
         u32 shadowMapRes = 4096;
         GLuint randomValuesTexture;
+        b32 stableShadows;
         constant u32 RandomValuesTextureSize = 1024;
 
         f32 shadowConstantBias;
@@ -974,11 +975,17 @@ namespace soko
 
         }
 
-        glBindFramebuffer(GL_READ_FRAMEBUFFER, renderer->shadowMapFramebuffer);
-        glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
+        local_persist i32 showShadowMap = false;
+        DEBUG_OVERLAY_SLIDER(showShadowMap, 0, 1);
 
-        glBlitFramebuffer(0, 0, renderer->shadowMapRes, renderer->shadowMapRes,
-                          0, 0, 512, 512, GL_COLOR_BUFFER_BIT, GL_LINEAR);
+        if (showShadowMap)
+        {
+            glBindFramebuffer(GL_READ_FRAMEBUFFER, renderer->shadowMapFramebuffer);
+            glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
+
+            glBlitFramebuffer(0, 0, renderer->shadowMapRes, renderer->shadowMapRes,
+                              0, 0, 512, 512, GL_COLOR_BUFFER_BIT, GL_LINEAR);
+        }
     }
 
     internal void
@@ -1156,47 +1163,99 @@ namespace soko
             cameraBasis.yAxis = Cross(cameraBasis.zAxis, cameraBasis.xAxis);
             cameraBasis.p = camera->position;
 
-            auto camFrustumCorners = GetFrustumCorners(cameraBasis, camera->fovDeg, camera->aspectRatio, camera->nearPlane, camera->farPlane);
-
-            v3 min = V3(F32_MAX);
-            v3 max = V3(-F32_MAX);
-
             m4x4 lightLookAt = LookAtDirRH(light->from, light->dir, V3(0.0f, 1.0f, 0.0f));
 
-            for (u32x i = 0; i < ArrayCount(camFrustumCorners.corners); i++)
+            // NOTE Shadow projection bounds
+            v3 min;
+            v3 max;
+
             {
-                auto corner = (lightLookAt * V4(camFrustumCorners.corners[i], 1.0f)).xyz;
-                //auto corner = camFrustumCorners.corners[i];
-                if (corner.x < min.x) min.x = corner.x;
-                if (corner.x > max.x) max.x = corner.x;
-                if (corner.y < min.y) min.y = corner.y;
-                if (corner.y > max.y) max.y = corner.y;
-                if (corner.z < min.z) min.z = corner.z;
-                if (corner.z > max.z) max.z = corner.z;
+                i32 EnableStableShadows = renderer->stableShadows;
+                DEBUG_OVERLAY_SLIDER(EnableStableShadows, 0, 1);
+                renderer->stableShadows = EnableStableShadows;
             }
 
+            if (renderer->stableShadows)
+            {
+                v3 bSphereP;
+                f32 bSphereR;
 
-            //min = (lightLookAt * V4(min, 1.0f)).xyz;
-            //max = (lightLookAt * V4(max, 1.0f)).xyz;
+                // NOTE: Computing frustum bounding sphere
+                // Reference: https://lxjk.github.io/2017/04/15/Calculate-Minimal-Bounding-Sphere-of-Frustum.html
+                f32 k = Sqrt(1.0f + camera->aspectRatio * camera->aspectRatio) * Tan(ToRadians(camera->fovDeg) * 0.5f);
+                f32 kSq = k * k;
+                f32 f = camera->farPlane;
+                f32 n = camera->nearPlane;
+                if (kSq >= ((f - n) / (f + n)))
+                {
+                    bSphereP = V3(0.0f, 0.0f, -f);
+                    bSphereR = f * k;
+                }
+                else
+                {
+                    bSphereP = V3(0.0f, 0.0f, -0.5f * (f + n) * (1.0f + kSq));
+                    bSphereR = 0.5f * Sqrt((f - n) * (f - n) + 2.0f * (f * f + n * n) * kSq + (f + n) * (f + n) * kSq * kSq);
+                }
 
-            v3 minViewSpace = min;//V3(Min(min.x, max.x), Min(min.y, max.y), Min(min.z, max.z));
-            v3 maxViewSpace = max;//V3(Max(min.x, max.x), Max(min.y, max.y), Max(min.z, max.z));
+                bSphereP = bSphereP.x * cameraBasis.xAxis + bSphereP.y * cameraBasis.yAxis + bSphereP.z * cameraBasis.zAxis;
 
-            // TODO: Z!
+                v3 xAxis = V3(1.0f, 0.0f, 0.0f);
+                v3 yAxis = V3(0.0f, 1.0f, 0.0f);
+                v3 zAxis = V3(0.0f, 0.0f, 1.0f);
 
-            auto tmp = minViewSpace.z;
-            minViewSpace.z = -maxViewSpace.z;
-            maxViewSpace.z = -tmp;
+                min = bSphereP - (xAxis * bSphereR + yAxis * bSphereR + zAxis * bSphereR);
+                max = bSphereP + (xAxis * bSphereR + yAxis * bSphereR + zAxis * bSphereR);
 
-            renderer->shadowMapBounds.min = minViewSpace;
-            renderer->shadowMapBounds.max = maxViewSpace;
+                auto bboxSideSize = Abs(min.x) + Abs(max.x);
+                auto pixelSize = bboxSideSize / renderer->shadowMapRes;
 
+                min.x = Round(min.x / pixelSize) * pixelSize;
+                min.y = Round(min.y / pixelSize) * pixelSize;
+                min.z = Round(min.z / pixelSize) * pixelSize;
 
-            DEBUG_OVERLAY_TRACE(minViewSpace);
-            DEBUG_OVERLAY_TRACE(maxViewSpace);
+                max.x = Round(max.x / pixelSize) * pixelSize;
+                max.y = Round(max.y / pixelSize) * pixelSize;
+                max.z = Round(max.z / pixelSize) * pixelSize;
+            }
+            else
+            {
+                auto camFrustumCorners = GetFrustumCorners(cameraBasis, camera->fovDeg, camera->aspectRatio, camera->nearPlane, camera->farPlane);
+                for (u32x i = 0; i < ArrayCount(camFrustumCorners.corners); i++)
+                {
+                    camFrustumCorners.corners[i] = (lightLookAt * V4(camFrustumCorners.corners[i], 1.0f)).xyz;
+                }
 
-            m4x4 projection = OrthogonalOpenGLRH(minViewSpace.x, maxViewSpace.x, minViewSpace.y, maxViewSpace.y, minViewSpace.z, maxViewSpace.z);
-            //m4x4 projection = OrthogonalOpenGLRH(-30.0, 30.0f, -30.0f, 30.0f, 5.0f, 50.0f);
+                min = V3(F32_MAX);
+                max = V3(-F32_MAX);
+
+                for (u32x i = 0; i < ArrayCount(camFrustumCorners.corners); i++)
+                {
+                    auto corner = camFrustumCorners.corners[i];
+                    if (corner.x < min.x) min.x = corner.x;
+                    if (corner.x > max.x) max.x = corner.x;
+                    if (corner.y < min.y) min.y = corner.y;
+                    if (corner.y > max.y) max.y = corner.y;
+                    if (corner.z < min.z) min.z = corner.z;
+                    if (corner.z > max.z) max.z = corner.z;
+                }
+
+                v3 minViewSpace = min;
+                v3 maxViewSpace = max;
+
+                // NOTE: Inverting Z because right-handed Z is negative-forward
+                // but ortho ptojections gets constructed from Z positive-far
+                auto tmp = minViewSpace.z;
+                minViewSpace.z = -maxViewSpace.z;
+                maxViewSpace.z = -tmp;
+
+                min = minViewSpace;
+                max = maxViewSpace;
+            }
+
+            renderer->shadowMapBounds.min = min;
+            renderer->shadowMapBounds.max = max;
+
+            m4x4 projection = OrthogonalOpenGLRH(min.x, max.x, min.y, max.y, min.z, max.z);
             m4x4 viewProj = MulM4M4(&projection, &lightLookAt);
 
             auto shader = &renderer->shaders.Shadow;

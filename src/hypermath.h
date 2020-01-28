@@ -201,6 +201,11 @@ namespace hpm
         return (i32)roundf(value);
     }
 
+    inline f32 Round(f32 v)
+    {
+        return roundf(v);
+    }
+
     inline float Minimum(float a, float b)
     {
         return a < b ? a : b;
