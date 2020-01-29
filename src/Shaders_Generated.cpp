@@ -436,8 +436,8 @@ namespace soko
                 struct Samplers
                 {
                     Sampler u_TerrainAtlas = { 1, GL_TEXTURE1 };
-                    Sampler u_ShadowMap = { 3, GL_TEXTURE3 };
-                    Sampler randomTexture = { 4, GL_TEXTURE4 };
+                    Sampler u_ShadowMap = { 4, GL_TEXTURE4 };
+                    Sampler randomTexture = { 5, GL_TEXTURE5 };
                 } samplers;
 
             } fragment;
@@ -1764,34 +1764,7 @@ void main()
 })";
 
     const char* ShaderInfo::Info_Chunk::FragmentSource = R"(#version 330 core
-in vec4 v_Position;
-in vec3 v_ViewPosition;
-in vec4 v_LightSpacePos[3];
-flat in int v_TileId;
-in vec3 v_Normal;
-in vec2 v_UV;
 
-out vec4 color;
-
-struct DirLight
-{
-    vec3 dir;
-    vec3 ambient;
-    vec3 diffuse;
-    vec3 specular;
-};
-
-uniform DirLight u_DirLight;
-uniform vec3 u_ViewPos;
-uniform sampler2DArray u_TerrainAtlas;
-uniform sampler2DArrayShadow u_ShadowMap;
-uniform vec3 u_ShadowCascadeSplits;
-uniform int u_ShowShadowCascadesBoundaries = 0;
-
-uniform float shadowFilterSampleScale = 1.0f;
-uniform sampler1D randomTexture;
-
-#define PI (3.14159265359)
 #define NUM_SHADOW_CASCADES 3
 
 // NOTE: Reference: https://github.com/TheRealMJP/Shadows/blob/master/Shadows/PCFKernels.hlsl
@@ -1863,72 +1836,65 @@ const vec2 PoissonSamples[64] = vec2[64]
     vec2(-0.1020106f, 0.6724468f)
 );
 
-//#define RANDOM_DISC_PCF 1
-//#define RANDOMIZE_OFFSETS 1
-#define DUMMY_PCF 1
-
-vec3 CascadeColors[3] = vec3[3]
+vec3 CascadeColors[NUM_SHADOW_CASCADES] = vec3[NUM_SHADOW_CASCADES]
 (
     vec3(1.0f, 0.0f, 0.0f),
     vec3(0.0f, 1.0f, 0.0f),
     vec3(0.0f, 0.0f, 1.0f)
 );
 
-#if DUMMY_PCF
-vec3 Shadow()
+int GetShadowCascadeIndex(float viewSpaceDepth, vec3 bounds)
 {
     int cascadeNum = 0;
 
     for (int i = 0; i < NUM_SHADOW_CASCADES; i++)
     {
-        if (-v_ViewPosition.z < u_ShadowCascadeSplits[i])
+        if (viewSpaceDepth < bounds[i])
         {
             cascadeNum = i;
             break;
         }
     }
+    return cascadeNum;
+}
 
-    vec3 coord = v_LightSpacePos[cascadeNum].xyz / v_LightSpacePos[cascadeNum].w;
-    coord = coord * 0.5f + 0.5f;
-    float currentDepthLightSpace = coord.z;
-
-    float Kshadow = 0.0f;
-    vec2 sampleScale = (1.0f / textureSize(u_ShadowMap, 0).xy) * shadowFilterSampleScale;
+vec3 ShadowPCF(in sampler2DArrayShadow shadowMap, int cascadeIndex,
+               vec3 lightSpaceP, float viewSpaceDepth,
+               float filterSampleScale, int showCascadeBounds)
+{
+    float kShadow = 0.0f;
+    vec2 sampleScale = (1.0f / textureSize(shadowMap, 0).xy) * filterSampleScale;
     int sampleCount = 0;
     for (int y = -2; y <= 1; y++)
     {
         for (int x = -2; x <= 1; x++)
         {
-            vec4 uv = vec4(coord.xy + vec2(x, y) * sampleScale, float(cascadeNum), currentDepthLightSpace);
-            Kshadow += texture(u_ShadowMap, uv);
+            vec4 uv = vec4(lightSpaceP.xy + vec2(x, y) * sampleScale, float(cascadeIndex), lightSpaceP.z);
+            kShadow += texture(shadowMap, uv);
             sampleCount++;
         }
     }
-    Kshadow /= sampleCount;
+    kShadow /= sampleCount;
 
     vec3 result;
-    if (u_ShowShadowCascadesBoundaries == 1)
+    if (showCascadeBounds == 1)
     {
-        vec3 cascadeColor = CascadeColors[cascadeNum];
-        result = vec3(Kshadow) * cascadeColor;
+        vec3 cascadeColor = CascadeColors[cascadeIndex];
+        result = vec3(kShadow) * cascadeColor;
     }
     else
     {
-        result = vec3(Kshadow);
+        result = vec3(kShadow);
     }
     return result;
 }
-#endif
-#if RANDOM_DISC_PCF
-float Shadow()
+
+vec3 ShadowRandomDisc(in sampler2DArrayShadow shadowMap, in sampler1D randomTexture,
+                      int cascadeIndex, vec3 lightSpaceP, float viewSpaceDepth,
+                      float filterSampleScale, int showCascadeBounds)
 {
-    float result = 0.0f;
-
-    vec3 coord = v_LightSpacePos.xyz / v_LightSpacePos.w;
-    coord = coord * 0.5f + 0.5f;
-    float currentDepth = coord.z;
-
-    vec2 sampleScale = (1.0f / textureSize(u_ShadowMap, 0)) * shadowFilterSampleScale;
+    float kShadow = 0.0f;
+    vec2 sampleScale = (1.0f / textureSize(shadowMap, 0).xy) * filterSampleScale;
 
 #if RANDOMIZE_OFFSETS
     int randomTextureSize = textureSize(randomTexture, 0);
@@ -1951,13 +1917,59 @@ float Shadow()
 #else
         vec2 sampleOffset = PoissonSamples[i] *  sampleScale;
 #endif
-        vec3 uv = vec3(coord.xy + sampleOffset, currentDepth);
-        result += texture(u_ShadowMap, uv);
+        vec4 uv = vec4(lightSpaceP.xy + sampleOffset, cascadeIndex, lightSpaceP.z);
+        kShadow += texture(shadowMap, uv);
     }
-    result /= sampleCount;
+    kShadow /= sampleCount;
+
+    vec3 result;
+    if (showCascadeBounds == 1)
+    {
+        vec3 cascadeColor = CascadeColors[cascadeIndex];
+        result = vec3(kShadow) * cascadeColor;
+    }
+    else
+    {
+        result = vec3(kShadow);
+    }
     return result;
 }
-#endif
+
+
+
+in vec4 v_Position;
+in vec3 v_ViewPosition;
+in vec4 v_LightSpacePos[3];
+flat in int v_TileId;
+in vec3 v_Normal;
+in vec2 v_UV;
+
+out vec4 color;
+
+struct DirLight
+{
+    vec3 dir;
+    vec3 ambient;
+    vec3 diffuse;
+    vec3 specular;
+};
+
+uniform DirLight u_DirLight;
+uniform vec3 u_ViewPos;
+uniform sampler2DArray u_TerrainAtlas;
+uniform sampler2DArrayShadow u_ShadowMap;
+uniform vec3 u_ShadowCascadeSplits;
+uniform int u_ShowShadowCascadesBoundaries = 0;
+
+uniform float shadowFilterSampleScale = 1.0f;
+uniform sampler1D randomTexture;
+
+#define PI (3.14159265359)
+
+//#define RANDOM_DISC_PCF 1
+#define RANDOMIZE_OFFSETS 1
+#define DUMMY_PCF 1
+
 
 vec3 CalcDirectionalLight(DirLight light, vec3 normal,
                           vec3 viewDir,
@@ -1967,7 +1979,18 @@ vec3 CalcDirectionalLight(DirLight light, vec3 normal,
     vec3 lightDirReflected = reflect(-lightDir, normal);
 
     float Kd = max(dot(normal, lightDir), 0.0);
-    vec3 Kshadow = Shadow();
+
+    float viewSpaceDepth = -v_ViewPosition.z;
+    int cascadeIndex = GetShadowCascadeIndex(-v_ViewPosition.z, u_ShadowCascadeSplits);
+    vec3 lightSpaceP = v_LightSpacePos[cascadeIndex].xyz / v_LightSpacePos[cascadeIndex].w;
+   lightSpaceP = lightSpaceP * 0.5f + 0.5f;
+#if DUMMY_PCF
+   vec3 Kshadow = ShadowPCF(u_ShadowMap, cascadeIndex, lightSpaceP, viewSpaceDepth, shadowFilterSampleScale, u_ShowShadowCascadesBoundaries);
+#endif
+#if RANDOM_DISC_PCF
+   vec3 Kshadow = ShadowRandomDisc(u_ShadowMap, randomTexture, cascadeIndex, lightSpaceP, viewSpaceDepth, shadowFilterSampleScale, u_ShowShadowCascadesBoundaries);
+#endif
+
     vec3 ambient = light.ambient * diffSample;
     vec3 diffuse = Kd * light.diffuse * diffSample * Kshadow;
     return ambient + diffuse;
@@ -1991,7 +2014,8 @@ void main()
     //directional = diffSample;
 
     color = vec4(directional, alpha);
-})";
+}
+)";
 
     const char* ShaderInfo::Info_Shadow::VertexSource = R"(#version 330 core
 layout (location = 0) in vec3 Position;

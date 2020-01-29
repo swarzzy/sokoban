@@ -181,6 +181,25 @@ SafeTruncateU64U32(u64 val)
     return (u32)val;
 }
 
+std::string GetDirectory(const std::string& path)
+{
+#if defined(AB_PLATFORM_WINDOWS)
+    const char* separators = "\\/";
+#elif defined(AB_PLATFORM_LINUX)
+    const char* separators = "/";
+#endif
+
+    auto index = path.find_last_of(separators);
+    if (index == std::string::npos)
+    {
+        return std::string("");
+    }
+    else
+    {
+        return path.substr(0, index + 1);
+    }
+}
+
 internal bool
 GetDirectory(const char* file_path, char* buffer, u32 buffer_size, u32* written)
 {

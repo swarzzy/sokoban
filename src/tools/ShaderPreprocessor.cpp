@@ -143,6 +143,19 @@ struct ProgramConfig
     char* fragmentName;
 };
 
+struct DirectiveDecl
+{
+    enum Type {Unknown = 0, Include} type;
+    union
+    {
+        struct
+        {
+            char* directiveBegin;
+            const char* path;
+        } include;
+    };
+};
+
 struct Shader
 {
     enum Type {Unknown = 0, Vertex, Fragment} type;
@@ -646,6 +659,41 @@ void ParseConfigFile(const char* filename, std::vector<ShaderDecl>* shaderDecls,
     //free(source);
 }
 
+DirectiveDecl FindNextDirective(Tokenizer* t)
+{
+    DirectiveDecl decl = {};
+    while (*t->at)
+    {
+        t->at = EatSpace(t->at);
+        if (Match(t->at, "#"))
+        {
+            t->at = OffsetByLiteral(t->at, "#");
+            t->at = EatSpace(t->at);
+            if (Match(t->at, "include"))
+            {
+                decl.type = DirectiveDecl::Include;
+                decl.include.directiveBegin = t->at - 1;
+                t->at = OffsetByLiteral(t->at, "include");
+                t->at = EatSpace(t->at);
+                if (Match(t->at, "\""))
+                {
+                    t->at = OffsetByLiteral(t->at, "\"");
+                    auto pathBegin = t->at;
+                    t->at = EatUntilOneOf(t->at, "\"");
+                    decl.include.path = ExtractString(pathBegin, t->at);
+                    t->at = OffsetByLiteral(t->at, "\"");
+                    break;
+                }
+            }
+        }
+        else
+        {
+            t->at++;
+        }
+    }
+    return decl;
+}
+
 void ParseShaderFile(const char* filename, Shader::Type type, Shader* shader)
 {
     u32 size;
@@ -655,8 +703,6 @@ void ParseShaderFile(const char* filename, Shader::Type type, Shader* shader)
         ERROR("Error: failed to open shader file %s\n", filename);
     }
 
-    shader->source = source;
-
     Tokenizer tokenizer = {};
     tokenizer.text = source;
     tokenizer.at = source;
@@ -664,6 +710,43 @@ void ParseShaderFile(const char* filename, Shader::Type type, Shader* shader)
     assert(type != Shader::Unknown);
 
     shader->type = type;
+
+    while (true)
+    {
+        auto directive = FindNextDirective(&tokenizer);
+        if (!*tokenizer.at) break;
+
+        if (directive.type == DirectiveDecl::Include)
+        {
+            if (!directive.include.path || !StrLength(directive.include.path))
+            {
+                ERROR("Error: Found an include directive with incorrect path\n");
+            }
+            auto dir = GetDirectory(std::string(filename));
+            // TODO: Windows separators?
+            auto path = dir + directive.include.path;
+            u32 size;
+            auto includeSource = ReadEntireFileAsText(path.c_str(), &size);
+            if (!includeSource)
+            {
+                ERROR("Error: Can't find file %s included in shader %s\n", path.c_str(), filename);
+            }
+            // TODO: This is very slow and crappy
+            auto insertIndex = directive.include.directiveBegin - tokenizer.text;
+            auto insertCount = tokenizer.at - directive.include.directiveBegin;
+            auto directiveEnd = tokenizer.at - tokenizer.text;
+            std::string shaderSource(source);
+            free(source);
+            shaderSource.replace(insertIndex, insertCount, "\n" + std::string(includeSource) + "\n");
+            auto len = StrLength(shaderSource.c_str()) + 1;
+            source = (char*)malloc(len);
+            memcpy(source, shaderSource.c_str(), len);
+            tokenizer.text = source;
+            tokenizer.at = source + directiveEnd;
+        }
+    }
+
+    tokenizer.at = tokenizer.text;
 
     while (true)
     {
@@ -829,7 +912,7 @@ void ParseShaderFile(const char* filename, Shader::Type type, Shader* shader)
             }
         }
     }
-    //free(source);
+    shader->source = source;
 }
 
 void OutUserType(const Struct* type, const Shader* shader)

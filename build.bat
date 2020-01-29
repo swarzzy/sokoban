@@ -7,7 +7,7 @@ popd
 goto end
 )
 
-set BuildShaderPreprocessor=false
+set BuildShaderPreprocessor=true
 
 set ObjOutDir=build\obj\
 set BinOutDir=build\
@@ -59,9 +59,9 @@ cl /W3 /wd4530 /Gm- /GR- /Od /Zi /MT /nologo /diagnostics:classic /WX /std:c++17
 
 echo Preprocessing shaders...
 ctime -begin shader_prep.ctm
-pushd src
-..\build\ShaderPreprocessor.exe ShaderConfig.txt
-popd
+build\ShaderPreprocessor.exe src/ShaderConfig.txt
+COPY Shaders_Generated.cpp src\Shaders_Generated.cpp
+DEL Shaders_Generated.cpp
 ctime -end shader_prep.ctm
 
 echo Generating meta info...

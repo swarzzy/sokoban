@@ -39,6 +39,7 @@ namespace soko
         GLuint offscreenDepthTarget;
 
         constant u32 RandomValuesTextureSize = 1024;
+        // NOTE: Number of cascades is always 3
         constant u32 NumShadowCascades = 3;
         GLuint shadowMapFramebuffers[NumShadowCascades];
         GLuint shadowMapDepthTarget;
@@ -49,7 +50,8 @@ namespace soko
         b32 showShadowCascadesBoundaries;
 
         // TODO: Camera should cares about that
-        m4x4 shadowCascadeProjections[NumShadowCascades];
+        m4x4 shadowCascadeViewProjMatrices[NumShadowCascades];
+        f32 shadowCascadeBounds[NumShadowCascades];
 
         f32 shadowConstantBias;
         f32 shadowSlopeBiasScale;
@@ -1424,11 +1426,13 @@ namespace soko
         {
             f32 cascadeNear = cascadeDepth * cascadeIndex;
             f32 cascadeFar = cascadeDepth * (cascadeIndex + 1);
+            renderer->shadowCascadeBounds[cascadeIndex] = cascadeFar;
             CameraConfig cascadeCamera = *camera;
             cascadeCamera.nearPlane = cascadeNear;
             cascadeCamera.farPlane = cascadeFar;
-            renderer->shadowCascadeProjections[cascadeIndex] = CalcShadowProjection(cascadeCamera, lightLookAt, cameraLookAtInv, renderer->shadowMapRes, renderer->stableShadows);
-            auto viewProj = MulM4M4(&renderer->shadowCascadeProjections[cascadeIndex], &lightLookAt);
+            auto proj = CalcShadowProjection(cascadeCamera, lightLookAt, cameraLookAtInv, renderer->shadowMapRes, renderer->stableShadows);
+            auto viewProj = MulM4M4(&proj, &lightLookAt);
+            renderer->shadowCascadeViewProjMatrices[cascadeIndex] = viewProj;
 
             glBindFramebuffer(GL_DRAW_FRAMEBUFFER, renderer->shadowMapFramebuffers[cascadeIndex]);
             glClear(GL_DEPTH_BUFFER_BIT | GL_COLOR_BUFFER_BIT);
@@ -1437,219 +1441,7 @@ namespace soko
             RenderShadowMap(renderer, group);
         }
     }
-#if 0
-    void ShadowPass(Renderer* renderer, RenderGroup* group)
-    {
-        if (group->commandQueueAt)
-        {
-            local_persist f32 slopeBiasScale = 0.0f;
-            local_persist f32 constBias = 0.001f;
-            local_persist f32 normalBiasScale = 0.0f;
 
-            DEBUG_OVERLAY_SLIDER(slopeBiasScale, 0.0f, 2.5f);
-            DEBUG_OVERLAY_SLIDER(constBias, 0.0f, 0.5f);
-            DEBUG_OVERLAY_SLIDER(normalBiasScale, 0.0f, 2.0f);
-
-            renderer->shadowConstantBias = constBias;
-            renderer->shadowSlopeBiasScale = slopeBiasScale;
-            renderer->shadowNormalBiasScale = normalBiasScale;
-
-            auto light = &group->dirLight;
-            auto camera = &group->cameraConfig;
-
-            // TODO: Fix the mess with lookAt matrices4
-            m4x4 lightLookAt = LookAtDirRH(light->from, light->dir, V3(0.0f, 1.0f, 0.0f));
-            m4x4 cameraLookAt = LookAtDirRH(camera->position, camera->front, V3(0.0f, 1.0f, 0.0f));
-            m4x4 cameraLookAtInv = InverseAndUnwrap(cameraLookAt);
-
-            // NOTE Shadow projection bounds
-            v3 min;
-            v3 max;
-
-            {
-                i32 EnableStableShadows = renderer->stableShadows;
-                DEBUG_OVERLAY_SLIDER(EnableStableShadows, 0, 1);
-                renderer->stableShadows = EnableStableShadows;
-            }
-
-            if (renderer->stableShadows)
-            {
-                v4 bSphereP;
-                f32 bSphereR;
-
-                // NOTE: Computing frustum bounding sphere
-                // Reference: https://lxjk.github.io/2017/04/15/Calculate-Minimal-Bounding-Sphere-of-Frustum.html
-                f32 ar = 1.0f / camera->aspectRatio;
-                f32 k = Sqrt(1.0f + ar * ar) * Tan(ToRadians(camera->fovDeg) * 0.5f);
-                f32 kSq = k * k;
-                f32 f = camera->farPlane;
-                f32 n = camera->nearPlane;
-                if (kSq >= ((f - n) / (f + n)))
-                {
-                    bSphereP = V4(0.0f, 0.0f, -f, 1.0f);
-                    bSphereR = f * k;
-                }
-                else
-                {
-                    bSphereP = V4(0.0f, 0.0f, -0.5f * (f + n) * (1.0f + kSq), 1.0f);
-                    bSphereR = 0.5f * Sqrt((f - n) * (f - n) + 2.0f * (f * f + n * n) * kSq + (f + n) * (f + n) * kSq * kSq);
-                }
-
-                // From camera space to world space
-                bSphereP = cameraLookAtInv * bSphereP;
-                // From world space to light space
-                bSphereP = lightLookAt * bSphereP;
-
-                // Constructing AABB in light space
-                v3 xAxis = V3(1.0f, 0.0f, 0.0f);
-                v3 yAxis = V3(0.0f, 1.0f, 0.0f);
-                v3 zAxis = V3(0.0f, 0.0f, 1.0f);
-                min = bSphereP.xyz - (xAxis * bSphereR + yAxis * bSphereR + zAxis * bSphereR);
-                max = bSphereP.xyz + (xAxis * bSphereR + yAxis * bSphereR + zAxis * bSphereR);
-
-                min.z = 5.0f;
-                max.z = 50.0f;
-
-                // TODO: On a particular camera cngle there are still
-                // shimmering on shadows
-                auto bboxSideSize = Abs(min.x) + Abs(max.x);
-                auto pixelSize = bboxSideSize / renderer->shadowMapRes;
-
-                min.x = Round(min.x / pixelSize) * pixelSize;
-                min.y = Round(min.y / pixelSize) * pixelSize;
-                min.z = Round(min.z / pixelSize) * pixelSize;
-
-                max.x = Round(max.x / pixelSize) * pixelSize;
-                max.y = Round(max.y / pixelSize) * pixelSize;
-                max.z = Round(max.z / pixelSize) * pixelSize;
-            }
-            else
-            {
-                Basis cameraBasis;
-                cameraBasis.zAxis = Normalize(camera->front);
-                cameraBasis.xAxis = Normalize(Cross(V3(0.0f, 1.0f, 0.0), cameraBasis.zAxis));
-                cameraBasis.yAxis = Cross(cameraBasis.zAxis, cameraBasis.xAxis);
-                cameraBasis.p = camera->position;
-
-                auto camFrustumCorners = GetFrustumCorners(cameraBasis, camera->fovDeg, camera->aspectRatio, camera->nearPlane, camera->farPlane);
-                for (u32x i = 0; i < ArrayCount(camFrustumCorners.corners); i++)
-                {
-                    camFrustumCorners.corners[i] = (lightLookAt * V4(camFrustumCorners.corners[i], 1.0f)).xyz;
-                }
-
-                min = V3(F32_MAX);
-                max = V3(-F32_MAX);
-
-                for (u32x i = 0; i < ArrayCount(camFrustumCorners.corners); i++)
-                {
-                    auto corner = camFrustumCorners.corners[i];
-                    if (corner.x < min.x) min.x = corner.x;
-                    if (corner.x > max.x) max.x = corner.x;
-                    if (corner.y < min.y) min.y = corner.y;
-                    if (corner.y > max.y) max.y = corner.y;
-                    if (corner.z < min.z) min.z = corner.z;
-                    if (corner.z > max.z) max.z = corner.z;
-                }
-
-                v3 minViewSpace = min;
-                v3 maxViewSpace = max;
-
-                // NOTE: Inverting Z because right-handed Z is negative-forward
-                // but ortho ptojections gets constructed from Z positive-far
-                auto tmp = minViewSpace.z;
-                minViewSpace.z = -maxViewSpace.z;
-                maxViewSpace.z = -tmp;
-
-                min = minViewSpace;
-                max = maxViewSpace;
-            }
-
-            renderer->shadowMapBounds.min = min;
-            renderer->shadowMapBounds.max = max;
-
-            m4x4 projection = OrthogonalOpenGLRH(min.x, max.x, min.y, max.y, min.z, max.z);
-            m4x4 viewProj = MulM4M4(&projection, &lightLookAt);
-
-            glEnable(GL_POLYGON_OFFSET_FILL);
-            defer { glDisable(GL_POLYGON_OFFSET_FILL); };
-            glPolygonOffset(renderer->shadowSlopeBiasScale, 0.0f);
-            glBindFramebuffer(GL_DRAW_FRAMEBUFFER, renderer->shadowMapFramebuffers[0]);
-            defer { glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0); };
-            glViewport(0, 0, (GLsizei)renderer->shadowMapRes, (GLsizei)renderer->shadowMapRes);
-            glClear(GL_DEPTH_BUFFER_BIT | GL_COLOR_BUFFER_BIT);
-            glEnable(GL_DEPTH_TEST);
-
-            auto shader = &renderer->shaders.Shadow;
-            glUseProgram(shader->handle);
-            defer { glUseProgram(0); };
-            glUniformMatrix4fv(shader->vertex.uniforms.ViewProjMatrix, 1, GL_FALSE, viewProj.data);
-            glUniform1f(shader->vertex.uniforms.ShadowNormalBiasScale, renderer->shadowNormalBiasScale);
-            glUniform1f(shader->fragment.uniforms.ConstantShadowBias, renderer->shadowConstantBias);
-            glUniform3fv(shader->vertex.uniforms.LightPos, 1, light->from.data);
-
-            for (u32 i = 0; i < group->commandQueueAt; i++)
-            {
-                CommandQueueEntry* command = group->commandQueue + i;
-
-                switch (command->type)
-                {
-                case RENDER_COMMAND_DRAW_LINE_BEGIN:
-                {
-                } break;
-                case RENDER_COMMAND_DRAW_MESH:
-                {
-                    auto* data = (RenderCommandDrawMesh*)(group->renderBuffer + command->rbOffset);
-
-                    glUniformMatrix4fv(shader->vertex.uniforms.ModelMatrix, 1, GL_FALSE, data->transform.data);
-
-                    auto normalMatrix = MakeNormalMatrix(data->transform);
-                    glUniformMatrix3fv(shader->vertex.uniforms.NormalMatrix, 1, GL_FALSE, normalMatrix.data);
-
-                    auto* mesh = data->mesh;
-
-                    glBindBuffer(GL_ARRAY_BUFFER, mesh->gpuVertexBufferHandle);
-
-                    auto posAttrLoc = shader->vertex.vertexAttribs.Position;
-                    glEnableVertexAttribArray(posAttrLoc);
-                    glVertexAttribPointer(posAttrLoc, 3, GL_FLOAT, GL_FALSE, 0, 0);
-
-                    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, mesh->gpuIndexBufferHandle);
-                    glDrawElements(GL_TRIANGLES, mesh->indexCount, GL_UNSIGNED_INT, 0);
-                } break;
-
-                case RENDER_COMMAND_BEGIN_CHUNK_MESH_BATCH:
-                {
-                    for (u32 i = 0; i < command->instanceCount; i++)
-                    {
-                        auto* data = ((RenderCommandPushChunkMesh*)(group->renderBuffer + command->rbOffset)) + i;
-
-                        m4x4 world = Translation(data->offset);
-                        glUniformMatrix4fv(shader->vertex.uniforms.ModelMatrix, 1, GL_FALSE, world.data);
-
-                        auto normalMatrix = MakeNormalMatrix(world);
-                        glUniformMatrix3fv(shader->vertex.uniforms.NormalMatrix, 1, GL_FALSE, normalMatrix.data);
-
-                        glBindBuffer(GL_ARRAY_BUFFER, data->meshIndex);
-
-                        GLsizei stride = sizeof(ChunkMeshVertex);
-                        auto posAttrLoc = shader->vertex.vertexAttribs.Position;
-                        auto normalAttrLoc = shader->vertex.vertexAttribs.Normal;
-                        glEnableVertexAttribArray(posAttrLoc);
-                        glEnableVertexAttribArray(normalAttrLoc);
-                        glVertexAttribPointer(posAttrLoc, 3, GL_FLOAT, GL_FALSE, stride, (void*)0);
-                        glVertexAttribPointer(normalAttrLoc, 3, GL_FLOAT, GL_FALSE, stride, (void*)(sizeof(v3)));
-
-                        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, renderer->chunkIndexBuffer);
-
-                        GLsizei numIndices = (GLsizei)(data->quadCount * RENDERER_INDICES_PER_CHUNK_QUAD);
-                        glDrawElements(GL_TRIANGLES, numIndices, GL_UNSIGNED_INT, 0);
-                    }
-                } break;
-                }
-            }
-        }
-    }
-#endif
     internal void
     FlushRenderGroup(Renderer* renderer, RenderGroup* group)
     {
@@ -1666,11 +1458,9 @@ namespace soko
 
         if (group->commandQueueAt)
         {
-            auto light = &group->dirLight;
-            m4x4 lightLookAt = LookAtRH(light->from, light->from + light->dir, V3(0.0f, 1.0f, 0.0f));
-            m4x4 lightViewProj0 = MulM4M4(renderer->shadowCascadeProjections, &lightLookAt);
-            m4x4 lightViewProj1 = MulM4M4(renderer->shadowCascadeProjections + 1, &lightLookAt);
-            m4x4 lightViewProj2 = MulM4M4(renderer->shadowCascadeProjections + 2, &lightLookAt);
+            auto lightViewProj0 = renderer->shadowCascadeViewProjMatrices;
+            auto lightViewProj1 = renderer->shadowCascadeViewProjMatrices + 1;
+            auto lightViewProj2 = renderer->shadowCascadeViewProjMatrices + 2;
 
 
             local_persist f32 shadowFilterScale = 1.0f;
@@ -1889,18 +1679,16 @@ namespace soko
                         firstChunkMeshShaderInvocation = false;
                         glUniformMatrix4fv(chunkProg->vertex.uniforms.u_ViewMatrix, 1, GL_FALSE, lookAt.data);
                         glUniformMatrix4fv(chunkProg->vertex.uniforms.u_ProjectionMatrix, 1, GL_FALSE, projection.data);
-                        glUniformMatrix4fv(chunkProg->vertex.uniforms.u_LightSpaceMatrix[0], 1, GL_FALSE, lightViewProj0.data);
-                        glUniformMatrix4fv(chunkProg->vertex.uniforms.u_LightSpaceMatrix[1], 1, GL_FALSE, lightViewProj1.data);
-                        glUniformMatrix4fv(chunkProg->vertex.uniforms.u_LightSpaceMatrix[2], 1, GL_FALSE, lightViewProj2.data);
+                        glUniformMatrix4fv(chunkProg->vertex.uniforms.u_LightSpaceMatrix[0], 1, GL_FALSE, lightViewProj0->data);
+                        glUniformMatrix4fv(chunkProg->vertex.uniforms.u_LightSpaceMatrix[1], 1, GL_FALSE, lightViewProj1->data);
+                        glUniformMatrix4fv(chunkProg->vertex.uniforms.u_LightSpaceMatrix[2], 1, GL_FALSE, lightViewProj2->data);
                         glUniform3fv(chunkProg->fragment.uniforms.u_DirLight.dir, 1, group->dirLight.dir.data);
                         glUniform3fv(chunkProg->fragment.uniforms.u_DirLight.ambient, 1, group->dirLight.ambient.data);
                         glUniform3fv(chunkProg->fragment.uniforms.u_DirLight.diffuse, 1, group->dirLight.diffuse.data);
                         glUniform3fv(chunkProg->fragment.uniforms.u_DirLight.specular, 1, group->dirLight.specular.data);
                         glUniform3fv(chunkProg->fragment.uniforms.u_ViewPos, 1, group->cameraConfig.position.data);
                         glUniform1f(chunkProg->fragment.uniforms.shadowFilterSampleScale, shadowFilterScale);
-                        f32 cascadeDepth = (camera->farPlane - camera->nearPlane) / 3.0f;
-                        v3 splits = V3(cascadeDepth, cascadeDepth * 2.0f, cascadeDepth * 3.0f);
-                        glUniform3fv(chunkProg->fragment.uniforms.u_ShadowCascadeSplits, 1, splits.data);
+                        glUniform3fv(chunkProg->fragment.uniforms.u_ShadowCascadeSplits, 1, renderer->shadowCascadeBounds);
                         glUniform1i(chunkProg->fragment.uniforms.u_ShowShadowCascadesBoundaries, renderer->showShadowCascadesBoundaries);
                     }
 
