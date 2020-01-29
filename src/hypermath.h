@@ -1932,6 +1932,11 @@ namespace hpm
 
         return result;
     }
+
+    inline Matrix4 operator* (const Matrix4& left, const Matrix4& right)
+    {
+        return  MulM4M4(&left, &right);
+    }
 #endif
 
 }

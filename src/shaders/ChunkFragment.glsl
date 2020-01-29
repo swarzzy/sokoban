@@ -96,7 +96,7 @@ const vec2 PoissonSamples[64] = vec2[64]
 );
 
 //#define RANDOM_DISC_PCF 1
-#define RANDOMIZE_OFFSETS 1
+//#define RANDOMIZE_OFFSETS 1
 #define DUMMY_PCF 1
 
 #if DUMMY_PCF

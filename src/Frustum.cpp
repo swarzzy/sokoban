@@ -25,6 +25,13 @@ namespace soko
         v3 corners[8];
     };
 
+    m4x4 InverseAndUnwrap(m4x4 m)
+    {
+        auto result = Inverse(&m);
+        SOKO_ASSERT(result);
+        return m;
+    }
+
     Basis BasisFromMatrix(m4x4 m)
     {
         Basis result;

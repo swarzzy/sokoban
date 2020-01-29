@@ -60,7 +60,7 @@ namespace soko
         conf.fovDeg = 45.0f;
         conf.aspectRatio = 16.0f / 9.0f;
         conf.nearPlane = 0.1f;
-        conf.farPlane = 40.0f;
+        conf.farPlane = 60.0f;
 
         debugCamera->conf = conf;
         debugCamera->moveSpeed = 7.0f;

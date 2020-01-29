@@ -1156,14 +1156,10 @@ namespace soko
             auto light = &group->dirLight;
             auto camera = &group->cameraConfig;
 
-            // TODO: Fix the mess with lookAt matrices
-            Basis cameraBasis;
-            cameraBasis.zAxis = Normalize(camera->front);
-            cameraBasis.xAxis = Normalize(Cross(V3(0.0f, 1.0f, 0.0), cameraBasis.zAxis));
-            cameraBasis.yAxis = Cross(cameraBasis.zAxis, cameraBasis.xAxis);
-            cameraBasis.p = camera->position;
-
+            // TODO: Fix the mess with lookAt matrices4
             m4x4 lightLookAt = LookAtDirRH(light->from, light->dir, V3(0.0f, 1.0f, 0.0f));
+            m4x4 cameraLookAt = LookAtDirRH(camera->position, camera->front, V3(0.0f, 1.0f, 0.0f));
+            m4x4 cameraLookAtInv = InverseAndUnwrap(cameraLookAt);
 
             // NOTE Shadow projection bounds
             v3 min;
@@ -1177,35 +1173,44 @@ namespace soko
 
             if (renderer->stableShadows)
             {
-                v3 bSphereP;
+                v4 bSphereP;
                 f32 bSphereR;
 
                 // NOTE: Computing frustum bounding sphere
                 // Reference: https://lxjk.github.io/2017/04/15/Calculate-Minimal-Bounding-Sphere-of-Frustum.html
-                f32 k = Sqrt(1.0f + camera->aspectRatio * camera->aspectRatio) * Tan(ToRadians(camera->fovDeg) * 0.5f);
+                f32 ar = 1.0f / camera->aspectRatio;
+                f32 k = Sqrt(1.0f + ar * ar) * Tan(ToRadians(camera->fovDeg) * 0.5f);
                 f32 kSq = k * k;
                 f32 f = camera->farPlane;
                 f32 n = camera->nearPlane;
                 if (kSq >= ((f - n) / (f + n)))
                 {
-                    bSphereP = V3(0.0f, 0.0f, -f);
+                    bSphereP = V4(0.0f, 0.0f, -f, 1.0f);
                     bSphereR = f * k;
                 }
                 else
                 {
-                    bSphereP = V3(0.0f, 0.0f, -0.5f * (f + n) * (1.0f + kSq));
+                    bSphereP = V4(0.0f, 0.0f, -0.5f * (f + n) * (1.0f + kSq), 1.0f);
                     bSphereR = 0.5f * Sqrt((f - n) * (f - n) + 2.0f * (f * f + n * n) * kSq + (f + n) * (f + n) * kSq * kSq);
                 }
 
-                bSphereP = bSphereP.x * cameraBasis.xAxis + bSphereP.y * cameraBasis.yAxis + bSphereP.z * cameraBasis.zAxis;
+                // From camera space to world space
+                bSphereP = cameraLookAtInv * bSphereP;
+                // From world space to light space
+                bSphereP = lightLookAt * bSphereP;
 
+                // Constructing AABB in light space
                 v3 xAxis = V3(1.0f, 0.0f, 0.0f);
                 v3 yAxis = V3(0.0f, 1.0f, 0.0f);
                 v3 zAxis = V3(0.0f, 0.0f, 1.0f);
+                min = bSphereP.xyz - (xAxis * bSphereR + yAxis * bSphereR + zAxis * bSphereR);
+                max = bSphereP.xyz + (xAxis * bSphereR + yAxis * bSphereR + zAxis * bSphereR);
 
-                min = bSphereP - (xAxis * bSphereR + yAxis * bSphereR + zAxis * bSphereR);
-                max = bSphereP + (xAxis * bSphereR + yAxis * bSphereR + zAxis * bSphereR);
+                min.z = 5.0f;
+                max.z = 50.0f;
 
+                // TODO: On a particular camera cngle there are still
+                // shimmering on shadows
                 auto bboxSideSize = Abs(min.x) + Abs(max.x);
                 auto pixelSize = bboxSideSize / renderer->shadowMapRes;
 
@@ -1219,6 +1224,12 @@ namespace soko
             }
             else
             {
+                Basis cameraBasis;
+                cameraBasis.zAxis = Normalize(camera->front);
+                cameraBasis.xAxis = Normalize(Cross(V3(0.0f, 1.0f, 0.0), cameraBasis.zAxis));
+                cameraBasis.yAxis = Cross(cameraBasis.zAxis, cameraBasis.xAxis);
+                cameraBasis.p = camera->position;
+
                 auto camFrustumCorners = GetFrustumCorners(cameraBasis, camera->fovDeg, camera->aspectRatio, camera->nearPlane, camera->farPlane);
                 for (u32x i = 0; i < ArrayCount(camFrustumCorners.corners); i++)
                 {
