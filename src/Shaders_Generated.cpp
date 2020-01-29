@@ -397,8 +397,9 @@ namespace soko
                 {
                     GLint u_ModelMatrix;
                     GLint u_NormalMatrix;
-                    GLint u_ViewProjMatrix;
-                    GLint u_LightSpaceMatrix;
+                    GLint u_ViewMatrix;
+                    GLint u_ProjectionMatrix;
+                    GLint u_LightSpaceMatrix[3];
                 } uniforms;
 
                 struct VertexAttribs
@@ -426,6 +427,8 @@ namespace soko
                     GLint u_ViewPos;
                     GLint u_TerrainAtlas;
                     GLint u_ShadowMap;
+                    GLint u_ShadowCascadeSplits;
+                    GLint u_ShowShadowCascadesBoundaries;
                     GLint shadowFilterSampleScale;
                     GLint randomTexture;
                 } uniforms;
@@ -721,8 +724,11 @@ namespace soko
             // NOTE: Assign vertex shader uniforms
             result.vertex.uniforms.u_ModelMatrix = glGetUniformLocation(handle, "u_ModelMatrix");
             result.vertex.uniforms.u_NormalMatrix = glGetUniformLocation(handle, "u_NormalMatrix");
-            result.vertex.uniforms.u_ViewProjMatrix = glGetUniformLocation(handle, "u_ViewProjMatrix");
-            result.vertex.uniforms.u_LightSpaceMatrix = glGetUniformLocation(handle, "u_LightSpaceMatrix");
+            result.vertex.uniforms.u_ViewMatrix = glGetUniformLocation(handle, "u_ViewMatrix");
+            result.vertex.uniforms.u_ProjectionMatrix = glGetUniformLocation(handle, "u_ProjectionMatrix");
+            result.vertex.uniforms.u_LightSpaceMatrix[0] = glGetUniformLocation(handle, "u_LightSpaceMatrix[0]");
+            result.vertex.uniforms.u_LightSpaceMatrix[1] = glGetUniformLocation(handle, "u_LightSpaceMatrix[1]");
+            result.vertex.uniforms.u_LightSpaceMatrix[2] = glGetUniformLocation(handle, "u_LightSpaceMatrix[2]");
 
             // NOTE: Assign fragment shader uniforms
             result.fragment.uniforms.u_DirLight.dir = glGetUniformLocation(handle, "u_DirLight.dir");
@@ -732,6 +738,8 @@ namespace soko
             result.fragment.uniforms.u_ViewPos = glGetUniformLocation(handle, "u_ViewPos");
             result.fragment.uniforms.u_TerrainAtlas = glGetUniformLocation(handle, "u_TerrainAtlas");
             result.fragment.uniforms.u_ShadowMap = glGetUniformLocation(handle, "u_ShadowMap");
+            result.fragment.uniforms.u_ShadowCascadeSplits = glGetUniformLocation(handle, "u_ShadowCascadeSplits");
+            result.fragment.uniforms.u_ShowShadowCascadesBoundaries = glGetUniformLocation(handle, "u_ShowShadowCascadesBoundaries");
             result.fragment.uniforms.shadowFilterSampleScale = glGetUniformLocation(handle, "shadowFilterSampleScale");
             result.fragment.uniforms.randomTexture = glGetUniformLocation(handle, "randomTexture");
 
@@ -1710,16 +1718,20 @@ layout (location = 1) in vec3 a_Normal;
 layout (location = 2) in int a_TileId;
 
 out vec4 v_Position;
+out vec3 v_ViewPosition;
 out vec3 v_MeshSpacePos;
-out vec4 v_LightSpacePos;
+out vec4 v_LightSpacePos[3];
 flat out int v_TileId;
 out vec3 v_Normal;
 out vec2 v_UV;
 
+#define NUM_SHADOW_CASCADES 3
+
 uniform mat4 u_ModelMatrix;
 uniform mat3 u_NormalMatrix;
-uniform mat4 u_ViewProjMatrix;
-uniform mat4 u_LightSpaceMatrix;
+uniform mat4 u_ViewMatrix;
+uniform mat4 u_ProjectionMatrix;
+uniform mat4 u_LightSpaceMatrix[3];
 
 #define TERRAIN_TEX_ARRAY_NUM_LAYERS 32
 #define INDICES_PER_CHUNK_QUAD 6
@@ -1743,15 +1755,18 @@ void main()
     v_TileId = a_TileId;
     v_MeshSpacePos = a_Position;
     v_Position = (u_ModelMatrix * vec4(a_Position, 1.0f));
+    v_ViewPosition = (u_ViewMatrix * u_ModelMatrix * vec4(a_Position, 1.0f)).xyz;
     v_Normal = u_NormalMatrix * a_Normal;
-    v_LightSpacePos = u_LightSpaceMatrix * u_ModelMatrix * vec4(a_Position, 1.0f);
-    gl_Position = u_ViewProjMatrix * u_ModelMatrix * vec4(a_Position, 1.0f);
+    v_LightSpacePos[0] = u_LightSpaceMatrix[0] * u_ModelMatrix * vec4(a_Position, 1.0f);
+    v_LightSpacePos[1] = u_LightSpaceMatrix[1] * u_ModelMatrix * vec4(a_Position, 1.0f);
+    v_LightSpacePos[2] = u_LightSpaceMatrix[2] * u_ModelMatrix * vec4(a_Position, 1.0f);
+    gl_Position = u_ProjectionMatrix * u_ViewMatrix * u_ModelMatrix * vec4(a_Position, 1.0f);
 })";
 
     const char* ShaderInfo::Info_Chunk::FragmentSource = R"(#version 330 core
 in vec4 v_Position;
-in vec3 v_MeshSpacePos;
-in vec4 v_LightSpacePos;
+in vec3 v_ViewPosition;
+in vec4 v_LightSpacePos[3];
 flat in int v_TileId;
 in vec3 v_Normal;
 in vec2 v_UV;
@@ -1770,11 +1785,14 @@ uniform DirLight u_DirLight;
 uniform vec3 u_ViewPos;
 uniform sampler2DArray u_TerrainAtlas;
 uniform sampler2DArrayShadow u_ShadowMap;
+uniform vec3 u_ShadowCascadeSplits;
+uniform int u_ShowShadowCascadesBoundaries = 0;
 
 uniform float shadowFilterSampleScale = 1.0f;
 uniform sampler1D randomTexture;
 
 #define PI (3.14159265359)
+#define NUM_SHADOW_CASCADES 3
 
 // NOTE: Reference: https://github.com/TheRealMJP/Shadows/blob/master/Shadows/PCFKernels.hlsl
 const vec2 PoissonSamples[64] = vec2[64]
@@ -1849,12 +1867,30 @@ const vec2 PoissonSamples[64] = vec2[64]
 //#define RANDOMIZE_OFFSETS 1
 #define DUMMY_PCF 1
 
+vec3 CascadeColors[3] = vec3[3]
+(
+    vec3(1.0f, 0.0f, 0.0f),
+    vec3(0.0f, 1.0f, 0.0f),
+    vec3(0.0f, 0.0f, 1.0f)
+);
+
 #if DUMMY_PCF
-float Shadow()
+vec3 Shadow()
 {
-    vec3 coord = v_LightSpacePos.xyz / v_LightSpacePos.w;
+    int cascadeNum = 0;
+
+    for (int i = 0; i < NUM_SHADOW_CASCADES; i++)
+    {
+        if (-v_ViewPosition.z < u_ShadowCascadeSplits[i])
+        {
+            cascadeNum = i;
+            break;
+        }
+    }
+
+    vec3 coord = v_LightSpacePos[cascadeNum].xyz / v_LightSpacePos[cascadeNum].w;
     coord = coord * 0.5f + 0.5f;
-    float currentDepth = coord.z;
+    float currentDepthLightSpace = coord.z;
 
     float Kshadow = 0.0f;
     vec2 sampleScale = (1.0f / textureSize(u_ShadowMap, 0).xy) * shadowFilterSampleScale;
@@ -1863,13 +1899,24 @@ float Shadow()
     {
         for (int x = -2; x <= 1; x++)
         {
-            vec4 uv = vec4(coord.xy + vec2(x, y) * sampleScale, 0.0f, currentDepth);
+            vec4 uv = vec4(coord.xy + vec2(x, y) * sampleScale, float(cascadeNum), currentDepthLightSpace);
             Kshadow += texture(u_ShadowMap, uv);
             sampleCount++;
         }
     }
     Kshadow /= sampleCount;
-    return Kshadow;
+
+    vec3 result;
+    if (u_ShowShadowCascadesBoundaries == 1)
+    {
+        vec3 cascadeColor = CascadeColors[cascadeNum];
+        result = vec3(Kshadow) * cascadeColor;
+    }
+    else
+    {
+        result = vec3(Kshadow);
+    }
+    return result;
 }
 #endif
 #if RANDOM_DISC_PCF
@@ -1920,7 +1967,7 @@ vec3 CalcDirectionalLight(DirLight light, vec3 normal,
     vec3 lightDirReflected = reflect(-lightDir, normal);
 
     float Kd = max(dot(normal, lightDir), 0.0);
-    float Kshadow = Shadow();
+    vec3 Kshadow = Shadow();
     vec3 ambient = light.ambient * diffSample;
     vec3 diffuse = Kd * light.diffuse * diffSample * Kshadow;
     return ambient + diffuse;

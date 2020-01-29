@@ -1,7 +1,7 @@
 #version 330 core
 in vec4 v_Position;
-in vec3 v_MeshSpacePos;
-in vec4 v_LightSpacePos;
+in vec3 v_ViewPosition;
+in vec4 v_LightSpacePos[3];
 flat in int v_TileId;
 in vec3 v_Normal;
 in vec2 v_UV;
@@ -20,11 +20,14 @@ uniform DirLight u_DirLight;
 uniform vec3 u_ViewPos;
 uniform sampler2DArray u_TerrainAtlas;
 uniform sampler2DArrayShadow u_ShadowMap;
+uniform vec3 u_ShadowCascadeSplits;
+uniform int u_ShowShadowCascadesBoundaries = 0;
 
 uniform float shadowFilterSampleScale = 1.0f;
 uniform sampler1D randomTexture;
 
 #define PI (3.14159265359)
+#define NUM_SHADOW_CASCADES 3
 
 // NOTE: Reference: https://github.com/TheRealMJP/Shadows/blob/master/Shadows/PCFKernels.hlsl
 const vec2 PoissonSamples[64] = vec2[64]
@@ -99,12 +102,30 @@ const vec2 PoissonSamples[64] = vec2[64]
 //#define RANDOMIZE_OFFSETS 1
 #define DUMMY_PCF 1
 
+vec3 CascadeColors[3] = vec3[3]
+(
+    vec3(1.0f, 0.0f, 0.0f),
+    vec3(0.0f, 1.0f, 0.0f),
+    vec3(0.0f, 0.0f, 1.0f)
+);
+
 #if DUMMY_PCF
-float Shadow()
+vec3 Shadow()
 {
-    vec3 coord = v_LightSpacePos.xyz / v_LightSpacePos.w;
+    int cascadeNum = 0;
+
+    for (int i = 0; i < NUM_SHADOW_CASCADES; i++)
+    {
+        if (-v_ViewPosition.z < u_ShadowCascadeSplits[i])
+        {
+            cascadeNum = i;
+            break;
+        }
+    }
+
+    vec3 coord = v_LightSpacePos[cascadeNum].xyz / v_LightSpacePos[cascadeNum].w;
     coord = coord * 0.5f + 0.5f;
-    float currentDepth = coord.z;
+    float currentDepthLightSpace = coord.z;
 
     float Kshadow = 0.0f;
     vec2 sampleScale = (1.0f / textureSize(u_ShadowMap, 0).xy) * shadowFilterSampleScale;
@@ -113,13 +134,24 @@ float Shadow()
     {
         for (int x = -2; x <= 1; x++)
         {
-            vec4 uv = vec4(coord.xy + vec2(x, y) * sampleScale, 0.0f, currentDepth);
+            vec4 uv = vec4(coord.xy + vec2(x, y) * sampleScale, float(cascadeNum), currentDepthLightSpace);
             Kshadow += texture(u_ShadowMap, uv);
             sampleCount++;
         }
     }
     Kshadow /= sampleCount;
-    return Kshadow;
+
+    vec3 result;
+    if (u_ShowShadowCascadesBoundaries == 1)
+    {
+        vec3 cascadeColor = CascadeColors[cascadeNum];
+        result = vec3(Kshadow) * cascadeColor;
+    }
+    else
+    {
+        result = vec3(Kshadow);
+    }
+    return result;
 }
 #endif
 #if RANDOM_DISC_PCF
@@ -170,7 +202,7 @@ vec3 CalcDirectionalLight(DirLight light, vec3 normal,
     vec3 lightDirReflected = reflect(-lightDir, normal);
 
     float Kd = max(dot(normal, lightDir), 0.0);
-    float Kshadow = Shadow();
+    vec3 Kshadow = Shadow();
     vec3 ambient = light.ambient * diffSample;
     vec3 diffuse = Kd * light.diffuse * diffSample * Kshadow;
     return ambient + diffuse;
