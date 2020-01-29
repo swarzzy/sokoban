@@ -218,6 +218,7 @@ inline void* ReallocForSTBI(void* p, uptr oldSize, uptr newSize)
 #define glReadBuffer GL_FUNCTION(glReadBuffer)
 #define glPolygonOffset GL_FUNCTION(glPolygonOffset)
 #define glTexImage1D GL_FUNCTION(glTexImage1D)
+#define glFramebufferTextureLayer GL_FUNCTION(glFramebufferTextureLayer)
 
 // NOTE: Functions used by ImGUI
 #define glGetIntegerv GL_FUNCTION(glGetIntegerv)

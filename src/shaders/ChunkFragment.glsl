@@ -19,7 +19,7 @@ struct DirLight
 uniform DirLight u_DirLight;
 uniform vec3 u_ViewPos;
 uniform sampler2DArray u_TerrainAtlas;
-uniform sampler2DShadow u_ShadowMap;
+uniform sampler2DArrayShadow u_ShadowMap;
 
 uniform float shadowFilterSampleScale = 1.0f;
 uniform sampler1D randomTexture;
@@ -107,13 +107,13 @@ float Shadow()
     float currentDepth = coord.z;
 
     float Kshadow = 0.0f;
-    vec2 sampleScale = (1.0f / textureSize(u_ShadowMap, 0)) * shadowFilterSampleScale;
+    vec2 sampleScale = (1.0f / textureSize(u_ShadowMap, 0).xy) * shadowFilterSampleScale;
     int sampleCount = 0;
     for (int y = -2; y <= 1; y++)
     {
         for (int x = -2; x <= 1; x++)
         {
-            vec3 uv = vec3(coord.xy + vec2(x, y) * sampleScale, currentDepth);
+            vec4 uv = vec4(coord.xy + vec2(x, y) * sampleScale, 0.0f, currentDepth);
             Kshadow += texture(u_ShadowMap, uv);
             sampleCount++;
         }

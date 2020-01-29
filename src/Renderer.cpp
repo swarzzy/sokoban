@@ -38,14 +38,15 @@ namespace soko
         GLuint offscreenColorTarget;
         GLuint offscreenDepthTarget;
 
+        constant u32 RandomValuesTextureSize = 1024;
+        constant u32 NumShadowCascades = 3;
         BBoxAligned shadowMapBounds;
-        GLuint shadowMapFramebuffer;
+        GLuint shadowMapFramebuffers[NumShadowCascades];
         GLuint shadowMapDepthTarget;
         GLuint shadowMapDebugColorTarget;
         u32 shadowMapRes = 4096;
         GLuint randomValuesTexture;
         b32 stableShadows;
-        constant u32 RandomValuesTextureSize = 1024;
 
         f32 shadowConstantBias;
         f32 shadowSlopeBiasScale;
@@ -65,44 +66,86 @@ namespace soko
         b32 debugG;
         b32 debugNormals;
     };
-
-    GLuint CreateTexture2D(GLenum wrapS, GLenum wrapT, GLenum minFilter, GLenum magFilter)
+#if 0
+    GLuint _CreateTexture2D(GLenum target, GLenum wrapS, GLenum wrapT, GLenum minFilter, GLenum magFilter)
     {
         GLuint handle = 0;
         glGenTextures(1, &handle);
         if (handle)
         {
-            glBindTexture(GL_TEXTURE_2D, handle);
-            defer { glBindTexture(GL_TEXTURE_2D, 0); };
+            glBindTexture(target, handle);
+            defer { glBindTexture(target, 0); };
 
-            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, wrapS);
-            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, wrapT);
-            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, minFilter);
-            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, magFilter);
+            glTexParameteri(target, GL_TEXTURE_WRAP_S, wrapS);
+            glTexParameteri(target, GL_TEXTURE_WRAP_T, wrapT);
+            glTexParameteri(target, GL_TEXTURE_MIN_FILTER, minFilter);
+            glTexParameteri(target, GL_TEXTURE_MAG_FILTER, magFilter);
         }
         return handle;
     }
 
-    void AllocTexture2D(GLuint handle, u32x width, u32x height, u32x mipLevel, GLenum format, void* data = 0, GLenum customType = 0)
+    GLuint CreateTexture2D(GLenum wrapS, GLenum wrapT, GLenum minFilter, GLenum magFilter)
     {
-        GLenum secondaryFormat;
-        GLenum type;
-        switch (format)
+        return _CreateTexture2D(GL_TEXTURE_2D, wrapS, wrapT, minFilter, magFilter);
+    }
+
+    GLuint CreateTexture2DArray(GLenum wrapS, GLenum wrapT, GLenum minFilter, GLenum magFilter)
+    {
+        return _CreateTexture2D(GL_TEXTURE_2D_ARRAY, wrapS, wrapT, minFilter, magFilter);
+    }
+#endif
+    GLenum GetGLTextureFormatFromInternalFormat(GLenum internalFormat)
+    {
+        GLenum result = 0;
+        switch (internalFormat)
         {
-        case GL_SRGB8_ALPHA8: { secondaryFormat = GL_RGBA; type = GL_UNSIGNED_BYTE; } break;
-        case GL_SRGB8: { secondaryFormat = GL_RGB; type = GL_UNSIGNED_BYTE; } break;
-        case GL_RGB8: { secondaryFormat = GL_RGB; type = GL_UNSIGNED_BYTE; } break;
-        case GL_RGB16F: { secondaryFormat = GL_RGB; type = GL_FLOAT; } break;
-        case GL_RG16F: { secondaryFormat = GL_RG, type = GL_FLOAT; } break;
-        case GL_R8: { secondaryFormat = GL_RED, type = GL_UNSIGNED_BYTE; } break;
-        case GL_DEPTH_COMPONENT32F: { secondaryFormat = GL_DEPTH_COMPONENT, type = GL_FLOAT; } break;
-        case GL_DEPTH_COMPONENT32: { secondaryFormat = GL_DEPTH_COMPONENT, type = GL_FLOAT; } break;
-        case GL_DEPTH_COMPONENT24: { secondaryFormat = GL_DEPTH_COMPONENT, type = GL_FLOAT; } break;
-        case GL_DEPTH_COMPONENT16: { secondaryFormat = GL_DEPTH_COMPONENT, type = GL_FLOAT; } break;
+        case GL_SRGB8_ALPHA8: { result = GL_RGBA; } break;
+        case GL_SRGB8: { result = GL_RGB; } break;
+        case GL_RGB8: { result = GL_RGB; } break;
+        case GL_RGB16F: { result = GL_RGB; } break;
+        case GL_RG16F: { result = GL_RG; } break;
+        case GL_R8: { result = GL_RED; } break;
+        case GL_DEPTH_COMPONENT32F: { result = GL_DEPTH_COMPONENT; } break;
+        case GL_DEPTH_COMPONENT32: { result = GL_DEPTH_COMPONENT; } break;
+        case GL_DEPTH_COMPONENT24: { result = GL_DEPTH_COMPONENT; } break;
+        case GL_DEPTH_COMPONENT16: { result = GL_DEPTH_COMPONENT; } break;
             INVALID_DEFAULT();
         }
+        return result;
+    }
 
-        if (customType) type = customType;
+    GLenum GetGLTextureTypeForInternalFormat(GLenum internalFormat)
+    {
+        GLenum type = 0;
+        switch (internalFormat)
+        {
+        case GL_SRGB8_ALPHA8: { type = GL_UNSIGNED_BYTE; } break;
+        case GL_SRGB8: { type = GL_UNSIGNED_BYTE; } break;
+        case GL_RGB8: { type = GL_UNSIGNED_BYTE; } break;
+        case GL_RGB16F: { type = GL_FLOAT; } break;
+        case GL_RG16F: { type = GL_FLOAT; } break;
+        case GL_R8: { type = GL_UNSIGNED_BYTE; } break;
+        case GL_DEPTH_COMPONENT32F: { type = GL_FLOAT; } break;
+        case GL_DEPTH_COMPONENT32: { type = GL_FLOAT; } break;
+        case GL_DEPTH_COMPONENT24: { type = GL_FLOAT; } break;
+        case GL_DEPTH_COMPONENT16: { type = GL_FLOAT; } break;
+            INVALID_DEFAULT();
+        }
+        return type;
+    }
+
+    void AllocTexture2D(GLuint handle, u32x width, u32x height, u32x mipLevel, GLenum format, void* data = 0, GLenum customType = 0)
+    {
+        GLenum secondaryFormat = GetGLTextureFormatFromInternalFormat(format);
+        GLenum type;
+        if (customType)
+        {
+            type = customType;
+        }
+        else
+        {
+            type = GetGLTextureTypeForInternalFormat(format);
+        }
 
         glBindTexture(GL_TEXTURE_2D, handle);
         defer { glBindTexture(GL_TEXTURE_2D, 0); };
@@ -771,23 +814,47 @@ namespace soko
         SOKO_ASSERT(renderer->captureFramebuffer);
 
         // NOTE: Init shadow framebuffer
-        glGenFramebuffers(1, &renderer->shadowMapFramebuffer);
-        SOKO_ASSERT(renderer->shadowMapFramebuffer);
-        renderer->shadowMapDepthTarget = CreateTexture2D(GL_CLAMP_TO_EDGE, GL_CLAMP_TO_EDGE, GL_LINEAR, GL_LINEAR);
-        renderer->shadowMapDebugColorTarget = CreateTexture2D(GL_CLAMP_TO_EDGE, GL_CLAMP_TO_EDGE, GL_LINEAR, GL_LINEAR);
-        glBindTexture(GL_TEXTURE_2D, renderer->shadowMapDepthTarget);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_COMPARE_MODE, GL_COMPARE_REF_TO_TEXTURE);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_COMPARE_FUNC, GL_LEQUAL);
-        SOKO_ASSERT(renderer->shadowMapDepthTarget);
-        // TODO: Set this propperly
-        AllocTexture2D(renderer->shadowMapDepthTarget, renderer->shadowMapRes, renderer->shadowMapRes, 0, GL_DEPTH_COMPONENT32);
-        AllocTexture2D(renderer->shadowMapDebugColorTarget, renderer->shadowMapRes, renderer->shadowMapRes, 0, GL_R8);
-        glBindFramebuffer(GL_FRAMEBUFFER, renderer->shadowMapFramebuffer);
-        glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, renderer->shadowMapDepthTarget, 0);
-        glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, renderer->shadowMapDebugColorTarget, 0);
-        //glDrawBuffer(GL_NONE);
-        //glReadBuffer(GL_NONE);
-        SOKO_ASSERT(glCheckFramebufferStatus(GL_FRAMEBUFFER) == GL_FRAMEBUFFER_COMPLETE);
+        { // Initializing depth targets
+            glGenTextures(1, &renderer->shadowMapDepthTarget);
+            glBindTexture(GL_TEXTURE_2D_ARRAY, renderer->shadowMapDepthTarget);
+
+            glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+            glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+            glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+            glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+            glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_COMPARE_MODE, GL_COMPARE_REF_TO_TEXTURE);
+            glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_COMPARE_FUNC, GL_LEQUAL);
+
+            glTexImage3D(GL_TEXTURE_2D_ARRAY, 0, GL_DEPTH_COMPONENT32, renderer->shadowMapRes, renderer->shadowMapRes, Renderer::NumShadowCascades, 0, GL_DEPTH_COMPONENT, GL_FLOAT, 0);
+        }
+        { // Initializing debug color targets
+            glGenTextures(1, &renderer->shadowMapDebugColorTarget);
+            glBindTexture(GL_TEXTURE_2D_ARRAY, renderer->shadowMapDebugColorTarget);
+
+            glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+            glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+            glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+            glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+            glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_COMPARE_MODE, GL_COMPARE_REF_TO_TEXTURE);
+            glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_COMPARE_FUNC, GL_LEQUAL);
+
+            glTexImage3D(GL_TEXTURE_2D_ARRAY, 0, GL_R8, renderer->shadowMapRes, renderer->shadowMapRes, Renderer::NumShadowCascades, 0, GL_RED, GL_UNSIGNED_BYTE, 0);
+        }
+        glBindTexture(GL_TEXTURE_2D_ARRAY, 0);
+
+        glGenFramebuffers(3, renderer->shadowMapFramebuffers);
+        // TODO: Checkin!
+        SOKO_ASSERT(renderer->shadowMapFramebuffers[0]);
+
+        for (u32x i = 0; i < Renderer::NumShadowCascades; i++)
+        {
+            glBindFramebuffer(GL_FRAMEBUFFER, renderer->shadowMapFramebuffers[i]);
+            glFramebufferTextureLayer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, renderer->shadowMapDepthTarget, 0, i);
+            glFramebufferTextureLayer(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, renderer->shadowMapDebugColorTarget, 0, i);
+            //glDrawBuffer(GL_NONE);
+            //glReadBuffer(GL_NONE);
+            SOKO_ASSERT(glCheckFramebufferStatus(GL_FRAMEBUFFER) == GL_FRAMEBUFFER_COMPLETE);
+        }
         glBindFramebuffer(GL_FRAMEBUFFER, 0);
 
         glGenTextures(1, &renderer->randomValuesTexture);
@@ -980,7 +1047,7 @@ namespace soko
 
         if (showShadowMap)
         {
-            glBindFramebuffer(GL_READ_FRAMEBUFFER, renderer->shadowMapFramebuffer);
+            glBindFramebuffer(GL_READ_FRAMEBUFFER, renderer->shadowMapFramebuffers[0]);
             glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
 
             glBlitFramebuffer(0, 0, renderer->shadowMapRes, renderer->shadowMapRes,
@@ -1147,7 +1214,7 @@ namespace soko
             glEnable(GL_POLYGON_OFFSET_FILL);
             defer { glDisable(GL_POLYGON_OFFSET_FILL); };
             glPolygonOffset(renderer->shadowSlopeBiasScale, 0.0f);
-            glBindFramebuffer(GL_DRAW_FRAMEBUFFER, renderer->shadowMapFramebuffer);
+            glBindFramebuffer(GL_DRAW_FRAMEBUFFER, renderer->shadowMapFramebuffers[0]);
             defer { glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0); };
             glViewport(0, 0, (GLsizei)renderer->shadowMapRes, (GLsizei)renderer->shadowMapRes);
             glClear(GL_DEPTH_BUFFER_BIT | GL_COLOR_BUFFER_BIT);
@@ -1566,7 +1633,7 @@ namespace soko
                     glBindTexture(GL_TEXTURE_2D_ARRAY, renderer->tileTexArrayHandle);
 
                     glActiveTexture(chunkProg->fragment.samplers.u_ShadowMap.slot);
-                    glBindTexture(GL_TEXTURE_2D, renderer->shadowMapDepthTarget);
+                    glBindTexture(GL_TEXTURE_2D_ARRAY, renderer->shadowMapDepthTarget);
 
                     glActiveTexture(chunkProg->fragment.samplers.randomTexture.slot);
                     glBindTexture(GL_TEXTURE_1D, renderer->randomValuesTexture);
