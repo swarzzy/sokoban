@@ -190,15 +190,13 @@ namespace AB
         PIXELFORMATDESCRIPTOR fakeDesiredPixelFormat = {};
         fakeDesiredPixelFormat.nSize = sizeof(PIXELFORMATDESCRIPTOR);
         fakeDesiredPixelFormat.nVersion = 1;
-        fakeDesiredPixelFormat.dwFlags =
-            PFD_SUPPORT_OPENGL | PFD_DRAW_TO_WINDOW | PFD_DOUBLEBUFFER;
+        fakeDesiredPixelFormat.dwFlags = PFD_SUPPORT_OPENGL | PFD_DRAW_TO_WINDOW | PFD_DOUBLEBUFFER;
         fakeDesiredPixelFormat.cColorBits = 32;
         fakeDesiredPixelFormat.cAlphaBits = 8;
         fakeDesiredPixelFormat.cDepthBits = 24;
         fakeDesiredPixelFormat.cStencilBits = 8;
 
-        auto fakeActualPFIndex = ChoosePixelFormat(fakeWindowDC,
-                                                   &fakeDesiredPixelFormat);
+        auto fakeActualPFIndex = ChoosePixelFormat(fakeWindowDC, &fakeDesiredPixelFormat);
 
         PIXELFORMATDESCRIPTOR fakeActualPixelFormat = {};
         DescribePixelFormat(fakeWindowDC, fakeActualPFIndex,
@@ -228,9 +226,11 @@ namespace AB
 
         i32 width = AB_ABS_INT(actualSize.left) + AB_ABS_INT(actualSize.right);
         i32 height = AB_ABS_INT(actualSize.top) + AB_ABS_INT(actualSize.bottom);
+
+        auto styleFlags = WS_THICKFRAME | WS_OVERLAPPEDWINDOW | WS_VISIBLE;
         HWND actualWindowHandle = CreateWindowEx(NULL, windowClass.lpszClassName,
                                                  app->windowTitle,
-                                                 WS_OVERLAPPEDWINDOW | WS_VISIBLE,
+                                                 styleFlags,
                                                  CW_USEDEFAULT, CW_USEDEFAULT,
                                                  app->state.windowWidth,
                                                  app->state.windowHeight,

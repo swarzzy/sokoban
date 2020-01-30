@@ -95,11 +95,16 @@ namespace soko
         f32 aspectRatio;
         f32 nearPlane;
         f32 farPlane;
+        // NOTE: Right-handed with OpenGl depth range
+        m4x4 viewMatrix;
+        m4x4 invViewMatrix;
+        m4x4 projectionMatrix;
+        m4x4 invProjectionMatrix;
     };
 
     struct RenderGroup
     {
-        CameraConfig cameraConfig;
+        const CameraConfig* camera;
 
         //b32 dirLightEnabled;
         DirectionalLight dirLight;

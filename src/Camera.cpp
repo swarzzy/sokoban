@@ -149,6 +149,15 @@ namespace soko
 
         camera->conf.position = Lerp(camera->conf.position, pos, camera->moveSmooth);
         camera->conf.front = Lerp(camera->conf.front, front, camera->rotateSmooth);
+
+        camera->conf.viewMatrix = LookAtDirRH(camera->conf.position, camera->conf.front, V3(0.0f, 1.0f, 0.0f));
+        camera->conf.projectionMatrix = PerspectiveOpenGLRH(camera->conf.fovDeg, camera->conf.aspectRatio, camera->conf.nearPlane, camera->conf.farPlane);
+        camera->conf.invViewMatrix = camera->conf.viewMatrix;
+        bool inv = Inverse(&camera->conf.invViewMatrix);
+        SOKO_ASSERT(inv);
+        camera->conf.invProjectionMatrix = camera->conf.projectionMatrix;
+        inv = Inverse(&camera->conf.invProjectionMatrix);
+        SOKO_ASSERT(inv);
     }
 
     internal void
@@ -220,24 +229,18 @@ namespace soko
 
         v4 mouseClip = V4(normMousePos, -1.0f, 0.0f);
 
-        // TODO: IMPORTANT: @Speed: Extreme sloooooowness here!!!
-        // Do this in renderer or in some other place
-        // which has all this matrices
-        m4x4 lookAt = LookAtDirRH(camera->conf.position, camera->conf.front, V3(0.0f, 1.0f, 0.0f));
-        m4x4 proj = PerspectiveOpenGLRH(camera->conf.fovDeg, camera->conf.aspectRatio,
-                                        camera->conf.nearPlane, camera->conf.farPlane);
-        DEBUG_OVERLAY_TRACE(camera->conf.position);
-        DEBUG_OVERLAY_TRACE(camera->conf.front);
-        m4x4 invLookAt = lookAt;
-        bool inv = Inverse(&invLookAt);
+        camera->conf.viewMatrix = LookAtDirRH(camera->conf.position, camera->conf.front, V3(0.0f, 1.0f, 0.0f));
+        camera->conf.projectionMatrix = PerspectiveOpenGLRH(camera->conf.fovDeg, camera->conf.aspectRatio, camera->conf.nearPlane, camera->conf.farPlane);
+        camera->conf.invViewMatrix = camera->conf.viewMatrix;
+        bool inv = Inverse(&camera->conf.invViewMatrix);
         SOKO_ASSERT(inv);
-        m4x4 invProj = proj;
-        inv = Inverse(&invProj);
+        camera->conf.invProjectionMatrix = camera->conf.projectionMatrix;
+        inv = Inverse(&camera->conf.invProjectionMatrix);
         SOKO_ASSERT(inv);
 
-        v4 mouseView = MulM4V4(invProj, mouseClip);
+        v4 mouseView = MulM4V4(camera->conf.invProjectionMatrix, mouseClip);
         mouseView = V4(mouseView.xy, -1.0f, 0.0f);
-        v3 mouseWorld = MulM4V4(invLookAt, mouseView).xyz;
+        v3 mouseWorld = MulM4V4(camera->conf.invViewMatrix, mouseView).xyz;
         mouseWorld = Normalize(mouseWorld);
         camera->mouseRayRH = mouseWorld;
     }
@@ -376,22 +379,18 @@ namespace soko
 
         v4 mouseClip = V4(normMousePos, -1.0f, 0.0f);
 
-        // TODO: IMPORTANT: @Speed: Extreme sloooooowness here!!!
-        // Do this in renderer or in some other place
-        // which has all this matrices
-        m4x4 lookAt = LookAtDirRH(camera->conf.position, camera->conf.front, V3(0.0f, 1.0f, 0.0f));
-        m4x4 proj = PerspectiveOpenGLRH(camera->conf.fovDeg, camera->conf.aspectRatio,
-                                        camera->conf.nearPlane, camera->conf.farPlane);
-        m4x4 invLookAt = lookAt;
-        bool inv = Inverse(&invLookAt);
+        camera->conf.viewMatrix = LookAtDirRH(camera->conf.position, camera->conf.front, V3(0.0f, 1.0f, 0.0f));
+        camera->conf.projectionMatrix = PerspectiveOpenGLRH(camera->conf.fovDeg, camera->conf.aspectRatio, camera->conf.nearPlane, camera->conf.farPlane);
+        camera->conf.invViewMatrix = camera->conf.viewMatrix;
+        bool inv = Inverse(&camera->conf.invViewMatrix);
         SOKO_ASSERT(inv);
-        m4x4 invProj = proj;
-        inv = Inverse(&invProj);
+        camera->conf.invProjectionMatrix = camera->conf.projectionMatrix;
+        inv = Inverse(&camera->conf.invProjectionMatrix);
         SOKO_ASSERT(inv);
 
-        v4 mouseView = MulM4V4(invProj, mouseClip);
+        v4 mouseView = MulM4V4(camera->conf.invProjectionMatrix, mouseClip);
         mouseView = V4(mouseView.xy, -1.0f, 0.0f);
-        v3 mouseWorld = MulM4V4(invLookAt, mouseView).xyz;
+        v3 mouseWorld = MulM4V4(camera->conf.invViewMatrix, mouseView).xyz;
         mouseWorld = Normalize(mouseWorld);
         camera->mouseRayRH = mouseWorld;
     }

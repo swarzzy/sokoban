@@ -646,6 +646,13 @@ namespace soko
     GameRender(AB::MemoryArena* arena, AB::PlatformState* platform)
     {
         auto* gameState = _GlobalStaticStorage->gameState;
+        auto renderer = gameState->renderer;
+        if (PlatformGlobals.windowWidth != renderer->renderRes.x ||
+            PlatformGlobals.windowHeight != renderer->renderRes.y)
+        {
+            ChangeRenderResolution(renderer, UV2(PlatformGlobals.windowWidth, PlatformGlobals.windowHeight));
+        }
+
         BeginDebugOverlay();
         switch (gameState->globalGameMode)
         {

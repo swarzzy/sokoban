@@ -936,7 +936,7 @@ namespace hpm
         return result;
     }
 
-    inline Matrix3 M3x3(Matrix4* m)
+    inline Matrix3 M3x3(const Matrix4* m)
     {
         Matrix3 result;
 
@@ -1730,6 +1730,19 @@ namespace hpm
             m->_44 = A44 * oneOverDet;
 
             return true;
+        }
+    }
+
+    // TODO: Make this constexpr
+    Matrix4 InverseOrIdentity(Matrix4 m)
+    {
+        if (Inverse(&m))
+        {
+            return m;
+        }
+        else
+        {
+            return Identity4();
         }
     }
 

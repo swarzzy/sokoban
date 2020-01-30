@@ -53,8 +53,8 @@ namespace soko
         m4x4 shadowCascadeViewProjMatrices[NumShadowCascades];
         f32 shadowCascadeBounds[NumShadowCascades];
 
-        f32 shadowConstantBias;
-        f32 shadowSlopeBiasScale;
+        f32 shadowConstantBias = 0.004f;
+        f32 shadowSlopeBiasScale = 1.2f;
         f32 shadowNormalBiasScale;
 
         GLuint srgbBufferHandle;
@@ -672,52 +672,36 @@ namespace soko
 
     void ReloadShadowMaps(Renderer* renderer, u32 newResolution = 0)
     {
+        // TODO: There are maybe could be a problems on some drivers
+        // with changing framebuffer attachments so this code needs to be checked
+        // on different GPUs and drivers
         if (newResolution)
         {
             renderer->shadowMapRes = newResolution;
         }
-        // NOTE: It should silently ignore 0
-        glDeleteTextures(1, &renderer->shadowMapDepthTarget);
-        glDeleteTextures(1, &renderer->shadowMapDebugColorTarget);
-
-        { // Initializing depth targets
-            glGenTextures(1, &renderer->shadowMapDepthTarget);
-            glBindTexture(GL_TEXTURE_2D_ARRAY, renderer->shadowMapDepthTarget);
-
-            glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-            glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-            glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-            glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-            glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_COMPARE_MODE, GL_COMPARE_REF_TO_TEXTURE);
-            glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_COMPARE_FUNC, GL_LEQUAL);
-
-            glTexImage3D(GL_TEXTURE_2D_ARRAY, 0, GL_DEPTH_COMPONENT32, renderer->shadowMapRes, renderer->shadowMapRes, Renderer::NumShadowCascades, 0, GL_DEPTH_COMPONENT, GL_FLOAT, 0);
-        }
-        { // Initializing debug color targets
-            glGenTextures(1, &renderer->shadowMapDebugColorTarget);
-            glBindTexture(GL_TEXTURE_2D_ARRAY, renderer->shadowMapDebugColorTarget);
-
-            glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-            glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-            glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-            glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-            glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_COMPARE_MODE, GL_COMPARE_REF_TO_TEXTURE);
-            glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_COMPARE_FUNC, GL_LEQUAL);
-
-            glTexImage3D(GL_TEXTURE_2D_ARRAY, 0, GL_R8, renderer->shadowMapRes, renderer->shadowMapRes, Renderer::NumShadowCascades, 0, GL_RED, GL_UNSIGNED_BYTE, 0);
-        }
+        glBindTexture(GL_TEXTURE_2D_ARRAY, renderer->shadowMapDepthTarget);
+        glTexImage3D(GL_TEXTURE_2D_ARRAY, 0, GL_DEPTH_COMPONENT32, renderer->shadowMapRes, renderer->shadowMapRes, Renderer::NumShadowCascades, 0, GL_DEPTH_COMPONENT, GL_FLOAT, 0);
+        glBindTexture(GL_TEXTURE_2D_ARRAY, renderer->shadowMapDebugColorTarget);
+        glTexImage3D(GL_TEXTURE_2D_ARRAY, 0, GL_R8, renderer->shadowMapRes, renderer->shadowMapRes, Renderer::NumShadowCascades, 0, GL_RED, GL_UNSIGNED_BYTE, 0);
         glBindTexture(GL_TEXTURE_2D_ARRAY, 0);
+    }
 
-        for (u32x i = 0; i < Renderer::NumShadowCascades; i++)
-        {
-            glBindFramebuffer(GL_FRAMEBUFFER, renderer->shadowMapFramebuffers[i]);
-            glFramebufferTextureLayer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, renderer->shadowMapDepthTarget, 0, i);
-            glFramebufferTextureLayer(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, renderer->shadowMapDebugColorTarget, 0, i);
-            //glDrawBuffer(GL_NONE);
-            //glReadBuffer(GL_NONE);
-            SOKO_ASSERT(glCheckFramebufferStatus(GL_FRAMEBUFFER) == GL_FRAMEBUFFER_COMPLETE);
-        }
-        glBindFramebuffer(GL_FRAMEBUFFER, 0);
+    void ChangeRenderResolution(Renderer* renderer, uv2 newRes)
+    {
+        // TODO: There are maybe could be a problems on some drivers
+        // with changing framebuffer attachments so this code needs to be checked
+        // on different GPUs and drivers
+        renderer->renderRes = newRes;
+        glBindTexture(GL_TEXTURE_2D, renderer->offscreenColorTarget);
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA16F, renderer->renderRes.x, renderer->renderRes.y, 0, GL_RGBA, GL_FLOAT, 0);
+
+        glBindTexture(GL_TEXTURE_2D, renderer->offscreenDepthTarget);
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT32, renderer->renderRes.x, renderer->renderRes.y, 0, GL_DEPTH_COMPONENT, GL_FLOAT, 0);
+
+        glBindTexture(GL_TEXTURE_2D, renderer->srgbColorTarget);
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, renderer->renderRes.x, renderer->renderRes.y, 0, GL_RGBA, GL_UNSIGNED_BYTE, 0);
+
+        glBindTexture(GL_TEXTURE_2D, 0);
     }
 
     internal Renderer*
@@ -872,6 +856,46 @@ namespace soko
         glGenFramebuffers(3, renderer->shadowMapFramebuffers);
         // TODO: Checking!
         SOKO_ASSERT(renderer->shadowMapFramebuffers[0]);
+
+        { // Initializing depth targets
+            glGenTextures(1, &renderer->shadowMapDepthTarget);
+            glBindTexture(GL_TEXTURE_2D_ARRAY, renderer->shadowMapDepthTarget);
+
+            glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+            glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+            glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+            glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+            glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_COMPARE_MODE, GL_COMPARE_REF_TO_TEXTURE);
+            glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_COMPARE_FUNC, GL_LEQUAL);
+
+            glTexImage3D(GL_TEXTURE_2D_ARRAY, 0, GL_DEPTH_COMPONENT32, renderer->shadowMapRes, renderer->shadowMapRes, Renderer::NumShadowCascades, 0, GL_DEPTH_COMPONENT, GL_FLOAT, 0);
+        }
+        { // Initializing debug color targets
+            glGenTextures(1, &renderer->shadowMapDebugColorTarget);
+            glBindTexture(GL_TEXTURE_2D_ARRAY, renderer->shadowMapDebugColorTarget);
+
+            glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+            glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+            glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+            glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+            glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_COMPARE_MODE, GL_COMPARE_REF_TO_TEXTURE);
+            glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_COMPARE_FUNC, GL_LEQUAL);
+
+            glTexImage3D(GL_TEXTURE_2D_ARRAY, 0, GL_R8, renderer->shadowMapRes, renderer->shadowMapRes, Renderer::NumShadowCascades, 0, GL_RED, GL_UNSIGNED_BYTE, 0);
+        }
+
+        glBindTexture(GL_TEXTURE_2D_ARRAY, 0);
+
+        for (u32x i = 0; i < Renderer::NumShadowCascades; i++)
+        {
+            glBindFramebuffer(GL_FRAMEBUFFER, renderer->shadowMapFramebuffers[i]);
+            glFramebufferTextureLayer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, renderer->shadowMapDepthTarget, 0, i);
+            glFramebufferTextureLayer(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, renderer->shadowMapDebugColorTarget, 0, i);
+            //glDrawBuffer(GL_NONE);
+            //glReadBuffer(GL_NONE);
+            SOKO_ASSERT(glCheckFramebufferStatus(GL_FRAMEBUFFER) == GL_FRAMEBUFFER_COMPLETE);
+        }
+        glBindFramebuffer(GL_FRAMEBUFFER, 0);
 
         ReloadShadowMaps(renderer);
 
@@ -1084,20 +1108,21 @@ namespace soko
         i64 beginTime = GetTimeStamp();
 #endif
 
-        const m4x4 capProj = PerspectiveOpenGLRH(90.0f, 1.0f, 0.1, 10.0f);
-        const m4x4 capViews[] =
+        // TODO: Make this constexpr
+        local_persist auto projInv = InverseOrIdentity(PerspectiveOpenGLRH(90.0f, 1.0f, 0.1, 10.0f));
+        local_persist m3x3 capViews[] =
         {
-            LookAtRH(V3(0.0f), V3(1.0f, 0.0f, 0.0f), V3(0.0f, -1.0f, 0.0f)),
-            LookAtRH(V3(0.0f), V3(-1.0f, 0.0f, 0.0f), V3(0.0f, -1.0f, 0.0f)),
-            LookAtRH(V3(0.0f), V3(0.0f, 1.0f, 0.0f), V3(0.0f, 0.0f, 1.0f)),
-            LookAtRH(V3(0.0f), V3(0.0f, -1.0f, 0.0f), V3(0.0f, 0.0f, -1.0f)),
-            LookAtRH(V3(0.0f), V3(0.0f, 0.0f, 1.0f), V3(0.0f, -1.0f, 0.0f)),
-            LookAtRH(V3(0.0f), V3(0.0f, 0.0f, -1.0f), V3(0.0f, -1.0f, 0.0f)),
+            M3x3(&InverseOrIdentity(LookAtRH(V3(0.0f), V3(1.0f, 0.0f, 0.0f), V3(0.0f, -1.0f, 0.0f)))),
+            M3x3(&InverseOrIdentity(LookAtRH(V3(0.0f), V3(-1.0f, 0.0f, 0.0f), V3(0.0f, -1.0f, 0.0f)))),
+            M3x3(&InverseOrIdentity(LookAtRH(V3(0.0f), V3(0.0f, 1.0f, 0.0f), V3(0.0f, 0.0f, 1.0f)))),
+            M3x3(&InverseOrIdentity(LookAtRH(V3(0.0f), V3(0.0f, -1.0f, 0.0f), V3(0.0f, 0.0f, -1.0f)))),
+            M3x3(&InverseOrIdentity(LookAtRH(V3(0.0f), V3(0.0f, 0.0f, 1.0f), V3(0.0f, -1.0f, 0.0f)))),
+            M3x3(&InverseOrIdentity(LookAtRH(V3(0.0f), V3(0.0f, 0.0f, -1.0f), V3(0.0f, -1.0f, 0.0f)))),
         };
 
         auto prog = &renderer->shaders.IrradanceConvolver;
         glUseProgram(prog->handle);
-        glUniformMatrix4fv(prog->vertex.uniforms.u_ProjMatrix, 1, GL_FALSE, capProj.data);
+        glUniformMatrix4fv(prog->vertex.uniforms.InvProjMatrix, 1, GL_FALSE, projInv.data);
         glDisable(GL_DEPTH_TEST);
         glBindFramebuffer(GL_DRAW_FRAMEBUFFER, renderer->captureFramebuffer);
 
@@ -1107,7 +1132,7 @@ namespace soko
         for (u32 i = 0; i < 6; i++)
         {
             glViewport(0, 0, t->images[i].width, t->images[i].height);
-            glUniformMatrix4fv(prog->vertex.uniforms.u_ViewMatrix, 1, GL_FALSE, capViews[i].data);
+            glUniformMatrix3fv(prog->vertex.uniforms.InvViewMatrix, 1, GL_FALSE, capViews[i].data);
             glFramebufferTexture2D(GL_DRAW_FRAMEBUFFER, GL_COLOR_ATTACHMENT0,
                                    GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, t->gpuHandle, 0);
             glClear(GL_COLOR_BUFFER_BIT);
@@ -1131,20 +1156,20 @@ namespace soko
         SOKO_ASSERT(t->useMips);
         SOKO_ASSERT(t->filter == TextureFilter_Trilinear);
 
-        const m4x4 capProj = PerspectiveOpenGLRH(90.0f, 1.0f, 0.1, 10.0f);
-        const m4x4 capViews[] =
+        const m4x4 capProj = InverseOrIdentity(PerspectiveOpenGLRH(90.0f, 1.0f, 0.1, 10.0f));
+        const m3x3 capViews[] =
             {
-                LookAtRH(V3(0.0f), V3(1.0f, 0.0f, 0.0f), V3(0.0f, -1.0f, 0.0f)),
-                LookAtRH(V3(0.0f), V3(-1.0f, 0.0f, 0.0f), V3(0.0f, -1.0f, 0.0f)),
-                LookAtRH(V3(0.0f), V3(0.0f, 1.0f, 0.0f), V3(0.0f, 0.0f, 1.0f)),
-                LookAtRH(V3(0.0f), V3(0.0f, -1.0f, 0.0f), V3(0.0f, 0.0f, -1.0f)),
-                LookAtRH(V3(0.0f), V3(0.0f, 0.0f, 1.0f), V3(0.0f, -1.0f, 0.0f)),
-                LookAtRH(V3(0.0f), V3(0.0f, 0.0f, -1.0f), V3(0.0f, -1.0f, 0.0f)),
+                M3x3(&InverseOrIdentity(LookAtRH(V3(0.0f), V3(1.0f, 0.0f, 0.0f), V3(0.0f, -1.0f, 0.0f)))),
+                M3x3(&InverseOrIdentity(LookAtRH(V3(0.0f), V3(-1.0f, 0.0f, 0.0f), V3(0.0f, -1.0f, 0.0f)))),
+                M3x3(&InverseOrIdentity(LookAtRH(V3(0.0f), V3(0.0f, 1.0f, 0.0f), V3(0.0f, 0.0f, 1.0f)))),
+                M3x3(&InverseOrIdentity(LookAtRH(V3(0.0f), V3(0.0f, -1.0f, 0.0f), V3(0.0f, 0.0f, -1.0f)))),
+                M3x3(&InverseOrIdentity(LookAtRH(V3(0.0f), V3(0.0f, 0.0f, 1.0f), V3(0.0f, -1.0f, 0.0f)))),
+                M3x3(&InverseOrIdentity(LookAtRH(V3(0.0f), V3(0.0f, 0.0f, -1.0f), V3(0.0f, -1.0f, 0.0f)))),
             };
 
         auto prog = &renderer->shaders.EnvMapPrefilter;
         glUseProgram(prog->handle);
-        glUniformMatrix4fv(prog->vertex.uniforms.u_ProjMatrix, 1, GL_FALSE, capProj.data);
+        glUniformMatrix4fv(prog->vertex.uniforms.InvProjMatrix, 1, GL_FALSE, capProj.data);
         glDisable(GL_DEPTH_TEST);
         glBindFramebuffer(GL_DRAW_FRAMEBUFFER, renderer->captureFramebuffer);
 
@@ -1169,7 +1194,7 @@ namespace soko
 
             for (u32 i = 0; i < 6; i++)
             {
-                glUniformMatrix4fv(prog->vertex.uniforms.u_ViewMatrix, 1, GL_FALSE, capViews[i].data);
+                glUniformMatrix3fv(prog->vertex.uniforms.InvViewMatrix, 1, GL_FALSE, capViews[i].data);
                 glFramebufferTexture2D(GL_DRAW_FRAMEBUFFER, GL_COLOR_ATTACHMENT0,
                                        GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, t->gpuHandle, mipLevel);
                 glClear(GL_COLOR_BUFFER_BIT);
@@ -1182,18 +1207,17 @@ namespace soko
     }
 
     internal void
-    DrawSkybox(Renderer* renderer, RenderGroup* group,
-               const m4x4* view, const m4x4* proj)
+    DrawSkybox(Renderer* renderer, RenderGroup* group, const m4x4* invView, const m4x4* invProj)
     {
-        //glDisable(GL_DEPTH_TEST);
-        //glDisable(GL_CULL_FACE);
         glDepthMask(GL_FALSE);
+        defer { glDepthMask(GL_TRUE); };
 
         auto prog = &renderer->shaders.Skybox;
         glUseProgram(prog->handle);
 
-        glUniformMatrix4fv(prog->vertex.uniforms.u_ViewMatrix, 1, GL_FALSE, view->data);
-        glUniformMatrix4fv(prog->vertex.uniforms.u_ProjMatrix, 1, GL_FALSE, proj->data);
+        m3x3 invView3 = M3x3(invView);
+        glUniformMatrix3fv(prog->vertex.uniforms.InvViewMatrix, 1, GL_FALSE, invView3.data);
+        glUniformMatrix4fv(prog->vertex.uniforms.InvProjMatrix, 1, GL_FALSE, invProj->data);
         local_persist f32 lod = 1.0f;
         DEBUG_OVERLAY_SLIDER(lod, 0.0f, 5.0f);
 
@@ -1202,7 +1226,6 @@ namespace soko
         glBindTexture(GL_TEXTURE_CUBE_MAP, group->skyboxHandle);
 
         glDrawArrays(GL_TRIANGLES, 0, 6);
-        glDepthMask(GL_TRUE);
     }
 
     m3x3 MakeNormalMatrix(m4x4 model)
@@ -1215,7 +1238,7 @@ namespace soko
     }
 
     // TODO: @Speed Make shure this function inlined
-    m4x4 CalcShadowProjection(CameraConfig camera, m4x4 lightLookAt, m4x4 cameraLookAtInv, u32 shadowMapRes, bool stable)
+    m4x4 CalcShadowProjection(const CameraConfig* camera, f32 nearPlane, f32 farPlane, m4x4 lightLookAt, u32 shadowMapRes, bool stable)
     {
         // NOTE Shadow projection bounds
         v3 min;
@@ -1228,11 +1251,11 @@ namespace soko
 
             // NOTE: Computing frustum bounding sphere
             // Reference: https://lxjk.github.io/2017/04/15/Calculate-Minimal-Bounding-Sphere-of-Frustum.html
-            f32 ar = 1.0f / camera.aspectRatio;
-            f32 k = Sqrt(1.0f + ar * ar) * Tan(ToRadians(camera.fovDeg) * 0.5f);
+            f32 ar = 1.0f / camera->aspectRatio;
+            f32 k = Sqrt(1.0f + ar * ar) * Tan(ToRadians(camera->fovDeg) * 0.5f);
             f32 kSq = k * k;
-            f32 f = camera.farPlane;
-            f32 n = camera.nearPlane;
+            f32 f = farPlane;
+            f32 n = nearPlane;
             if (kSq >= ((f - n) / (f + n)))
             {
                 bSphereP = V4(0.0f, 0.0f, -f, 1.0f);
@@ -1252,7 +1275,7 @@ namespace soko
             bSphereR *= 1.3f;
 
             // From camera space to world space
-            bSphereP = cameraLookAtInv * bSphereP;
+            bSphereP = camera->invViewMatrix * bSphereP;
             // From world space to light space
             bSphereP = lightLookAt * bSphereP;
 
@@ -1297,12 +1320,12 @@ namespace soko
         else
         {
             Basis cameraBasis;
-            cameraBasis.zAxis = Normalize(camera.front);
+            cameraBasis.zAxis = Normalize(camera->front);
             cameraBasis.xAxis = Normalize(Cross(V3(0.0f, 1.0f, 0.0), cameraBasis.zAxis));
             cameraBasis.yAxis = Cross(cameraBasis.zAxis, cameraBasis.xAxis);
-            cameraBasis.p = camera.position;
+            cameraBasis.p = camera->position;
 
-            auto camFrustumCorners = GetFrustumCorners(cameraBasis, camera.fovDeg, camera.aspectRatio, camera.nearPlane, camera.farPlane);
+            auto camFrustumCorners = GetFrustumCorners(cameraBasis, camera->fovDeg, camera->aspectRatio, nearPlane, farPlane);
             for (u32x i = 0; i < ArrayCount(camFrustumCorners.corners); i++)
             {
                 // TODO: Fix this!
@@ -1415,24 +1438,15 @@ namespace soko
 
     void ShadowPass(Renderer* renderer, RenderGroup* group)
     {
-        local_persist f32 slopeBiasScale = 0.0f;
-        local_persist f32 constBias = 0.008f;
-        local_persist f32 normalBiasScale = 0.0f;
-
-        DEBUG_OVERLAY_SLIDER(slopeBiasScale, 0.0f, 2.5f);
-        DEBUG_OVERLAY_SLIDER(constBias, 0.0f, 0.5f);
-        DEBUG_OVERLAY_SLIDER(normalBiasScale, 0.0f, 2.0f);
-
-        renderer->shadowConstantBias = constBias;
-        renderer->shadowSlopeBiasScale = slopeBiasScale;
-        renderer->shadowNormalBiasScale = normalBiasScale;
+        DEBUG_OVERLAY_SLIDER(renderer->shadowSlopeBiasScale, 0.0f, 2.5f);
+        DEBUG_OVERLAY_SLIDER(renderer->shadowConstantBias, 0.0f, 0.5f);
 
         i32 EnableStableShadows = renderer->stableShadows;
         DEBUG_OVERLAY_SLIDER(EnableStableShadows, 0, 1);
         renderer->stableShadows = EnableStableShadows;
 
         auto light = &group->dirLight;
-        auto camera = &group->cameraConfig;
+        auto camera = group->camera;
 
         glEnable(GL_POLYGON_OFFSET_FILL);
         defer { glDisable(GL_POLYGON_OFFSET_FILL); };
@@ -1448,9 +1462,6 @@ namespace soko
 
         // TODO: Fix the mess with lookAt matrices4
         m4x4 lightLookAt = LookAtDirRH(light->from, light->dir, V3(0.0f, 1.0f, 0.0f));
-        DEBUG_OVERLAY_TRACE(light->from);
-        m4x4 cameraLookAt = LookAtDirRH(camera->position, camera->front, V3(0.0f, 1.0f, 0.0f));
-        m4x4 cameraLookAtInv = InverseAndUnwrap(cameraLookAt);
 
         f32 frustrumDepth = camera->farPlane - camera->nearPlane;
         f32 cascadeDepth = frustrumDepth / Renderer::NumShadowCascades;
@@ -1459,10 +1470,7 @@ namespace soko
             f32 cascadeNear = cascadeDepth * cascadeIndex;
             f32 cascadeFar = cascadeDepth * (cascadeIndex + 1);
             renderer->shadowCascadeBounds[cascadeIndex] = camera->nearPlane + cascadeFar;
-            CameraConfig cascadeCamera = *camera;
-            cascadeCamera.nearPlane = cascadeNear;
-            cascadeCamera.farPlane = cascadeFar;
-            auto proj = CalcShadowProjection(cascadeCamera, lightLookAt, cameraLookAtInv, renderer->shadowMapRes, renderer->stableShadows);
+            auto proj = CalcShadowProjection(camera, cascadeNear, cascadeFar, lightLookAt, renderer->shadowMapRes, renderer->stableShadows);
             auto viewProj = MulM4M4(&proj, &lightLookAt);
             renderer->shadowCascadeViewProjMatrices[cascadeIndex] = viewProj;
 
@@ -1477,16 +1485,13 @@ namespace soko
     internal void
     FlushRenderGroup(Renderer* renderer, RenderGroup* group)
     {
-        CameraConfig* camera = &group->cameraConfig;
+        auto camera = group->camera;
 
         bool showShadowCascadesBoundaries = renderer->showShadowCascadesBoundaries;
         DEBUG_OVERLAY_TOGGLE(showShadowCascadesBoundaries);
         renderer->showShadowCascadesBoundaries = showShadowCascadesBoundaries;
 
-        m4x4 lookAt = LookAtDirRH(camera->position, camera->front, V3(0.0f, 1.0f, 0.0f));
-        m4x4 projection = PerspectiveOpenGLRH(camera->fovDeg, camera->aspectRatio,
-                                              camera->nearPlane, camera->farPlane);
-        m4x4 viewProj = MulM4M4(&projection, &lookAt);
+        m4x4 viewProj = MulM4M4(&camera->projectionMatrix, &camera->viewMatrix);
 
         if (group->commandQueueAt)
         {
@@ -1568,7 +1573,7 @@ namespace soko
                             glUniform3fv(meshProg->fragment.uniforms.u_DirLight.ambient, 1, group->dirLight.ambient.data);
                             glUniform3fv(meshProg->fragment.uniforms.u_DirLight.diffuse, 1, group->dirLight.diffuse.data);
                             glUniform3fv(meshProg->fragment.uniforms.u_DirLight.specular, 1, group->dirLight.specular.data);
-                            glUniform3fv(meshProg->fragment.uniforms.u_ViewPos, 1, group->cameraConfig.position.data);
+                            glUniform3fv(meshProg->fragment.uniforms.u_ViewPos, 1, camera->position.data);
                         }
 
                         glUniformMatrix4fv(meshProg->vertex.uniforms.u_ModelMatrix, 1, GL_FALSE, data->transform.data);
@@ -1615,7 +1620,7 @@ namespace soko
                             glUniformMatrix4fv(meshProg->vertex.uniforms.uViewProjMatrix, 1, GL_FALSE, viewProj.data);
                             glUniform3fv(meshProg->fragment.uniforms.uDirLight.dir, 1, group->dirLight.dir.data);
                             glUniform3fv(meshProg->fragment.uniforms.uDirLight.color, 1, group->dirLight.diffuse.data);
-                            glUniform3fv(meshProg->fragment.uniforms.uViewPos, 1, group->cameraConfig.position.data);
+                            glUniform3fv(meshProg->fragment.uniforms.uViewPos, 1, camera->position.data);
                         }
 
                         //glUniform1f(meshProg->aoLoc, data->material.pbr.ao);
@@ -1709,8 +1714,8 @@ namespace soko
                     if (firstChunkMeshShaderInvocation)
                     {
                         firstChunkMeshShaderInvocation = false;
-                        glUniformMatrix4fv(chunkProg->vertex.uniforms.u_ViewMatrix, 1, GL_FALSE, lookAt.data);
-                        glUniformMatrix4fv(chunkProg->vertex.uniforms.u_ProjectionMatrix, 1, GL_FALSE, projection.data);
+                        glUniformMatrix4fv(chunkProg->vertex.uniforms.u_ViewMatrix, 1, GL_FALSE, camera->viewMatrix.data);
+                        glUniformMatrix4fv(chunkProg->vertex.uniforms.u_ProjectionMatrix, 1, GL_FALSE, camera->projectionMatrix.data);
                         glUniformMatrix4fv(chunkProg->vertex.uniforms.u_LightSpaceMatrix[0], 1, GL_FALSE, lightViewProj0->data);
                         glUniformMatrix4fv(chunkProg->vertex.uniforms.u_LightSpaceMatrix[1], 1, GL_FALSE, lightViewProj1->data);
                         glUniformMatrix4fv(chunkProg->vertex.uniforms.u_LightSpaceMatrix[2], 1, GL_FALSE, lightViewProj2->data);
@@ -1718,7 +1723,7 @@ namespace soko
                         glUniform3fv(chunkProg->fragment.uniforms.u_DirLight.ambient, 1, group->dirLight.ambient.data);
                         glUniform3fv(chunkProg->fragment.uniforms.u_DirLight.diffuse, 1, group->dirLight.diffuse.data);
                         glUniform3fv(chunkProg->fragment.uniforms.u_DirLight.specular, 1, group->dirLight.specular.data);
-                        glUniform3fv(chunkProg->fragment.uniforms.u_ViewPos, 1, group->cameraConfig.position.data);
+                        glUniform3fv(chunkProg->fragment.uniforms.u_ViewPos, 1, camera->position.data);
                         glUniform1f(chunkProg->fragment.uniforms.shadowFilterSampleScale, shadowFilterScale);
                         glUniform3fv(chunkProg->fragment.uniforms.u_ShadowCascadeSplits, 1, renderer->shadowCascadeBounds);
                         glUniform1i(chunkProg->fragment.uniforms.u_ShowShadowCascadesBoundaries, renderer->showShadowCascadesBoundaries);
@@ -1732,7 +1737,7 @@ namespace soko
                         glUniformMatrix4fv(chunkProg->vertex.uniforms.u_ModelMatrix, 1, GL_FALSE, world.data);
 
                         m4x4 invModel = world;
-                        bool inverted = Inverse(&invModel);
+                        bool inverted = (&invModel);
                         SOKO_ASSERT(inverted);
                         m4x4 transModel = Transpose(&invModel);
                         m3x3 normalMatrix = M3x3(&transModel);
@@ -1764,7 +1769,7 @@ namespace soko
         if (group->drawSkybox)
         {
             glDepthFunc(GL_EQUAL);
-            DrawSkybox(renderer, group, &lookAt, &projection);
+            DrawSkybox(renderer, group, &camera->invViewMatrix, &camera->invProjectionMatrix);
             glDepthFunc(GL_LESS);
         }
 

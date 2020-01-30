@@ -185,38 +185,19 @@ namespace soko
         }
     }
 
-    void
-    RenderGroupSetCamera(RenderGroup* group, const CameraConfig* config)
+    void RenderGroupSetCamera(RenderGroup* group, const CameraConfig* config)
     {
-        group->cameraConfig = *config;
+        group->camera = config;
     }
 
-    void
-    RenderGroupResetQueue(RenderGroup* group)
+    void RenderGroupResetQueue(RenderGroup* group)
     {
         group->commandQueueAt = 0;
         group->renderBufferAt = group->renderBuffer;
         group->renderBufferFree = group->renderBufferSize;
         //group->dirLightEnabled = false;
     }
-#if 0
-    void
-    DrawDebugMesh(RenderGroup* renderGroup, v3 position, v3 scale, Mesh* mesh, b32 selected)
-    {
-        RenderCommandDrawMesh command = {};
-        m4x4 world = Identity4();
-        world = Translate(world, position);
-        world = Scale(world, scale);
 
-        command.transform.worldMatrix = world;
-        command.meshHandle = mesh->index;
-        command.highlight = selected;
-        RenderGroupPushCommand(renderGroup,
-                               RENDER_COMMAND_DRAW_MESH,
-                               (void*)(&command));
-
-    }
-#endif
     internal void
     DrawAlignedBoxOutline(RenderGroup* renderGroup, v3 min, v3 max, v3 color, f32 lineWidth)
     {

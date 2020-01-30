@@ -119,8 +119,8 @@ namespace soko
             {
                 struct Uniforms
                 {
-                    GLint u_ViewMatrix;
-                    GLint u_ProjMatrix;
+                    GLint InvViewMatrix;
+                    GLint InvProjMatrix;
                 } uniforms;
 
                 struct VertexAttribs
@@ -158,8 +158,8 @@ namespace soko
             {
                 struct Uniforms
                 {
-                    GLint u_ViewMatrix;
-                    GLint u_ProjMatrix;
+                    GLint InvViewMatrix;
+                    GLint InvProjMatrix;
                 } uniforms;
 
                 struct VertexAttribs
@@ -268,8 +268,8 @@ namespace soko
             {
                 struct Uniforms
                 {
-                    GLint u_ViewMatrix;
-                    GLint u_ProjMatrix;
+                    GLint InvViewMatrix;
+                    GLint InvProjMatrix;
                 } uniforms;
 
                 struct VertexAttribs
@@ -560,8 +560,8 @@ namespace soko
         {
             result.handle = handle;
             // NOTE: Assign vertex shader uniforms
-            result.vertex.uniforms.u_ViewMatrix = glGetUniformLocation(handle, "u_ViewMatrix");
-            result.vertex.uniforms.u_ProjMatrix = glGetUniformLocation(handle, "u_ProjMatrix");
+            result.vertex.uniforms.InvViewMatrix = glGetUniformLocation(handle, "InvViewMatrix");
+            result.vertex.uniforms.InvProjMatrix = glGetUniformLocation(handle, "InvProjMatrix");
 
             // NOTE: Assign fragment shader uniforms
             result.fragment.uniforms.uSourceCubemap = glGetUniformLocation(handle, "uSourceCubemap");
@@ -584,8 +584,8 @@ namespace soko
         {
             result.handle = handle;
             // NOTE: Assign vertex shader uniforms
-            result.vertex.uniforms.u_ViewMatrix = glGetUniformLocation(handle, "u_ViewMatrix");
-            result.vertex.uniforms.u_ProjMatrix = glGetUniformLocation(handle, "u_ProjMatrix");
+            result.vertex.uniforms.InvViewMatrix = glGetUniformLocation(handle, "InvViewMatrix");
+            result.vertex.uniforms.InvProjMatrix = glGetUniformLocation(handle, "InvProjMatrix");
 
             // NOTE: Assign fragment shader uniforms
             result.fragment.uniforms.uSourceCubemap = glGetUniformLocation(handle, "uSourceCubemap");
@@ -649,8 +649,8 @@ namespace soko
         {
             result.handle = handle;
             // NOTE: Assign vertex shader uniforms
-            result.vertex.uniforms.u_ViewMatrix = glGetUniformLocation(handle, "u_ViewMatrix");
-            result.vertex.uniforms.u_ProjMatrix = glGetUniformLocation(handle, "u_ProjMatrix");
+            result.vertex.uniforms.InvViewMatrix = glGetUniformLocation(handle, "InvViewMatrix");
+            result.vertex.uniforms.InvProjMatrix = glGetUniformLocation(handle, "InvProjMatrix");
 
             // NOTE: Assign fragment shader uniforms
             result.fragment.uniforms.uLod = glGetUniformLocation(handle, "uLod");
@@ -1196,8 +1196,8 @@ void main()
 
     const char* ShaderInfo::Info_EnvMapPrefilter::VertexSource = R"(#version 330 core
 
-uniform mat4 u_ViewMatrix;
-uniform mat4 u_ProjMatrix;
+uniform mat3 InvViewMatrix;
+uniform mat4 InvProjMatrix;
 
 out vec3 v_UV;
 
@@ -1213,8 +1213,7 @@ void main()
     vec4 vertexPos = vec4(VERTICES[min(gl_VertexID, 6)], 0.0f, 1.0f);
     gl_Position = vertexPos;
     gl_Position = gl_Position.xyww;
-    v_UV = mat3(inverse(u_ViewMatrix)) * (inverse(u_ProjMatrix) * gl_Position).xyz;
-    //v_UV = (gl_Position * inverse(u_ViewMatrix) * inverse(u_ProjMatrix)).xyz;
+    v_UV = InvViewMatrix * (InvProjMatrix * gl_Position).xyz;
 })";
 
     const char* ShaderInfo::Info_EnvMapPrefilter::FragmentSource = R"(#version 330 core
@@ -1319,8 +1318,8 @@ void main()
 
     const char* ShaderInfo::Info_IrradanceConvolver::VertexSource = R"(#version 330 core
 
-uniform mat4 u_ViewMatrix;
-uniform mat4 u_ProjMatrix;
+uniform mat3 InvViewMatrix;
+uniform mat4 InvProjMatrix;
 
 out vec3 v_UV;
 
@@ -1336,8 +1335,7 @@ void main()
     vec4 vertexPos = vec4(VERTICES[min(gl_VertexID, 6)], 0.0f, 1.0f);
     gl_Position = vertexPos;
     gl_Position = gl_Position.xyww;
-    v_UV = mat3(inverse(u_ViewMatrix)) * (inverse(u_ProjMatrix) * gl_Position).xyz;
-    //v_UV = (gl_Position * inverse(u_ViewMatrix) * inverse(u_ProjMatrix)).xyz;
+    v_UV = InvViewMatrix * (InvProjMatrix * gl_Position).xyz;
 })";
 
     const char* ShaderInfo::Info_IrradanceConvolver::FragmentSource = R"(#version 330 core
@@ -1595,8 +1593,8 @@ void main()
 
     const char* ShaderInfo::Info_Skybox::VertexSource = R"(#version 330 core
 
-uniform mat4 u_ViewMatrix;
-uniform mat4 u_ProjMatrix;
+uniform mat3 InvViewMatrix;
+uniform mat4 InvProjMatrix;
 
 out vec3 v_UV;
 
@@ -1612,8 +1610,7 @@ void main()
     vec4 vertexPos = vec4(VERTICES[min(gl_VertexID, 6)], 0.0f, 1.0f);
     gl_Position = vertexPos;
     gl_Position = gl_Position.xyww;
-    v_UV = mat3(inverse(u_ViewMatrix)) * (inverse(u_ProjMatrix) * gl_Position).xyz;
-    //v_UV = (gl_Position * inverse(u_ViewMatrix) * inverse(u_ProjMatrix)).xyz;
+    v_UV = InvViewMatrix * (InvProjMatrix * gl_Position).xyz;
 })";
 
     const char* ShaderInfo::Info_Skybox::FragmentSource = R"(#version 330 core
