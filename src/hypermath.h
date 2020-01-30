@@ -201,9 +201,9 @@ namespace hpm
         return (i32)roundf(value);
     }
 
-    inline f32 Round(f32 v)
+    inline f32 Round(f32 value)
     {
-        return roundf(v);
+        return roundf(value);
     }
 
     inline float Minimum(float a, float b)
@@ -370,6 +370,10 @@ namespace hpm
         return Vector2{(f32)x, (f32)y};
     }
 
+    inline Vector3 Round(Vector3 v)
+    {
+        return Vector3{roundf(v.x), roundf(v.y), roundf(v.z)};
+    }
 
     inline Vector2 V2(f32 val)
     {

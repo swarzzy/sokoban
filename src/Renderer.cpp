@@ -670,6 +670,56 @@ namespace soko
         glFlush();
     }
 
+    void ReloadShadowMaps(Renderer* renderer, u32 newResolution = 0)
+    {
+        if (newResolution)
+        {
+            renderer->shadowMapRes = newResolution;
+        }
+        // NOTE: It should silently ignore 0
+        glDeleteTextures(1, &renderer->shadowMapDepthTarget);
+        glDeleteTextures(1, &renderer->shadowMapDebugColorTarget);
+
+        { // Initializing depth targets
+            glGenTextures(1, &renderer->shadowMapDepthTarget);
+            glBindTexture(GL_TEXTURE_2D_ARRAY, renderer->shadowMapDepthTarget);
+
+            glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+            glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+            glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+            glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+            glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_COMPARE_MODE, GL_COMPARE_REF_TO_TEXTURE);
+            glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_COMPARE_FUNC, GL_LEQUAL);
+
+            glTexImage3D(GL_TEXTURE_2D_ARRAY, 0, GL_DEPTH_COMPONENT32, renderer->shadowMapRes, renderer->shadowMapRes, Renderer::NumShadowCascades, 0, GL_DEPTH_COMPONENT, GL_FLOAT, 0);
+        }
+        { // Initializing debug color targets
+            glGenTextures(1, &renderer->shadowMapDebugColorTarget);
+            glBindTexture(GL_TEXTURE_2D_ARRAY, renderer->shadowMapDebugColorTarget);
+
+            glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+            glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+            glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+            glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+            glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_COMPARE_MODE, GL_COMPARE_REF_TO_TEXTURE);
+            glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_COMPARE_FUNC, GL_LEQUAL);
+
+            glTexImage3D(GL_TEXTURE_2D_ARRAY, 0, GL_R8, renderer->shadowMapRes, renderer->shadowMapRes, Renderer::NumShadowCascades, 0, GL_RED, GL_UNSIGNED_BYTE, 0);
+        }
+        glBindTexture(GL_TEXTURE_2D_ARRAY, 0);
+
+        for (u32x i = 0; i < Renderer::NumShadowCascades; i++)
+        {
+            glBindFramebuffer(GL_FRAMEBUFFER, renderer->shadowMapFramebuffers[i]);
+            glFramebufferTextureLayer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, renderer->shadowMapDepthTarget, 0, i);
+            glFramebufferTextureLayer(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, renderer->shadowMapDebugColorTarget, 0, i);
+            //glDrawBuffer(GL_NONE);
+            //glReadBuffer(GL_NONE);
+            SOKO_ASSERT(glCheckFramebufferStatus(GL_FRAMEBUFFER) == GL_FRAMEBUFFER_COMPLETE);
+        }
+        glBindFramebuffer(GL_FRAMEBUFFER, 0);
+    }
+
     internal Renderer*
     AllocAndInitRenderer(AB::MemoryArena* arena, AB::MemoryArena* tempArena, uv2 renderRes)
     {
@@ -818,49 +868,12 @@ namespace soko
         glGenFramebuffers(1, &renderer->captureFramebuffer);
         SOKO_ASSERT(renderer->captureFramebuffer);
 
-        // NOTE: Init shadow framebuffer
-        { // Initializing depth targets
-            glGenTextures(1, &renderer->shadowMapDepthTarget);
-            glBindTexture(GL_TEXTURE_2D_ARRAY, renderer->shadowMapDepthTarget);
-
-            glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-            glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-            glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-            glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-            glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_COMPARE_MODE, GL_COMPARE_REF_TO_TEXTURE);
-            glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_COMPARE_FUNC, GL_LEQUAL);
-
-            glTexImage3D(GL_TEXTURE_2D_ARRAY, 0, GL_DEPTH_COMPONENT32, renderer->shadowMapRes, renderer->shadowMapRes, Renderer::NumShadowCascades, 0, GL_DEPTH_COMPONENT, GL_FLOAT, 0);
-        }
-        { // Initializing debug color targets
-            glGenTextures(1, &renderer->shadowMapDebugColorTarget);
-            glBindTexture(GL_TEXTURE_2D_ARRAY, renderer->shadowMapDebugColorTarget);
-
-            glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-            glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-            glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-            glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-            glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_COMPARE_MODE, GL_COMPARE_REF_TO_TEXTURE);
-            glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_COMPARE_FUNC, GL_LEQUAL);
-
-            glTexImage3D(GL_TEXTURE_2D_ARRAY, 0, GL_R8, renderer->shadowMapRes, renderer->shadowMapRes, Renderer::NumShadowCascades, 0, GL_RED, GL_UNSIGNED_BYTE, 0);
-        }
-        glBindTexture(GL_TEXTURE_2D_ARRAY, 0);
 
         glGenFramebuffers(3, renderer->shadowMapFramebuffers);
-        // TODO: Checkin!
+        // TODO: Checking!
         SOKO_ASSERT(renderer->shadowMapFramebuffers[0]);
 
-        for (u32x i = 0; i < Renderer::NumShadowCascades; i++)
-        {
-            glBindFramebuffer(GL_FRAMEBUFFER, renderer->shadowMapFramebuffers[i]);
-            glFramebufferTextureLayer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, renderer->shadowMapDepthTarget, 0, i);
-            glFramebufferTextureLayer(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, renderer->shadowMapDebugColorTarget, 0, i);
-            //glDrawBuffer(GL_NONE);
-            //glReadBuffer(GL_NONE);
-            SOKO_ASSERT(glCheckFramebufferStatus(GL_FRAMEBUFFER) == GL_FRAMEBUFFER_COMPLETE);
-        }
-        glBindFramebuffer(GL_FRAMEBUFFER, 0);
+        ReloadShadowMaps(renderer);
 
         glGenTextures(1, &renderer->randomValuesTexture);
         SOKO_ASSERT(renderer->randomValuesTexture);
@@ -1231,6 +1244,13 @@ namespace soko
                 bSphereR = 0.5f * Sqrt((f - n) * (f - n) + 2.0f * (f * f + n * n) * kSq + (f + n) * (f + n) * kSq * kSq);
             }
 
+            // TODO: Fix this!
+            // Grow sphere a little bit in order to get some safe margin
+            // Because it looks like cascase boundries calculation is
+            // incorrect and causes artifacts on cascade edges, especially
+            // between first and second cascade
+            bSphereR *= 1.3f;
+
             // From camera space to world space
             bSphereP = cameraLookAtInv * bSphereP;
             // From world space to light space
@@ -1240,13 +1260,19 @@ namespace soko
             v3 xAxis = V3(1.0f, 0.0f, 0.0f);
             v3 yAxis = V3(0.0f, 1.0f, 0.0f);
             v3 zAxis = V3(0.0f, 0.0f, 1.0f);
+
             min = bSphereP.xyz - (xAxis * bSphereR + yAxis * bSphereR + zAxis * bSphereR);
             max = bSphereP.xyz + (xAxis * bSphereR + yAxis * bSphereR + zAxis * bSphereR);
+
+            // NOTE: Update: We cannot just clamp Z because it will change AABB size and
+            // destroy the stability. So here are couls be problems if Z is positive
+            // which is means that near plane depth would be negative.
 
             // We get min and max Z values in light space, so Z is negative forward therefore if sphere
             // is in front of the light source then we have negative values.
             // Clamp max Z to 0 because if it's positive, then we are behind the light source.
-            if (max.z > 0.0f) max.z = 0.0f;
+            //if (max.z > 0.0f) max.z = 0.0f;
+
             // Inverting Z sign because we will use it for building projection matrix.
             // So it describe distance to far plane.
             min.z = -min.z;
@@ -1256,10 +1282,9 @@ namespace soko
             min.z = max.z;
             max.z = tmp;
 
-            // TODO: On a particular camera angle there are still
-            // shimmering on shadows
-            auto bboxSideSize = Abs(min.x) + Abs(max.x);
-            auto pixelSize = bboxSideSize / shadowMapRes;
+            auto bboxSideSize = Abs(max.x - min.x);
+            f32 pixelSize = bboxSideSize / shadowMapRes;
+            DEBUG_OVERLAY_TRACE(pixelSize);
 
             min.x = Round(min.x / pixelSize) * pixelSize;
             min.y = Round(min.y / pixelSize) * pixelSize;
@@ -1280,6 +1305,12 @@ namespace soko
             auto camFrustumCorners = GetFrustumCorners(cameraBasis, camera.fovDeg, camera.aspectRatio, camera.nearPlane, camera.farPlane);
             for (u32x i = 0; i < ArrayCount(camFrustumCorners.corners); i++)
             {
+                // TODO: Fix this!
+                // Grow it a little bit in order to get some safe margin
+                // Because it looks like cascase boundries calculation is
+                // incorrect and causes artifacts on cascade edges, especially
+                // between first and second cascade.
+                camFrustumCorners.corners[i] *=  1.2f;
                 camFrustumCorners.corners[i] = (lightLookAt * V4(camFrustumCorners.corners[i], 1.0f)).xyz;
             }
 
@@ -1310,8 +1341,8 @@ namespace soko
             max = maxViewSpace;
         }
 
-        m4x4 projection = OrthogonalOpenGLRH(min.x, max.x, min.y, max.y, min.z, max.z);
-        return projection;
+        auto result = OrthogonalOpenGLRH(min.x, max.x, min.y, max.y, min.z, max.z);
+        return result;
     }
 
     void RenderShadowMap(Renderer* renderer, RenderGroup* group)
@@ -1417,6 +1448,7 @@ namespace soko
 
         // TODO: Fix the mess with lookAt matrices4
         m4x4 lightLookAt = LookAtDirRH(light->from, light->dir, V3(0.0f, 1.0f, 0.0f));
+        DEBUG_OVERLAY_TRACE(light->from);
         m4x4 cameraLookAt = LookAtDirRH(camera->position, camera->front, V3(0.0f, 1.0f, 0.0f));
         m4x4 cameraLookAtInv = InverseAndUnwrap(cameraLookAt);
 
@@ -1426,7 +1458,7 @@ namespace soko
         {
             f32 cascadeNear = cascadeDepth * cascadeIndex;
             f32 cascadeFar = cascadeDepth * (cascadeIndex + 1);
-            renderer->shadowCascadeBounds[cascadeIndex] = cascadeFar;
+            renderer->shadowCascadeBounds[cascadeIndex] = camera->nearPlane + cascadeFar;
             CameraConfig cascadeCamera = *camera;
             cascadeCamera.nearPlane = cascadeNear;
             cascadeCamera.farPlane = cascadeFar;

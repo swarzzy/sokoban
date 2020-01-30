@@ -589,7 +589,16 @@ namespace soko
 #endif
         RenderGroupSetCamera(gameState->renderGroup, camConf);
 
+        auto renderer = gameState->renderer;
+
         v3 beg = gameState->session.camera.conf.position;
+
+        local_persist i32 shadowMapRes = renderer->shadowMapRes;
+        DEBUG_OVERLAY_SLIDER(shadowMapRes, 258, 8192);
+        if (shadowMapRes != renderer->shadowMapRes)
+        {
+            ReloadShadowMaps(renderer, shadowMapRes);
+        }
 
         DirectionalLight light = {};
         light.dir = Normalize(V3(1.0f, -5.0f, -2.5f));
