@@ -42,7 +42,9 @@ namespace soko
         f32 latSmooth;
         f32 longSmooth;
         f32 distSmooth;
+        // NOTE: Current interpolated camera world position
         WorldPos worldPos;
+        // NOTE: worldPos interpolation destination
         WorldPos targetWorldPos;
         f32 followSpeed;
 
@@ -65,10 +67,8 @@ namespace soko
         f32 moveSpeed;
         f32 moveFriction;
         v3 velocity;
-        // NOTE: Position of actual camera
-        WorldPos worldPos;
         // NOTE: Position of a point on camera looks
-        WorldPos targetWorldPos;
+        WorldPos worldPos;
         v3 frameAcceleration;
         i32 frameScrollOffset;
 

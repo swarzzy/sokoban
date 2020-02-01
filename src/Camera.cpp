@@ -224,8 +224,6 @@ namespace soko
         v2 normMousePos;
         normMousePos.x = 2.0f * GlobalInput.mouseX - 1.0f;
         normMousePos.y = 2.0f * GlobalInput.mouseY - 1.0f;
-        //DEBUG_OVERLAY_TRACE(normMousePos.x);
-        //DEBUG_OVERLAY_TRACE(normMousePos.y);
 
         v4 mouseClip = V4(normMousePos, -1.0f, 0.0f);
 
@@ -254,7 +252,7 @@ namespace soko
         conf.fovDeg = 45.0f;
         conf.aspectRatio = 16.0f / 9.0f;
         conf.nearPlane = 0.1f;
-        conf.farPlane = 100.0f;
+        conf.farPlane = 60.0f;
 
         camera->conf = conf;
         camera->longSmooth = 30.0f;
@@ -277,11 +275,11 @@ namespace soko
         camera->frameAcceleration = {};
         if (GlobalInput.keys[AB::KEY_W].pressedNow)
         {
-            camera->frameAcceleration += frontDir;
+            camera->frameAcceleration -= frontDir;
         }
         if (GlobalInput.keys[AB::KEY_S].pressedNow)
         {
-            camera->frameAcceleration -= frontDir;
+            camera->frameAcceleration += frontDir;
         }
         if (GlobalInput.keys[AB::KEY_A].pressedNow)
         {
@@ -323,7 +321,7 @@ namespace soko
             camera->velocity *
             GlobalAbsDeltaTime;
 
-        camera->targetWorldPos = OffsetWorldPos(camera->targetWorldPos, movementDelta);
+        camera->worldPos = OffsetWorldPos(camera->worldPos, movementDelta);
         camera->velocity += acceleration * GlobalAbsDeltaTime;
         camera->frameAcceleration = {};
 
@@ -369,7 +367,7 @@ namespace soko
         camera->conf.position = V3(x, y, z);
         camera->conf.front = -Normalize(camera->conf.position);
 
-        camera->worldPos = OffsetWorldPos(camera->targetWorldPos, RHToWorld(V3(x, y, z)));
+        //camera->worldPos = OffsetWorldPos(camera->targetWorldPos, RHToWorld(V3(x, y, z)));
 
         v2 normMousePos;
         normMousePos.x = 2.0f * GlobalInput.mouseX - 1.0f;

@@ -69,8 +69,7 @@ namespace soko
         iv3 minBound = GetChunkCoord(region->origin.tile) - actualRadius;
         iv3 maxBound = GetChunkCoord(region->origin.tile) + actualRadius;
 
-        RenderGroupPushCommand(gameState->renderGroup,
-                               RENDER_COMMAND_BEGIN_CHUNK_MESH_BATCH, 0);
+        RenderGroupPushCommand(gameState->renderGroup, RENDER_COMMAND_BEGIN_CHUNK_MESH_BATCH, 0);
 
         for (u32 chunkIndex = 0; chunkIndex < region->chunkCount; chunkIndex++)
         {
@@ -82,12 +81,10 @@ namespace soko
             c.offset = offset;
             c.meshIndex = chunk->loadedMesh.gpuHandle;
             c.quadCount = chunk->loadedMesh.quadCount;
-            RenderGroupPushCommand(gameState->renderGroup,
-                                   RENDER_COMMAND_PUSH_CHUNK_MESH, (void*)&c);
+            RenderGroupPushCommand(gameState->renderGroup, RENDER_COMMAND_PUSH_CHUNK_MESH, (void*)&c);
         }
 
-        RenderGroupPushCommand(gameState->renderGroup,
-                               RENDER_COMMAND_END_CHUNK_MESH_BATCH, 0);
+        RenderGroupPushCommand(gameState->renderGroup, RENDER_COMMAND_END_CHUNK_MESH_BATCH, 0);
 
         for (u32 chunkIndex = 0; chunkIndex < region->chunkCount; chunkIndex++)
         {

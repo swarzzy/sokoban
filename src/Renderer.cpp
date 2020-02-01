@@ -1307,7 +1307,6 @@ namespace soko
 
             auto bboxSideSize = Abs(max.x - min.x);
             f32 pixelSize = bboxSideSize / shadowMapRes;
-            DEBUG_OVERLAY_TRACE(pixelSize);
 
             min.x = Round(min.x / pixelSize) * pixelSize;
             min.y = Round(min.y / pixelSize) * pixelSize;
@@ -1316,6 +1315,9 @@ namespace soko
             max.x = Round(max.x / pixelSize) * pixelSize;
             max.y = Round(max.y / pixelSize) * pixelSize;
             max.z = Round(max.z / pixelSize) * pixelSize;
+
+            //_OVERLAY_TRACE(min);
+
         }
         else
         {
@@ -1441,12 +1443,17 @@ namespace soko
         DEBUG_OVERLAY_SLIDER(renderer->shadowSlopeBiasScale, 0.0f, 2.5f);
         DEBUG_OVERLAY_SLIDER(renderer->shadowConstantBias, 0.0f, 0.5f);
 
+
         i32 EnableStableShadows = renderer->stableShadows;
         DEBUG_OVERLAY_SLIDER(EnableStableShadows, 0, 1);
         renderer->stableShadows = EnableStableShadows;
 
         auto light = &group->dirLight;
         auto camera = group->camera;
+
+        //DEBUG_OVERLAY_TRACE(camera->position);
+        //DEBUG_OVERLAY_TRACE(camera->front);
+
 
         glEnable(GL_POLYGON_OFFSET_FILL);
         defer { glDisable(GL_POLYGON_OFFSET_FILL); };

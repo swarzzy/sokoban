@@ -593,7 +593,7 @@ namespace soko
         auto tempMemory = BeginTemporaryMemory(gameState->tempArena);
         SimRegion _simRegion = BeginSim(gameState->tempArena,
                                         gameState->session.level,
-                                        gameState->session.editorCamera->targetWorldPos,
+                                        gameState->session.editorCamera->worldPos,
                                         2);
         auto simRegion = &_simRegion;
         editor->region = simRegion;
@@ -843,7 +843,7 @@ namespace soko
                         {
                             v3 color = V3(0.0f, 0.0f, 1.0f);
                             WorldPos chunkPos = MakeWorldPos(IV3(x, y, z) * CHUNK_DIM);
-                            v3 camOffset = WorldToRH(GetRelPos(camera->targetWorldPos, chunkPos));
+                            v3 camOffset = WorldToRH(GetRelPos(camera->worldPos, chunkPos));
                             v3 offset = camOffset;
 
                             f32 chunkDim = CHUNK_DIM * LEVEL_TILE_SIZE;
@@ -863,7 +863,7 @@ namespace soko
         {
         case Tool_EntityPlacer:
         {
-            v3 selTileRelPos = GetRelPos(camera->targetWorldPos, editor->selectorBegin);
+            v3 selTileRelPos = GetRelPos(camera->worldPos, editor->selectorBegin);
             DrawAlignedBoxOutline(gameState->renderGroup,
                                   WorldToRH(selTileRelPos - V3(LEVEL_TILE_RADIUS)),
                                   WorldToRH(selTileRelPos + V3(LEVEL_TILE_RADIUS)),
@@ -874,8 +874,8 @@ namespace soko
             if (editor->selectorHolding)
             {
                 TileBox box = TileBoxFromTwoPoints(editor->selectorBegin, editor->selectorEnd);
-                v3 minRelPos = GetRelPos(camera->targetWorldPos, box.min);
-                v3 maxRelPos = GetRelPos(camera->targetWorldPos, box.max);
+                v3 minRelPos = GetRelPos(camera->worldPos, box.min);
+                v3 maxRelPos = GetRelPos(camera->worldPos, box.max);
 
                 DrawAlignedBoxOutline(gameState->renderGroup,
                                       WorldToRH(minRelPos - V3(LEVEL_TILE_RADIUS)),
@@ -885,7 +885,7 @@ namespace soko
         } break;
         case Tool_TilePicker:
         {
-            v3 selTileRelPos = GetRelPos(camera->targetWorldPos, editor->selectorBegin);
+            v3 selTileRelPos = GetRelPos(camera->worldPos, editor->selectorBegin);
             DrawAlignedBoxOutline(gameState->renderGroup,
                                   WorldToRH(selTileRelPos - V3(LEVEL_TILE_RADIUS)),
                                   WorldToRH(selTileRelPos + V3(LEVEL_TILE_RADIUS)),
@@ -896,8 +896,8 @@ namespace soko
             if (editor->selectorHolding)
             {
                 TileBox box = TileBoxFromTwoPoints(editor->selectorBegin, editor->selectorEnd);
-                v3 minRelPos = GetRelPos(camera->targetWorldPos, box.min);
-                v3 maxRelPos = GetRelPos(camera->targetWorldPos, box.max);
+                v3 minRelPos = GetRelPos(camera->worldPos, box.min);
+                v3 maxRelPos = GetRelPos(camera->worldPos, box.max);
 
                 DrawAlignedBoxOutline(gameState->renderGroup,
                                       WorldToRH(minRelPos - V3(LEVEL_TILE_RADIUS)),
@@ -912,7 +912,7 @@ namespace soko
                 Entity* entity = GetEntity(simRegion->level, editor->selectedEntityID);
                 // TODO: This is correct only while region
                 // origin and camera origin are the same value
-                v3 relP = GetRelPos(camera->targetWorldPos, entity->pos) + entity->offset - V3(LEVEL_TILE_RADIUS);
+                v3 relP = GetRelPos(camera->worldPos, entity->pos) + entity->offset - V3(LEVEL_TILE_RADIUS);
                 v3 footprintDim = V3(entity->footprintDim.x * LEVEL_TILE_SIZE, entity->footprintDim.y * LEVEL_TILE_SIZE, entity->footprintDim.z * LEVEL_TILE_SIZE);
                 DrawAlignedBoxOutline(gameState->renderGroup,
                                       WorldToRH(relP),
@@ -926,7 +926,8 @@ namespace soko
         DEBUG_OVERLAY_SLIDER(gameState->renderer->exposure, 0.0f, 3.0f);
 
         DirectionalLight light = {};
-        light.dir = Normalize(V3(-0.3f, -1.0f, -1.0f));
+        light.dir = Normalize(V3(1.0f, -5.0f, -2.5f));
+        light.from = V3(0.0f, 1.5f, 10.0f) + WorldToRH(GetRelPos(gameState->session.editorCamera->worldPos, WorldPos{}));
         light.ambient = V3(0.6f);
         local_persist v3 diffuse = V3(1.0f);
         DEBUG_OVERLAY_SLIDER(diffuse, 0.0f, 100.0f);
@@ -934,14 +935,14 @@ namespace soko
         light.specular = V3(2.0f);
         RenderCommandSetDirLight lightCommand = {};
         lightCommand.light = light;
-        RenderGroupPushCommand(gameState->renderGroup, RENDER_COMMAND_SET_DIR_LIGHT,
-                               (void*)&lightCommand);
+        RenderGroupPushCommand(gameState->renderGroup, RENDER_COMMAND_SET_DIR_LIGHT, (void*)&lightCommand);
 
-        DrawRegion(simRegion, gameState, camera->targetWorldPos);
+        DrawRegion(simRegion, gameState, camera->worldPos);
         gameState->renderer->debugF = editor->debugF;
         gameState->renderer->debugG = editor->debugG;
         gameState->renderer->debugD = editor->debugD;
         gameState->renderer->debugNormals = editor->debugNormals;
+        ShadowPass(gameState->renderer, gameState->renderGroup);
         RendererBeginFrame(gameState->renderer, V2(PlatformGlobals.windowWidth, PlatformGlobals.windowHeight));
         FlushRenderGroup(gameState->renderer, gameState->renderGroup);
         RendererEndFrame(gameState->renderer);
