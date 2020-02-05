@@ -5,6 +5,8 @@
 #include "Memory.h"
 #include "Platform.h"
 
+#include <stdarg.h>
+
 using namespace AB;
 
 namespace soko
@@ -129,7 +131,7 @@ inline void* ReallocForSTBI(void* p, uptr oldSize, uptr newSize)
 #define GlobalInput soko::_GlobalPlatform->input
 #define PlatformGlobals (*soko::_GlobalPlatform)
 
-#define GL_FUNCTION(func) soko::_GlobalPlatform->gl->_##func
+#define GL_FUNCTION(func) soko::_GlobalPlatform->gl->functions.fn.##func
 
 #define glGenTextures GL_FUNCTION(glGenTextures)
 #define glBindTexture GL_FUNCTION(glBindTexture)
@@ -219,6 +221,11 @@ inline void* ReallocForSTBI(void* p, uptr oldSize, uptr newSize)
 #define glPolygonOffset GL_FUNCTION(glPolygonOffset)
 #define glTexImage1D GL_FUNCTION(glTexImage1D)
 #define glFramebufferTextureLayer GL_FUNCTION(glFramebufferTextureLayer)
+#define glNamedBufferStorage GL_FUNCTION(glNamedBufferStorage)
+#define glBindBufferRange GL_FUNCTION(glBindBufferRange)
+#define glNamedBufferSubData GL_FUNCTION(glNamedBufferSubData)
+#define glBufferStorage GL_FUNCTION(glBufferStorage)
+#define glBindTextureUnit GL_FUNCTION(glBindTextureUnit)
 
 // NOTE: Functions used by ImGUI
 #define glGetIntegerv GL_FUNCTION(glGetIntegerv)

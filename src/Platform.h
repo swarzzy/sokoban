@@ -64,6 +64,8 @@ class ExitScopeHelp
 
 #define defer const auto& CONCAT(defer__, __LINE__) = ExitScopeHelp() + [&]()
 
+#define _padby(count) byte CONCAT(_pad, __LINE__)[count]
+
 // NOTE: [reflect] - no hint (using seq_enum by default)
 // NOTE: [reflect seq_enum] - hint for sequential enums (using more suitable hash function)
 // NOTE: [reflect flag_enum] - hint for bitfiels flags enums
@@ -418,7 +420,7 @@ namespace AB
     struct PlatformState
     {
         PlatformFuncTable functions;
-        GLFuncTable* gl;
+        soko::OpenGL* gl;
         ImGuiContext* imGuiContext;
         void* imGuiAllocatorData;
         InputState input;

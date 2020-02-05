@@ -2,7 +2,6 @@
 
 #include "Memory.h"
 #include "OpenGL.h"
-#include "OpenGLLoader.h"
 
 #include <tchar.h>
 
@@ -54,6 +53,175 @@ extern "C" { __declspec(dllexport) DWORD AmdPowerXpressRequestHighPerformance = 
 
 namespace AB
 {
+
+    void OpenglDebugCallback(GLenum source, GLenum type, GLuint id, GLenum severity, GLsizei length, const GLchar* message, const GLvoid* userParam)
+    {
+        const char* sourceStr;
+        const char* typeStr;
+        const char* severityStr;
+
+        switch (source)
+        {
+        case GL_DEBUG_SOURCE_API: { sourceStr = "API"; } break;
+        case GL_DEBUG_SOURCE_WINDOW_SYSTEM: { sourceStr = "window system"; } break;
+        case GL_DEBUG_SOURCE_SHADER_COMPILER: { sourceStr = "shader compiler"; } break;
+        case GL_DEBUG_SOURCE_THIRD_PARTY: { sourceStr = "third party"; } break;
+        case GL_DEBUG_SOURCE_APPLICATION: { sourceStr = "application"; } break;
+        case GL_DEBUG_SOURCE_OTHER: { sourceStr = "other"; } break;
+            INVALID_DEFAULT();
+        }
+
+        switch (type)
+        {
+        case GL_DEBUG_TYPE_ERROR: { typeStr = "error"; } break;
+        case GL_DEBUG_TYPE_DEPRECATED_BEHAVIOR: { typeStr = "deprecated behavior"; } break;
+        case GL_DEBUG_TYPE_UNDEFINED_BEHAVIOR: { typeStr = "undefined behavior"; } break;
+        case GL_DEBUG_TYPE_PORTABILITY: { typeStr = "portability problem"; } break;
+        case GL_DEBUG_TYPE_PERFORMANCE: { typeStr = "performance problem"; } break;
+        case GL_DEBUG_TYPE_OTHER: { typeStr = "other"; } break;
+            INVALID_DEFAULT();
+        }
+
+        switch (severity)
+        {
+        case GL_DEBUG_SEVERITY_HIGH: { severityStr = "high"; } break;
+        case GL_DEBUG_SEVERITY_MEDIUM: { severityStr = "medium"; } break;
+        case GL_DEBUG_SEVERITY_LOW: { severityStr = "low"; } break;
+        case GL_DEBUG_SEVERITY_NOTIFICATION: { severityStr = "notification"; } break;
+        default: { severityStr = "unknown"; } break;
+        }
+        PrintString("OpenGL debug message (source: %s, type: %s, severity: %s): %s\n", sourceStr, typeStr, severityStr, message);
+        //AB_DEBUG_BREAK();
+    }
+    using soko::OpenGL;
+    struct OpenGLLoadResult
+    {
+        OpenGL* context;
+        b32 success;
+    };
+
+    void* OpenGLGetProcAddress(const char* name)
+    {
+        auto result = wglGetProcAddress(name);
+        if (result == 0 ||
+            result == (void*)0x1 ||
+            result == (void*)0x2 ||
+            result == (void*)0x3 ||
+            result == (void*)-1)
+        {
+            // NOTE: Failed
+            result = 0;
+        }
+        return (void*)result;
+    }
+
+    OpenGLLoadResult LoadOpenGL(MemoryArena* memoryArena)
+    {
+        OpenGL* context = (OpenGL*)PushSize(memoryArena,sizeof(OpenGL), alignof(OpenGL));
+        AB_CORE_ASSERT(context);
+
+        PrintString("[Info] Loading OpenGL functions...\n");
+        PrintString("[Info] Functions defined: %i32\n", OpenGL::FunctionCount);
+        PrintString("[Info] Function names described: %i32\n", ArrayCount(OpenGL::FunctionNames));
+
+        b32 success = true;
+        HMODULE glLibHandle = {};
+        for (u32 i = 0; i < OpenGL::FunctionCount; i++)
+        {
+            PrintString("[Info] Loading %s...\n", OpenGL::FunctionNames[i]);
+            context->functions.raw[i] = OpenGLGetProcAddress(OpenGL::FunctionNames[i]);
+            if (!context->functions.raw[i])
+            {
+                if (!glLibHandle)
+                {
+                    glLibHandle = LoadLibrary(TEXT("opengl32.dll"));
+                }
+                if (glLibHandle)
+                {
+                    context->functions.raw[i] = (void*)GetProcAddress(glLibHandle, OpenGL::FunctionNames[i]);
+                }
+                else
+                {
+                    context->functions.raw[i] = 0;
+                    AB_CORE_ERROR("[Error]: Failed to load OpenGL procedure: %s\n", OpenGL::FunctionNames[i]);
+                    success = false;
+                }
+            }
+        }
+
+        // NOTE: Querying extensions
+        PrintString("\n[Info] Loading OpenGL extensions...\n");
+        GLint numExtensions;
+        context->functions.fn.glGetIntegerv(GL_NUM_EXTENSIONS, &numExtensions);
+        for (i32x i = 0; i < numExtensions; i++)
+        {
+            const GLubyte* extensionString;
+            extensionString = context->functions.fn.glGetStringi(GL_EXTENSIONS, i);
+            if (strcmp((const char*)extensionString, "GL_EXT_texture_filter_anisotropic") == 0)
+            {
+                context->extensions.EXT_texture_filter_anisotropic = true;
+            }
+            if (strcmp((const char*)extensionString, "GL_ARB_texture_filter_anisotropic") == 0)
+            {
+                context->extensions.ARB_texture_filter_anisotropic = true;
+            }
+            if (strcmp((const char*)extensionString, "GL_ARB_gl_spirv") == 0)
+            {
+                context->extensions.ARB_gl_spirv.glSpecializeShaderARB = (PFNGLSPECIALIZESHADERARBPROC)OpenGLGetProcAddress("glSpecializeShaderARB");
+                if (context->extensions.ARB_gl_spirv.glSpecializeShaderARB)
+                {
+                    context->extensions.ARB_gl_spirv.supported = true;
+                }
+            }
+            if (strcmp((const char*)extensionString, "GL_ARB_spirv_extensions") == 0)
+            {
+                context->extensions.ARB_spirv_extensions = true;
+            }
+        }
+
+        if (!context->extensions.ARB_texture_filter_anisotropic && !context->extensions.EXT_texture_filter_anisotropic)
+        {
+            PrintString("[Info] GL_texture_filter_anisotropic is not supported\n");
+        }
+        if (!context->extensions.ARB_gl_spirv.supported)
+        {
+            PrintString("[Info] ARB_gl_spirv is not supported\n");
+        }
+        if (!context->extensions.ARB_spirv_extensions)
+        {
+            PrintString("[Info] ARB_spirv_extensions is not supported\n");
+        }
+
+        if (success)
+        {
+            // TODO: Do this in renderer
+            u32 globalVAO;
+            context->functions.fn.glGenVertexArrays(1, &globalVAO);
+            context->functions.fn.glBindVertexArray(globalVAO);
+            context->functions.fn.glEnable(GL_DEPTH_TEST);
+            context->functions.fn.glDepthFunc(GL_LESS);
+            context->functions.fn.glEnable(GL_CULL_FACE);
+            context->functions.fn.glCullFace(GL_BACK);
+            context->functions.fn.glFrontFace(GL_CCW);
+            context->functions.fn.glEnable(GL_TEXTURE_CUBE_MAP_SEAMLESS);
+
+            //context->functions._glEnable(GL_BLEND);
+            //context->functions._glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+            //context->functions._glBlendEquation(GL_FUNC_ADD);
+
+#if defined(AB_DEBUG_OPENGL)
+            // TODO: Set debug callback from game
+            context->functions.fn.glEnable(GL_DEBUG_OUTPUT_SYNCHRONOUS);
+            context->functions.fn.glDebugMessageCallback(OpenglDebugCallback, 0);
+            context->functions.fn.glDebugMessageControl(GL_DONT_CARE, GL_DONT_CARE, GL_DONT_CARE, 0, 0, GL_TRUE);
+            context->functions.fn.glDebugMessageControl(GL_DONT_CARE, GL_DONT_CARE, GL_DEBUG_SEVERITY_NOTIFICATION, 0, 0, GL_FALSE);
+            context->functions.fn.glDebugMessageControl(GL_DONT_CARE, GL_DEBUG_TYPE_OTHER, GL_DEBUG_SEVERITY_LOW, 0, 0, GL_FALSE);
+#endif
+        }
+
+        return {context, success};
+    }
+
     // NOTE: Global variables
     static LARGE_INTEGER GlobalPerformanceFrequency = {};
 
@@ -245,18 +413,18 @@ namespace AB
 
         int attribList[] =
             {
-            WGL_DRAW_TO_WINDOW_ARB, GL_TRUE,
-            WGL_SUPPORT_OPENGL_ARB, GL_TRUE,
-            WGL_DOUBLE_BUFFER_ARB, GL_TRUE,
-            //WGL_FRAMEBUFFER_SRGB_CAPABLE_ARB, GL_TRUE,
-            WGL_ACCELERATION_ARB, WGL_FULL_ACCELERATION_ARB,
-            WGL_PIXEL_TYPE_ARB, WGL_TYPE_RGBA_ARB,
-            WGL_COLOR_BITS_ARB, 32,
-            WGL_DEPTH_BITS_ARB, 24,
-            //WGL_STENCIL_BITS_ARB, 8,
-            //SafeCastI32Int(multisampling), 1,
-            //WGL_SAMPLES_ARB, SafeCastI32Int(window->samples),
-            0
+                WGL_DRAW_TO_WINDOW_ARB, GL_TRUE,
+                WGL_SUPPORT_OPENGL_ARB, GL_TRUE,
+                WGL_DOUBLE_BUFFER_ARB, GL_TRUE,
+                //WGL_FRAMEBUFFER_SRGB_CAPABLE_ARB, GL_TRUE,
+                WGL_ACCELERATION_ARB, WGL_FULL_ACCELERATION_ARB,
+                WGL_PIXEL_TYPE_ARB, WGL_TYPE_RGBA_ARB,
+                WGL_COLOR_BITS_ARB, 32,
+                WGL_DEPTH_BITS_ARB, 24,
+                //WGL_STENCIL_BITS_ARB, 8,
+                //SafeCastI32Int(multisampling), 1,
+                //WGL_SAMPLES_ARB, SafeCastI32Int(window->samples),
+                0
             };
 
         int actualPixelFormatID = 0;
@@ -1112,9 +1280,9 @@ namespace AB
     {
         FileHandle result = INVALID_FILE_HANDLE;
         HANDLE w32Handle = CreateFile(filename,
-                                       GENERIC_WRITE | GENERIC_READ,
-                                       FILE_SHARE_READ, 0,
-                                       CREATE_NEW, 0, 0);
+                                      GENERIC_WRITE | GENERIC_READ,
+                                      FILE_SHARE_READ, 0,
+                                      CREATE_NEW, 0, 0);
         if (w32Handle != INVALID_HANDLE_VALUE)
         {
             result = (FileHandle)w32Handle;
@@ -1211,10 +1379,9 @@ namespace AB
 
         app->wglSwapIntervalEXT(1);
 
-        LoadFunctionsResult glResult = OpenGLLoadFunctions(app->mainArena);
+        OpenGLLoadResult glResult = LoadOpenGL(app->mainArena);
         AB_CORE_ASSERT(glResult.success, "Failed to load OpenGL functions");
-        InitOpenGL(glResult.funcTable);
-        app->state.gl = glResult.funcTable;
+        app->state.gl = glResult.context;
 
         app->state.functions.DebugGetFileSize = DebugGetFileSize;
         app->state.functions.DebugReadFile = DebugReadFileToBuffer;
@@ -1357,9 +1524,9 @@ namespace AB
 #if !defined(AB_ENABLE_CONSOLE_WINDOW)
 int
 WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance,
-            LPSTR lpCmdLine, int nShowCmd)
+        LPSTR lpCmdLine, int nShowCmd)
 #else
-int main()
+    int main()
 #endif
 {
     AB::MemoryArena* arena = AB::AllocateArena(AB::MAIN_ARENA_SIZE, false);
@@ -1373,10 +1540,9 @@ int main()
 }
 
 #include "Win32CodeLoader.cpp"
-#include "OpenGLLoader.cpp"
 #include "PlatformLog.cpp"
 
-#define AB_GL_FUNCTION(func) AB::GlobalApplication->state.gl->_##func
+#define AB_GL_FUNCTION(func) AB::GlobalApplication->state.gl->functions.fn.##func
 
 #define glGetIntegerv AB_GL_FUNCTION(glGetIntegerv)
 #define glBindSampler AB_GL_FUNCTION(glBindSampler)

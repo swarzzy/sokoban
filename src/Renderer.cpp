@@ -2,6 +2,8 @@
 
 #include "ShaderManager.cpp"
 
+#include "Std140.h"
+
 #include "Frustum.cpp"
 
 namespace soko
@@ -70,6 +72,47 @@ namespace soko
         b32 debugD;
         b32 debugG;
         b32 debugNormals;
+
+        struct ChunkUniformBuffer
+        {
+            struct CameraData
+            {
+                std140::mat4 viewMatrix;
+                std140::mat4 projectionMatrix;
+                std140::Array<std140::mat4, 3, sizeof(std140::mat4)> lightSpaceMatrix;
+            } camera;
+
+            struct MeshData
+            {
+                std140::mat4 modelMatrix;
+                std140::mat3 normalMatrix;
+            } mesh;
+        };
+
+        struct ChunkFragUniformBuffer
+        {
+            struct DirLight
+            {
+                v3 dir;
+                _padby(4);
+                v3 ambient;
+                _padby(4);
+                v3 diffuse;
+                _padby(4);
+                v3 specular;
+            };
+            DirLight dirLight;
+            _padby(4);
+            v3 viewPos;
+            _padby(4);
+            v3 shadowCascadeSplits;
+            i32 showBounds;
+            f32 filterScale;
+        };
+
+        GLuint chunkUBO;
+        GLuint chunkFragUBO;
+        static const u32 ChunkUBOSize = sizeof(ChunkUniformBuffer);
     };
 #if 0
     GLuint _CreateTexture2D(GLenum target, GLenum wrapS, GLenum wrapT, GLenum minFilter, GLenum magFilter)
@@ -206,7 +249,7 @@ namespace soko
                 if (anisotropic)
                 {
                     // TODO: Anisotropy value
-                    glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAX_ANISOTROPY_EXT, 8.0f);
+                    glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAX_ANISOTROPY_ARB, 8.0f);
                 }
 
                 glGenerateMipmap(GL_TEXTURE_2D);
@@ -597,7 +640,7 @@ namespace soko
         return t;
     }
 
-        internal Mesh
+    internal Mesh
     LoadMesh(AB::MemoryArena* tempArena, const wchar_t* filepath)
     {
         Mesh mesh = {};
@@ -714,8 +757,28 @@ namespace soko
 
         renderer->shaders = LoadShaders();
 
+
+        /// UBO
+
+        i32 aligment = 0;
+        glGetIntegerv(GL_UNIFORM_BUFFER_OFFSET_ALIGNMENT, &aligment);
+        auto padding = CalculatePadding(sizeof(Renderer::ChunkUniformBuffer::CameraData), aligment);
+
+        glCreateBuffers(1, &renderer->chunkUBO);
+        glNamedBufferStorage(renderer->chunkUBO, Renderer::ChunkUBOSize + aligment, 0, GL_DYNAMIC_STORAGE_BIT);
+        glBindBuffer(GL_UNIFORM_BUFFER, renderer->chunkUBO);
+        glBindBufferRange(GL_UNIFORM_BUFFER, 0, renderer->chunkUBO, 0, sizeof(Renderer::ChunkUniformBuffer::CameraData));
+        glBindBufferRange(GL_UNIFORM_BUFFER, 1, renderer->chunkUBO, padding + sizeof(Renderer::ChunkUniformBuffer::CameraData), sizeof(Renderer::ChunkUniformBuffer::MeshData));
+        glBindBuffer(GL_UNIFORM_BUFFER, 0);
+
+        glCreateBuffers(1, &renderer->chunkFragUBO);
+        glNamedBufferStorage(renderer->chunkFragUBO, sizeof(Renderer::ChunkFragUniformBuffer), 0, GL_DYNAMIC_STORAGE_BIT | GL_MAP_WRITE_BIT);
+        glBindBuffer(GL_UNIFORM_BUFFER, renderer->chunkFragUBO);
+        glBindBufferRange(GL_UNIFORM_BUFFER, 2, renderer->chunkFragUBO, 0, sizeof(Renderer::ChunkFragUniformBuffer));
+        glBindBuffer(GL_UNIFORM_BUFFER, 0);
+
         GLfloat maxAnisotropy;
-        glGetFloatv(GL_MAX_TEXTURE_MAX_ANISOTROPY_EXT, &maxAnisotropy);
+        glGetFloatv(GL_MAX_TEXTURE_MAX_ANISOTROPY_ARB, &maxAnisotropy);
         renderer->maxAnisotropy = maxAnisotropy;
 
         renderer->gamma = 2.4f;
@@ -800,7 +863,7 @@ namespace soko
         glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
         glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
         glTexParameterf(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_LOD_BIAS, -0.1f); // -0.86 for trilinear
-        glTexParameterf(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_MAX_ANISOTROPY_EXT, renderer->maxAnisotropy);
+        glTexParameterf(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_MAX_ANISOTROPY_ARB, renderer->maxAnisotropy);
 
         EndTemporaryMemory(&tempMem);
         glBindTexture(GL_TEXTURE_2D_ARRAY, 0);
@@ -1709,31 +1772,46 @@ namespace soko
                 {
                     auto* chunkProg = &renderer->shaders.Chunk;
                     glUseProgram(chunkProg->handle);
-                    glActiveTexture(chunkProg->fragment.samplers.u_TerrainAtlas.slot);
-                    glBindTexture(GL_TEXTURE_2D_ARRAY, renderer->tileTexArrayHandle);
-
-                    glActiveTexture(chunkProg->fragment.samplers.u_ShadowMap.slot);
-                    glBindTexture(GL_TEXTURE_2D_ARRAY, renderer->shadowMapDepthTarget);
-
-                    glActiveTexture(chunkProg->fragment.samplers.randomTexture.slot);
-                    glBindTexture(GL_TEXTURE_1D, renderer->randomValuesTexture);
+                    glBindTextureUnit(0, renderer->tileTexArrayHandle);
+                    glBindTextureUnit(1, renderer->shadowMapDepthTarget);
+                    glBindTextureUnit(2, renderer->randomValuesTexture);
 
                     if (firstChunkMeshShaderInvocation)
                     {
+                        Renderer::ChunkUniformBuffer::CameraData camBuffer;
+                        camBuffer.viewMatrix = camera->viewMatrix;
+                        camBuffer.projectionMatrix = camera->projectionMatrix;
+                        camBuffer.lightSpaceMatrix[0] = *lightViewProj0;
+                        camBuffer.lightSpaceMatrix[1] = *lightViewProj1;
+                        camBuffer.lightSpaceMatrix[2] = *lightViewProj2;
+
+                        glNamedBufferSubData(renderer->chunkUBO, 0, sizeof(Renderer::ChunkUniformBuffer::CameraData), (void*)&camBuffer);
+
+                        glBindBuffer(GL_UNIFORM_BUFFER, renderer->chunkFragUBO);
+                        Renderer::ChunkFragUniformBuffer* fragBuffer = (Renderer::ChunkFragUniformBuffer*)glMapBuffer(GL_UNIFORM_BUFFER, GL_WRITE_ONLY);
+
+                        fragBuffer->dirLight.dir = group->dirLight.dir;
+                        DEBUG_OVERLAY_TRACE(group->dirLight.dir);
+                        //DEBUG_OVERLAY_TRACE(fragBuffer->dirLight.dir);
+                        fragBuffer->dirLight.ambient = group->dirLight.ambient;
+                        fragBuffer->dirLight.diffuse = group->dirLight.diffuse;
+                        fragBuffer->dirLight.specular = group->dirLight.specular;
+
+                        fragBuffer->viewPos = camera->position;
+                        fragBuffer->shadowCascadeSplits = *((v3*)&renderer->shadowCascadeBounds);
+                        fragBuffer->showBounds = renderer->showShadowCascadesBoundaries;
+                        fragBuffer->filterScale = shadowFilterScale;
+
+                        glUnmapBuffer(GL_UNIFORM_BUFFER);
+
+                        //glNamedBufferSubData(renderer->chunkFragUBO, 0, sizeof(Renderer::ChunkFragUniformBuffer), (void*)&fragBuffer);
+
+                        glBindBuffer(GL_UNIFORM_BUFFER, renderer->chunkFragUBO);
+                        //glNamedBufferSubData(renderer->chunkUBO, padding + sizeof(Renderer::ChunkUniformBuffer::CameraData), sizeof(Renderer::ChunkUniformBuffer::MeshData), (void*)&meshBuffer);
+                        glBindBufferRange(GL_UNIFORM_BUFFER, 2, renderer->chunkFragUBO, 0, sizeof(Renderer::ChunkFragUniformBuffer));
+                        glBindBuffer(GL_UNIFORM_BUFFER, 0);
+
                         firstChunkMeshShaderInvocation = false;
-                        glUniformMatrix4fv(chunkProg->vertex.uniforms.u_ViewMatrix, 1, GL_FALSE, camera->viewMatrix.data);
-                        glUniformMatrix4fv(chunkProg->vertex.uniforms.u_ProjectionMatrix, 1, GL_FALSE, camera->projectionMatrix.data);
-                        glUniformMatrix4fv(chunkProg->vertex.uniforms.u_LightSpaceMatrix[0], 1, GL_FALSE, lightViewProj0->data);
-                        glUniformMatrix4fv(chunkProg->vertex.uniforms.u_LightSpaceMatrix[1], 1, GL_FALSE, lightViewProj1->data);
-                        glUniformMatrix4fv(chunkProg->vertex.uniforms.u_LightSpaceMatrix[2], 1, GL_FALSE, lightViewProj2->data);
-                        glUniform3fv(chunkProg->fragment.uniforms.u_DirLight.dir, 1, group->dirLight.dir.data);
-                        glUniform3fv(chunkProg->fragment.uniforms.u_DirLight.ambient, 1, group->dirLight.ambient.data);
-                        glUniform3fv(chunkProg->fragment.uniforms.u_DirLight.diffuse, 1, group->dirLight.diffuse.data);
-                        glUniform3fv(chunkProg->fragment.uniforms.u_DirLight.specular, 1, group->dirLight.specular.data);
-                        glUniform3fv(chunkProg->fragment.uniforms.u_ViewPos, 1, camera->position.data);
-                        glUniform1f(chunkProg->fragment.uniforms.shadowFilterSampleScale, shadowFilterScale);
-                        glUniform3fv(chunkProg->fragment.uniforms.u_ShadowCascadeSplits, 1, renderer->shadowCascadeBounds);
-                        glUniform1i(chunkProg->fragment.uniforms.u_ShowShadowCascadesBoundaries, renderer->showShadowCascadesBoundaries);
                     }
 
                     for (u32 i = 0; i < command->instanceCount; i++)
@@ -1741,15 +1819,26 @@ namespace soko
                         auto* data = ((RenderCommandPushChunkMesh*)(group->renderBuffer + command->rbOffset)) + i;
 
                         m4x4 world = Translation(data->offset);
-                        glUniformMatrix4fv(chunkProg->vertex.uniforms.u_ModelMatrix, 1, GL_FALSE, world.data);
-
                         m4x4 invModel = world;
                         bool inverted = (&invModel);
                         SOKO_ASSERT(inverted);
                         m4x4 transModel = Transpose(&invModel);
                         m3x3 normalMatrix = M3x3(&transModel);
 
-                        glUniformMatrix3fv(chunkProg->vertex.uniforms.u_NormalMatrix, 1, GL_FALSE, normalMatrix.data);
+                        i32 aligment = 0;
+                        glGetIntegerv(GL_UNIFORM_BUFFER_OFFSET_ALIGNMENT, &aligment);
+                        auto padding = CalculatePadding(sizeof(Renderer::ChunkUniformBuffer::CameraData), aligment);
+
+                        Renderer::ChunkUniformBuffer::MeshData meshBuffer;
+                        meshBuffer.modelMatrix = world;
+                        meshBuffer.normalMatrix = normalMatrix;
+                        glBindBuffer(GL_UNIFORM_BUFFER, renderer->chunkUBO);
+                        //glNamedBufferSubData(renderer->chunkUBO, padding + sizeof(Renderer::ChunkUniformBuffer::CameraData), sizeof(Renderer::ChunkUniformBuffer::MeshData), (void*)&meshBuffer);
+                        glBufferSubData(GL_UNIFORM_BUFFER, padding + sizeof(Renderer::ChunkUniformBuffer::CameraData), sizeof(Renderer::ChunkUniformBuffer::MeshData), (void*)&meshBuffer);
+                        glBindBufferRange(GL_UNIFORM_BUFFER, 0, renderer->chunkUBO, 0, sizeof(Renderer::ChunkUniformBuffer::CameraData));
+                        glBindBufferRange(GL_UNIFORM_BUFFER, 1, renderer->chunkUBO, padding + sizeof(Renderer::ChunkUniformBuffer::CameraData), sizeof(Renderer::ChunkUniformBuffer::MeshData));
+                        glBindBuffer(GL_UNIFORM_BUFFER, 0);
+
 
                         glBindBuffer(GL_ARRAY_BUFFER, data->meshIndex);
 
@@ -1762,6 +1851,7 @@ namespace soko
                         glVertexAttribIPointer(2, 1, GL_UNSIGNED_BYTE, stride, (void*)(sizeof(v3) * 2));
 
                         glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, renderer->chunkIndexBuffer);
+
 
                         GLsizei numIndices = (GLsizei)(data->quadCount * RENDERER_INDICES_PER_CHUNK_QUAD);
                         glDrawElements(GL_TRIANGLES, numIndices, GL_UNSIGNED_INT, 0);

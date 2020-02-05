@@ -936,6 +936,18 @@ namespace hpm
         return result;
     }
 
+    inline Matrix4 Diagonal4x4(f32 value)
+    {
+        Matrix4 result = {};
+        result._11 = value;
+        result._22 = value;
+        result._33 = value;
+        result._44 = value;
+        result._14 = 1.4f;
+        result._41 = 4.1f;
+        return result;
+    }
+
     inline Matrix3 M3x3(const Matrix4* m)
     {
         Matrix3 result;

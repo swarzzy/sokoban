@@ -8,9 +8,9 @@ namespace soko
         {
             static const char* VertexSource;
             static const char* FragmentSource;
-            
+
             GLuint handle;
-            
+
             struct VertexShader
             {
                 struct Uniforms
@@ -79,9 +79,9 @@ namespace soko
         {
             static const char* VertexSource;
             static const char* FragmentSource;
-            
+
             GLuint handle;
-            
+
             struct VertexShader
             {
                 struct Uniforms
@@ -112,9 +112,9 @@ namespace soko
         {
             static const char* VertexSource;
             static const char* FragmentSource;
-            
+
             GLuint handle;
-            
+
             struct VertexShader
             {
                 struct Uniforms
@@ -151,9 +151,9 @@ namespace soko
         {
             static const char* VertexSource;
             static const char* FragmentSource;
-            
+
             GLuint handle;
-            
+
             struct VertexShader
             {
                 struct Uniforms
@@ -188,9 +188,9 @@ namespace soko
         {
             static const char* VertexSource;
             static const char* FragmentSource;
-            
+
             GLuint handle;
-            
+
             struct VertexShader
             {
                 struct Uniforms
@@ -224,9 +224,9 @@ namespace soko
         {
             static const char* VertexSource;
             static const char* FragmentSource;
-            
+
             GLuint handle;
-            
+
             struct VertexShader
             {
                 struct Uniforms
@@ -261,9 +261,9 @@ namespace soko
         {
             static const char* VertexSource;
             static const char* FragmentSource;
-            
+
             GLuint handle;
-            
+
             struct VertexShader
             {
                 struct Uniforms
@@ -299,9 +299,9 @@ namespace soko
         {
             static const char* VertexSource;
             static const char* FragmentSource;
-            
+
             GLuint handle;
-            
+
             struct VertexShader
             {
                 struct Uniforms
@@ -335,9 +335,9 @@ namespace soko
         {
             static const char* VertexSource;
             static const char* FragmentSource;
-            
+
             GLuint handle;
-            
+
             struct VertexShader
             {
                 struct Uniforms
@@ -388,9 +388,9 @@ namespace soko
         {
             static const char* VertexSource;
             static const char* FragmentSource;
-            
+
             GLuint handle;
-            
+
             struct VertexShader
             {
                 struct Uniforms
@@ -448,9 +448,9 @@ namespace soko
         {
             static const char* VertexSource;
             static const char* FragmentSource;
-            
+
             GLuint handle;
-            
+
             struct VertexShader
             {
                 struct Uniforms
@@ -742,13 +742,14 @@ namespace soko
             result.fragment.uniforms.u_ShowShadowCascadesBoundaries = glGetUniformLocation(handle, "u_ShowShadowCascadesBoundaries");
             result.fragment.uniforms.shadowFilterSampleScale = glGetUniformLocation(handle, "shadowFilterSampleScale");
             result.fragment.uniforms.randomTexture = glGetUniformLocation(handle, "randomTexture");
-
+#if 0
             //NOTE: Setting samplers
             glUseProgram(handle);
             glUniform1i(result.fragment.uniforms.u_TerrainAtlas, (GLint)result.fragment.samplers.u_TerrainAtlas.sampler);
             glUniform1i(result.fragment.uniforms.u_ShadowMap, (GLint)result.fragment.samplers.u_ShadowMap.sampler);
             glUniform1i(result.fragment.uniforms.randomTexture, (GLint)result.fragment.samplers.randomTexture.sampler);
             glUseProgram(0);
+#endif
         }
         return result;
     }
@@ -804,7 +805,7 @@ namespace soko
         if (!info.Shadow.handle) SOKO_WARN("ShaderManager: Failed to load shader program Shadow");
         return info;
     }
-    
+
 
     void UnloadShaders(ShaderInfo* info)
     {
@@ -1709,27 +1710,32 @@ void main()
     out_Color = ambient + diffuse + specular;
 })";
 
-    const char* ShaderInfo::Info_Chunk::VertexSource = R"(#version 330 core
+    const char* ShaderInfo::Info_Chunk::VertexSource = R"(#version 450
 layout (location = 0) in vec3 a_Position;
 layout (location = 1) in vec3 a_Normal;
 layout (location = 2) in int a_TileId;
 
-out vec4 v_Position;
-out vec3 v_ViewPosition;
-out vec3 v_MeshSpacePos;
-out vec4 v_LightSpacePos[3];
-flat out int v_TileId;
-out vec3 v_Normal;
-out vec2 v_UV;
+layout (location = 3) out vec3 v_ViewPosition;
+layout (location = 4) out vec4 v_LightSpacePos[3];
+layout (location = 7) flat out int v_TileId;
+layout (location = 8) out vec3 v_Normal;
+layout (location = 9) out vec2 v_UV;
+layout (location = 10) out vec4 v_Position;
+
+layout (std140, binding = 0) uniform CameraData
+{
+    mat4 viewMatrix;
+    mat4 projectionMatrix;
+    mat4 lightSpaceMatrix[3];
+} camera;
+
+layout (std140, binding = 1) uniform MeshData
+{
+    mat4 modelMatrix;
+    mat3 normalMatrix;
+} mesh;
 
 #define NUM_SHADOW_CASCADES 3
-
-uniform mat4 u_ModelMatrix;
-uniform mat3 u_NormalMatrix;
-uniform mat4 u_ViewMatrix;
-uniform mat4 u_ProjectionMatrix;
-uniform mat4 u_LightSpaceMatrix[3];
-
 #define TERRAIN_TEX_ARRAY_NUM_LAYERS 32
 #define INDICES_PER_CHUNK_QUAD 6
 #define VERTICES_PER_QUAD 4
@@ -1738,6 +1744,7 @@ vec2 UV[] = vec2[](vec2(0.0f, 0.0f),
                    vec2(1.0f, 0.0f),
                    vec2(1.0f, 1.0f),
                    vec2(0.0f, 1.0f));
+
 
 void main()
 {
@@ -1750,18 +1757,16 @@ void main()
     v_UV = UV[min(vertIndexInQuad, VERTICES_PER_QUAD - 1)];
 
     v_TileId = a_TileId;
-    v_MeshSpacePos = a_Position;
-    v_Position = (u_ModelMatrix * vec4(a_Position, 1.0f));
-    v_ViewPosition = (u_ViewMatrix * u_ModelMatrix * vec4(a_Position, 1.0f)).xyz;
-    v_Normal = u_NormalMatrix * a_Normal;
-    v_LightSpacePos[0] = u_LightSpaceMatrix[0] * u_ModelMatrix * vec4(a_Position, 1.0f);
-    v_LightSpacePos[1] = u_LightSpaceMatrix[1] * u_ModelMatrix * vec4(a_Position, 1.0f);
-    v_LightSpacePos[2] = u_LightSpaceMatrix[2] * u_ModelMatrix * vec4(a_Position, 1.0f);
-    gl_Position = u_ProjectionMatrix * u_ViewMatrix * u_ModelMatrix * vec4(a_Position, 1.0f);
+    v_Position = (mesh.modelMatrix * vec4(a_Position, 1.0f));
+    v_ViewPosition = (camera.viewMatrix * mesh.modelMatrix * vec4(a_Position, 1.0f)).xyz;
+    v_Normal = mesh.normalMatrix * a_Normal;
+    v_LightSpacePos[0] = camera.lightSpaceMatrix[0] * mesh.modelMatrix * vec4(a_Position, 1.0f);
+    v_LightSpacePos[1] = camera.lightSpaceMatrix[1] * mesh.modelMatrix * vec4(a_Position, 1.0f);
+    v_LightSpacePos[2] = camera.lightSpaceMatrix[2] * mesh.modelMatrix * vec4(a_Position, 1.0f);
+    gl_Position = camera.projectionMatrix * camera.viewMatrix * mesh.modelMatrix * vec4(a_Position, 1.0f);
 })";
 
-    const char* ShaderInfo::Info_Chunk::FragmentSource = R"(#version 330 core
-
+    const char* ShaderInfo::Info_Chunk::FragmentSource = R"(#version 450
 #define NUM_SHADOW_CASCADES 3
 
 // NOTE: Reference: https://github.com/TheRealMJP/Shadows/blob/master/Shadows/PCFKernels.hlsl
@@ -1932,17 +1937,6 @@ vec3 ShadowRandomDisc(in sampler2DArrayShadow shadowMap, in sampler1D randomText
     return result;
 }
 
-
-
-in vec4 v_Position;
-in vec3 v_ViewPosition;
-in vec4 v_LightSpacePos[3];
-flat in int v_TileId;
-in vec3 v_Normal;
-in vec2 v_UV;
-
-out vec4 color;
-
 struct DirLight
 {
     vec3 dir;
@@ -1951,15 +1945,27 @@ struct DirLight
     vec3 specular;
 };
 
-uniform DirLight u_DirLight;
-uniform vec3 u_ViewPos;
-uniform sampler2DArray u_TerrainAtlas;
-uniform sampler2DArrayShadow u_ShadowMap;
-uniform vec3 u_ShadowCascadeSplits;
-uniform int u_ShowShadowCascadesBoundaries = 0;
+layout (location = 3) in vec3 v_ViewPosition;
+layout (location = 4) in vec4 v_LightSpacePos[3];
+layout (location = 7) flat in int v_TileId;
+layout (location = 8) in vec3 v_Normal;
+layout (location = 9) in vec2 v_UV;
+layout (location = 10) in vec4 v_Position;
 
-uniform float shadowFilterSampleScale = 1.0f;
-uniform sampler1D randomTexture;
+out vec4 color;
+
+layout (std140, binding = 2) uniform Uniforms
+{
+    DirLight u_DirLight;
+    vec3 u_ViewPos;
+    vec3 u_ShadowCascadeSplits;
+    int u_ShowShadowCascadesBoundaries;
+    float shadowFilterSampleScale;
+};
+
+layout (binding = 0) uniform sampler2DArray u_TerrainAtlas;
+layout (binding = 1) uniform sampler2DArrayShadow u_ShadowMap;
+layout (binding = 2) uniform sampler1D randomTexture;
 
 #define PI (3.14159265359)
 
