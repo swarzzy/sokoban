@@ -17,8 +17,23 @@ namespace soko
     static_assert(ShaderCount == ArrayCount(ShaderSources));
 
     GLuint CompileGLSL(const char* name, const char* vert, const char* frag);
-    void RecompileShaders(MemoryArena* tempArena, Renderer* renderer);
+    void RecompileShaders(Renderer* renderer);
     inline void DeleteProgram(GLuint handle) { glDeleteProgram(handle); }
+
+    template <typename T, u32 Binding>
+    struct UniformBuffer
+    {
+        GLuint handle;
+    };
+
+    template<typename T, u32 Binding>
+    void ReallocUniformBuffer(UniformBuffer<T, Binding>* buffer);
+
+    template<typename T, u32 Binding>
+    T* Map(UniformBuffer<T, Binding> buffer);
+
+    template<typename T, u32 Binding>
+    void Unmap(UniformBuffer<T, Binding> buffer);
 
     struct layout_std140 ShaderFrameData
     {
@@ -30,6 +45,7 @@ namespace soko
             std140_vec3 specular;
         };
 
+        std140_mat4 viewProjMatrix;
         std140_mat4 viewMatrix;
         std140_mat4 projectionMatrix;
         std140_mat4 lightSpaceMatrices[3];
@@ -38,12 +54,21 @@ namespace soko
         std140_vec3 shadowCascadeSplits;
         std140_int showShadowCascadeBoundaries;
         std140_float shadowFilterSampleScale;
+        std140_int debugF;
+        std140_int debugG;
+        std140_int debugD;
+        std140_int debugNormals;
     };
 
     struct layout_std140 ShaderMeshData
     {
         std140_mat4 modelMatrix;
         std140_mat3 normalMatrix;
+        std140_vec3 lineColor;
+        std140_int customMaterial;
+        std140_vec3 customAlbedo;
+        std140_float customRoughness;
+        std140_float customMetalness;
     };
 
     struct layout_std140 ChunkFragUniformBuffer

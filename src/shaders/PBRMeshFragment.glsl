@@ -1,41 +1,22 @@
-#version 330 core
+#version 450
+#include Common.glh
+
 out vec4 resultColor;
 
-in vec3 vFragPos;
-in vec3 vNormal;
-in vec2 vUV;
-in mat3 vTBN;
+layout (location = 4) in vec3 vFragPos;
+layout (location = 5) in vec3 vNormal;
+layout (location = 6) in vec2 vUV;
+layout (location = 7) in mat3 vTBN;
 
-struct DirLight
-{
-    vec3 dir;
-    vec3 color;
-};
+layout (binding = 0) uniform samplerCube uIrradanceMap;
+layout (binding = 1) uniform samplerCube uEnviromentMap;
+layout (binding = 2) uniform sampler2D uBRDFLut;
 
-uniform DirLight uDirLight;
-uniform vec3 uViewPos;
-
-uniform samplerCube uIrradanceMap;
-uniform samplerCube uEnviromentMap;
-uniform sampler2D uBRDFLut;
-
-uniform sampler2D uAlbedoMap;
-uniform sampler2D uRoughnessMap;
-uniform sampler2D uMetalnessMap;
-uniform sampler2D uNormalMap;
+layout (binding = 3) uniform sampler2D uAlbedoMap;
+layout (binding = 4) uniform sampler2D uRoughnessMap;
+layout (binding = 5) uniform sampler2D uMetalnessMap;
+layout (binding = 6) uniform sampler2D uNormalMap;
 //uniform sampler2D uAOMap;
-
-uniform int uCustomMaterial;
-uniform vec3 uCustomAlbedo;
-uniform float uCustomRoughness;
-uniform float uCustomMetalness;
-
-uniform int uDebugF;
-uniform int uDebugG;
-uniform int uDebugD;
-uniform int uDebugNormals;
-
-uniform float uAO = 1.0f;
 
 const float MAX_REFLECTION_LOD = 5.0f;
 
@@ -98,7 +79,7 @@ vec3 IBLIrradance(vec3 Vo, vec3 N, float NdotV, float a, vec3 F0, float metallic
     vec3 diffIrradance = texture(uIrradanceMap, N).rgb;
     vec3 diffuse = diffIrradance * albedo;
 
-    vec3 irradance = (kD * diffuse + envSpecular) * uAO;
+    vec3 irradance = (kD * diffuse + envSpecular);// * uAO;
     return irradance;
 }
 
@@ -109,12 +90,12 @@ void main()
     float roughness;
     float metalness;
 
-    if (uCustomMaterial == 1)
+    if (MeshData.customMaterial == 1)
     {
         N = normalize(vNormal);
-        albedo = uCustomAlbedo;
-        roughness = uCustomRoughness;
-        metalness = uCustomMetalness;
+        albedo = MeshData.customAlbedo;
+        roughness = MeshData.customRoughness;
+        metalness = MeshData.customMetalness;
     }
     else
     {
@@ -127,10 +108,10 @@ void main()
          metalness = texture(uMetalnessMap, vUV).r;
     }
 
-    vec3 V = normalize(uViewPos - vFragPos);
+    vec3 V = normalize(FrameData.viewPos - vFragPos);
     vec3 L0 = vec3(0.0f);
 
-    vec3 L = normalize(-uDirLight.dir);
+    vec3 L = normalize(-FrameData.dirLight.dir);
     vec3 H = normalize(V + L);
 
     // TODO: Adding this to avoid artifacts on edges
@@ -139,7 +120,7 @@ void main()
     float NdotL = max(dot(N, L), 0.0f);
 
     // NOTE: Attenuation should be here
-    vec3 radiance = uDirLight.color;
+    vec3 radiance = FrameData.dirLight.diffuse;
 
     vec3 F0 = vec3(0.04f);
     F0 = mix(F0, albedo, metalness);
@@ -166,8 +147,8 @@ void main()
 
     resultColor = vec4((envIrradance + L0), 1.0f);
 
-    if (uDebugF == 1) resultColor = vec4(F,  1.0f);
-    else if (uDebugG == 1) resultColor = vec4(G, G, G, 1.0f);
-    else if (uDebugD == 1) resultColor = vec4(D, D, D, 1.0f);
-    else if (uDebugNormals == 1) resultColor = vec4(N, 1.0f);
+    if (FrameData.debugF == 1) resultColor = vec4(F,  1.0f);
+    else if (FrameData.debugG == 1) resultColor = vec4(G, G, G, 1.0f);
+    else if (FrameData.debugD == 1) resultColor = vec4(D, D, D, 1.0f);
+    else if (FrameData.debugNormals == 1) resultColor = vec4(N, 1.0f);
 }

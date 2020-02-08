@@ -8,6 +8,7 @@ struct DirLight
 
 layout (std140, binding = 0) uniform ShaderFrameData
 {
+    mat4 viewProjMatrix;
     mat4 viewMatrix;
     mat4 projectionMatrix;
     mat4 lightSpaceMatrices[3];
@@ -16,10 +17,19 @@ layout (std140, binding = 0) uniform ShaderFrameData
     vec3 shadowCascadeSplits;
     int showShadowCascadeBoundaries;
     float shadowFilterSampleScale;
+    int debugF;
+    int debugG;
+    int debugD;
+    int debugNormals;
 } FrameData;
 
 layout (std140, binding = 1) uniform ShaderMeshData
 {
     mat4 modelMatrix;
     mat3 normalMatrix;
+    vec3 lineColor;
+    int customMaterial;
+    vec3 customAlbedo;
+    float customRoughness;
+    float customMetalness;
 } MeshData;

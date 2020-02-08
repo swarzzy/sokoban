@@ -90,7 +90,7 @@ namespace soko
         return resultHandle;
     }
 
-    void RecompileShaders(MemoryArena* tempArena, Renderer* renderer)
+    void RecompileShaders(Renderer* renderer)
     {
         for (u32x i = 0; i < ArrayCount(renderer->shaderHandles); i++)
         {
@@ -102,4 +102,36 @@ namespace soko
             renderer->shaderHandles[i] = CompileGLSL(ShaderNames[i], ShaderSources[i].vert, ShaderSources[i].frag);
         }
     }
+
+    template<typename T, u32 Binding>
+    inline void ReallocUniformBuffer(UniformBuffer<T, Binding>* buffer)
+    {
+        if (buffer->handle)
+        {
+            glDeleteBuffers(1, &buffer->handle);
+            buffer->handle = 0;
+        }
+        glCreateBuffers(1, &buffer->handle);
+        SOKO_ASSERT(buffer->handle);
+        glNamedBufferStorage(buffer->handle, sizeof(T), 0, GL_DYNAMIC_STORAGE_BIT | GL_MAP_WRITE_BIT);
+    }
+
+    template<typename T, u32 Binding>
+    T* Map(UniformBuffer<T, Binding> buffer)
+    {
+        auto mem = (T*)glMapNamedBuffer(buffer.handle, GL_WRITE_ONLY);
+        SOKO_ASSERT(mem);
+        return mem;
+    }
+
+    template<typename T, u32 Binding>
+    void Unmap(UniformBuffer<T, Binding> buffer)
+    {
+        glUnmapNamedBuffer(buffer.handle);
+
+        glBindBuffer(GL_UNIFORM_BUFFER, buffer.handle);
+        glBindBufferRange(GL_UNIFORM_BUFFER, Binding, buffer.handle, 0, sizeof(T));
+        glBindBuffer(GL_UNIFORM_BUFFER, 0);
+    }
+
 }

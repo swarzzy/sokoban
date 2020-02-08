@@ -6,11 +6,17 @@ namespace soko
     struct Shaders
     {
         GLuint Chunk;
+        GLuint Mesh;
+        GLuint Line;
+        GLuint PbrMesh;
     };
 
     const char* ShaderNames[] =
     {
         "Chunk",
+        "Mesh",
+        "Line",
+        "PbrMesh",
     };
 
     const ShaderProgramSource ShaderSources[] =
@@ -28,6 +34,7 @@ struct DirLight
 
 layout (std140, binding = 0) uniform ShaderFrameData
 {
+    mat4 viewProjMatrix;
     mat4 viewMatrix;
     mat4 projectionMatrix;
     mat4 lightSpaceMatrices[3];
@@ -36,12 +43,21 @@ layout (std140, binding = 0) uniform ShaderFrameData
     vec3 shadowCascadeSplits;
     int showShadowCascadeBoundaries;
     float shadowFilterSampleScale;
+    int debugF;
+    int debugG;
+    int debugD;
+    int debugNormals;
 } FrameData;
 
 layout (std140, binding = 1) uniform ShaderMeshData
 {
     mat4 modelMatrix;
     mat3 normalMatrix;
+    vec3 lineColor;
+    int customMaterial;
+    vec3 customAlbedo;
+    float customRoughness;
+    float customMetalness;
 } MeshData;
 
 #line 2
@@ -102,6 +118,7 @@ struct DirLight
 
 layout (std140, binding = 0) uniform ShaderFrameData
 {
+    mat4 viewProjMatrix;
     mat4 viewMatrix;
     mat4 projectionMatrix;
     mat4 lightSpaceMatrices[3];
@@ -110,12 +127,21 @@ layout (std140, binding = 0) uniform ShaderFrameData
     vec3 shadowCascadeSplits;
     int showShadowCascadeBoundaries;
     float shadowFilterSampleScale;
+    int debugF;
+    int debugG;
+    int debugD;
+    int debugNormals;
 } FrameData;
 
 layout (std140, binding = 1) uniform ShaderMeshData
 {
     mat4 modelMatrix;
     mat3 normalMatrix;
+    vec3 lineColor;
+    int customMaterial;
+    vec3 customAlbedo;
+    float customRoughness;
+    float customMetalness;
 } MeshData;
 
 #line 3
@@ -354,6 +380,448 @@ void main()
     //directional = diffSample;
 
     color = vec4(directional, alpha);
+}
+)"
+        },
+        {
+            R"(#version 450
+#line 100000
+struct DirLight
+{
+    vec3 dir;
+    vec3 ambient;
+    vec3 diffuse;
+    vec3 specular;
+};
+
+layout (std140, binding = 0) uniform ShaderFrameData
+{
+    mat4 viewProjMatrix;
+    mat4 viewMatrix;
+    mat4 projectionMatrix;
+    mat4 lightSpaceMatrices[3];
+    DirLight dirLight;
+    vec3 viewPos;
+    vec3 shadowCascadeSplits;
+    int showShadowCascadeBoundaries;
+    float shadowFilterSampleScale;
+    int debugF;
+    int debugG;
+    int debugD;
+    int debugNormals;
+} FrameData;
+
+layout (std140, binding = 1) uniform ShaderMeshData
+{
+    mat4 modelMatrix;
+    mat3 normalMatrix;
+    vec3 lineColor;
+    int customMaterial;
+    vec3 customAlbedo;
+    float customRoughness;
+    float customMetalness;
+} MeshData;
+
+#line 2
+layout (location = 0) in vec3 attr_Pos;
+layout (location = 1) in vec3 attr_Normal;
+layout (location = 2) in vec2 attr_UV;
+
+layout (location = 3) out vec3 vout_FragPos;
+layout (location = 4) out vec3 vout_Normal;
+layout (location = 5) out vec2 vout_UV;
+
+void main()
+{
+    gl_Position = FrameData.projectionMatrix * FrameData.viewMatrix * MeshData.modelMatrix * vec4(attr_Pos, 1.0f);
+    vout_FragPos = (MeshData.modelMatrix * vec4(attr_Pos, 1.0f)).xyz;
+    vout_UV = attr_UV;
+    vout_Normal = MeshData.normalMatrix * attr_Normal;
+}
+)", 
+R"(#version 450
+#line 100000
+struct DirLight
+{
+    vec3 dir;
+    vec3 ambient;
+    vec3 diffuse;
+    vec3 specular;
+};
+
+layout (std140, binding = 0) uniform ShaderFrameData
+{
+    mat4 viewProjMatrix;
+    mat4 viewMatrix;
+    mat4 projectionMatrix;
+    mat4 lightSpaceMatrices[3];
+    DirLight dirLight;
+    vec3 viewPos;
+    vec3 shadowCascadeSplits;
+    int showShadowCascadeBoundaries;
+    float shadowFilterSampleScale;
+    int debugF;
+    int debugG;
+    int debugD;
+    int debugNormals;
+} FrameData;
+
+layout (std140, binding = 1) uniform ShaderMeshData
+{
+    mat4 modelMatrix;
+    mat3 normalMatrix;
+    vec3 lineColor;
+    int customMaterial;
+    vec3 customAlbedo;
+    float customRoughness;
+    float customMetalness;
+} MeshData;
+
+#line 2
+
+out vec4 out_Color;
+
+layout (location = 3) in vec3 vout_FragPos;
+layout (location = 4) in vec3 vout_Normal;
+layout (location = 5) in vec2 vout_UV;
+
+layout (binding = 0) uniform sampler2D u_DiffMap;
+layout (binding = 1) uniform sampler2D u_SpecMap;
+
+void main()
+{
+    vec3 normal = normalize(vout_Normal);
+    vec4 diffSamle = texture(u_DiffMap, vout_UV);
+    vec4 specSample = texture(u_SpecMap, vout_UV);
+    specSample.a = 1.0f;
+    vec3 lightDir = normalize(-FrameData.dirLight.dir);
+    float kDiff = max(dot(normal, lightDir), 0.0f);
+    vec3 viewDir = normalize(FrameData.viewPos - vout_FragPos);
+    vec3 rFromLight = reflect(-lightDir, normal);
+    float kSpec = pow(max(dot(viewDir, rFromLight), 0.0f), 32.0f);
+    vec4 ambient = diffSamle * vec4(FrameData.dirLight.ambient, 1.0f);
+    vec4 diffuse = diffSamle * kDiff * vec4(FrameData.dirLight.diffuse, 1.0f);
+    vec4 specular = specSample * kSpec * vec4(FrameData.dirLight.specular, 1.0f);
+    out_Color = ambient + diffuse + specular;
+}
+)"
+        },
+        {
+            R"(#version 450
+#line 100000
+struct DirLight
+{
+    vec3 dir;
+    vec3 ambient;
+    vec3 diffuse;
+    vec3 specular;
+};
+
+layout (std140, binding = 0) uniform ShaderFrameData
+{
+    mat4 viewProjMatrix;
+    mat4 viewMatrix;
+    mat4 projectionMatrix;
+    mat4 lightSpaceMatrices[3];
+    DirLight dirLight;
+    vec3 viewPos;
+    vec3 shadowCascadeSplits;
+    int showShadowCascadeBoundaries;
+    float shadowFilterSampleScale;
+    int debugF;
+    int debugG;
+    int debugD;
+    int debugNormals;
+} FrameData;
+
+layout (std140, binding = 1) uniform ShaderMeshData
+{
+    mat4 modelMatrix;
+    mat3 normalMatrix;
+    vec3 lineColor;
+    int customMaterial;
+    vec3 customAlbedo;
+    float customRoughness;
+    float customMetalness;
+} MeshData;
+
+#line 2
+layout (location = 0) in vec3 Pos;
+
+layout (location = 1) out vec3 Color;
+
+void main()
+{
+    gl_Position = FrameData.viewProjMatrix * vec4(Pos, 1.0f);
+    Color = MeshData.lineColor;
+}
+)", 
+R"(#version 450
+out vec4 fragColor;
+
+layout(location = 1) in vec3 Color;
+
+void main()
+{
+    fragColor = vec4(Color, 1.0f);
+}
+)"
+        },
+        {
+            R"(#version 450
+#line 100000
+struct DirLight
+{
+    vec3 dir;
+    vec3 ambient;
+    vec3 diffuse;
+    vec3 specular;
+};
+
+layout (std140, binding = 0) uniform ShaderFrameData
+{
+    mat4 viewProjMatrix;
+    mat4 viewMatrix;
+    mat4 projectionMatrix;
+    mat4 lightSpaceMatrices[3];
+    DirLight dirLight;
+    vec3 viewPos;
+    vec3 shadowCascadeSplits;
+    int showShadowCascadeBoundaries;
+    float shadowFilterSampleScale;
+    int debugF;
+    int debugG;
+    int debugD;
+    int debugNormals;
+} FrameData;
+
+layout (std140, binding = 1) uniform ShaderMeshData
+{
+    mat4 modelMatrix;
+    mat3 normalMatrix;
+    vec3 lineColor;
+    int customMaterial;
+    vec3 customAlbedo;
+    float customRoughness;
+    float customMetalness;
+} MeshData;
+
+#line 2
+layout (location = 0) in vec3 aPos;
+layout (location = 1) in vec3 aNormal;
+layout (location = 2) in vec2 aUV;
+layout (location = 3) in vec3 aTangent;
+
+layout (location = 4) out vec3 vFragPos;
+layout (location = 5) out vec3 vNormal;
+layout (location = 6) out vec2 vUV;
+layout (location = 7) out mat3 vTBN;
+
+void main()
+{
+    vec3 n = normalize(MeshData.normalMatrix * aNormal);
+    vec3 t = normalize(MeshData.normalMatrix * aTangent);
+    t = normalize(t - dot(t, n) * n);
+    vec3 b = normalize(cross(n, t));
+    mat3 tbn = mat3(t, b, n);
+
+    gl_Position = FrameData.viewProjMatrix * MeshData.modelMatrix * vec4(aPos, 1.0f);
+    vFragPos = (MeshData.modelMatrix * vec4(aPos, 1.0f)).xyz;
+    vUV = aUV;
+    vNormal = n;
+    vTBN = tbn;
+}
+)", 
+R"(#version 450
+#line 100000
+struct DirLight
+{
+    vec3 dir;
+    vec3 ambient;
+    vec3 diffuse;
+    vec3 specular;
+};
+
+layout (std140, binding = 0) uniform ShaderFrameData
+{
+    mat4 viewProjMatrix;
+    mat4 viewMatrix;
+    mat4 projectionMatrix;
+    mat4 lightSpaceMatrices[3];
+    DirLight dirLight;
+    vec3 viewPos;
+    vec3 shadowCascadeSplits;
+    int showShadowCascadeBoundaries;
+    float shadowFilterSampleScale;
+    int debugF;
+    int debugG;
+    int debugD;
+    int debugNormals;
+} FrameData;
+
+layout (std140, binding = 1) uniform ShaderMeshData
+{
+    mat4 modelMatrix;
+    mat3 normalMatrix;
+    vec3 lineColor;
+    int customMaterial;
+    vec3 customAlbedo;
+    float customRoughness;
+    float customMetalness;
+} MeshData;
+
+#line 2
+
+out vec4 resultColor;
+
+layout (location = 4) in vec3 vFragPos;
+layout (location = 5) in vec3 vNormal;
+layout (location = 6) in vec2 vUV;
+layout (location = 7) in mat3 vTBN;
+
+layout (binding = 0) uniform samplerCube uIrradanceMap;
+layout (binding = 1) uniform samplerCube uEnviromentMap;
+layout (binding = 2) uniform sampler2D uBRDFLut;
+
+layout (binding = 3) uniform sampler2D uAlbedoMap;
+layout (binding = 4) uniform sampler2D uRoughnessMap;
+layout (binding = 5) uniform sampler2D uMetalnessMap;
+layout (binding = 6) uniform sampler2D uNormalMap;
+//uniform sampler2D uAOMap;
+
+const float MAX_REFLECTION_LOD = 5.0f;
+
+#define PI (3.14159265359)
+
+vec3 FresnelSchlick(float cosTheta, vec3 F0)
+{
+    return F0 + (vec3(1.0f) - F0) * pow(1.0f - cosTheta, 5.0f);
+}
+
+vec3 FresnelSchlickRoughness(float cosTheta, vec3 F0, float roughness)
+{
+    return F0 + (max(vec3(1.0f - roughness), F0) - F0) * pow(1.0f - cosTheta, 5.0f);
+}
+
+float DistributionGGX(vec3 N, vec3 H, float a)
+{
+    float a4 = a * a * a * a;
+    float NdotH = max(dot(N, H), 0.0f);
+    float NdotHSq = NdotH * NdotH;
+
+    float num = a4;
+    float denom = (NdotHSq * (a4 - 1.0f) + 1.0f);
+    denom = PI * denom * denom;
+
+    return num / max(denom, 0.001f);
+}
+
+float GeometrySchlickGGX(float NdotV, float a)
+{
+    float k = ((a + 1.0f) * (a + 1.0f)) / 8.0f;
+
+    float num = NdotV;
+    float denom = NdotV * (1.0f - k) + k;
+
+    return num / denom;
+}
+
+float GeometrySmith(float NdotV, float NdotL, float a)
+{
+    float ggx1 = GeometrySchlickGGX(NdotV, a);
+    float ggx2 = GeometrySchlickGGX(NdotL, a);
+
+    return ggx1 * ggx2;
+}
+
+vec3 IBLIrradance(vec3 Vo, vec3 N, float NdotV, float a, vec3 F0, float metallic, vec3 albedo)
+{
+    // NOTE: Specular irradance
+    vec3 R = reflect(-Vo, N);
+    vec3 envIrradance = textureLod(uEnviromentMap, R, a * MAX_REFLECTION_LOD).rgb;
+    vec3 Fenv = FresnelSchlickRoughness(NdotV, F0, a);
+    vec2 envBRDF = texture(uBRDFLut, vec2(NdotV, a)).rg;
+    vec3 envSpecular = envIrradance * (Fenv * envBRDF.r + envBRDF.g);
+
+    // NOTE: Diffuse irradance
+    vec3 kS = FresnelSchlick(NdotV, F0);
+    vec3 kD = vec3(1.0f) - kS;
+    kD *= 1.0f - metallic;
+    vec3 diffIrradance = texture(uIrradanceMap, N).rgb;
+    vec3 diffuse = diffIrradance * albedo;
+
+    vec3 irradance = (kD * diffuse + envSpecular);// * uAO;
+    return irradance;
+}
+
+void main()
+{
+    vec3 N;
+    vec3 albedo;
+    float roughness;
+    float metalness;
+
+    if (MeshData.customMaterial == 1)
+    {
+        N = normalize(vNormal);
+        albedo = MeshData.customAlbedo;
+        roughness = MeshData.customRoughness;
+        metalness = MeshData.customMetalness;
+    }
+    else
+    {
+         N = normalize(texture(uNormalMap, vUV).xyz * 2.0f - 1.0f);
+         // NOTE: Flipping y because engine uses LH normal maps (UE4) but OpenGL does it's job in RH space
+         N.y = -N.y;
+         N = normalize(vTBN * N);
+         albedo = texture(uAlbedoMap, vUV).xyz;
+         roughness = texture(uRoughnessMap, vUV).r;
+         metalness = texture(uMetalnessMap, vUV).r;
+    }
+
+    vec3 V = normalize(FrameData.viewPos - vFragPos);
+    vec3 L0 = vec3(0.0f);
+
+    vec3 L = normalize(-FrameData.dirLight.dir);
+    vec3 H = normalize(V + L);
+
+    // TODO: Adding this to avoid artifacts on edges
+    // Why this value so big?
+    float NdotV = max(dot(N, V), 0.0f);// + 0.000001f; // NOTE: Adding this value (trick from epic games shaders) reduces artifacts on the edges in Intel gpu's but completely brokes everything on nvidia
+    float NdotL = max(dot(N, L), 0.0f);
+
+    // NOTE: Attenuation should be here
+    vec3 radiance = FrameData.dirLight.diffuse;
+
+    vec3 F0 = vec3(0.04f);
+    F0 = mix(F0, albedo, metalness);
+
+    // NOTE: Seems like it prodices visually incorrect result with H vector
+    // and N gives more Fresnel-look-like result
+    // but in papers people usually use H
+    vec3 F = FresnelSchlick(max(dot(H, V), 0.0f), F0);
+    float D = DistributionGGX(N, H, roughness);
+    float G = GeometrySmith(NdotV, NdotL, roughness);
+
+    vec3 num = D * G * F;
+    float denom = 4.0f * NdotV * NdotL;;
+    vec3 specular = num / max(denom, 0.001f);
+
+    {
+        vec3 kS = F;
+        vec3 kD = vec3(1.0f) - kS;
+        kD *= 1.0f - metalness;
+        L0 += (kD * albedo / PI + specular) * radiance * NdotL;
+    }
+
+    vec3 envIrradance = IBLIrradance(V, N, NdotV, roughness, F0, metalness, albedo);
+
+    resultColor = vec4((envIrradance + L0), 1.0f);
+
+    if (FrameData.debugF == 1) resultColor = vec4(F,  1.0f);
+    else if (FrameData.debugG == 1) resultColor = vec4(G, G, G, 1.0f);
+    else if (FrameData.debugD == 1) resultColor = vec4(D, D, D, 1.0f);
+    else if (FrameData.debugNormals == 1) resultColor = vec4(N, 1.0f);
 }
 )"
         },

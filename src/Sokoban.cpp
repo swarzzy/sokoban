@@ -529,6 +529,7 @@ namespace soko
         ImGui::SetCurrentContext(_GlobalPlatform->imGuiContext);
         UnloadShaders(&_GlobalStaticStorage->gameState->renderer->shaders);
         _GlobalStaticStorage->gameState->renderer->shaders = LoadShaders();
+        RecompileShaders(_GlobalStaticStorage->gameState->renderer);
         SOKO_INFO("Game code was reloaded");
     }
 

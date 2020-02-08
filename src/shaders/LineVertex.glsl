@@ -1,13 +1,11 @@
-#version 330 core
-layout (location = 0) in vec3 v_Pos;
+#version 450
+#include Common.glh
+layout (location = 0) in vec3 Pos;
 
-out vec3 f_Color;
-
-uniform mat4 u_ViewProjMatrix;
-uniform vec3 u_Color;
+layout (location = 1) out vec3 Color;
 
 void main()
 {
-    gl_Position = u_ViewProjMatrix * vec4(v_Pos, 1.0f);
-    f_Color = u_Color;
+    gl_Position = FrameData.viewProjMatrix * vec4(Pos, 1.0f);
+    Color = MeshData.lineColor;
 }

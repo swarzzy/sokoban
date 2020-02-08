@@ -145,11 +145,11 @@ int main(int argCount, char** args)
         char* _frag = ReadEntireFileAsText(prog.frag.c_str(), &size);
         if (!_vert)
         {
-            ERROR("Error: Failed to read shader file %s", prog.vert.c_str());
+            ERROR("Error: Failed to read shader file %s\n", prog.vert.c_str());
         }
         if (!_frag)
         {
-            ERROR("Error: Failed to read shader file %s", prog.frag.c_str());
+            ERROR("Error: Failed to read shader file %s\n", prog.frag.c_str());
         }
         std::string vert = PreprocessShader(prog.vert, std::string(_vert));
         std::string frag = PreprocessShader(prog.frag, std::string(_frag));

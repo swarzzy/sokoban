@@ -83,8 +83,8 @@ namespace soko
 
         u32 uniformBufferAligment;
 
-        GLuint frameUniformBuffer;
-        GLuint meshUniformBuffer;
+        UniformBuffer<ShaderFrameData, 0> frameUniformBuffer;
+        UniformBuffer<ShaderMeshData, 1> meshUniformBuffer;
     };
 #if 0
     GLuint _CreateTexture2D(GLenum target, GLenum wrapS, GLenum wrapT, GLenum minFilter, GLenum magFilter)
@@ -719,14 +719,6 @@ namespace soko
         glBindTexture(GL_TEXTURE_2D, 0);
     }
 
-    template<typename T>
-    void ReallocUniformBuffer(GLuint* handle)
-    {
-        glCreateBuffers(1, handle);
-        SOKO_ASSERT(*handle);
-        glNamedBufferStorage(*handle, sizeof(T), 0, GL_DYNAMIC_STORAGE_BIT | GL_MAP_WRITE_BIT);
-    }
-
     internal Renderer*
     AllocAndInitRenderer(AB::MemoryArena* arena, AB::MemoryArena* tempArena, uv2 renderRes)
     {
@@ -737,12 +729,12 @@ namespace soko
 
         renderer->shaders = LoadShaders();
 
-        RecompileShaders(tempArena, renderer);
+        RecompileShaders(renderer);
 
         glGetIntegerv(GL_UNIFORM_BUFFER_OFFSET_ALIGNMENT, (GLint*)&renderer->uniformBufferAligment);
 
-        ReallocUniformBuffer<ShaderFrameData>(&renderer->frameUniformBuffer);
-        ReallocUniformBuffer<ShaderMeshData>(&renderer->meshUniformBuffer);
+        ReallocUniformBuffer(&renderer->frameUniformBuffer);
+        ReallocUniformBuffer(&renderer->meshUniformBuffer);
 
         GLfloat maxAnisotropy;
         glGetFloatv(GL_MAX_TEXTURE_MAX_ANISOTROPY_ARB, &maxAnisotropy);
@@ -1522,53 +1514,52 @@ namespace soko
     internal void
     FlushRenderGroup(Renderer* renderer, RenderGroup* group)
     {
-        auto camera = group->camera;
-        auto dirLight = group->dirLight;
 
         bool showShadowCascadesBoundaries = renderer->showShadowCascadesBoundaries;
         DEBUG_OVERLAY_TOGGLE(showShadowCascadesBoundaries);
         renderer->showShadowCascadesBoundaries = showShadowCascadesBoundaries;
 
-        m4x4 viewProj = MulM4M4(&camera->projectionMatrix, &camera->viewMatrix);
+        auto camera = group->camera;
+        auto dirLight = group->dirLight;
 
         if (group->commandQueueAt)
         {
+
+            m4x4 viewProj = MulM4M4(&camera->projectionMatrix, &camera->viewMatrix);
+
             auto lightViewProj0 = renderer->shadowCascadeViewProjMatrices;
             auto lightViewProj1 = renderer->shadowCascadeViewProjMatrices + 1;
             auto lightViewProj2 = renderer->shadowCascadeViewProjMatrices + 2;
 
-            auto frameBuffer = (ShaderFrameData*)glMapNamedBuffer(renderer->frameUniformBuffer, GL_WRITE_ONLY);
+            auto frameBuffer = Map(renderer->frameUniformBuffer);
+            frameBuffer->viewProjMatrix = viewProj;
             frameBuffer->viewMatrix = camera->viewMatrix;
             frameBuffer->projectionMatrix = camera->projectionMatrix;
             frameBuffer->lightSpaceMatrices[0] = *lightViewProj0;
             frameBuffer->lightSpaceMatrices[1] = *lightViewProj1;
             frameBuffer->lightSpaceMatrices[2] = *lightViewProj2;
             frameBuffer->dirLight.dir = dirLight.dir;
+            DEBUG_OVERLAY_TRACE(dirLight.dir);
             frameBuffer->dirLight.ambient = dirLight.ambient;
             frameBuffer->dirLight.diffuse = dirLight.diffuse;
             frameBuffer->dirLight.specular = dirLight.specular;
             frameBuffer->viewPos = camera->position;
+            DEBUG_OVERLAY_TRACE(camera->position);
             frameBuffer->shadowCascadeSplits = *((v3*)&renderer->shadowCascadeBounds);
             frameBuffer->showShadowCascadeBoundaries = (i32)renderer->showShadowCascadesBoundaries;
             frameBuffer->shadowFilterSampleScale = renderer->shadowFilterScale;
+            frameBuffer->debugF = renderer->debugF;
+            frameBuffer->debugG = renderer->debugG;
+            frameBuffer->debugD = renderer->debugD;
+            frameBuffer->debugNormals = renderer->debugNormals;
 
-            glUnmapNamedBuffer(renderer->frameUniformBuffer);
-
-            glBindBuffer(GL_UNIFORM_BUFFER, renderer->frameUniformBuffer);
-            glBindBufferRange(GL_UNIFORM_BUFFER, 0, renderer->frameUniformBuffer, 0, sizeof(ShaderFrameData));
-            glBindBuffer(GL_UNIFORM_BUFFER, 0);
+            Unmap(renderer->frameUniformBuffer);
 
             glBindFramebuffer(GL_DRAW_FRAMEBUFFER, renderer->offscreenBufferHandle);
 
             bool firstLineShaderInvocation = true;
             bool firstMeshShaderInvocation = true;
             bool firstChunkMeshShaderInvocation = true;
-
-            glUseProgram(renderer->shaders.PbrMesh.handle);
-            glUniform1i(renderer->shaders.PbrMesh.fragment.uniforms.uDebugF, (i32)renderer->debugF);
-            glUniform1i(renderer->shaders.PbrMesh.fragment.uniforms.uDebugG, (i32)renderer->debugG);
-            glUniform1i(renderer->shaders.PbrMesh.fragment.uniforms.uDebugD, (i32)renderer->debugD);
-            glUniform1i(renderer->shaders.PbrMesh.fragment.uniforms.uDebugNormals, (i32)renderer->debugNormals);
 
             for (u32 i = 0; i < group->commandQueueAt; i++)
             {
@@ -1580,15 +1571,11 @@ namespace soko
                 {
                     auto* data = (RenderCommandDrawLineBegin*)(group->renderBuffer + command->rbOffset);
 
-                    glUseProgram(renderer->shaders.Line.handle);
-                    // TODO: Store info about command queue contents and set uniforms at the beginning
-                    if (firstLineShaderInvocation)
-                    {
-                        firstLineShaderInvocation = false;
-                        glUniformMatrix4fv(renderer->shaders.Line.vertex.uniforms.u_ViewProjMatrix, 1, GL_FALSE, viewProj.data);
-                    }
+                    glUseProgram(renderer->_shaders.Line);
 
-                    glUniform3fv(renderer->shaders.Line.vertex.uniforms.u_Color, 1, data->color.data);
+                    auto meshBuffer = Map(renderer->meshUniformBuffer);
+                    meshBuffer->lineColor = data->color;
+                    Unmap(renderer->meshUniformBuffer);
 
                     uptr bufferSize = command->instanceCount * sizeof(RenderCommandPushLineVertex);
                     void* instanceData = (void*)((byte*)data + sizeof(RenderCommandDrawLineBegin));
@@ -1617,34 +1604,21 @@ namespace soko
                     auto* data = (RenderCommandDrawMesh*)(group->renderBuffer + command->rbOffset);
                     if (data->material.type == Material::Legacy)
                     {
-                        auto* meshProg = &renderer->shaders.Mesh;
-                        glUseProgram(meshProg->handle);
-
-                        if (firstMeshShaderInvocation)
-                        {
-                            firstMeshShaderInvocation = false;
-                            glUniformMatrix4fv(meshProg->vertex.uniforms.u_ViewProjMatrix, 1, GL_FALSE, viewProj.data);
-                            glUniform3fv(meshProg->fragment.uniforms.u_DirLight.dir, 1, group->dirLight.dir.data);
-                            glUniform3fv(meshProg->fragment.uniforms.u_DirLight.ambient, 1, group->dirLight.ambient.data);
-                            glUniform3fv(meshProg->fragment.uniforms.u_DirLight.diffuse, 1, group->dirLight.diffuse.data);
-                            glUniform3fv(meshProg->fragment.uniforms.u_DirLight.specular, 1, group->dirLight.specular.data);
-                            glUniform3fv(meshProg->fragment.uniforms.u_ViewPos, 1, camera->position.data);
-                        }
-
-                        glUniformMatrix4fv(meshProg->vertex.uniforms.u_ModelMatrix, 1, GL_FALSE, data->transform.data);
+                        auto meshProg = renderer->_shaders.Mesh;
 
                         m3x3 normalMatrix = MakeNormalMatrix(data->transform);
 
-                        glUniformMatrix3fv(meshProg->vertex.uniforms.u_NormalMatrix, 1, GL_FALSE, normalMatrix.data);
+                        glUseProgram(meshProg);
+
+                        auto meshBuffer = Map(renderer->meshUniformBuffer);
+                        meshBuffer->modelMatrix = data->transform;
+                        meshBuffer->normalMatrix = normalMatrix;
+                        Unmap(renderer->meshUniformBuffer);
 
                         auto* mesh = data->mesh;
 
-                        glActiveTexture(meshProg->fragment.samplers.u_DiffMap.slot);
-                        glBindTexture(GL_TEXTURE_2D, data->material.legacy.diffMap.gpuHandle);
-
-                        glActiveTexture(meshProg->fragment.samplers.u_SpecMap.slot);
-                        glBindTexture(GL_TEXTURE_2D, data->material.legacy.specMap.gpuHandle);
-
+                        glBindTextureUnit(0, data->material.legacy.diffMap.gpuHandle);
+                        glBindTextureUnit(1, data->material.legacy.specMap.gpuHandle);
 
                         glBindBuffer(GL_ARRAY_BUFFER, mesh->gpuVertexBufferHandle);
 
@@ -1666,66 +1640,41 @@ namespace soko
                     else if (data->material.type == Material::PBR)
                     {
                         SOKO_ASSERT(group->irradanceMapHandle);
-                        auto* meshProg = &renderer->shaders.PbrMesh;
-                        glUseProgram(meshProg->handle);
-
-                        //  if (firstMeshShaderInvocation)
-                        {
-                            // firstMeshShaderInvocation = false;
-                            glUniformMatrix4fv(meshProg->vertex.uniforms.uViewProjMatrix, 1, GL_FALSE, viewProj.data);
-                            glUniform3fv(meshProg->fragment.uniforms.uDirLight.dir, 1, group->dirLight.dir.data);
-                            glUniform3fv(meshProg->fragment.uniforms.uDirLight.color, 1, group->dirLight.diffuse.data);
-                            glUniform3fv(meshProg->fragment.uniforms.uViewPos, 1, camera->position.data);
-                        }
-
-                        //glUniform1f(meshProg->aoLoc, data->material.pbr.ao);
-
-                        glUniformMatrix4fv(meshProg->vertex.uniforms.uModelMatrix, 1, GL_FALSE, data->transform.data);
-
-                        m4x4 invModel = data->transform;
-                        bool inverted = Inverse(&invModel);
-                        SOKO_ASSERT(inverted, "");
-                        m4x4 transModel = Transpose(&invModel);
-                        m3x3 normalMatrix = M3x3(&transModel);
-
-                        glUniformMatrix3fv(meshProg->vertex.uniforms.uNormalMatrix, 1, GL_FALSE, normalMatrix.data);
+                        auto meshProg = renderer->_shaders.PbrMesh;
+                        glUseProgram(meshProg);
 
                         auto* mesh = data->mesh;
-
                         auto* m = &data->material;
 
-                        if (!m->pbr.isCustom)
+                        auto normalMatrix = MakeNormalMatrix(data->transform);
+
+                        auto meshBuffer = Map(renderer->meshUniformBuffer);
+                        meshBuffer->modelMatrix = data->transform;
+                        meshBuffer->normalMatrix = normalMatrix;
+                        if (m->pbr.isCustom)
                         {
-                            glUniform1i(meshProg->fragment.uniforms.uCustomMaterial, 0);
-
-                            glActiveTexture(meshProg->fragment.samplers.uAlbedoMap.slot);
-                            glBindTexture(GL_TEXTURE_2D, m->pbr.map.albedo.gpuHandle);
-
-                            glActiveTexture(meshProg->fragment.samplers.uRoughnessMap.slot);
-                            glBindTexture(GL_TEXTURE_2D, m->pbr.map.roughness.gpuHandle);
-
-                            glActiveTexture(meshProg->fragment.samplers.uMetalnessMap.slot);
-                            glBindTexture(GL_TEXTURE_2D, m->pbr.map.metalness.gpuHandle);
-
-                            glActiveTexture(meshProg->fragment.samplers.uNormalMap.slot);
-                            glBindTexture(GL_TEXTURE_2D, m->pbr.map.normals.gpuHandle);
+                            meshBuffer->customMaterial = 1;
+                            meshBuffer->customAlbedo = m->pbr.custom.albedo;
+                            meshBuffer->customRoughness = m->pbr.custom.roughness;
+                            meshBuffer->customMetalness = m->pbr.custom.metalness;
                         }
                         else
                         {
-                            glUniform1i(meshProg->fragment.uniforms.uCustomMaterial, 1);
-                            glUniform3fv(meshProg->fragment.uniforms.uCustomAlbedo, 1, m->pbr.custom.albedo.data);
-                            glUniform1f(meshProg->fragment.uniforms.uCustomRoughness, m->pbr.custom.roughness);
-                            glUniform1f(meshProg->fragment.uniforms.uCustomMetalness, m->pbr.custom.metalness);
+                            meshBuffer->customMaterial = 0;
                         }
+                        Unmap(renderer->meshUniformBuffer);
 
-                        glActiveTexture(meshProg->fragment.samplers.uIrradanceMap.slot);
-                        glBindTexture(GL_TEXTURE_CUBE_MAP, group->irradanceMapHandle);
+                        glBindTextureUnit(0, group->irradanceMapHandle);
+                        glBindTextureUnit(1, group->envMapHandle);
 
-                        glActiveTexture(meshProg->fragment.samplers.uEnviromentMap.slot);
-                        glBindTexture(GL_TEXTURE_CUBE_MAP, group->envMapHandle);
-
-                        glActiveTexture(meshProg->fragment.samplers.uBRDFLut.slot);
-                        glBindTexture(GL_TEXTURE_2D, renderer->BRDFLutHandle);
+                        if (!m->pbr.isCustom)
+                        {
+                            glBindTextureUnit(2, renderer->BRDFLutHandle);
+                            glBindTextureUnit(3, m->pbr.map.albedo.gpuHandle);
+                            glBindTextureUnit(4, m->pbr.map.roughness.gpuHandle);
+                            glBindTextureUnit(5, m->pbr.map.metalness.gpuHandle);
+                            glBindTextureUnit(6, m->pbr.map.normals.gpuHandle);
+                        }
 
                         glBindBuffer(GL_ARRAY_BUFFER, mesh->gpuVertexBufferHandle);
 
@@ -1776,16 +1725,10 @@ namespace soko
                         glGetIntegerv(GL_UNIFORM_BUFFER_OFFSET_ALIGNMENT, &aligment);
                         auto padding = CalculatePadding(sizeof(ChunkCameraBuffer), aligment);
 
-                        // NOTE Vert and Frag may be too verbose
-                        auto meshBuffer = (ShaderMeshData*)glMapNamedBuffer(renderer->meshUniformBuffer, GL_WRITE_ONLY);
+                        auto meshBuffer = Map(renderer->meshUniformBuffer);
                         meshBuffer->modelMatrix = world;
                         meshBuffer->normalMatrix = normalMatrix;
-                        glUnmapNamedBuffer(renderer->meshUniformBuffer);
-
-                        glBindBuffer(GL_UNIFORM_BUFFER, renderer->meshUniformBuffer);
-                        glBindBufferRange(GL_UNIFORM_BUFFER, 1, renderer->meshUniformBuffer, 0, sizeof(ShaderMeshData));
-                        glBindBuffer(GL_UNIFORM_BUFFER, 0);
-
+                        Unmap(renderer->meshUniformBuffer);
 
                         glBindBuffer(GL_ARRAY_BUFFER, data->meshIndex);
 

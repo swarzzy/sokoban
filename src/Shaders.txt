@@ -1,2 +1,5 @@
 // comment
 Chunk "src/shaders/ChunkVertex.glsl" "src/shaders/ChunkFragment.glsl"
+Mesh "src/shaders/MeshVertex.glsl" "src/shaders/MeshFragment.glsl"
+Line "src/shaders/LineVertex.glsl" "src/shaders/LineFragment.glsl"
+PbrMesh "src/shaders/PBRMeshVertex.glsl" "src/shaders/PBRMeshFragment.glsl"
