@@ -1,0 +1,25 @@
+struct DirLight
+{
+    vec3 dir;
+    vec3 ambient;
+    vec3 diffuse;
+    vec3 specular;
+};
+
+layout (std140, binding = 0) uniform ShaderFrameData
+{
+    mat4 viewMatrix;
+    mat4 projectionMatrix;
+    mat4 lightSpaceMatrices[3];
+    DirLight dirLight;
+    vec3 viewPos;
+    vec3 shadowCascadeSplits;
+    int showShadowCascadeBoundaries;
+    float shadowFilterSampleScale;
+} FrameData;
+
+layout (std140, binding = 1) uniform ShaderMeshData
+{
+    mat4 modelMatrix;
+    mat3 normalMatrix;
+} MeshData;

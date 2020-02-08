@@ -82,6 +82,8 @@ namespace AB
     struct ScopedTempMemory
     {
         TempMemory frame;
+        static inline ScopedTempMemory Make(MemoryArena* arena, MemoryArenaFlags flags = MemoryArenaFlag_None) { return ScopedTempMemory { BeginTemporaryMemory(arena, flags)}; }
+        // TODO: Remove
         static inline ScopedTempMemory make(TempMemory frame) { return ScopedTempMemory {frame.arena, frame.offset}; }
         ~ScopedTempMemory() { EndTemporaryMemory(&this->frame); }
     };

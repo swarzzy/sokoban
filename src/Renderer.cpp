@@ -3,6 +3,7 @@
 #include "ShaderManager.cpp"
 
 #include "Std140.h"
+#include "Shaders.h"
 
 #include "Frustum.cpp"
 
@@ -24,6 +25,12 @@ namespace soko
 
     struct Renderer
     {
+        union
+        {
+            Shaders _shaders;
+            GLuint shaderHandles[ShaderCount];
+        };
+
         ShaderInfo shaders;
 
         GLuint tileTexArrayHandle;
@@ -50,6 +57,7 @@ namespace soko
         GLuint randomValuesTexture;
         b32 stableShadows = true;
         b32 showShadowCascadesBoundaries;
+        f32 shadowFilterScale = 1.0f;
 
         // TODO: Camera should cares about that
         m4x4 shadowCascadeViewProjMatrices[NumShadowCascades];
@@ -73,46 +81,10 @@ namespace soko
         b32 debugG;
         b32 debugNormals;
 
-        struct ChunkUniformBuffer
-        {
-            struct CameraData
-            {
-                std140::mat4 viewMatrix;
-                std140::mat4 projectionMatrix;
-                std140::Array<std140::mat4, 3, sizeof(std140::mat4)> lightSpaceMatrix;
-            } camera;
+        u32 uniformBufferAligment;
 
-            struct MeshData
-            {
-                std140::mat4 modelMatrix;
-                std140::mat3 normalMatrix;
-            } mesh;
-        };
-
-        struct ChunkFragUniformBuffer
-        {
-            struct DirLight
-            {
-                v3 dir;
-                _padby(4);
-                v3 ambient;
-                _padby(4);
-                v3 diffuse;
-                _padby(4);
-                v3 specular;
-            };
-            DirLight dirLight;
-            _padby(4);
-            v3 viewPos;
-            _padby(4);
-            v3 shadowCascadeSplits;
-            i32 showBounds;
-            f32 filterScale;
-        };
-
-        GLuint chunkUBO;
-        GLuint chunkFragUBO;
-        static const u32 ChunkUBOSize = sizeof(ChunkUniformBuffer);
+        GLuint frameUniformBuffer;
+        GLuint meshUniformBuffer;
     };
 #if 0
     GLuint _CreateTexture2D(GLenum target, GLenum wrapS, GLenum wrapT, GLenum minFilter, GLenum magFilter)
@@ -747,6 +719,14 @@ namespace soko
         glBindTexture(GL_TEXTURE_2D, 0);
     }
 
+    template<typename T>
+    void ReallocUniformBuffer(GLuint* handle)
+    {
+        glCreateBuffers(1, handle);
+        SOKO_ASSERT(*handle);
+        glNamedBufferStorage(*handle, sizeof(T), 0, GL_DYNAMIC_STORAGE_BIT | GL_MAP_WRITE_BIT);
+    }
+
     internal Renderer*
     AllocAndInitRenderer(AB::MemoryArena* arena, AB::MemoryArena* tempArena, uv2 renderRes)
     {
@@ -757,25 +737,12 @@ namespace soko
 
         renderer->shaders = LoadShaders();
 
+        RecompileShaders(tempArena, renderer);
 
-        /// UBO
+        glGetIntegerv(GL_UNIFORM_BUFFER_OFFSET_ALIGNMENT, (GLint*)&renderer->uniformBufferAligment);
 
-        i32 aligment = 0;
-        glGetIntegerv(GL_UNIFORM_BUFFER_OFFSET_ALIGNMENT, &aligment);
-        auto padding = CalculatePadding(sizeof(Renderer::ChunkUniformBuffer::CameraData), aligment);
-
-        glCreateBuffers(1, &renderer->chunkUBO);
-        glNamedBufferStorage(renderer->chunkUBO, Renderer::ChunkUBOSize + aligment, 0, GL_DYNAMIC_STORAGE_BIT);
-        glBindBuffer(GL_UNIFORM_BUFFER, renderer->chunkUBO);
-        glBindBufferRange(GL_UNIFORM_BUFFER, 0, renderer->chunkUBO, 0, sizeof(Renderer::ChunkUniformBuffer::CameraData));
-        glBindBufferRange(GL_UNIFORM_BUFFER, 1, renderer->chunkUBO, padding + sizeof(Renderer::ChunkUniformBuffer::CameraData), sizeof(Renderer::ChunkUniformBuffer::MeshData));
-        glBindBuffer(GL_UNIFORM_BUFFER, 0);
-
-        glCreateBuffers(1, &renderer->chunkFragUBO);
-        glNamedBufferStorage(renderer->chunkFragUBO, sizeof(Renderer::ChunkFragUniformBuffer), 0, GL_DYNAMIC_STORAGE_BIT | GL_MAP_WRITE_BIT);
-        glBindBuffer(GL_UNIFORM_BUFFER, renderer->chunkFragUBO);
-        glBindBufferRange(GL_UNIFORM_BUFFER, 2, renderer->chunkFragUBO, 0, sizeof(Renderer::ChunkFragUniformBuffer));
-        glBindBuffer(GL_UNIFORM_BUFFER, 0);
+        ReallocUniformBuffer<ShaderFrameData>(&renderer->frameUniformBuffer);
+        ReallocUniformBuffer<ShaderMeshData>(&renderer->meshUniformBuffer);
 
         GLfloat maxAnisotropy;
         glGetFloatv(GL_MAX_TEXTURE_MAX_ANISOTROPY_ARB, &maxAnisotropy);
@@ -1556,6 +1523,7 @@ namespace soko
     FlushRenderGroup(Renderer* renderer, RenderGroup* group)
     {
         auto camera = group->camera;
+        auto dirLight = group->dirLight;
 
         bool showShadowCascadesBoundaries = renderer->showShadowCascadesBoundaries;
         DEBUG_OVERLAY_TOGGLE(showShadowCascadesBoundaries);
@@ -1569,9 +1537,26 @@ namespace soko
             auto lightViewProj1 = renderer->shadowCascadeViewProjMatrices + 1;
             auto lightViewProj2 = renderer->shadowCascadeViewProjMatrices + 2;
 
+            auto frameBuffer = (ShaderFrameData*)glMapNamedBuffer(renderer->frameUniformBuffer, GL_WRITE_ONLY);
+            frameBuffer->viewMatrix = camera->viewMatrix;
+            frameBuffer->projectionMatrix = camera->projectionMatrix;
+            frameBuffer->lightSpaceMatrices[0] = *lightViewProj0;
+            frameBuffer->lightSpaceMatrices[1] = *lightViewProj1;
+            frameBuffer->lightSpaceMatrices[2] = *lightViewProj2;
+            frameBuffer->dirLight.dir = dirLight.dir;
+            frameBuffer->dirLight.ambient = dirLight.ambient;
+            frameBuffer->dirLight.diffuse = dirLight.diffuse;
+            frameBuffer->dirLight.specular = dirLight.specular;
+            frameBuffer->viewPos = camera->position;
+            frameBuffer->shadowCascadeSplits = *((v3*)&renderer->shadowCascadeBounds);
+            frameBuffer->showShadowCascadeBoundaries = (i32)renderer->showShadowCascadesBoundaries;
+            frameBuffer->shadowFilterSampleScale = renderer->shadowFilterScale;
 
-            local_persist f32 shadowFilterScale = 1.0f;
-            DEBUG_OVERLAY_SLIDER(shadowFilterScale, 0.1f, 5.0f);
+            glUnmapNamedBuffer(renderer->frameUniformBuffer);
+
+            glBindBuffer(GL_UNIFORM_BUFFER, renderer->frameUniformBuffer);
+            glBindBufferRange(GL_UNIFORM_BUFFER, 0, renderer->frameUniformBuffer, 0, sizeof(ShaderFrameData));
+            glBindBuffer(GL_UNIFORM_BUFFER, 0);
 
             glBindFramebuffer(GL_DRAW_FRAMEBUFFER, renderer->offscreenBufferHandle);
 
@@ -1770,49 +1755,11 @@ namespace soko
 
                 case RENDER_COMMAND_BEGIN_CHUNK_MESH_BATCH:
                 {
-                    auto* chunkProg = &renderer->shaders.Chunk;
-                    glUseProgram(chunkProg->handle);
+                    auto chunkProg = renderer->_shaders.Chunk;
+                    glUseProgram(chunkProg);
                     glBindTextureUnit(0, renderer->tileTexArrayHandle);
                     glBindTextureUnit(1, renderer->shadowMapDepthTarget);
                     glBindTextureUnit(2, renderer->randomValuesTexture);
-
-                    if (firstChunkMeshShaderInvocation)
-                    {
-                        Renderer::ChunkUniformBuffer::CameraData camBuffer;
-                        camBuffer.viewMatrix = camera->viewMatrix;
-                        camBuffer.projectionMatrix = camera->projectionMatrix;
-                        camBuffer.lightSpaceMatrix[0] = *lightViewProj0;
-                        camBuffer.lightSpaceMatrix[1] = *lightViewProj1;
-                        camBuffer.lightSpaceMatrix[2] = *lightViewProj2;
-
-                        glNamedBufferSubData(renderer->chunkUBO, 0, sizeof(Renderer::ChunkUniformBuffer::CameraData), (void*)&camBuffer);
-
-                        glBindBuffer(GL_UNIFORM_BUFFER, renderer->chunkFragUBO);
-                        Renderer::ChunkFragUniformBuffer* fragBuffer = (Renderer::ChunkFragUniformBuffer*)glMapBuffer(GL_UNIFORM_BUFFER, GL_WRITE_ONLY);
-
-                        fragBuffer->dirLight.dir = group->dirLight.dir;
-                        DEBUG_OVERLAY_TRACE(group->dirLight.dir);
-                        //DEBUG_OVERLAY_TRACE(fragBuffer->dirLight.dir);
-                        fragBuffer->dirLight.ambient = group->dirLight.ambient;
-                        fragBuffer->dirLight.diffuse = group->dirLight.diffuse;
-                        fragBuffer->dirLight.specular = group->dirLight.specular;
-
-                        fragBuffer->viewPos = camera->position;
-                        fragBuffer->shadowCascadeSplits = *((v3*)&renderer->shadowCascadeBounds);
-                        fragBuffer->showBounds = renderer->showShadowCascadesBoundaries;
-                        fragBuffer->filterScale = shadowFilterScale;
-
-                        glUnmapBuffer(GL_UNIFORM_BUFFER);
-
-                        //glNamedBufferSubData(renderer->chunkFragUBO, 0, sizeof(Renderer::ChunkFragUniformBuffer), (void*)&fragBuffer);
-
-                        glBindBuffer(GL_UNIFORM_BUFFER, renderer->chunkFragUBO);
-                        //glNamedBufferSubData(renderer->chunkUBO, padding + sizeof(Renderer::ChunkUniformBuffer::CameraData), sizeof(Renderer::ChunkUniformBuffer::MeshData), (void*)&meshBuffer);
-                        glBindBufferRange(GL_UNIFORM_BUFFER, 2, renderer->chunkFragUBO, 0, sizeof(Renderer::ChunkFragUniformBuffer));
-                        glBindBuffer(GL_UNIFORM_BUFFER, 0);
-
-                        firstChunkMeshShaderInvocation = false;
-                    }
 
                     for (u32 i = 0; i < command->instanceCount; i++)
                     {
@@ -1827,16 +1774,16 @@ namespace soko
 
                         i32 aligment = 0;
                         glGetIntegerv(GL_UNIFORM_BUFFER_OFFSET_ALIGNMENT, &aligment);
-                        auto padding = CalculatePadding(sizeof(Renderer::ChunkUniformBuffer::CameraData), aligment);
+                        auto padding = CalculatePadding(sizeof(ChunkCameraBuffer), aligment);
 
-                        Renderer::ChunkUniformBuffer::MeshData meshBuffer;
-                        meshBuffer.modelMatrix = world;
-                        meshBuffer.normalMatrix = normalMatrix;
-                        glBindBuffer(GL_UNIFORM_BUFFER, renderer->chunkUBO);
-                        //glNamedBufferSubData(renderer->chunkUBO, padding + sizeof(Renderer::ChunkUniformBuffer::CameraData), sizeof(Renderer::ChunkUniformBuffer::MeshData), (void*)&meshBuffer);
-                        glBufferSubData(GL_UNIFORM_BUFFER, padding + sizeof(Renderer::ChunkUniformBuffer::CameraData), sizeof(Renderer::ChunkUniformBuffer::MeshData), (void*)&meshBuffer);
-                        glBindBufferRange(GL_UNIFORM_BUFFER, 0, renderer->chunkUBO, 0, sizeof(Renderer::ChunkUniformBuffer::CameraData));
-                        glBindBufferRange(GL_UNIFORM_BUFFER, 1, renderer->chunkUBO, padding + sizeof(Renderer::ChunkUniformBuffer::CameraData), sizeof(Renderer::ChunkUniformBuffer::MeshData));
+                        // NOTE Vert and Frag may be too verbose
+                        auto meshBuffer = (ShaderMeshData*)glMapNamedBuffer(renderer->meshUniformBuffer, GL_WRITE_ONLY);
+                        meshBuffer->modelMatrix = world;
+                        meshBuffer->normalMatrix = normalMatrix;
+                        glUnmapNamedBuffer(renderer->meshUniformBuffer);
+
+                        glBindBuffer(GL_UNIFORM_BUFFER, renderer->meshUniformBuffer);
+                        glBindBufferRange(GL_UNIFORM_BUFFER, 1, renderer->meshUniformBuffer, 0, sizeof(ShaderMeshData));
                         glBindBuffer(GL_UNIFORM_BUFFER, 0);
 
 

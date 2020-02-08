@@ -7,7 +7,7 @@ popd
 goto end
 )
 
-set BuildShaderPreprocessor=false
+set BuildShaderPreprocessor=true
 
 set ObjOutDir=build\obj\
 set BinOutDir=build\
@@ -54,15 +54,13 @@ rem cl /W3 /Fo%ObjOutDir% /D_CRT_SECURE_NO_WARNINGS  %CommonCompilerFlags% %Conf
 
 if %BuildShaderPreprocessor% equ true (
 echo Building shader preprocessor...
-cl /W3 /wd4530 /Gm- /GR- /Od /Zi /MT /nologo /diagnostics:classic /WX /std:c++17 /Fo%ObjOutDir% /D_CRT_SECURE_NO_WARNINGS /DWIN32_LEAN_AND_MEAN  src/tools/ShaderPreprocessor.cpp /link /INCREMENTAL:NO /OPT:REF /MACHINE:X64 /OUT:%BinOutDir%\ShaderPreprocessor.exe /PDB:%BinOutDir%\ShaderPreprocessor.pdb
+cl /W3 /wd4530 /Gm- /GR- /Od /Zi /MTd /nologo /diagnostics:classic /WX /std:c++17 /Fo%ObjOutDir% /D_CRT_SECURE_NO_WARNINGS /DWIN32_LEAN_AND_MEAN  src/tools/ShaderPreprocessor.cpp /link /INCREMENTAL:NO /OPT:REF /MACHINE:X64 /OUT:%BinOutDir%\ShaderPreprocessor.exe /PDB:%BinOutDir%\ShaderPreprocessor.pdb
 )
 
 echo Preprocessing shaders...
-ctime -begin shader_prep.ctm
-build\ShaderPreprocessor.exe src/ShaderConfig.txt
-COPY Shaders_Generated.cpp src\Shaders_Generated.cpp
-DEL Shaders_Generated.cpp
-ctime -end shader_prep.ctm
+build\ShaderPreprocessor.exe src/Shaders.txt
+COPY Shaders_Generated.h src\Shaders_Generated.h
+DEL Shaders_Generated.h
 
 echo Generating meta info...
 build\Prep.exe MetaInfo_Generated.h src/MetaInfo_Generated src/Entity.h src/Level.h src/Renderer.cpp src/EntityBehavior.h src/Chunk.h

@@ -227,6 +227,11 @@ inline void* ReallocForSTBI(void* p, uptr oldSize, uptr newSize)
 #define glBufferStorage GL_FUNCTION(glBufferStorage)
 #define glBindTextureUnit GL_FUNCTION(glBindTextureUnit)
 
+#define glGetProgramInterfaceiv GL_FUNCTION(glGetProgramInterfaceiv)
+#define glGetProgramResourceiv GL_FUNCTION(glGetProgramResourceiv)
+#define glGetProgramResourceName GL_FUNCTION(glGetProgramResourceName)
+
+
 // NOTE: Functions used by ImGUI
 #define glGetIntegerv GL_FUNCTION(glGetIntegerv)
 #define glBindSampler GL_FUNCTION(glBindSampler)
@@ -295,6 +300,7 @@ inline void* ReallocForSTBI(void* p, uptr oldSize, uptr newSize)
 //#include "imgui/imgui_internal.h"
 #if defined(UNITY_BUILD)
 #include "Renderer.cpp"
+#include "Shaders.cpp"
 #include "Level.cpp"
 #include "Chunk.cpp"
 #include "Entity.cpp"

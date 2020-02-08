@@ -1,6 +1,8 @@
 #pragma once
 #include <stdint.h>
 #include <float.h>
+// NOTE: offsetof
+#include <stddef.h>
 
 #if defined(_MSC_VER)
 #define AB_COMPILER_MSVC
@@ -33,6 +35,7 @@
 
 #define ArrayCount(arr) (sizeof(arr) / sizeof(arr[0]))
 #define DeclMember(type, member) (((type*)0)->member)
+#define typedecl(type, member) DeclMember(type, member)
 
 #define foreach(collection) for(auto& it : collection)
 #define CASE(expr, ...) case expr: {__VA_ARGS__;} break

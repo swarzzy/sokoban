@@ -1,3 +1,4 @@
+
 #define NUM_SHADOW_CASCADES 3
 
 // NOTE: Reference: https://github.com/TheRealMJP/Shadows/blob/master/Shadows/PCFKernels.hlsl
