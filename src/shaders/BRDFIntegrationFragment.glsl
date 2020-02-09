@@ -1,10 +1,10 @@
-#version 330 core
+#version 450
 
-in vec2 v_UV;
+layout (location = 0) in vec2 UV;
+
 out vec4 ResultColor;
 
 const uint SAMPLE_COUNT = 1024u;
-
 const float PI_32 = 3.14159265358979323846f;
 
 // NOTE: http://holger.dammertz.org/stuff/notes_HammersleyOnHemisphere.html
@@ -103,5 +103,5 @@ vec2 IntegrateBRDF(float NdotV, float roughness)
 
 void main()
 {
-    ResultColor = vec4(IntegrateBRDF(v_UV.x, v_UV.y), 0.0f, 1.0f);
+    ResultColor = vec4(IntegrateBRDF(UV.x, UV.y), 0.0f, 1.0f);
 }

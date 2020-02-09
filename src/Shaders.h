@@ -35,10 +35,46 @@ namespace soko
     template<typename T, u32 Binding>
     void Unmap(UniformBuffer<T, Binding> buffer);
 
+    struct ShadowPassShader
+    {
+        static constexpr u32 CascadeIndexLocation = 0;
+        static constexpr u32 PositionAttribLocation = 0;
+        static constexpr u32 NormalAttribLocation = 1;
+    };
+
+    struct SkyboxShader
+    {
+        static constexpr u32 CubeTexture = 0;
+    };
+
+    struct PostFxShader
+    {
+        static constexpr u32 ColorSourceLinear = 0;
+    };
+
+    struct FXAAShader
+    {
+        static constexpr u32 ColorSourcePerceptual = 0;
+    };
+
+    struct EnvMapPrefilterShader
+    {
+        static constexpr u32 SourceCubemap = 0;
+        static constexpr u32 Roughness = 0;
+        static constexpr u32 Resolution = 1;
+    };
+
+    struct IrradanceConvolver
+    {
+        static constexpr u32 SourceCubemap = 0;
+    };
+
     struct layout_std140 ShaderFrameData
     {
+        static constexpr u32 Binding = 0;
         struct layout_std140 DirLight
         {
+            std140_vec3 pos;
             std140_vec3 dir;
             std140_vec3 ambient;
             std140_vec3 diffuse;
@@ -48,6 +84,8 @@ namespace soko
         std140_mat4 viewProjMatrix;
         std140_mat4 viewMatrix;
         std140_mat4 projectionMatrix;
+        std140_mat4 invViewMatrix;
+        std140_mat4 invProjMatrix;
         std140_mat4 lightSpaceMatrices[3];
         DirLight dirLight;
         std140_vec3 viewPos;
@@ -58,10 +96,15 @@ namespace soko
         std140_int debugG;
         std140_int debugD;
         std140_int debugNormals;
+        std140_float constShadowBias;
+        std140_float gamma;
+        std140_float exposure;
+        std140_vec2 screenSize;
     };
 
     struct layout_std140 ShaderMeshData
     {
+        static constexpr u32 Binding = 1;
         std140_mat4 modelMatrix;
         std140_mat3 normalMatrix;
         std140_vec3 lineColor;

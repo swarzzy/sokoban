@@ -1,11 +1,11 @@
-#version 330 core
-in vec3 v_UV;
+#version 450
+layout (location = 0) in vec3 UV;
 
-out vec4 f_Color;
-uniform float uLod = 1.0f;
+out vec4 Color;
 
-uniform samplerCube u_CubeTexture;
+layout (binding = 0) uniform samplerCube CubeTexture;
+
 void main()
 {
-    f_Color = textureLod(u_CubeTexture, v_UV, uLod);
+    Color = texture(CubeTexture, UV);
 }

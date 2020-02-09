@@ -50,7 +50,7 @@ namespace soko
                                 char* message = (char*)alloca(logLength);
                                 SOKO_ASSERT(message, "");
                                 glGetProgramInfoLog(programHandle, logLength, 0, message);
-                                PrintString("[Error]: Failed to link shader program\n%s\n", message);
+                                PrintString("[Error]: Failed to link shader program (%s) \n%s\n", name, message);
                             }
                         }
                         else

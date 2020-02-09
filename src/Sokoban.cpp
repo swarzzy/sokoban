@@ -527,8 +527,6 @@ namespace soko
                                      _GlobalPlatform->functions.FreeForImGui,
                                      _GlobalPlatform->imGuiAllocatorData);
         ImGui::SetCurrentContext(_GlobalPlatform->imGuiContext);
-        UnloadShaders(&_GlobalStaticStorage->gameState->renderer->shaders);
-        _GlobalStaticStorage->gameState->renderer->shaders = LoadShaders();
         RecompileShaders(_GlobalStaticStorage->gameState->renderer);
         SOKO_INFO("Game code was reloaded");
     }
@@ -628,10 +626,10 @@ namespace soko
 
         DrawRegion(simRegion, gameState, gameState->session.camera.worldPos);
 
+        Begin(gameState->renderer, gameState->renderGroup);
         ShadowPass(gameState->renderer, gameState->renderGroup);
-        RendererBeginFrame(gameState->renderer, V2(PlatformGlobals.windowWidth, PlatformGlobals.windowHeight));
-        FlushRenderGroup(gameState->renderer, gameState->renderGroup);
-        RendererEndFrame(gameState->renderer);
+        MainPass(gameState->renderer, gameState->renderGroup);
+        End(gameState->renderer);
 
         EndTemporaryMemory(&tempMemory);
 

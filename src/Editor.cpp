@@ -942,10 +942,10 @@ namespace soko
         gameState->renderer->debugG = editor->debugG;
         gameState->renderer->debugD = editor->debugD;
         gameState->renderer->debugNormals = editor->debugNormals;
+        Begin(gameState->renderer, gameState->renderGroup);
         ShadowPass(gameState->renderer, gameState->renderGroup);
-        RendererBeginFrame(gameState->renderer, V2(PlatformGlobals.windowWidth, PlatformGlobals.windowHeight));
-        FlushRenderGroup(gameState->renderer, gameState->renderGroup);
-        RendererEndFrame(gameState->renderer);
+        MainPass(gameState->renderer, gameState->renderGroup);
+        End(gameState->renderer);
 
         EndTemporaryMemory(&tempMemory);
 

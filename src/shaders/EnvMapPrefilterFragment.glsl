@@ -1,11 +1,11 @@
-#version 330 core
+#version 450
 
-in vec3 v_UV;
+layout (location = 0) in vec3 UV;
 out vec4 resultColor;
 
-uniform samplerCube uSourceCubemap;
-uniform float uRoughness;
-uniform int uResolution;
+layout (binding = 0) uniform samplerCube uSourceCubemap;
+layout (location = 0) uniform float uRoughness;
+layout (location = 1) uniform int uResolution;
 
 const float PI_32 = 3.14159265358979323846f;
 
@@ -65,7 +65,7 @@ const uint SAMPLES = 4096u;
 
 void main()
 {
-    vec3 N = normalize(v_UV);
+    vec3 N = normalize(UV);
     vec3 R = N;
     vec3 V = R;
 

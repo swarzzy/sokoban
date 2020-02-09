@@ -1,15 +1,15 @@
-#version 330 core
+#version 450
 
-in vec3 v_UV;
+layout (location = 0) in vec3 UV;
 out vec4 resultColor;
 
-uniform samplerCube uSourceCubemap;
+layout (binding = 0) uniform samplerCube uSourceCubemap;
 
 const float PI_32 = 3.14159265358979323846f;
 
 void main()
 {
-    vec3 normal = normalize(v_UV);
+    vec3 normal = normalize(UV);
     vec3 irradance = vec3(0.0f);
 
     vec3 up = vec3(0.0f, 1.0f, 0.0f);

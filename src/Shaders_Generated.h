@@ -9,6 +9,13 @@ namespace soko
         GLuint Mesh;
         GLuint Line;
         GLuint PbrMesh;
+        GLuint Shadow;
+        GLuint Skybox;
+        GLuint PostFx;
+        GLuint FXAA;
+        GLuint BRDFIntegrator;
+        GLuint EnvMapPrefilter;
+        GLuint IrradanceConvolver;
     };
 
     const char* ShaderNames[] =
@@ -17,6 +24,13 @@ namespace soko
         "Mesh",
         "Line",
         "PbrMesh",
+        "Shadow",
+        "Skybox",
+        "PostFx",
+        "FXAA",
+        "BRDFIntegrator",
+        "EnvMapPrefilter",
+        "IrradanceConvolver",
     };
 
     const ShaderProgramSource ShaderSources[] =
@@ -26,6 +40,7 @@ namespace soko
 #line 100000
 struct DirLight
 {
+    vec3 pos;
     vec3 dir;
     vec3 ambient;
     vec3 diffuse;
@@ -37,6 +52,8 @@ layout (std140, binding = 0) uniform ShaderFrameData
     mat4 viewProjMatrix;
     mat4 viewMatrix;
     mat4 projectionMatrix;
+    mat4 invViewMatrix;
+    mat4 invProjMatrix;
     mat4 lightSpaceMatrices[3];
     DirLight dirLight;
     vec3 viewPos;
@@ -47,6 +64,10 @@ layout (std140, binding = 0) uniform ShaderFrameData
     int debugG;
     int debugD;
     int debugNormals;
+    float constShadowBias;
+    float gamma;
+    float exposure;
+    vec2 screenSize;
 } FrameData;
 
 layout (std140, binding = 1) uniform ShaderMeshData
@@ -110,6 +131,7 @@ R"(#version 450
 #line 100000
 struct DirLight
 {
+    vec3 pos;
     vec3 dir;
     vec3 ambient;
     vec3 diffuse;
@@ -121,6 +143,8 @@ layout (std140, binding = 0) uniform ShaderFrameData
     mat4 viewProjMatrix;
     mat4 viewMatrix;
     mat4 projectionMatrix;
+    mat4 invViewMatrix;
+    mat4 invProjMatrix;
     mat4 lightSpaceMatrices[3];
     DirLight dirLight;
     vec3 viewPos;
@@ -131,6 +155,10 @@ layout (std140, binding = 0) uniform ShaderFrameData
     int debugG;
     int debugD;
     int debugNormals;
+    float constShadowBias;
+    float gamma;
+    float exposure;
+    vec2 screenSize;
 } FrameData;
 
 layout (std140, binding = 1) uniform ShaderMeshData
@@ -388,6 +416,7 @@ void main()
 #line 100000
 struct DirLight
 {
+    vec3 pos;
     vec3 dir;
     vec3 ambient;
     vec3 diffuse;
@@ -399,6 +428,8 @@ layout (std140, binding = 0) uniform ShaderFrameData
     mat4 viewProjMatrix;
     mat4 viewMatrix;
     mat4 projectionMatrix;
+    mat4 invViewMatrix;
+    mat4 invProjMatrix;
     mat4 lightSpaceMatrices[3];
     DirLight dirLight;
     vec3 viewPos;
@@ -409,6 +440,10 @@ layout (std140, binding = 0) uniform ShaderFrameData
     int debugG;
     int debugD;
     int debugNormals;
+    float constShadowBias;
+    float gamma;
+    float exposure;
+    vec2 screenSize;
 } FrameData;
 
 layout (std140, binding = 1) uniform ShaderMeshData
@@ -443,6 +478,7 @@ R"(#version 450
 #line 100000
 struct DirLight
 {
+    vec3 pos;
     vec3 dir;
     vec3 ambient;
     vec3 diffuse;
@@ -454,6 +490,8 @@ layout (std140, binding = 0) uniform ShaderFrameData
     mat4 viewProjMatrix;
     mat4 viewMatrix;
     mat4 projectionMatrix;
+    mat4 invViewMatrix;
+    mat4 invProjMatrix;
     mat4 lightSpaceMatrices[3];
     DirLight dirLight;
     vec3 viewPos;
@@ -464,6 +502,10 @@ layout (std140, binding = 0) uniform ShaderFrameData
     int debugG;
     int debugD;
     int debugNormals;
+    float constShadowBias;
+    float gamma;
+    float exposure;
+    vec2 screenSize;
 } FrameData;
 
 layout (std140, binding = 1) uniform ShaderMeshData
@@ -511,6 +553,7 @@ void main()
 #line 100000
 struct DirLight
 {
+    vec3 pos;
     vec3 dir;
     vec3 ambient;
     vec3 diffuse;
@@ -522,6 +565,8 @@ layout (std140, binding = 0) uniform ShaderFrameData
     mat4 viewProjMatrix;
     mat4 viewMatrix;
     mat4 projectionMatrix;
+    mat4 invViewMatrix;
+    mat4 invProjMatrix;
     mat4 lightSpaceMatrices[3];
     DirLight dirLight;
     vec3 viewPos;
@@ -532,6 +577,10 @@ layout (std140, binding = 0) uniform ShaderFrameData
     int debugG;
     int debugD;
     int debugNormals;
+    float constShadowBias;
+    float gamma;
+    float exposure;
+    vec2 screenSize;
 } FrameData;
 
 layout (std140, binding = 1) uniform ShaderMeshData
@@ -572,6 +621,7 @@ void main()
 #line 100000
 struct DirLight
 {
+    vec3 pos;
     vec3 dir;
     vec3 ambient;
     vec3 diffuse;
@@ -583,6 +633,8 @@ layout (std140, binding = 0) uniform ShaderFrameData
     mat4 viewProjMatrix;
     mat4 viewMatrix;
     mat4 projectionMatrix;
+    mat4 invViewMatrix;
+    mat4 invProjMatrix;
     mat4 lightSpaceMatrices[3];
     DirLight dirLight;
     vec3 viewPos;
@@ -593,6 +645,10 @@ layout (std140, binding = 0) uniform ShaderFrameData
     int debugG;
     int debugD;
     int debugNormals;
+    float constShadowBias;
+    float gamma;
+    float exposure;
+    vec2 screenSize;
 } FrameData;
 
 layout (std140, binding = 1) uniform ShaderMeshData
@@ -636,6 +692,7 @@ R"(#version 450
 #line 100000
 struct DirLight
 {
+    vec3 pos;
     vec3 dir;
     vec3 ambient;
     vec3 diffuse;
@@ -647,6 +704,8 @@ layout (std140, binding = 0) uniform ShaderFrameData
     mat4 viewProjMatrix;
     mat4 viewMatrix;
     mat4 projectionMatrix;
+    mat4 invViewMatrix;
+    mat4 invProjMatrix;
     mat4 lightSpaceMatrices[3];
     DirLight dirLight;
     vec3 viewPos;
@@ -657,6 +716,10 @@ layout (std140, binding = 0) uniform ShaderFrameData
     int debugG;
     int debugD;
     int debugNormals;
+    float constShadowBias;
+    float gamma;
+    float exposure;
+    vec2 screenSize;
 } FrameData;
 
 layout (std140, binding = 1) uniform ShaderMeshData
@@ -822,6 +885,911 @@ void main()
     else if (FrameData.debugG == 1) resultColor = vec4(G, G, G, 1.0f);
     else if (FrameData.debugD == 1) resultColor = vec4(D, D, D, 1.0f);
     else if (FrameData.debugNormals == 1) resultColor = vec4(N, 1.0f);
+}
+)"
+        },
+        {
+            R"(#version 450
+#line 100000
+struct DirLight
+{
+    vec3 pos;
+    vec3 dir;
+    vec3 ambient;
+    vec3 diffuse;
+    vec3 specular;
+};
+
+layout (std140, binding = 0) uniform ShaderFrameData
+{
+    mat4 viewProjMatrix;
+    mat4 viewMatrix;
+    mat4 projectionMatrix;
+    mat4 invViewMatrix;
+    mat4 invProjMatrix;
+    mat4 lightSpaceMatrices[3];
+    DirLight dirLight;
+    vec3 viewPos;
+    vec3 shadowCascadeSplits;
+    int showShadowCascadeBoundaries;
+    float shadowFilterSampleScale;
+    int debugF;
+    int debugG;
+    int debugD;
+    int debugNormals;
+    float constShadowBias;
+    float gamma;
+    float exposure;
+    vec2 screenSize;
+} FrameData;
+
+layout (std140, binding = 1) uniform ShaderMeshData
+{
+    mat4 modelMatrix;
+    mat3 normalMatrix;
+    vec3 lineColor;
+    int customMaterial;
+    vec3 customAlbedo;
+    float customRoughness;
+    float customMetalness;
+} MeshData;
+
+#line 2
+
+layout (location = 0) in vec3 Position;
+layout (location = 1) in vec3 Normal;
+
+layout (location = 0) uniform int CascadeIndex;
+
+void main()
+{
+    mat4 viewProj = FrameData.lightSpaceMatrices[CascadeIndex];
+    vec3 normal = normalize(MeshData.normalMatrix * normalize(Normal));
+    float NdotL = dot(normal, FrameData.dirLight.pos);
+    vec3 p = (MeshData.modelMatrix * vec4(Position, 1.0f)).xyz;
+    gl_Position = viewProj * vec4(p, 1.0f);
+}
+)", 
+R"(#version 450
+#line 100000
+struct DirLight
+{
+    vec3 pos;
+    vec3 dir;
+    vec3 ambient;
+    vec3 diffuse;
+    vec3 specular;
+};
+
+layout (std140, binding = 0) uniform ShaderFrameData
+{
+    mat4 viewProjMatrix;
+    mat4 viewMatrix;
+    mat4 projectionMatrix;
+    mat4 invViewMatrix;
+    mat4 invProjMatrix;
+    mat4 lightSpaceMatrices[3];
+    DirLight dirLight;
+    vec3 viewPos;
+    vec3 shadowCascadeSplits;
+    int showShadowCascadeBoundaries;
+    float shadowFilterSampleScale;
+    int debugF;
+    int debugG;
+    int debugD;
+    int debugNormals;
+    float constShadowBias;
+    float gamma;
+    float exposure;
+    vec2 screenSize;
+} FrameData;
+
+layout (std140, binding = 1) uniform ShaderMeshData
+{
+    mat4 modelMatrix;
+    mat3 normalMatrix;
+    vec3 lineColor;
+    int customMaterial;
+    vec3 customAlbedo;
+    float customRoughness;
+    float customMetalness;
+} MeshData;
+
+#line 2
+
+out vec4 color;
+
+void main()
+{
+    gl_FragDepth = gl_FragCoord.z + FrameData.constShadowBias;
+    color = vec4(gl_FragCoord.z, gl_FragCoord.z, gl_FragCoord.z, 1.0f);
+}
+)"
+        },
+        {
+            R"(#version 450
+#line 100000
+struct DirLight
+{
+    vec3 pos;
+    vec3 dir;
+    vec3 ambient;
+    vec3 diffuse;
+    vec3 specular;
+};
+
+layout (std140, binding = 0) uniform ShaderFrameData
+{
+    mat4 viewProjMatrix;
+    mat4 viewMatrix;
+    mat4 projectionMatrix;
+    mat4 invViewMatrix;
+    mat4 invProjMatrix;
+    mat4 lightSpaceMatrices[3];
+    DirLight dirLight;
+    vec3 viewPos;
+    vec3 shadowCascadeSplits;
+    int showShadowCascadeBoundaries;
+    float shadowFilterSampleScale;
+    int debugF;
+    int debugG;
+    int debugD;
+    int debugNormals;
+    float constShadowBias;
+    float gamma;
+    float exposure;
+    vec2 screenSize;
+} FrameData;
+
+layout (std140, binding = 1) uniform ShaderMeshData
+{
+    mat4 modelMatrix;
+    mat3 normalMatrix;
+    vec3 lineColor;
+    int customMaterial;
+    vec3 customAlbedo;
+    float customRoughness;
+    float customMetalness;
+} MeshData;
+
+#line 2
+
+layout (location = 0) out vec3 UV;
+
+vec2 VERTICES[] = vec2[](vec2(-1.0f, -1.0f),
+                         vec2(1.0f, -1.0f),
+                         vec2(1.0f, 1.0f),
+                         vec2(1.0f, 1.0f),
+                         vec2(-1.0f, 1.0f),
+                         vec2(-1.0f, -1.0f));
+
+void main()
+{
+    vec4 vertexPos = vec4(VERTICES[min(gl_VertexID, 6)], 0.0f, 1.0f);
+    gl_Position = vertexPos;
+    gl_Position = gl_Position.xyww;
+    UV = mat3(FrameData.invViewMatrix) * (FrameData.invProjMatrix * gl_Position).xyz;
+}
+)", 
+R"(#version 450
+layout (location = 0) in vec3 UV;
+
+out vec4 Color;
+
+layout (binding = 0) uniform samplerCube CubeTexture;
+
+void main()
+{
+    Color = texture(CubeTexture, UV);
+}
+)"
+        },
+        {
+            R"(#version 450
+
+vec2 VERTICES[] = vec2[](vec2(-1.0f, -1.0f),
+                         vec2(1.0f, -1.0f),
+                         vec2(1.0f, 1.0f),
+                         vec2(1.0f, 1.0f),
+                         vec2(-1.0f, 1.0f),
+                         vec2(-1.0f, -1.0f));
+
+layout (location = 0) out vec2 UV;
+
+void main()
+{
+    vec4 vertexPos = vec4(VERTICES[min(gl_VertexID, 6)], 0.0f, 1.0f);
+    gl_Position = vertexPos;
+    UV = vertexPos.xy / 2.0f + 0.5f;
+}
+)", 
+R"(#version 450
+#line 100000
+struct DirLight
+{
+    vec3 pos;
+    vec3 dir;
+    vec3 ambient;
+    vec3 diffuse;
+    vec3 specular;
+};
+
+layout (std140, binding = 0) uniform ShaderFrameData
+{
+    mat4 viewProjMatrix;
+    mat4 viewMatrix;
+    mat4 projectionMatrix;
+    mat4 invViewMatrix;
+    mat4 invProjMatrix;
+    mat4 lightSpaceMatrices[3];
+    DirLight dirLight;
+    vec3 viewPos;
+    vec3 shadowCascadeSplits;
+    int showShadowCascadeBoundaries;
+    float shadowFilterSampleScale;
+    int debugF;
+    int debugG;
+    int debugD;
+    int debugNormals;
+    float constShadowBias;
+    float gamma;
+    float exposure;
+    vec2 screenSize;
+} FrameData;
+
+layout (std140, binding = 1) uniform ShaderMeshData
+{
+    mat4 modelMatrix;
+    mat3 normalMatrix;
+    vec3 lineColor;
+    int customMaterial;
+    vec3 customAlbedo;
+    float customRoughness;
+    float customMetalness;
+} MeshData;
+
+#line 2
+
+layout (location = 0) in vec2 UV;
+
+out vec4 fragColorResult;
+
+layout (binding = 0) uniform sampler2D ColorSourceLinear;
+
+float D3DX_FLOAT_to_SRGB(float val)
+{
+    if (val < 0.0031308f)
+    {
+        val *= 12.92f;
+    }
+    else
+    {
+        val = 1.055f * pow(val, 1.0f / FrameData.gamma) - 0.055f;
+    }
+    return val;
+}
+
+vec3 D3DX_RGB_to_SRGB(vec3 rgb)
+{
+    rgb.r = D3DX_FLOAT_to_SRGB(rgb.r);
+    rgb.g = D3DX_FLOAT_to_SRGB(rgb.g);
+    rgb.b = D3DX_FLOAT_to_SRGB(rgb.b);
+    return rgb;
+}
+
+void main()
+{
+    vec3 hdrSample = texture(ColorSourceLinear, UV).xyz;
+    vec3 ldrSample = vec3(1.0f) - exp(-hdrSample * FrameData.exposure);
+    vec3 resultSample = D3DX_RGB_to_SRGB(ldrSample);
+    fragColorResult = vec4(resultSample, 1.0f);
+}
+)"
+        },
+        {
+            R"(#version 450
+
+vec2 VERTICES[] = vec2[](vec2(-1.0f, -1.0f),
+                         vec2(1.0f, -1.0f),
+                         vec2(1.0f, 1.0f),
+                         vec2(1.0f, 1.0f),
+                         vec2(-1.0f, 1.0f),
+                         vec2(-1.0f, -1.0f));
+
+layout (location = 0) out vec2 UV;
+
+void main()
+{
+    vec4 vertexPos = vec4(VERTICES[min(gl_VertexID, 6)], 0.0f, 1.0f);
+    gl_Position = vertexPos;
+    UV = vertexPos.xy / 2.0f + 0.5f;
+}
+)", 
+R"(#version 450
+#line 100000
+struct DirLight
+{
+    vec3 pos;
+    vec3 dir;
+    vec3 ambient;
+    vec3 diffuse;
+    vec3 specular;
+};
+
+layout (std140, binding = 0) uniform ShaderFrameData
+{
+    mat4 viewProjMatrix;
+    mat4 viewMatrix;
+    mat4 projectionMatrix;
+    mat4 invViewMatrix;
+    mat4 invProjMatrix;
+    mat4 lightSpaceMatrices[3];
+    DirLight dirLight;
+    vec3 viewPos;
+    vec3 shadowCascadeSplits;
+    int showShadowCascadeBoundaries;
+    float shadowFilterSampleScale;
+    int debugF;
+    int debugG;
+    int debugD;
+    int debugNormals;
+    float constShadowBias;
+    float gamma;
+    float exposure;
+    vec2 screenSize;
+} FrameData;
+
+layout (std140, binding = 1) uniform ShaderMeshData
+{
+    mat4 modelMatrix;
+    mat3 normalMatrix;
+    vec3 lineColor;
+    int customMaterial;
+    vec3 customAlbedo;
+    float customRoughness;
+    float customMetalness;
+} MeshData;
+
+#line 2
+layout (location = 0) in vec2 UV;
+
+out vec4 fragColorResult;
+
+layout (binding = 0)uniform sampler2D ColorSourcePerceptual;
+
+float Luma(vec3 rgb)
+{
+    float result = dot(rgb, vec3(0.299f, 0.587f, 0.114f));
+    return result;
+}
+
+#define EDGE_MIN_THRESHOLD 0.0625f  //0.0312f
+#define EDGE_MAX_THRESHOLD 0.0625f  //0.125f
+#define ITERATIONS 12
+#define SUBPIXEL_QUALITY 0.75f
+
+float STEPS[6] = float[](1.0f, 1.5f, 2.0f, 2.0f, 2.0f, 8.0f);
+#define QUALITY(i) (STEPS[min(0, max(5, i))])
+
+void main()
+{
+    vec2 invScreenSize = vec2(1.0f) / FrameData.screenSize;
+    // STUDY: Dependent texture reads
+    vec3 sampleCenter = texture(ColorSourcePerceptual, UV).xyz;
+
+    float lumaCenter = Luma(sampleCenter);
+    float lumaDown = Luma(textureOffset(ColorSourcePerceptual, UV, ivec2(0, -1)).xyz);
+    float lumaUp = Luma(textureOffset(ColorSourcePerceptual, UV, ivec2(0, 1)).xyz);
+    float lumaLeft = Luma(textureOffset(ColorSourcePerceptual, UV, ivec2(-1, 0)).xyz);
+    float lumaRight = Luma(textureOffset(ColorSourcePerceptual, UV, ivec2(1, 0)).xyz);
+
+    float lumaMin = min(lumaCenter, min(min(lumaDown, lumaUp), min(lumaLeft, lumaRight)));
+    float lumaMax = max(lumaCenter, max(max(lumaDown, lumaUp), max(lumaLeft, lumaRight)));
+    float lumaRange = lumaMax - lumaMin;
+
+    if (lumaRange >= max(EDGE_MIN_THRESHOLD, lumaMax * EDGE_MAX_THRESHOLD))
+    {
+        float lumaDownLeft = Luma(textureOffset(ColorSourcePerceptual, UV, ivec2(-1, -1)).xyz);
+        float lumaUpRight = Luma(textureOffset(ColorSourcePerceptual, UV, ivec2(1, 1)).xyz);
+        float lumaUpLeft = Luma(textureOffset(ColorSourcePerceptual, UV, ivec2(-1, 1)).xyz);
+        float lumaDownRight = Luma(textureOffset(ColorSourcePerceptual, UV, ivec2(1, -1)).xyz);
+
+        float lumaDownUp = lumaDown + lumaUp;
+        float lumaLeftRight = lumaLeft + lumaRight;
+        float lumaLeftCorners = lumaDownLeft + lumaUpLeft;
+        float lumaDownCorners = lumaDownLeft + lumaDownRight;
+        float lumaRightCorners = lumaDownRight + lumaUpRight;
+        float lumaUpCorners = lumaUpRight + lumaUpLeft;
+
+        float gradH = abs(-2.0f * lumaLeft + lumaLeftCorners) + abs(-2.0f * lumaCenter + lumaDownUp) * 2.0f + abs(-2.0 * lumaRight + lumaRightCorners);
+        float gradV = abs(-2.0f * lumaUp + lumaUpCorners) + abs(-2.0f * lumaCenter + lumaLeftRight) * 2.0f + abs(-2.0f * lumaDown + lumaDownCorners);
+        bool isHorizontal = (gradH >= gradV);
+
+        float luma1 = isHorizontal ? lumaDown : lumaLeft;
+        float luma2 = isHorizontal ? lumaUp : lumaRight;
+        float grad1 = abs(luma1 - lumaCenter);
+        float grad2 = abs(luma2 - lumaCenter);
+        bool is1Steepest = grad1 >= grad2;
+        float gradScaled = 0.25f * max(grad1, grad2);
+
+        // TODO: dFdx() dFdy() ?
+        float stepLength = isHorizontal ? invScreenSize.y : invScreenSize.x;
+        float lumaLocalAvg = 0.0f;
+        if (is1Steepest)
+        {
+            stepLength = -stepLength;
+            lumaLocalAvg = 0.5f * (luma1 + lumaCenter);
+        }
+        else
+        {
+            lumaLocalAvg = 0.5f * (luma2 + lumaCenter);
+        }
+
+        vec2 currUV = UV;
+        isHorizontal ? (currUV.y = currUV.y + stepLength * 0.5f) : (currUV.x = currUV.x + stepLength * 0.5f);
+
+        vec2 offset = isHorizontal ? vec2(invScreenSize.x, 0.0f) : vec2(0.0f, invScreenSize.y);
+        vec2 uv1 = currUV - offset;
+        vec2 uv2 = currUV + offset;
+
+        float lumaEnd1 = Luma(texture(ColorSourcePerceptual, uv1).xyz);
+        float lumaEnd2 = Luma(texture(ColorSourcePerceptual, uv2).xyz);
+        lumaEnd1 -= lumaLocalAvg;
+        lumaEnd2 -= lumaLocalAvg;
+        bool reached1 = abs(lumaEnd1) >= gradScaled;
+        bool reached2 = abs(lumaEnd2) >= gradScaled;
+        bool reachedBoth = reached1 && reached2;
+        if (!reached1) uv1 -= offset;
+        if (!reached2) uv2 += offset;
+
+        if (!reachedBoth)
+        {
+            for (int i = 1; i < ITERATIONS; i++)
+            {
+                if (!reached1)
+                {
+                    lumaEnd1 = Luma(texture(ColorSourcePerceptual, uv1).xyz);
+                    lumaEnd1 -= lumaLocalAvg;
+                }
+                if (!reached2)
+                {
+                    lumaEnd2 = Luma(texture(ColorSourcePerceptual, uv2).xyz);
+                    lumaEnd2 -= lumaLocalAvg;
+                }
+                reached1 = abs(lumaEnd1) >= gradScaled;
+                reached2 = abs(lumaEnd2) >= gradScaled;
+                reachedBoth = reached1 && reached2;
+                if (!reached1) uv1 -= offset * QUALITY(i);
+                if (!reached2) uv2 += offset * QUALITY(i);
+                if (reachedBoth) break;
+            }
+        }
+
+        float dist1 = isHorizontal ? (UV.x - uv1.x) : (UV.y - uv1.y);
+        float dist2 = isHorizontal ? (uv2.x - UV.x) : (uv2.y - UV.y);
+
+        bool isDir1 = (dist1 < dist2);
+        float minDist = min(dist1, dist2);
+        float edgeLen = (dist1 + dist2);
+
+        float pixelOffset = -minDist / edgeLen + 0.5f;
+
+        bool isLumaCenterSmaller = lumaCenter < lumaLocalAvg;
+        bool correctVariation = ((isDir1 ? lumaEnd1 : lumaEnd2) < 0.0f) != isLumaCenterSmaller;
+        pixelOffset = correctVariation ? pixelOffset : 0.0f;
+
+        vec2 resultUV = UV;
+        isHorizontal ? (resultUV.y = resultUV.y + pixelOffset * stepLength) : (resultUV.x = resultUV.x + pixelOffset * stepLength);
+
+        float lumaAvg = (1.0f / 12.0f) * (2.0f * (lumaDownUp + lumaLeftRight) + lumaLeftCorners + lumaRightCorners);
+        float subPixelOffset1 = clamp(abs(lumaAvg - lumaCenter) / lumaRange, 0.0f, 1.0f);
+        float subPixelOffset2 = (-2.0f * subPixelOffset1 + 3.0f) + subPixelOffset1 * subPixelOffset1;
+        float subPixelOffsetResult = subPixelOffset2 * subPixelOffset2 * SUBPIXEL_QUALITY;
+        pixelOffset = max(pixelOffset, subPixelOffsetResult);
+
+        fragColorResult = vec4(texture(ColorSourcePerceptual, resultUV).xyz, 1.0f);
+    }
+    else
+    {
+        fragColorResult = vec4(sampleCenter, 1.0f);
+    }
+    //fragColorResult = vec4(sampleCenter, 1.0f);
+}
+)"
+        },
+        {
+            R"(#version 450
+
+vec2 VERTICES[] = vec2[](vec2(-1.0f, -1.0f),
+                         vec2(1.0f, -1.0f),
+                         vec2(1.0f, 1.0f),
+                         vec2(1.0f, 1.0f),
+                         vec2(-1.0f, 1.0f),
+                         vec2(-1.0f, -1.0f));
+
+layout (location = 0) out vec2 UV;
+
+void main()
+{
+    vec4 vertexPos = vec4(VERTICES[min(gl_VertexID, 6)], 0.0f, 1.0f);
+    gl_Position = vertexPos;
+    UV = vertexPos.xy / 2.0f + 0.5f;
+}
+)", 
+R"(#version 450
+
+layout (location = 0) in vec2 UV;
+
+out vec4 ResultColor;
+
+const uint SAMPLE_COUNT = 1024u;
+const float PI_32 = 3.14159265358979323846f;
+
+// NOTE: http://holger.dammertz.org/stuff/notes_HammersleyOnHemisphere.html
+float RadicalInverse_VdC(uint bits)
+{
+    bits = (bits << 16u) | (bits >> 16u);
+    bits = ((bits & 0x55555555u) << 1u) | ((bits & 0xAAAAAAAAu) >> 1u);
+    bits = ((bits & 0x33333333u) << 2u) | ((bits & 0xCCCCCCCCu) >> 2u);
+    bits = ((bits & 0x0F0F0F0Fu) << 4u) | ((bits & 0xF0F0F0F0u) >> 4u);
+    bits = ((bits & 0x00FF00FFu) << 8u) | ((bits & 0xFF00FF00u) >> 8u);
+    return float(bits) * 2.3283064365386963e-10;
+}
+
+vec2 Hammersley(uint i, uint n)
+{
+    return vec2(float(i) / float(n), RadicalInverse_VdC(i));
+}
+
+vec3 ImportanceSampleGGX(vec2 p, vec3 N, float a)
+{
+    // NOTE: Epic Games GGX
+    float aSq = a * a;
+    float phi = 2.0f * PI_32 * p.x;
+    float cosTheta = sqrt((1.0f - p.y) / (1.0f + (aSq * aSq - 1.0f) * p.y));
+    float sinTheta = sqrt(1.0f - cosTheta * cosTheta);
+
+    // NOTE: To cartesian
+    vec3 d;
+    d.x = cos(phi) * sinTheta;
+    d.y = sin(phi) * sinTheta;
+    d.z = cosTheta;
+
+    // NOTE: From tangent space to world
+    vec3 up = abs(N.z) < 0.999f ? vec3(0.0f, 0.0f, 1.0f) : vec3(1.0f, 0.0f, 0.0f); // ?????
+    vec3 right = normalize(cross(up, N));
+    up = cross(N, right);
+
+    vec3 sampleVec = right * d.x + up * d.y + N * d.z;
+    return normalize(sampleVec);
+}
+
+float GeometrySchlickGGX(float NdotV, float a)
+{
+    float k = (a * a) / 1.0f;
+    float nom = NdotV;
+    float denom = NdotV * (1.0f - k) + k;
+    return nom / denom;
+}
+
+float GeometrySmith(vec3 N, vec3 V, vec3 L, float a)
+{
+    float NdotV = max(dot(N, V), 0.0f);
+    float NdotL = max(dot(N, L), 0.0f);
+    float ggx2 = GeometrySchlickGGX(NdotV, a);
+    float ggx1 = GeometrySchlickGGX(NdotL, a);
+    return ggx1 * ggx2;
+}
+
+vec2 IntegrateBRDF(float NdotV, float roughness)
+{
+    vec3 V;
+    V.x = sqrt(1.0f - NdotV * NdotV);
+    V.y = 0.0f;
+    V.z = NdotV;
+
+    float A = 0.0f;
+    float B = 0.0f;
+
+    vec3 N = vec3(0.0f, 0.0f, 1.0f);
+
+    for (uint i = 0u; i < SAMPLE_COUNT; i++)
+    {
+        vec2 Xi = Hammersley(i, SAMPLE_COUNT);
+        vec3 H = ImportanceSampleGGX(Xi, N, roughness);
+        vec3 L = normalize(2.0f * dot(V, H) * H - V);
+
+        float NdotL = max(L.z, 0.0f);
+        float NdotH = max(H.z, 0.0f);
+        float VdotH = max(dot(V, H), 0.0f);
+
+        if (NdotL > 0.0f)
+        {
+            float G = GeometrySmith(N, V, L, roughness);
+            float G_Vis = (G * VdotH) / (NdotH * NdotV);
+            float Fc = pow(1.0f - VdotH, 5.0f);
+
+            A += (1.0f - Fc) * G_Vis;
+            B += Fc * G_Vis;
+        }
+    }
+    A /= float(SAMPLE_COUNT);
+    B /= float(SAMPLE_COUNT);
+
+    return vec2(A, B);
+}
+
+void main()
+{
+    ResultColor = vec4(IntegrateBRDF(UV.x, UV.y), 0.0f, 1.0f);
+}
+)"
+        },
+        {
+            R"(#version 450
+#line 100000
+struct DirLight
+{
+    vec3 pos;
+    vec3 dir;
+    vec3 ambient;
+    vec3 diffuse;
+    vec3 specular;
+};
+
+layout (std140, binding = 0) uniform ShaderFrameData
+{
+    mat4 viewProjMatrix;
+    mat4 viewMatrix;
+    mat4 projectionMatrix;
+    mat4 invViewMatrix;
+    mat4 invProjMatrix;
+    mat4 lightSpaceMatrices[3];
+    DirLight dirLight;
+    vec3 viewPos;
+    vec3 shadowCascadeSplits;
+    int showShadowCascadeBoundaries;
+    float shadowFilterSampleScale;
+    int debugF;
+    int debugG;
+    int debugD;
+    int debugNormals;
+    float constShadowBias;
+    float gamma;
+    float exposure;
+    vec2 screenSize;
+} FrameData;
+
+layout (std140, binding = 1) uniform ShaderMeshData
+{
+    mat4 modelMatrix;
+    mat3 normalMatrix;
+    vec3 lineColor;
+    int customMaterial;
+    vec3 customAlbedo;
+    float customRoughness;
+    float customMetalness;
+} MeshData;
+
+#line 2
+
+layout (location = 0) out vec3 UV;
+
+vec2 VERTICES[] = vec2[](vec2(-1.0f, -1.0f),
+                         vec2(1.0f, -1.0f),
+                         vec2(1.0f, 1.0f),
+                         vec2(1.0f, 1.0f),
+                         vec2(-1.0f, 1.0f),
+                         vec2(-1.0f, -1.0f));
+
+void main()
+{
+    vec4 vertexPos = vec4(VERTICES[min(gl_VertexID, 6)], 0.0f, 1.0f);
+    gl_Position = vertexPos;
+    gl_Position = gl_Position.xyww;
+    UV = mat3(FrameData.invViewMatrix) * (FrameData.invProjMatrix * gl_Position).xyz;
+}
+)", 
+R"(#version 450
+
+layout (location = 0) in vec3 UV;
+out vec4 resultColor;
+
+layout (binding = 0) uniform samplerCube uSourceCubemap;
+layout (location = 0) uniform float uRoughness;
+layout (location = 1) uniform int uResolution;
+
+const float PI_32 = 3.14159265358979323846f;
+
+// NOTE: http://holger.dammertz.org/stuff/notes_HammersleyOnHemisphere.html
+float RadicalInverse_VdC(uint bits)
+{
+    bits = (bits << 16u) | (bits >> 16u);
+    bits = ((bits & 0x55555555u) << 1u) | ((bits & 0xAAAAAAAAu) >> 1u);
+    bits = ((bits & 0x33333333u) << 2u) | ((bits & 0xCCCCCCCCu) >> 2u);
+    bits = ((bits & 0x0F0F0F0Fu) << 4u) | ((bits & 0xF0F0F0F0u) >> 4u);
+    bits = ((bits & 0x00FF00FFu) << 8u) | ((bits & 0xFF00FF00u) >> 8u);
+    return float(bits) * 2.3283064365386963e-10;
+}
+
+vec2 Hammersley(uint i, uint n)
+{
+    return vec2(float(i) / float(n), RadicalInverse_VdC(i));
+}
+
+vec3 ImportanceSampleGGX(vec2 p, vec3 N, float a)
+{
+    // NOTE: Epic Games GGX
+    float aSq = a * a;
+    float phi = 2.0f * PI_32 * p.x;
+    float cosTheta = sqrt((1.0f - p.y) / (1.0f + (aSq * aSq - 1.0f) * p.y));
+    float sinTheta = sqrt(1.0f - cosTheta * cosTheta);
+
+    // NOTE: To cartesian
+    vec3 d;
+    d.x = cos(phi) * sinTheta;
+    d.y = sin(phi) * sinTheta;
+    d.z = cosTheta;
+
+    // NOTE: From tangent space to world
+    vec3 up = abs(N.z) < 0.999f ? vec3(0.0f, 0.0f, 1.0f) : vec3(1.0f, 0.0f, 0.0f); // ?????
+    vec3 right = normalize(cross(up, N));
+    up = cross(N, right);
+
+    vec3 sampleVec = right * d.x + up * d.y + N * d.z;
+    return normalize(sampleVec);
+}
+
+float DistributionGGX(vec3 N, vec3 H, float a)
+{
+    float a4 = a * a * a * a;
+    float NdotH = max(dot(N, H), 0.0f);
+    float NdotHSq = NdotH * NdotH;
+
+    float num = a4;
+    float denom = (NdotHSq * (a4 - 1.0f) + 1.0f);
+    denom = PI_32 * denom * denom;
+
+    return num / max(denom, 0.001f);
+}
+
+const uint SAMPLES = 4096u;
+
+void main()
+{
+    vec3 N = normalize(UV);
+    vec3 R = N;
+    vec3 V = R;
+
+    float totalWeight = 0.0f;
+    vec3 prefColor = vec3(0.0f);
+
+    for (uint i = 0u; i < SAMPLES; i++)
+    {
+        vec2 p = Hammersley(i, SAMPLES);
+        vec3 H = ImportanceSampleGGX(p, N, uRoughness);
+        vec3 L = normalize(2.0f * dot(V, H) * H - V);
+
+        float NdotL = max(dot(N, L), 0.0f);
+        if (NdotL > 0.0f)
+        {
+            float D = DistributionGGX(N, H, uRoughness);
+            float NdotH = max(dot(N, H), 0.0f);
+            float HdotV = max(dot(H, V), 0.0f);
+            float PDF = D * NdotH / (4.0f * HdotV) + 0.0001;
+            float saTexel = 4.0f * PI_32 / (6.0f * uResolution * uResolution);
+            float saSample = 1.0f / (float(SAMPLES) * PDF + 0.0001f);
+            float mipLevel = uRoughness == 0.0f ? 0.0f : 0.5f * log2(saSample / saTexel);
+            prefColor += textureLod(uSourceCubemap, L, mipLevel).rgb * NdotL;
+            totalWeight += NdotL;
+        }
+    }
+
+    prefColor = prefColor / totalWeight;
+
+    resultColor = vec4(prefColor, 1.0f);
+}
+)"
+        },
+        {
+            R"(#version 450
+#line 100000
+struct DirLight
+{
+    vec3 pos;
+    vec3 dir;
+    vec3 ambient;
+    vec3 diffuse;
+    vec3 specular;
+};
+
+layout (std140, binding = 0) uniform ShaderFrameData
+{
+    mat4 viewProjMatrix;
+    mat4 viewMatrix;
+    mat4 projectionMatrix;
+    mat4 invViewMatrix;
+    mat4 invProjMatrix;
+    mat4 lightSpaceMatrices[3];
+    DirLight dirLight;
+    vec3 viewPos;
+    vec3 shadowCascadeSplits;
+    int showShadowCascadeBoundaries;
+    float shadowFilterSampleScale;
+    int debugF;
+    int debugG;
+    int debugD;
+    int debugNormals;
+    float constShadowBias;
+    float gamma;
+    float exposure;
+    vec2 screenSize;
+} FrameData;
+
+layout (std140, binding = 1) uniform ShaderMeshData
+{
+    mat4 modelMatrix;
+    mat3 normalMatrix;
+    vec3 lineColor;
+    int customMaterial;
+    vec3 customAlbedo;
+    float customRoughness;
+    float customMetalness;
+} MeshData;
+
+#line 2
+
+layout (location = 0) out vec3 UV;
+
+vec2 VERTICES[] = vec2[](vec2(-1.0f, -1.0f),
+                         vec2(1.0f, -1.0f),
+                         vec2(1.0f, 1.0f),
+                         vec2(1.0f, 1.0f),
+                         vec2(-1.0f, 1.0f),
+                         vec2(-1.0f, -1.0f));
+
+void main()
+{
+    vec4 vertexPos = vec4(VERTICES[min(gl_VertexID, 6)], 0.0f, 1.0f);
+    gl_Position = vertexPos;
+    gl_Position = gl_Position.xyww;
+    UV = mat3(FrameData.invViewMatrix) * (FrameData.invProjMatrix * gl_Position).xyz;
+}
+)", 
+R"(#version 450
+
+layout (location = 0) in vec3 UV;
+out vec4 resultColor;
+
+layout (binding = 0) uniform samplerCube uSourceCubemap;
+
+const float PI_32 = 3.14159265358979323846f;
+
+void main()
+{
+    vec3 normal = normalize(UV);
+    vec3 irradance = vec3(0.0f);
+
+    vec3 up = vec3(0.0f, 1.0f, 0.0f);
+    vec3 right = cross(up, normal);
+    up = cross(normal, right);
+
+    float sampleDelta = 0.025f;
+    int sampleCount = 0;
+    for (float phi = 0.0f; phi < (2.0f * PI_32); phi += sampleDelta)
+    {
+        for (float theta = 0.0f; theta < (0.5f * PI_32); theta += sampleDelta)
+        {
+            vec3 tgSample = vec3(sin(theta) * cos(phi), sin(theta) * sin(phi), cos(theta));
+            vec3 sampleDir = tgSample.x * right + tgSample.y * up + tgSample.z * normal;
+            irradance += texture(uSourceCubemap, sampleDir).xyz * cos(theta) * sin(theta);
+            sampleCount++;
+        }
+    }
+
+    irradance = PI_32 * irradance * (1.0f / float(sampleCount));
+
+    resultColor = vec4(irradance, 1.0f);
 }
 )"
         },

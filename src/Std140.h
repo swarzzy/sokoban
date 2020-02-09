@@ -4,6 +4,7 @@
 
 #define layout_std140 alignas(16)
 
+#define std140_vec2 alignas(8) v2
 #define std140_vec3 alignas(16) v3
 #define std140_int alignas(4) i32
 #define std140_float alignas(4) f32

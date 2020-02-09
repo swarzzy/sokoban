@@ -1,9 +1,10 @@
-#version 330 core
-in vec2 v_UV;
+#version 450
+#include Common.glh
+layout (location = 0) in vec2 UV;
+
 out vec4 fragColorResult;
 
-uniform sampler2D u_ColorSourcePerceptual;
-uniform vec2 u_InvScreenSize;
+layout (binding = 0)uniform sampler2D ColorSourcePerceptual;
 
 float Luma(vec3 rgb)
 {
@@ -21,14 +22,15 @@ float STEPS[6] = float[](1.0f, 1.5f, 2.0f, 2.0f, 2.0f, 8.0f);
 
 void main()
 {
+    vec2 invScreenSize = vec2(1.0f) / FrameData.screenSize;
     // STUDY: Dependent texture reads
-    vec3 sampleCenter = texture(u_ColorSourcePerceptual, v_UV).xyz;
+    vec3 sampleCenter = texture(ColorSourcePerceptual, UV).xyz;
 
     float lumaCenter = Luma(sampleCenter);
-    float lumaDown = Luma(textureOffset(u_ColorSourcePerceptual, v_UV, ivec2(0, -1)).xyz);
-    float lumaUp = Luma(textureOffset(u_ColorSourcePerceptual, v_UV, ivec2(0, 1)).xyz);
-    float lumaLeft = Luma(textureOffset(u_ColorSourcePerceptual, v_UV, ivec2(-1, 0)).xyz);
-    float lumaRight = Luma(textureOffset(u_ColorSourcePerceptual, v_UV, ivec2(1, 0)).xyz);
+    float lumaDown = Luma(textureOffset(ColorSourcePerceptual, UV, ivec2(0, -1)).xyz);
+    float lumaUp = Luma(textureOffset(ColorSourcePerceptual, UV, ivec2(0, 1)).xyz);
+    float lumaLeft = Luma(textureOffset(ColorSourcePerceptual, UV, ivec2(-1, 0)).xyz);
+    float lumaRight = Luma(textureOffset(ColorSourcePerceptual, UV, ivec2(1, 0)).xyz);
 
     float lumaMin = min(lumaCenter, min(min(lumaDown, lumaUp), min(lumaLeft, lumaRight)));
     float lumaMax = max(lumaCenter, max(max(lumaDown, lumaUp), max(lumaLeft, lumaRight)));
@@ -36,10 +38,10 @@ void main()
 
     if (lumaRange >= max(EDGE_MIN_THRESHOLD, lumaMax * EDGE_MAX_THRESHOLD))
     {
-        float lumaDownLeft = Luma(textureOffset(u_ColorSourcePerceptual, v_UV, ivec2(-1, -1)).xyz);
-        float lumaUpRight = Luma(textureOffset(u_ColorSourcePerceptual, v_UV, ivec2(1, 1)).xyz);
-        float lumaUpLeft = Luma(textureOffset(u_ColorSourcePerceptual, v_UV, ivec2(-1, 1)).xyz);
-        float lumaDownRight = Luma(textureOffset(u_ColorSourcePerceptual, v_UV, ivec2(1, -1)).xyz);
+        float lumaDownLeft = Luma(textureOffset(ColorSourcePerceptual, UV, ivec2(-1, -1)).xyz);
+        float lumaUpRight = Luma(textureOffset(ColorSourcePerceptual, UV, ivec2(1, 1)).xyz);
+        float lumaUpLeft = Luma(textureOffset(ColorSourcePerceptual, UV, ivec2(-1, 1)).xyz);
+        float lumaDownRight = Luma(textureOffset(ColorSourcePerceptual, UV, ivec2(1, -1)).xyz);
 
         float lumaDownUp = lumaDown + lumaUp;
         float lumaLeftRight = lumaLeft + lumaRight;
@@ -60,7 +62,7 @@ void main()
         float gradScaled = 0.25f * max(grad1, grad2);
 
         // TODO: dFdx() dFdy() ?
-        float stepLength = isHorizontal ? u_InvScreenSize.y : u_InvScreenSize.x;
+        float stepLength = isHorizontal ? invScreenSize.y : invScreenSize.x;
         float lumaLocalAvg = 0.0f;
         if (is1Steepest)
         {
@@ -72,15 +74,15 @@ void main()
             lumaLocalAvg = 0.5f * (luma2 + lumaCenter);
         }
 
-        vec2 currUV = v_UV;
+        vec2 currUV = UV;
         isHorizontal ? (currUV.y = currUV.y + stepLength * 0.5f) : (currUV.x = currUV.x + stepLength * 0.5f);
 
-        vec2 offset = isHorizontal ? vec2(u_InvScreenSize.x, 0.0f) : vec2(0.0f, u_InvScreenSize.y);
+        vec2 offset = isHorizontal ? vec2(invScreenSize.x, 0.0f) : vec2(0.0f, invScreenSize.y);
         vec2 uv1 = currUV - offset;
         vec2 uv2 = currUV + offset;
 
-        float lumaEnd1 = Luma(texture(u_ColorSourcePerceptual, uv1).xyz);
-        float lumaEnd2 = Luma(texture(u_ColorSourcePerceptual, uv2).xyz);
+        float lumaEnd1 = Luma(texture(ColorSourcePerceptual, uv1).xyz);
+        float lumaEnd2 = Luma(texture(ColorSourcePerceptual, uv2).xyz);
         lumaEnd1 -= lumaLocalAvg;
         lumaEnd2 -= lumaLocalAvg;
         bool reached1 = abs(lumaEnd1) >= gradScaled;
@@ -95,12 +97,12 @@ void main()
             {
                 if (!reached1)
                 {
-                    lumaEnd1 = Luma(texture(u_ColorSourcePerceptual, uv1).xyz);
+                    lumaEnd1 = Luma(texture(ColorSourcePerceptual, uv1).xyz);
                     lumaEnd1 -= lumaLocalAvg;
                 }
                 if (!reached2)
                 {
-                    lumaEnd2 = Luma(texture(u_ColorSourcePerceptual, uv2).xyz);
+                    lumaEnd2 = Luma(texture(ColorSourcePerceptual, uv2).xyz);
                     lumaEnd2 -= lumaLocalAvg;
                 }
                 reached1 = abs(lumaEnd1) >= gradScaled;
@@ -112,8 +114,8 @@ void main()
             }
         }
 
-        float dist1 = isHorizontal ? (v_UV.x - uv1.x) : (v_UV.y - uv1.y);
-        float dist2 = isHorizontal ? (uv2.x - v_UV.x) : (uv2.y - v_UV.y);
+        float dist1 = isHorizontal ? (UV.x - uv1.x) : (UV.y - uv1.y);
+        float dist2 = isHorizontal ? (uv2.x - UV.x) : (uv2.y - UV.y);
 
         bool isDir1 = (dist1 < dist2);
         float minDist = min(dist1, dist2);
@@ -125,7 +127,7 @@ void main()
         bool correctVariation = ((isDir1 ? lumaEnd1 : lumaEnd2) < 0.0f) != isLumaCenterSmaller;
         pixelOffset = correctVariation ? pixelOffset : 0.0f;
 
-        vec2 resultUV = v_UV;
+        vec2 resultUV = UV;
         isHorizontal ? (resultUV.y = resultUV.y + pixelOffset * stepLength) : (resultUV.x = resultUV.x + pixelOffset * stepLength);
 
         float lumaAvg = (1.0f / 12.0f) * (2.0f * (lumaDownUp + lumaLeftRight) + lumaLeftCorners + lumaRightCorners);
@@ -134,7 +136,7 @@ void main()
         float subPixelOffsetResult = subPixelOffset2 * subPixelOffset2 * SUBPIXEL_QUALITY;
         pixelOffset = max(pixelOffset, subPixelOffsetResult);
 
-        fragColorResult = vec4(texture(u_ColorSourcePerceptual, resultUV).xyz, 1.0f);
+        fragColorResult = vec4(texture(ColorSourcePerceptual, resultUV).xyz, 1.0f);
     }
     else
     {

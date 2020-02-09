@@ -1,7 +1,5 @@
 #include "Renderer.h"
 
-#include "ShaderManager.cpp"
-
 #include "Std140.h"
 #include "Shaders.h"
 
@@ -27,11 +25,9 @@ namespace soko
     {
         union
         {
-            Shaders _shaders;
+            Shaders shaders;
             GLuint shaderHandles[ShaderCount];
         };
-
-        ShaderInfo shaders;
 
         GLuint tileTexArrayHandle;
 
@@ -40,8 +36,8 @@ namespace soko
         v4 clearColor;
 
         uv2 renderRes;
-        f32 gamma;
-        f32 exposure;
+        f32 gamma = 2.4f;
+        f32 exposure = 1.0f;
 
         GLuint offscreenBufferHandle;
         GLuint offscreenColorTarget;
@@ -83,8 +79,8 @@ namespace soko
 
         u32 uniformBufferAligment;
 
-        UniformBuffer<ShaderFrameData, 0> frameUniformBuffer;
-        UniformBuffer<ShaderMeshData, 1> meshUniformBuffer;
+        UniformBuffer<ShaderFrameData, ShaderFrameData::Binding> frameUniformBuffer;
+        UniformBuffer<ShaderMeshData, ShaderMeshData::Binding> meshUniformBuffer;
     };
 #if 0
     GLuint _CreateTexture2D(GLenum target, GLenum wrapS, GLenum wrapT, GLenum minFilter, GLenum magFilter)
@@ -668,8 +664,7 @@ namespace soko
         SOKO_ASSERT(t->filter == TextureFilter_Bilinear);
         SOKO_ASSERT(t->format = GL_RGB16F);
 
-        auto prog = &renderer->shaders.BRDFIntegrator;
-        glUseProgram(prog->handle);
+        glUseProgram(renderer->shaders.BRDFIntegrator);
 
         glViewport(0, 0, t->width, t->height);
 
@@ -726,8 +721,6 @@ namespace soko
         renderer = PUSH_STRUCT(arena, Renderer);
         SOKO_ASSERT(renderer);
         *renderer = {};
-
-        renderer->shaders = LoadShaders();
 
         RecompileShaders(renderer);
 
@@ -1035,92 +1028,6 @@ namespace soko
     }
 
     internal void
-    RendererBeginFrame(Renderer* renderer, v2 viewportDim)
-    {
-        glBindFramebuffer(GL_DRAW_FRAMEBUFFER, renderer->offscreenBufferHandle);
-        glViewport(0, 0, (GLsizei)viewportDim.x, (GLsizei)viewportDim.y);
-        glClearColor(renderer->clearColor.r,
-                     renderer->clearColor.g,
-                     renderer->clearColor.b,
-                     renderer->clearColor.a);
-
-        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-        glEnable(GL_DEPTH_TEST);
-    }
-
-    internal void
-    RendererEndFrame(Renderer* renderer)
-    {
-        // NOTE: Gamma-correction pass
-        glBindFramebuffer(GL_DRAW_FRAMEBUFFER, renderer->srgbBufferHandle);
-        glClearColor(renderer->clearColor.r,
-                     renderer->clearColor.g,
-                     renderer->clearColor.b,
-                     renderer->clearColor.a);
-
-        glClear(GL_COLOR_BUFFER_BIT);
-        auto prog = &renderer->shaders.PostFX;
-        glUseProgram(prog->handle);
-        glUniform1f(prog->fragment.uniforms.u_Gamma, renderer->gamma);
-        glUniform1f(prog->fragment.uniforms.u_Exposure, renderer->exposure);
-
-        glActiveTexture(prog->fragment.samplers.u_ColorSourceLinear.slot);
-        glBindTexture(GL_TEXTURE_2D, renderer->offscreenColorTarget);
-        //glBindTexture(GL_TEXTURE_2D, renderer->shadowMapDepthTarget);
-
-        glDrawArrays(GL_TRIANGLES, 0, 6);
-
-        // NOTE: FXAA pass
-        local_persist bool enableFXAA = true;
-        DEBUG_OVERLAY_TOGGLE(enableFXAA);
-        if (enableFXAA)
-        {
-            glBindFramebuffer(GL_READ_FRAMEBUFFER, renderer->srgbBufferHandle);
-            glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
-            glClearColor(renderer->clearColor.r,
-                         renderer->clearColor.g,
-                         renderer->clearColor.b,
-                         renderer->clearColor.a);
-
-            glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-
-            auto fxaaProg = &renderer->shaders.FXAA;
-            glUseProgram(fxaaProg->handle);
-            v2 invScreenSize = V2(1.0f / renderer->renderRes.x, 1.0f / renderer->renderRes.y);
-            glUniform2fv(fxaaProg->fragment.uniforms.u_InvScreenSize, 1, invScreenSize.data);
-
-            glActiveTexture(fxaaProg->fragment.samplers.u_ColorSourcePerceptual.slot);
-            glBindTexture(GL_TEXTURE_2D, renderer->srgbColorTarget);
-
-            glDrawArrays(GL_TRIANGLES, 0, 6);
-        }
-        else
-        {
-            glBindFramebuffer(GL_READ_FRAMEBUFFER, renderer->srgbBufferHandle);
-            glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
-
-            glBlitFramebuffer(0, 0, renderer->renderRes.x, renderer->renderRes.y,
-                              0, 0, renderer->renderRes.x, renderer->renderRes.y,
-                              GL_COLOR_BUFFER_BIT, GL_LINEAR);
-
-        }
-
-        local_persist i32 showShadowMap = false;
-        DEBUG_OVERLAY_SLIDER(showShadowMap, 0, 1);
-
-        if (showShadowMap)
-        {
-            local_persist i32 shadowCascadeLevel = 0;
-            DEBUG_OVERLAY_SLIDER(shadowCascadeLevel, 0, Renderer::NumShadowCascades - 1);
-            glBindFramebuffer(GL_READ_FRAMEBUFFER, renderer->shadowMapFramebuffers[shadowCascadeLevel]);
-            glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
-
-            glBlitFramebuffer(0, 0, renderer->shadowMapRes, renderer->shadowMapRes,
-                              0, 0, 512, 512, GL_COLOR_BUFFER_BIT, GL_LINEAR);
-        }
-    }
-
-    internal void
     GenIrradanceMap(const Renderer* renderer, CubeTexture* t, GLuint sourceHandle)
     {
         SOKO_ASSERT(t->gpuHandle);
@@ -1142,19 +1049,25 @@ namespace soko
             M3x3(&InverseOrIdentity(LookAtRH(V3(0.0f), V3(0.0f, 0.0f, -1.0f), V3(0.0f, -1.0f, 0.0f)))),
         };
 
-        auto prog = &renderer->shaders.IrradanceConvolver;
-        glUseProgram(prog->handle);
-        glUniformMatrix4fv(prog->vertex.uniforms.InvProjMatrix, 1, GL_FALSE, projInv.data);
+        auto prog = renderer->shaders.IrradanceConvolver;
+        glUseProgram(prog);
+
+        auto buffer = Map(renderer->frameUniformBuffer);
+        buffer->invProjMatrix = projInv;
+        Unmap(renderer->frameUniformBuffer);
+
         glDisable(GL_DEPTH_TEST);
         glBindFramebuffer(GL_DRAW_FRAMEBUFFER, renderer->captureFramebuffer);
 
-        glActiveTexture(prog->fragment.samplers.uSourceCubemap.slot);
-        glBindTexture(GL_TEXTURE_CUBE_MAP, sourceHandle);
+        glBindTextureUnit(IrradanceConvolver::SourceCubemap, sourceHandle);
 
         for (u32 i = 0; i < 6; i++)
         {
             glViewport(0, 0, t->images[i].width, t->images[i].height);
-            glUniformMatrix3fv(prog->vertex.uniforms.InvViewMatrix, 1, GL_FALSE, capViews[i].data);
+            auto buffer = Map(renderer->frameUniformBuffer);
+            buffer->invViewMatrix = M4x4(capViews + i);
+            Unmap(renderer->frameUniformBuffer);
+
             glFramebufferTexture2D(GL_DRAW_FRAMEBUFFER, GL_COLOR_ATTACHMENT0,
                                    GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, t->gpuHandle, 0);
             glClear(GL_COLOR_BUFFER_BIT);
@@ -1189,17 +1102,19 @@ namespace soko
                 M3x3(&InverseOrIdentity(LookAtRH(V3(0.0f), V3(0.0f, 0.0f, -1.0f), V3(0.0f, -1.0f, 0.0f)))),
             };
 
-        auto prog = &renderer->shaders.EnvMapPrefilter;
-        glUseProgram(prog->handle);
-        glUniformMatrix4fv(prog->vertex.uniforms.InvProjMatrix, 1, GL_FALSE, capProj.data);
+        auto prog = renderer->shaders.EnvMapPrefilter;
+        glUseProgram(prog);
         glDisable(GL_DEPTH_TEST);
         glBindFramebuffer(GL_DRAW_FRAMEBUFFER, renderer->captureFramebuffer);
 
         SOKO_ASSERT(t->images[0].width == t->images[0].height);
-        glUniform1i(prog->fragment.uniforms.uResolution, t->images[0].width);
+        glUniform1i(EnvMapPrefilterShader::Resolution, t->images[0].width);
 
-        glActiveTexture(prog->fragment.samplers.uSourceCubemap.slot);
-        glBindTexture(GL_TEXTURE_CUBE_MAP, sourceHandle);
+        auto buffer = Map(renderer->frameUniformBuffer);
+        buffer->invProjMatrix = capProj;
+        Unmap(renderer->frameUniformBuffer);
+
+        glBindTextureUnit(EnvMapPrefilterShader::SourceCubemap, sourceHandle);
 
         // TODO: There are still visible seams on low mip levels
 
@@ -1212,17 +1127,19 @@ namespace soko
 
             glViewport(0, 0, w, h);
             f32 roughness = (f32)mipLevel / (f32)(mipLevels - 1);
-            glUniform1f(prog->fragment.uniforms.uRoughness, roughness);
+            glUniform1f(EnvMapPrefilterShader::Roughness, roughness);
 
             for (u32 i = 0; i < 6; i++)
             {
-                glUniformMatrix3fv(prog->vertex.uniforms.InvViewMatrix, 1, GL_FALSE, capViews[i].data);
+                // TODO: Use another buffer for this
+                auto buffer = Map(renderer->frameUniformBuffer);
+                buffer->invViewMatrix = M4x4(capViews + i);
+                Unmap(renderer->frameUniformBuffer);
                 glFramebufferTexture2D(GL_DRAW_FRAMEBUFFER, GL_COLOR_ATTACHMENT0,
                                        GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, t->gpuHandle, mipLevel);
                 glClear(GL_COLOR_BUFFER_BIT);
                 glDrawArrays(GL_TRIANGLES, 0, 6);
             }
-
         }
         glFlush();
         glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
@@ -1234,18 +1151,10 @@ namespace soko
         glDepthMask(GL_FALSE);
         defer { glDepthMask(GL_TRUE); };
 
-        auto prog = &renderer->shaders.Skybox;
-        glUseProgram(prog->handle);
+        auto prog = renderer->shaders.Skybox;
+        glUseProgram(prog);
 
-        m3x3 invView3 = M3x3(invView);
-        glUniformMatrix3fv(prog->vertex.uniforms.InvViewMatrix, 1, GL_FALSE, invView3.data);
-        glUniformMatrix4fv(prog->vertex.uniforms.InvProjMatrix, 1, GL_FALSE, invProj->data);
-        local_persist f32 lod = 1.0f;
-        DEBUG_OVERLAY_SLIDER(lod, 0.0f, 5.0f);
-
-        glUniform1f(prog->fragment.uniforms.uLod, lod);
-        glActiveTexture(prog->fragment.samplers.u_CubeTexture.slot);
-        glBindTexture(GL_TEXTURE_CUBE_MAP, group->skyboxHandle);
+        glBindTextureUnit(SkyboxShader::CubeTexture, group->skyboxHandle);
 
         glDrawArrays(GL_TRIANGLES, 0, 6);
     }
@@ -1396,7 +1305,7 @@ namespace soko
     {
         if (group->commandQueueAt)
         {
-            auto shader = &renderer->shaders.Shadow;
+            auto shader = renderer->shaders.Shadow;
             for (u32 i = 0; i < group->commandQueueAt; i++)
             {
                 CommandQueueEntry* command = group->commandQueue + i;
@@ -1410,16 +1319,18 @@ namespace soko
                 {
                     auto* data = (RenderCommandDrawMesh*)(group->renderBuffer + command->rbOffset);
 
-                    glUniformMatrix4fv(shader->vertex.uniforms.ModelMatrix, 1, GL_FALSE, data->transform.data);
-
                     auto normalMatrix = MakeNormalMatrix(data->transform);
-                    glUniformMatrix3fv(shader->vertex.uniforms.NormalMatrix, 1, GL_FALSE, normalMatrix.data);
+
+                    auto meshBuffer = Map(renderer->meshUniformBuffer);
+                    meshBuffer->modelMatrix = data->transform;
+                    meshBuffer->normalMatrix = normalMatrix;
+                    Unmap(renderer->meshUniformBuffer);
 
                     auto* mesh = data->mesh;
 
                     glBindBuffer(GL_ARRAY_BUFFER, mesh->gpuVertexBufferHandle);
 
-                    auto posAttrLoc = shader->vertex.vertexAttribs.Position;
+                    auto posAttrLoc = ShadowPassShader::PositionAttribLocation;
                     glEnableVertexAttribArray(posAttrLoc);
                     glVertexAttribPointer(posAttrLoc, 3, GL_FLOAT, GL_FALSE, 0, 0);
 
@@ -1434,16 +1345,18 @@ namespace soko
                         auto* data = ((RenderCommandPushChunkMesh*)(group->renderBuffer + command->rbOffset)) + i;
 
                         m4x4 world = Translation(data->offset);
-                        glUniformMatrix4fv(shader->vertex.uniforms.ModelMatrix, 1, GL_FALSE, world.data);
-
                         auto normalMatrix = MakeNormalMatrix(world);
-                        glUniformMatrix3fv(shader->vertex.uniforms.NormalMatrix, 1, GL_FALSE, normalMatrix.data);
+
+                        auto meshBuffer = Map(renderer->meshUniformBuffer);
+                        meshBuffer->modelMatrix = world;
+                        meshBuffer->normalMatrix = normalMatrix;
+                        Unmap(renderer->meshUniformBuffer);
 
                         glBindBuffer(GL_ARRAY_BUFFER, data->meshIndex);
 
                         GLsizei stride = sizeof(ChunkMeshVertex);
-                        auto posAttrLoc = shader->vertex.vertexAttribs.Position;
-                        auto normalAttrLoc = shader->vertex.vertexAttribs.Normal;
+                        auto posAttrLoc = ShadowPassShader::PositionAttribLocation;
+                        auto normalAttrLoc = ShadowPassShader::NormalAttribLocation;
                         glEnableVertexAttribArray(posAttrLoc);
                         glEnableVertexAttribArray(normalAttrLoc);
                         glVertexAttribPointer(posAttrLoc, 3, GL_FLOAT, GL_FALSE, stride, (void*)0);
@@ -1462,19 +1375,8 @@ namespace soko
 
     void ShadowPass(Renderer* renderer, RenderGroup* group)
     {
-        DEBUG_OVERLAY_SLIDER(renderer->shadowSlopeBiasScale, 0.0f, 2.5f);
-        DEBUG_OVERLAY_SLIDER(renderer->shadowConstantBias, 0.0f, 0.5f);
-
-
-        i32 EnableStableShadows = renderer->stableShadows;
-        DEBUG_OVERLAY_SLIDER(EnableStableShadows, 0, 1);
-        renderer->stableShadows = EnableStableShadows;
-
         auto light = &group->dirLight;
         auto camera = group->camera;
-
-        //DEBUG_OVERLAY_TRACE(camera->position);
-        //DEBUG_OVERLAY_TRACE(camera->front);
 
 
         glEnable(GL_POLYGON_OFFSET_FILL);
@@ -1483,36 +1385,22 @@ namespace soko
         glEnable(GL_DEPTH_TEST);
         glViewport(0, 0, (GLsizei)renderer->shadowMapRes, (GLsizei)renderer->shadowMapRes);
 
-        auto shader = &renderer->shaders.Shadow;
-        glUseProgram(shader->handle);
-        glUniform1f(shader->vertex.uniforms.ShadowNormalBiasScale, renderer->shadowNormalBiasScale);
-        glUniform1f(shader->fragment.uniforms.ConstantShadowBias, renderer->shadowConstantBias);
-        glUniform3fv(shader->vertex.uniforms.LightPos, 1, light->from.data);
+        auto shader = renderer->shaders.Shadow;
+        glUseProgram(shader);
 
-        // TODO: Fix the mess with lookAt matrices4
-        m4x4 lightLookAt = LookAtDirRH(light->from, light->dir, V3(0.0f, 1.0f, 0.0f));
-
-        f32 frustrumDepth = camera->farPlane - camera->nearPlane;
-        f32 cascadeDepth = frustrumDepth / Renderer::NumShadowCascades;
         for (u32x cascadeIndex = 0; cascadeIndex < Renderer::NumShadowCascades; cascadeIndex++)
         {
-            f32 cascadeNear = cascadeDepth * cascadeIndex;
-            f32 cascadeFar = cascadeDepth * (cascadeIndex + 1);
-            renderer->shadowCascadeBounds[cascadeIndex] = camera->nearPlane + cascadeFar;
-            auto proj = CalcShadowProjection(camera, cascadeNear, cascadeFar, lightLookAt, renderer->shadowMapRes, renderer->stableShadows);
-            auto viewProj = MulM4M4(&proj, &lightLookAt);
-            renderer->shadowCascadeViewProjMatrices[cascadeIndex] = viewProj;
+            auto viewProj = renderer->shadowCascadeViewProjMatrices[cascadeIndex];
 
             glBindFramebuffer(GL_DRAW_FRAMEBUFFER, renderer->shadowMapFramebuffers[cascadeIndex]);
             glClear(GL_DEPTH_BUFFER_BIT | GL_COLOR_BUFFER_BIT);
-            glUniformMatrix4fv(shader->vertex.uniforms.ViewProjMatrix, 1, GL_FALSE, viewProj.data);
-
+            glUniform1i(ShadowPassShader::CascadeIndexLocation, cascadeIndex);
             RenderShadowMap(renderer, group);
         }
     }
 
     internal void
-    FlushRenderGroup(Renderer* renderer, RenderGroup* group)
+    MainPass(Renderer* renderer, RenderGroup* group)
     {
 
         bool showShadowCascadesBoundaries = renderer->showShadowCascadesBoundaries;
@@ -1524,42 +1412,11 @@ namespace soko
 
         if (group->commandQueueAt)
         {
-
-            m4x4 viewProj = MulM4M4(&camera->projectionMatrix, &camera->viewMatrix);
-
-            auto lightViewProj0 = renderer->shadowCascadeViewProjMatrices;
-            auto lightViewProj1 = renderer->shadowCascadeViewProjMatrices + 1;
-            auto lightViewProj2 = renderer->shadowCascadeViewProjMatrices + 2;
-
-            auto frameBuffer = Map(renderer->frameUniformBuffer);
-            frameBuffer->viewProjMatrix = viewProj;
-            frameBuffer->viewMatrix = camera->viewMatrix;
-            frameBuffer->projectionMatrix = camera->projectionMatrix;
-            frameBuffer->lightSpaceMatrices[0] = *lightViewProj0;
-            frameBuffer->lightSpaceMatrices[1] = *lightViewProj1;
-            frameBuffer->lightSpaceMatrices[2] = *lightViewProj2;
-            frameBuffer->dirLight.dir = dirLight.dir;
-            DEBUG_OVERLAY_TRACE(dirLight.dir);
-            frameBuffer->dirLight.ambient = dirLight.ambient;
-            frameBuffer->dirLight.diffuse = dirLight.diffuse;
-            frameBuffer->dirLight.specular = dirLight.specular;
-            frameBuffer->viewPos = camera->position;
-            DEBUG_OVERLAY_TRACE(camera->position);
-            frameBuffer->shadowCascadeSplits = *((v3*)&renderer->shadowCascadeBounds);
-            frameBuffer->showShadowCascadeBoundaries = (i32)renderer->showShadowCascadesBoundaries;
-            frameBuffer->shadowFilterSampleScale = renderer->shadowFilterScale;
-            frameBuffer->debugF = renderer->debugF;
-            frameBuffer->debugG = renderer->debugG;
-            frameBuffer->debugD = renderer->debugD;
-            frameBuffer->debugNormals = renderer->debugNormals;
-
-            Unmap(renderer->frameUniformBuffer);
-
             glBindFramebuffer(GL_DRAW_FRAMEBUFFER, renderer->offscreenBufferHandle);
-
-            bool firstLineShaderInvocation = true;
-            bool firstMeshShaderInvocation = true;
-            bool firstChunkMeshShaderInvocation = true;
+            glViewport(0, 0, renderer->renderRes.x, renderer->renderRes.y);
+            glClearColor(renderer->clearColor.r, renderer->clearColor.g, renderer->clearColor.b, renderer->clearColor.a);
+            glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+            glEnable(GL_DEPTH_TEST);
 
             for (u32 i = 0; i < group->commandQueueAt; i++)
             {
@@ -1571,7 +1428,7 @@ namespace soko
                 {
                     auto* data = (RenderCommandDrawLineBegin*)(group->renderBuffer + command->rbOffset);
 
-                    glUseProgram(renderer->_shaders.Line);
+                    glUseProgram(renderer->shaders.Line);
 
                     auto meshBuffer = Map(renderer->meshUniformBuffer);
                     meshBuffer->lineColor = data->color;
@@ -1604,7 +1461,7 @@ namespace soko
                     auto* data = (RenderCommandDrawMesh*)(group->renderBuffer + command->rbOffset);
                     if (data->material.type == Material::Legacy)
                     {
-                        auto meshProg = renderer->_shaders.Mesh;
+                        auto meshProg = renderer->shaders.Mesh;
 
                         m3x3 normalMatrix = MakeNormalMatrix(data->transform);
 
@@ -1640,7 +1497,7 @@ namespace soko
                     else if (data->material.type == Material::PBR)
                     {
                         SOKO_ASSERT(group->irradanceMapHandle);
-                        auto meshProg = renderer->_shaders.PbrMesh;
+                        auto meshProg = renderer->shaders.PbrMesh;
                         glUseProgram(meshProg);
 
                         auto* mesh = data->mesh;
@@ -1704,7 +1561,7 @@ namespace soko
 
                 case RENDER_COMMAND_BEGIN_CHUNK_MESH_BATCH:
                 {
-                    auto chunkProg = renderer->_shaders.Chunk;
+                    auto chunkProg = renderer->shaders.Chunk;
                     glUseProgram(chunkProg);
                     glBindTextureUnit(0, renderer->tileTexArrayHandle);
                     glBindTextureUnit(1, renderer->shadowMapDepthTarget);
@@ -1760,5 +1617,130 @@ namespace soko
             glDepthFunc(GL_LESS);
         }
 
+    }
+
+    void Begin(Renderer* renderer, RenderGroup* group)
+    {
+        auto light = group->dirLight;
+        auto camera = group->camera;
+
+        DEBUG_OVERLAY_SLIDER(renderer->shadowSlopeBiasScale, 0.0f, 2.5f);
+        DEBUG_OVERLAY_SLIDER(renderer->shadowConstantBias, 0.0f, 0.5f);
+
+
+        i32 EnableStableShadows = renderer->stableShadows;
+        DEBUG_OVERLAY_SLIDER(EnableStableShadows, 0, 1);
+        renderer->stableShadows = EnableStableShadows;
+
+        //
+        // NOTE: Calculating light-space matrices
+        //
+
+        // TODO: Fix the mess with lookAt matrices4
+        m4x4 lightLookAt = LookAtDirRH(light.from, light.dir, V3(0.0f, 1.0f, 0.0f));
+
+        f32 frustrumDepth = camera->farPlane - camera->nearPlane;
+        f32 cascadeDepth = frustrumDepth / Renderer::NumShadowCascades;
+        for (u32x cascadeIndex = 0; cascadeIndex < Renderer::NumShadowCascades; cascadeIndex++)
+        {
+            f32 cascadeNear = cascadeDepth * cascadeIndex;
+            f32 cascadeFar = cascadeDepth * (cascadeIndex + 1);
+            renderer->shadowCascadeBounds[cascadeIndex] = camera->nearPlane + cascadeFar;
+            auto proj = CalcShadowProjection(camera, cascadeNear, cascadeFar, lightLookAt, renderer->shadowMapRes, renderer->stableShadows);
+            auto viewProj = MulM4M4(&proj, &lightLookAt);
+            renderer->shadowCascadeViewProjMatrices[cascadeIndex] = viewProj;
+        }
+
+        //
+        // NOTE: Fill frame uniform buffer
+        //
+
+        m4x4 viewProj = MulM4M4(&camera->projectionMatrix, &camera->viewMatrix);
+
+        auto lightViewProj0 = renderer->shadowCascadeViewProjMatrices;
+        auto lightViewProj1 = renderer->shadowCascadeViewProjMatrices + 1;
+        auto lightViewProj2 = renderer->shadowCascadeViewProjMatrices + 2;
+
+        auto frameBuffer = Map(renderer->frameUniformBuffer);
+        frameBuffer->viewProjMatrix = viewProj;
+        frameBuffer->viewMatrix = camera->viewMatrix;
+        frameBuffer->projectionMatrix = camera->projectionMatrix;
+        frameBuffer->invViewMatrix = camera->invViewMatrix;
+        frameBuffer->invProjMatrix = camera->invProjectionMatrix;
+        frameBuffer->lightSpaceMatrices[0] = *lightViewProj0;
+        frameBuffer->lightSpaceMatrices[1] = *lightViewProj1;
+        frameBuffer->lightSpaceMatrices[2] = *lightViewProj2;
+        frameBuffer->dirLight.pos = light.from;
+        frameBuffer->dirLight.dir = light.dir;
+        frameBuffer->dirLight.ambient = light.ambient;
+        frameBuffer->dirLight.diffuse = light.diffuse;
+        frameBuffer->dirLight.specular = light.specular;
+        frameBuffer->viewPos = camera->position;
+        frameBuffer->shadowCascadeSplits = *((v3*)&renderer->shadowCascadeBounds);
+        frameBuffer->showShadowCascadeBoundaries = (i32)renderer->showShadowCascadesBoundaries;
+        frameBuffer->shadowFilterSampleScale = renderer->shadowFilterScale;
+        frameBuffer->debugF = renderer->debugF;
+        frameBuffer->debugG = renderer->debugG;
+        frameBuffer->debugD = renderer->debugD;
+        frameBuffer->debugNormals = renderer->debugNormals;
+        frameBuffer->constShadowBias = renderer->shadowConstantBias;
+        frameBuffer->gamma = renderer->gamma;
+        frameBuffer->exposure = renderer->exposure;
+        frameBuffer->screenSize = V2(renderer->renderRes.x, renderer->renderRes.y);
+
+        Unmap(renderer->frameUniformBuffer);
+    }
+
+    void End(Renderer* renderer)
+    {
+        glBindFramebuffer(GL_DRAW_FRAMEBUFFER, renderer->srgbBufferHandle);
+        //glClearColor(renderer->clearColor.r, renderer->clearColor.g, renderer->clearColor.b, renderer->clearColor.a);
+        glClear(GL_COLOR_BUFFER_BIT);
+
+        auto prog = renderer->shaders.PostFx;
+        glUseProgram(prog);
+
+        glBindTextureUnit(PostFxShader::ColorSourceLinear, renderer->offscreenColorTarget);
+
+        glDrawArrays(GL_TRIANGLES, 0, 6);
+
+        // NOTE: FXAA pass
+        local_persist bool enableFXAA = true;
+        DEBUG_OVERLAY_TOGGLE(enableFXAA);
+        if (enableFXAA)
+        {
+            glBindFramebuffer(GL_READ_FRAMEBUFFER, renderer->srgbBufferHandle);
+            glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
+            //glClearColor(renderer->clearColor.r, renderer->clearColor.g,  renderer->clearColor.b, renderer->clearColor.a);
+            glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+            glUseProgram(renderer->shaders.FXAA);
+            glBindTextureUnit(FXAAShader::ColorSourcePerceptual, renderer->srgbColorTarget);
+            glDrawArrays(GL_TRIANGLES, 0, 6);
+        }
+        else
+        {
+            glBindFramebuffer(GL_READ_FRAMEBUFFER, renderer->srgbBufferHandle);
+            glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
+
+            glBlitFramebuffer(0, 0, renderer->renderRes.x, renderer->renderRes.y,
+                              0, 0, renderer->renderRes.x, renderer->renderRes.y,
+                              GL_COLOR_BUFFER_BIT, GL_LINEAR);
+
+        }
+
+        local_persist i32 showShadowMap = false;
+        DEBUG_OVERLAY_SLIDER(showShadowMap, 0, 1);
+
+        if (showShadowMap)
+        {
+            local_persist i32 shadowCascadeLevel = 0;
+            DEBUG_OVERLAY_SLIDER(shadowCascadeLevel, 0, Renderer::NumShadowCascades - 1);
+            glBindFramebuffer(GL_READ_FRAMEBUFFER, renderer->shadowMapFramebuffers[shadowCascadeLevel]);
+            glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
+
+            glBlitFramebuffer(0, 0, renderer->shadowMapRes, renderer->shadowMapRes,
+                              0, 0, 512, 512, GL_COLOR_BUFFER_BIT, GL_LINEAR);
+        }
     }
 }

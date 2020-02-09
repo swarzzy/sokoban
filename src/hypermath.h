@@ -965,7 +965,7 @@ namespace hpm
         return result;
     }
 
-    inline Matrix4 M4x4(Matrix3* m)
+    inline Matrix4 M4x4(const Matrix3* m)
     {
         Matrix4 result = {};
 
