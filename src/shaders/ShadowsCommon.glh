@@ -168,3 +168,13 @@ vec3 ShadowRandomDisc(in sampler2DArrayShadow shadowMap, in sampler1D randomText
     }
     return result;
 }
+
+vec3 CalcShadow(vec3 viewSpacePos, vec3 cascadeSplits, vec4 lightSpacePos[3], sampler2DArrayShadow shadowMap, float sampleScale, int debugCascadeBounds)
+{
+    float viewSpaceDepth = -viewSpacePos.z;
+    int cascadeIndex = GetShadowCascadeIndex(-viewSpacePos.z, cascadeSplits);
+    vec3 lightSpaceP = lightSpacePos[cascadeIndex].xyz / lightSpacePos[cascadeIndex].w;
+    lightSpaceP = lightSpaceP * 0.5f + 0.5f;
+    vec3 kShadow = ShadowPCF(shadowMap, cascadeIndex, lightSpaceP, viewSpaceDepth, sampleScale, debugCascadeBounds);
+    return kShadow;
+}

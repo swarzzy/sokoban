@@ -35,6 +35,25 @@ namespace soko
     template<typename T, u32 Binding>
     void Unmap(UniformBuffer<T, Binding> buffer);
 
+    struct MeshShader
+    {
+        static constexpr u32 DiffMap = 0;
+        static constexpr u32 SpecMap = 1;
+        static constexpr u32 ShadowMap = 2;
+    };
+
+    struct MeshPBRShader
+    {
+        static constexpr u32 IrradanceMap = 0;
+        static constexpr u32 EnviromentMap = 1;
+        static constexpr u32 BRDFLut = 2;
+        static constexpr u32 AlbedoMap = 3;
+        static constexpr u32 RoughnessMap = 4;
+        static constexpr u32 MetalnessMap = 5;
+        static constexpr u32 NormalMap = 6;
+        static constexpr u32 ShadowMap = 7;
+    };
+
     struct ShadowPassShader
     {
         static constexpr u32 CascadeIndexLocation = 0;

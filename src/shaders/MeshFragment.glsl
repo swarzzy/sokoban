@@ -1,28 +1,38 @@
 #version 450
 #include Common.glh
+#include ShadowsCommon.glh
 
-out vec4 out_Color;
+out vec4 Color;
 
-layout (location = 3) in vec3 vout_FragPos;
-layout (location = 4) in vec3 vout_Normal;
-layout (location = 5) in vec2 vout_UV;
+layout (location = 3) in VertOut
+{
+    vec3 fragPos;
+    vec3 normal;
+    vec2 uv;
+    vec3 viewPosition;
+    vec4 lightSpacePos[3];
+} fragIn;
 
-layout (binding = 0) uniform sampler2D u_DiffMap;
-layout (binding = 1) uniform sampler2D u_SpecMap;
+layout (binding = 0) uniform sampler2D DiffMap;
+layout (binding = 1) uniform sampler2D SpecMap;
+layout (binding = 2) uniform sampler2DArrayShadow ShadowMap;
 
 void main()
 {
-    vec3 normal = normalize(vout_Normal);
-    vec4 diffSamle = texture(u_DiffMap, vout_UV);
-    vec4 specSample = texture(u_SpecMap, vout_UV);
+    vec3 normal = normalize(fragIn.normal);
+    vec4 diffSamle = texture(DiffMap, fragIn.uv);
+    vec4 specSample = texture(SpecMap, fragIn.uv);
     specSample.a = 1.0f;
     vec3 lightDir = normalize(-FrameData.dirLight.dir);
     float kDiff = max(dot(normal, lightDir), 0.0f);
-    vec3 viewDir = normalize(FrameData.viewPos - vout_FragPos);
+    vec3 viewDir = normalize(FrameData.viewPos - fragIn.fragPos);
     vec3 rFromLight = reflect(-lightDir, normal);
     float kSpec = pow(max(dot(viewDir, rFromLight), 0.0f), 32.0f);
+
+    vec4 kShadow = vec4(CalcShadow(fragIn.viewPosition, FrameData.shadowCascadeSplits, fragIn.lightSpacePos, ShadowMap, FrameData.shadowFilterSampleScale, FrameData.showShadowCascadeBoundaries), 1.0f);
+
     vec4 ambient = diffSamle * vec4(FrameData.dirLight.ambient, 1.0f);
-    vec4 diffuse = diffSamle * kDiff * vec4(FrameData.dirLight.diffuse, 1.0f);
-    vec4 specular = specSample * kSpec * vec4(FrameData.dirLight.specular, 1.0f);
-    out_Color = ambient + diffuse + specular;
+    vec4 diffuse = diffSamle * kDiff * vec4(FrameData.dirLight.diffuse, 1.0f) * kShadow;
+    vec4 specular = specSample * kSpec * vec4(FrameData.dirLight.specular, 1.0f) * kShadow;
+    Color = ambient + diffuse + specular;
 }

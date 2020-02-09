@@ -1474,8 +1474,9 @@ namespace soko
 
                         auto* mesh = data->mesh;
 
-                        glBindTextureUnit(0, data->material.legacy.diffMap.gpuHandle);
-                        glBindTextureUnit(1, data->material.legacy.specMap.gpuHandle);
+                        glBindTextureUnit(MeshShader::DiffMap, data->material.legacy.diffMap.gpuHandle);
+                        glBindTextureUnit(MeshShader::SpecMap, data->material.legacy.specMap.gpuHandle);
+                        glBindTextureUnit(MeshShader::ShadowMap, renderer->shadowMapDepthTarget);
 
                         glBindBuffer(GL_ARRAY_BUFFER, mesh->gpuVertexBufferHandle);
 
@@ -1521,16 +1522,18 @@ namespace soko
                         }
                         Unmap(renderer->meshUniformBuffer);
 
-                        glBindTextureUnit(0, group->irradanceMapHandle);
-                        glBindTextureUnit(1, group->envMapHandle);
+                        // TODO: Are they need to be binded every shader invocation?
+                        glBindTextureUnit(MeshPBRShader::IrradanceMap, group->irradanceMapHandle);
+                        glBindTextureUnit(MeshPBRShader::EnviromentMap, group->envMapHandle);
+                        glBindTextureUnit(MeshPBRShader::ShadowMap, renderer->shadowMapDepthTarget);
 
                         if (!m->pbr.isCustom)
                         {
-                            glBindTextureUnit(2, renderer->BRDFLutHandle);
-                            glBindTextureUnit(3, m->pbr.map.albedo.gpuHandle);
-                            glBindTextureUnit(4, m->pbr.map.roughness.gpuHandle);
-                            glBindTextureUnit(5, m->pbr.map.metalness.gpuHandle);
-                            glBindTextureUnit(6, m->pbr.map.normals.gpuHandle);
+                            glBindTextureUnit(MeshPBRShader::BRDFLut, renderer->BRDFLutHandle);
+                            glBindTextureUnit(MeshPBRShader::AlbedoMap, m->pbr.map.albedo.gpuHandle);
+                            glBindTextureUnit(MeshPBRShader::RoughnessMap, m->pbr.map.roughness.gpuHandle);
+                            glBindTextureUnit(MeshPBRShader::MetalnessMap, m->pbr.map.metalness.gpuHandle);
+                            glBindTextureUnit(MeshPBRShader::NormalMap, m->pbr.map.normals.gpuHandle);
                         }
 
                         glBindBuffer(GL_ARRAY_BUFFER, mesh->gpuVertexBufferHandle);

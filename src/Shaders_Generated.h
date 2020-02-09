@@ -345,6 +345,16 @@ vec3 ShadowRandomDisc(in sampler2DArrayShadow shadowMap, in sampler1D randomText
     return result;
 }
 
+vec3 CalcShadow(vec3 viewSpacePos, vec3 cascadeSplits, vec4 lightSpacePos[3], sampler2DArrayShadow shadowMap, float sampleScale, int debugCascadeBounds)
+{
+    float viewSpaceDepth = -viewSpacePos.z;
+    int cascadeIndex = GetShadowCascadeIndex(-viewSpacePos.z, cascadeSplits);
+    vec3 lightSpaceP = lightSpacePos[cascadeIndex].xyz / lightSpacePos[cascadeIndex].w;
+    lightSpaceP = lightSpaceP * 0.5f + 0.5f;
+    vec3 kShadow = ShadowPCF(shadowMap, cascadeIndex, lightSpaceP, viewSpaceDepth, sampleScale, debugCascadeBounds);
+    return kShadow;
+}
+
 #line 4
 
 layout (location = 3) in vec3 v_ViewPosition;
@@ -458,20 +468,29 @@ layout (std140, binding = 1) uniform ShaderMeshData
 } MeshData;
 
 #line 2
-layout (location = 0) in vec3 attr_Pos;
-layout (location = 1) in vec3 attr_Normal;
-layout (location = 2) in vec2 attr_UV;
+layout (location = 0) in vec3 Pos;
+layout (location = 1) in vec3 Normal;
+layout (location = 2) in vec2 UV;
 
-layout (location = 3) out vec3 vout_FragPos;
-layout (location = 4) out vec3 vout_Normal;
-layout (location = 5) out vec2 vout_UV;
+layout (location = 3) out VertOut
+{
+    vec3 fragPos;
+    vec3 normal;
+    vec2 uv;
+    vec3 viewPosition;
+    vec4 lightSpacePos[3];
+} vertOut;
 
 void main()
 {
-    gl_Position = FrameData.projectionMatrix * FrameData.viewMatrix * MeshData.modelMatrix * vec4(attr_Pos, 1.0f);
-    vout_FragPos = (MeshData.modelMatrix * vec4(attr_Pos, 1.0f)).xyz;
-    vout_UV = attr_UV;
-    vout_Normal = MeshData.normalMatrix * attr_Normal;
+    gl_Position = FrameData.projectionMatrix * FrameData.viewMatrix * MeshData.modelMatrix * vec4(Pos, 1.0f);
+    vertOut.fragPos = (MeshData.modelMatrix * vec4(Pos, 1.0f)).xyz;
+    vertOut.uv = UV;
+    vertOut.normal = MeshData.normalMatrix * Normal;
+    vertOut.viewPosition = (FrameData.viewMatrix * MeshData.modelMatrix * vec4(Pos, 1.0f)).xyz;
+    vertOut.lightSpacePos[0] = FrameData.lightSpaceMatrices[0] * MeshData.modelMatrix * vec4(Pos, 1.0f);
+    vertOut.lightSpacePos[1] = FrameData.lightSpaceMatrices[1] * MeshData.modelMatrix * vec4(Pos, 1.0f);
+    vertOut.lightSpacePos[2] = FrameData.lightSpaceMatrices[2] * MeshData.modelMatrix * vec4(Pos, 1.0f);
 }
 )", 
 R"(#version 450
@@ -520,31 +539,223 @@ layout (std140, binding = 1) uniform ShaderMeshData
 } MeshData;
 
 #line 2
+#line 100000
 
-out vec4 out_Color;
+#define NUM_SHADOW_CASCADES 3
 
-layout (location = 3) in vec3 vout_FragPos;
-layout (location = 4) in vec3 vout_Normal;
-layout (location = 5) in vec2 vout_UV;
+// NOTE: Reference: https://github.com/TheRealMJP/Shadows/blob/master/Shadows/PCFKernels.hlsl
+const vec2 PoissonSamples[64] = vec2[64]
+(
+    vec2(-0.5119625f, -0.4827938f),
+    vec2(-0.2171264f, -0.4768726f),
+    vec2(-0.7552931f, -0.2426507f),
+    vec2(-0.7136765f, -0.4496614f),
+    vec2(-0.5938849f, -0.6895654f),
+    vec2(-0.3148003f, -0.7047654f),
+    vec2(-0.42215f, -0.2024607f),
+    vec2(-0.9466816f, -0.2014508f),
+    vec2(-0.8409063f, -0.03465778f),
+    vec2(-0.6517572f, -0.07476326f),
+    vec2(-0.1041822f, -0.02521214f),
+    vec2(-0.3042712f, -0.02195431f),
+    vec2(-0.5082307f, 0.1079806f),
+    vec2(-0.08429877f, -0.2316298f),
+    vec2(-0.9879128f, 0.1113683f),
+    vec2(-0.3859636f, 0.3363545f),
+    vec2(-0.1925334f, 0.1787288f),
+    vec2(0.003256182f, 0.138135f),
+    vec2(-0.8706837f, 0.3010679f),
+    vec2(-0.6982038f, 0.1904326f),
+    vec2(0.1975043f, 0.2221317f),
+    vec2(0.1507788f, 0.4204168f),
+    vec2(0.3514056f, 0.09865579f),
+    vec2(0.1558783f, -0.08460935f),
+    vec2(-0.0684978f, 0.4461993f),
+    vec2(0.3780522f, 0.3478679f),
+    vec2(0.3956799f, -0.1469177f),
+    vec2(0.5838975f, 0.1054943f),
+    vec2(0.6155105f, 0.3245716f),
+    vec2(0.3928624f, -0.4417621f),
+    vec2(0.1749884f, -0.4202175f),
+    vec2(0.6813727f, -0.2424808f),
+    vec2(-0.6707711f, 0.4912741f),
+    vec2(0.0005130528f, -0.8058334f),
+    vec2(0.02703013f, -0.6010728f),
+    vec2(-0.1658188f, -0.9695674f),
+    vec2(0.4060591f, -0.7100726f),
+    vec2(0.7713396f, -0.4713659f),
+    vec2(0.573212f, -0.51544f),
+    vec2(-0.3448896f, -0.9046497f),
+    vec2(0.1268544f, -0.9874692f),
+    vec2(0.7418533f, -0.6667366f),
+    vec2(0.3492522f, 0.5924662f),
+    vec2(0.5679897f, 0.5343465f),
+    vec2(0.5663417f, 0.7708698f),
+    vec2(0.7375497f, 0.6691415f),
+    vec2(0.2271994f, -0.6163502f),
+    vec2(0.2312844f, 0.8725659f),
+    vec2(0.4216993f, 0.9002838f),
+    vec2(0.4262091f, -0.9013284f),
+    vec2(0.2001408f, -0.808381f),
+    vec2(0.149394f, 0.6650763f),
+    vec2(-0.09640376f, 0.9843736f),
+    vec2(0.7682328f, -0.07273844f),
+    vec2(0.04146584f, 0.8313184f),
+    vec2(0.9705266f, -0.1143304f),
+    vec2(0.9670017f, 0.1293385f),
+    vec2(0.9015037f, -0.3306949f),
+    vec2(-0.5085648f, 0.7534177f),
+    vec2(0.9055501f, 0.3758393f),
+    vec2(0.7599946f, 0.1809109f),
+    vec2(-0.2483695f, 0.7942952f),
+    vec2(-0.4241052f, 0.5581087f),
+    vec2(-0.1020106f, 0.6724468f)
+);
 
-layout (binding = 0) uniform sampler2D u_DiffMap;
-layout (binding = 1) uniform sampler2D u_SpecMap;
+vec3 CascadeColors[NUM_SHADOW_CASCADES] = vec3[NUM_SHADOW_CASCADES]
+(
+    vec3(1.0f, 0.0f, 0.0f),
+    vec3(0.0f, 1.0f, 0.0f),
+    vec3(0.0f, 0.0f, 1.0f)
+);
+
+int GetShadowCascadeIndex(float viewSpaceDepth, vec3 bounds)
+{
+    int cascadeNum = 0;
+
+    for (int i = 0; i < NUM_SHADOW_CASCADES; i++)
+    {
+        if (viewSpaceDepth < bounds[i])
+        {
+            cascadeNum = i;
+            break;
+        }
+    }
+    return cascadeNum;
+}
+
+vec3 ShadowPCF(in sampler2DArrayShadow shadowMap, int cascadeIndex,
+               vec3 lightSpaceP, float viewSpaceDepth,
+               float filterSampleScale, int showCascadeBounds)
+{
+    float kShadow = 0.0f;
+    vec2 sampleScale = (1.0f / textureSize(shadowMap, 0).xy) * filterSampleScale;
+    int sampleCount = 0;
+    for (int y = -2; y <= 1; y++)
+    {
+        for (int x = -2; x <= 1; x++)
+        {
+            vec4 uv = vec4(lightSpaceP.xy + vec2(x, y) * sampleScale, float(cascadeIndex), lightSpaceP.z);
+            kShadow += texture(shadowMap, uv);
+            sampleCount++;
+        }
+    }
+    kShadow /= sampleCount;
+
+    vec3 result;
+    if (showCascadeBounds == 1)
+    {
+        vec3 cascadeColor = CascadeColors[cascadeIndex];
+        result = vec3(kShadow) * cascadeColor;
+    }
+    else
+    {
+        result = vec3(kShadow);
+    }
+    return result;
+}
+
+vec3 ShadowRandomDisc(in sampler2DArrayShadow shadowMap, in sampler1D randomTexture,
+                      int cascadeIndex, vec3 lightSpaceP, float viewSpaceDepth,
+                      float filterSampleScale, int showCascadeBounds)
+{
+    float kShadow = 0.0f;
+    vec2 sampleScale = (1.0f / textureSize(shadowMap, 0).xy) * filterSampleScale;
+
+#if RANDOMIZE_OFFSETS
+    int randomTextureSize = textureSize(randomTexture, 0);
+    // TODO: Better random here
+    int randomSamplePos = int(gl_FragCoord.x + 845.0f * gl_FragCoord.y) % randomTextureSize;
+    float theta = texelFetch(randomTexture, randomSamplePos, 0).r * 2.0f * PI;
+    mat2 randomRotationMtx;
+    randomRotationMtx[0] = vec2(cos(theta), sin(theta));
+    randomRotationMtx[1] = vec2(-sin(theta), cos(theta));
+    //randomRotationMtx[0] = vec2(cos(theta), -sin(theta));
+    //randomRotationMtx[1] = vec2(sin(theta), cos(theta));
+#endif
+
+    const int sampleCount = 16;
+
+    for (int i = 0; i < sampleCount; i++)
+    {
+#if RANDOMIZE_OFFSETS
+        vec2 sampleOffset = (randomRotationMtx * PoissonSamples[i]) * sampleScale;
+#else
+        vec2 sampleOffset = PoissonSamples[i] *  sampleScale;
+#endif
+        vec4 uv = vec4(lightSpaceP.xy + sampleOffset, cascadeIndex, lightSpaceP.z);
+        kShadow += texture(shadowMap, uv);
+    }
+    kShadow /= sampleCount;
+
+    vec3 result;
+    if (showCascadeBounds == 1)
+    {
+        vec3 cascadeColor = CascadeColors[cascadeIndex];
+        result = vec3(kShadow) * cascadeColor;
+    }
+    else
+    {
+        result = vec3(kShadow);
+    }
+    return result;
+}
+
+vec3 CalcShadow(vec3 viewSpacePos, vec3 cascadeSplits, vec4 lightSpacePos[3], sampler2DArrayShadow shadowMap, float sampleScale, int debugCascadeBounds)
+{
+    float viewSpaceDepth = -viewSpacePos.z;
+    int cascadeIndex = GetShadowCascadeIndex(-viewSpacePos.z, cascadeSplits);
+    vec3 lightSpaceP = lightSpacePos[cascadeIndex].xyz / lightSpacePos[cascadeIndex].w;
+    lightSpaceP = lightSpaceP * 0.5f + 0.5f;
+    vec3 kShadow = ShadowPCF(shadowMap, cascadeIndex, lightSpaceP, viewSpaceDepth, sampleScale, debugCascadeBounds);
+    return kShadow;
+}
+
+#line 3
+
+out vec4 Color;
+
+layout (location = 3) in VertOut
+{
+    vec3 fragPos;
+    vec3 normal;
+    vec2 uv;
+    vec3 viewPosition;
+    vec4 lightSpacePos[3];
+} fragIn;
+
+layout (binding = 0) uniform sampler2D DiffMap;
+layout (binding = 1) uniform sampler2D SpecMap;
+layout (binding = 2) uniform sampler2DArrayShadow ShadowMap;
 
 void main()
 {
-    vec3 normal = normalize(vout_Normal);
-    vec4 diffSamle = texture(u_DiffMap, vout_UV);
-    vec4 specSample = texture(u_SpecMap, vout_UV);
+    vec3 normal = normalize(fragIn.normal);
+    vec4 diffSamle = texture(DiffMap, fragIn.uv);
+    vec4 specSample = texture(SpecMap, fragIn.uv);
     specSample.a = 1.0f;
     vec3 lightDir = normalize(-FrameData.dirLight.dir);
     float kDiff = max(dot(normal, lightDir), 0.0f);
-    vec3 viewDir = normalize(FrameData.viewPos - vout_FragPos);
+    vec3 viewDir = normalize(FrameData.viewPos - fragIn.fragPos);
     vec3 rFromLight = reflect(-lightDir, normal);
     float kSpec = pow(max(dot(viewDir, rFromLight), 0.0f), 32.0f);
+
+    vec4 kShadow = vec4(CalcShadow(fragIn.viewPosition, FrameData.shadowCascadeSplits, fragIn.lightSpacePos, ShadowMap, FrameData.shadowFilterSampleScale, FrameData.showShadowCascadeBoundaries), 1.0f);
+
     vec4 ambient = diffSamle * vec4(FrameData.dirLight.ambient, 1.0f);
-    vec4 diffuse = diffSamle * kDiff * vec4(FrameData.dirLight.diffuse, 1.0f);
-    vec4 specular = specSample * kSpec * vec4(FrameData.dirLight.specular, 1.0f);
-    out_Color = ambient + diffuse + specular;
+    vec4 diffuse = diffSamle * kDiff * vec4(FrameData.dirLight.diffuse, 1.0f) * kShadow;
+    vec4 specular = specSample * kSpec * vec4(FrameData.dirLight.specular, 1.0f) * kShadow;
+    Color = ambient + diffuse + specular;
 }
 )"
         },
@@ -663,29 +874,38 @@ layout (std140, binding = 1) uniform ShaderMeshData
 } MeshData;
 
 #line 2
-layout (location = 0) in vec3 aPos;
-layout (location = 1) in vec3 aNormal;
-layout (location = 2) in vec2 aUV;
-layout (location = 3) in vec3 aTangent;
+layout (location = 0) in vec3 Pos;
+layout (location = 1) in vec3 Normal;
+layout (location = 2) in vec2 UV;
+layout (location = 3) in vec3 Tangent;
 
-layout (location = 4) out vec3 vFragPos;
-layout (location = 5) out vec3 vNormal;
-layout (location = 6) out vec2 vUV;
-layout (location = 7) out mat3 vTBN;
+layout (location = 4) out VertOut
+{
+    vec3 fragPos;
+    vec3 normal;
+    vec2 uv;
+    mat3 tbn;
+    vec3 viewPosition;
+    vec4 lightSpacePos[3];
+} vertOut;
 
 void main()
 {
-    vec3 n = normalize(MeshData.normalMatrix * aNormal);
-    vec3 t = normalize(MeshData.normalMatrix * aTangent);
+    vec3 n = normalize(MeshData.normalMatrix * Normal);
+    vec3 t = normalize(MeshData.normalMatrix * Tangent);
     t = normalize(t - dot(t, n) * n);
     vec3 b = normalize(cross(n, t));
     mat3 tbn = mat3(t, b, n);
 
-    gl_Position = FrameData.viewProjMatrix * MeshData.modelMatrix * vec4(aPos, 1.0f);
-    vFragPos = (MeshData.modelMatrix * vec4(aPos, 1.0f)).xyz;
-    vUV = aUV;
-    vNormal = n;
-    vTBN = tbn;
+    gl_Position = FrameData.viewProjMatrix * MeshData.modelMatrix * vec4(Pos, 1.0f);
+    vertOut.fragPos = (MeshData.modelMatrix * vec4(Pos, 1.0f)).xyz;
+    vertOut.uv = UV;
+    vertOut.normal = n;
+    vertOut.tbn = tbn;
+    vertOut.viewPosition = (FrameData.viewMatrix * MeshData.modelMatrix * vec4(Pos, 1.0f)).xyz;
+    vertOut.lightSpacePos[0] = FrameData.lightSpaceMatrices[0] * MeshData.modelMatrix * vec4(Pos, 1.0f);
+    vertOut.lightSpacePos[1] = FrameData.lightSpaceMatrices[1] * MeshData.modelMatrix * vec4(Pos, 1.0f);
+    vertOut.lightSpacePos[2] = FrameData.lightSpaceMatrices[2] * MeshData.modelMatrix * vec4(Pos, 1.0f);
 }
 )", 
 R"(#version 450
@@ -734,22 +954,212 @@ layout (std140, binding = 1) uniform ShaderMeshData
 } MeshData;
 
 #line 2
+#line 100000
+
+#define NUM_SHADOW_CASCADES 3
+
+// NOTE: Reference: https://github.com/TheRealMJP/Shadows/blob/master/Shadows/PCFKernels.hlsl
+const vec2 PoissonSamples[64] = vec2[64]
+(
+    vec2(-0.5119625f, -0.4827938f),
+    vec2(-0.2171264f, -0.4768726f),
+    vec2(-0.7552931f, -0.2426507f),
+    vec2(-0.7136765f, -0.4496614f),
+    vec2(-0.5938849f, -0.6895654f),
+    vec2(-0.3148003f, -0.7047654f),
+    vec2(-0.42215f, -0.2024607f),
+    vec2(-0.9466816f, -0.2014508f),
+    vec2(-0.8409063f, -0.03465778f),
+    vec2(-0.6517572f, -0.07476326f),
+    vec2(-0.1041822f, -0.02521214f),
+    vec2(-0.3042712f, -0.02195431f),
+    vec2(-0.5082307f, 0.1079806f),
+    vec2(-0.08429877f, -0.2316298f),
+    vec2(-0.9879128f, 0.1113683f),
+    vec2(-0.3859636f, 0.3363545f),
+    vec2(-0.1925334f, 0.1787288f),
+    vec2(0.003256182f, 0.138135f),
+    vec2(-0.8706837f, 0.3010679f),
+    vec2(-0.6982038f, 0.1904326f),
+    vec2(0.1975043f, 0.2221317f),
+    vec2(0.1507788f, 0.4204168f),
+    vec2(0.3514056f, 0.09865579f),
+    vec2(0.1558783f, -0.08460935f),
+    vec2(-0.0684978f, 0.4461993f),
+    vec2(0.3780522f, 0.3478679f),
+    vec2(0.3956799f, -0.1469177f),
+    vec2(0.5838975f, 0.1054943f),
+    vec2(0.6155105f, 0.3245716f),
+    vec2(0.3928624f, -0.4417621f),
+    vec2(0.1749884f, -0.4202175f),
+    vec2(0.6813727f, -0.2424808f),
+    vec2(-0.6707711f, 0.4912741f),
+    vec2(0.0005130528f, -0.8058334f),
+    vec2(0.02703013f, -0.6010728f),
+    vec2(-0.1658188f, -0.9695674f),
+    vec2(0.4060591f, -0.7100726f),
+    vec2(0.7713396f, -0.4713659f),
+    vec2(0.573212f, -0.51544f),
+    vec2(-0.3448896f, -0.9046497f),
+    vec2(0.1268544f, -0.9874692f),
+    vec2(0.7418533f, -0.6667366f),
+    vec2(0.3492522f, 0.5924662f),
+    vec2(0.5679897f, 0.5343465f),
+    vec2(0.5663417f, 0.7708698f),
+    vec2(0.7375497f, 0.6691415f),
+    vec2(0.2271994f, -0.6163502f),
+    vec2(0.2312844f, 0.8725659f),
+    vec2(0.4216993f, 0.9002838f),
+    vec2(0.4262091f, -0.9013284f),
+    vec2(0.2001408f, -0.808381f),
+    vec2(0.149394f, 0.6650763f),
+    vec2(-0.09640376f, 0.9843736f),
+    vec2(0.7682328f, -0.07273844f),
+    vec2(0.04146584f, 0.8313184f),
+    vec2(0.9705266f, -0.1143304f),
+    vec2(0.9670017f, 0.1293385f),
+    vec2(0.9015037f, -0.3306949f),
+    vec2(-0.5085648f, 0.7534177f),
+    vec2(0.9055501f, 0.3758393f),
+    vec2(0.7599946f, 0.1809109f),
+    vec2(-0.2483695f, 0.7942952f),
+    vec2(-0.4241052f, 0.5581087f),
+    vec2(-0.1020106f, 0.6724468f)
+);
+
+vec3 CascadeColors[NUM_SHADOW_CASCADES] = vec3[NUM_SHADOW_CASCADES]
+(
+    vec3(1.0f, 0.0f, 0.0f),
+    vec3(0.0f, 1.0f, 0.0f),
+    vec3(0.0f, 0.0f, 1.0f)
+);
+
+int GetShadowCascadeIndex(float viewSpaceDepth, vec3 bounds)
+{
+    int cascadeNum = 0;
+
+    for (int i = 0; i < NUM_SHADOW_CASCADES; i++)
+    {
+        if (viewSpaceDepth < bounds[i])
+        {
+            cascadeNum = i;
+            break;
+        }
+    }
+    return cascadeNum;
+}
+
+vec3 ShadowPCF(in sampler2DArrayShadow shadowMap, int cascadeIndex,
+               vec3 lightSpaceP, float viewSpaceDepth,
+               float filterSampleScale, int showCascadeBounds)
+{
+    float kShadow = 0.0f;
+    vec2 sampleScale = (1.0f / textureSize(shadowMap, 0).xy) * filterSampleScale;
+    int sampleCount = 0;
+    for (int y = -2; y <= 1; y++)
+    {
+        for (int x = -2; x <= 1; x++)
+        {
+            vec4 uv = vec4(lightSpaceP.xy + vec2(x, y) * sampleScale, float(cascadeIndex), lightSpaceP.z);
+            kShadow += texture(shadowMap, uv);
+            sampleCount++;
+        }
+    }
+    kShadow /= sampleCount;
+
+    vec3 result;
+    if (showCascadeBounds == 1)
+    {
+        vec3 cascadeColor = CascadeColors[cascadeIndex];
+        result = vec3(kShadow) * cascadeColor;
+    }
+    else
+    {
+        result = vec3(kShadow);
+    }
+    return result;
+}
+
+vec3 ShadowRandomDisc(in sampler2DArrayShadow shadowMap, in sampler1D randomTexture,
+                      int cascadeIndex, vec3 lightSpaceP, float viewSpaceDepth,
+                      float filterSampleScale, int showCascadeBounds)
+{
+    float kShadow = 0.0f;
+    vec2 sampleScale = (1.0f / textureSize(shadowMap, 0).xy) * filterSampleScale;
+
+#if RANDOMIZE_OFFSETS
+    int randomTextureSize = textureSize(randomTexture, 0);
+    // TODO: Better random here
+    int randomSamplePos = int(gl_FragCoord.x + 845.0f * gl_FragCoord.y) % randomTextureSize;
+    float theta = texelFetch(randomTexture, randomSamplePos, 0).r * 2.0f * PI;
+    mat2 randomRotationMtx;
+    randomRotationMtx[0] = vec2(cos(theta), sin(theta));
+    randomRotationMtx[1] = vec2(-sin(theta), cos(theta));
+    //randomRotationMtx[0] = vec2(cos(theta), -sin(theta));
+    //randomRotationMtx[1] = vec2(sin(theta), cos(theta));
+#endif
+
+    const int sampleCount = 16;
+
+    for (int i = 0; i < sampleCount; i++)
+    {
+#if RANDOMIZE_OFFSETS
+        vec2 sampleOffset = (randomRotationMtx * PoissonSamples[i]) * sampleScale;
+#else
+        vec2 sampleOffset = PoissonSamples[i] *  sampleScale;
+#endif
+        vec4 uv = vec4(lightSpaceP.xy + sampleOffset, cascadeIndex, lightSpaceP.z);
+        kShadow += texture(shadowMap, uv);
+    }
+    kShadow /= sampleCount;
+
+    vec3 result;
+    if (showCascadeBounds == 1)
+    {
+        vec3 cascadeColor = CascadeColors[cascadeIndex];
+        result = vec3(kShadow) * cascadeColor;
+    }
+    else
+    {
+        result = vec3(kShadow);
+    }
+    return result;
+}
+
+vec3 CalcShadow(vec3 viewSpacePos, vec3 cascadeSplits, vec4 lightSpacePos[3], sampler2DArrayShadow shadowMap, float sampleScale, int debugCascadeBounds)
+{
+    float viewSpaceDepth = -viewSpacePos.z;
+    int cascadeIndex = GetShadowCascadeIndex(-viewSpacePos.z, cascadeSplits);
+    vec3 lightSpaceP = lightSpacePos[cascadeIndex].xyz / lightSpacePos[cascadeIndex].w;
+    lightSpaceP = lightSpaceP * 0.5f + 0.5f;
+    vec3 kShadow = ShadowPCF(shadowMap, cascadeIndex, lightSpaceP, viewSpaceDepth, sampleScale, debugCascadeBounds);
+    return kShadow;
+}
+
+#line 3
 
 out vec4 resultColor;
 
-layout (location = 4) in vec3 vFragPos;
-layout (location = 5) in vec3 vNormal;
-layout (location = 6) in vec2 vUV;
-layout (location = 7) in mat3 vTBN;
+layout (location = 4) in VertOut
+{
+    vec3 fragPos;
+    vec3 normal;
+    vec2 uv;
+    mat3 tbn;
+    vec3 viewPosition;
+    vec4 lightSpacePos[3];
+} fragIn;
 
-layout (binding = 0) uniform samplerCube uIrradanceMap;
-layout (binding = 1) uniform samplerCube uEnviromentMap;
-layout (binding = 2) uniform sampler2D uBRDFLut;
+layout (binding = 0) uniform samplerCube IrradanceMap;
+layout (binding = 1) uniform samplerCube EnviromentMap;
+layout (binding = 2) uniform sampler2D BRDFLut;
 
-layout (binding = 3) uniform sampler2D uAlbedoMap;
-layout (binding = 4) uniform sampler2D uRoughnessMap;
-layout (binding = 5) uniform sampler2D uMetalnessMap;
-layout (binding = 6) uniform sampler2D uNormalMap;
+layout (binding = 3) uniform sampler2D AlbedoMap;
+layout (binding = 4) uniform sampler2D RoughnessMap;
+layout (binding = 5) uniform sampler2D MetalnessMap;
+layout (binding = 6) uniform sampler2D NormalMap;
+
+layout (binding = 7) uniform sampler2DArrayShadow ShadowMap;
 //uniform sampler2D uAOMap;
 
 const float MAX_REFLECTION_LOD = 5.0f;
@@ -801,16 +1211,16 @@ vec3 IBLIrradance(vec3 Vo, vec3 N, float NdotV, float a, vec3 F0, float metallic
 {
     // NOTE: Specular irradance
     vec3 R = reflect(-Vo, N);
-    vec3 envIrradance = textureLod(uEnviromentMap, R, a * MAX_REFLECTION_LOD).rgb;
+    vec3 envIrradance = textureLod(EnviromentMap, R, a * MAX_REFLECTION_LOD).rgb;
     vec3 Fenv = FresnelSchlickRoughness(NdotV, F0, a);
-    vec2 envBRDF = texture(uBRDFLut, vec2(NdotV, a)).rg;
+    vec2 envBRDF = texture(BRDFLut, vec2(NdotV, a)).rg;
     vec3 envSpecular = envIrradance * (Fenv * envBRDF.r + envBRDF.g);
 
     // NOTE: Diffuse irradance
     vec3 kS = FresnelSchlick(NdotV, F0);
     vec3 kD = vec3(1.0f) - kS;
     kD *= 1.0f - metallic;
-    vec3 diffIrradance = texture(uIrradanceMap, N).rgb;
+    vec3 diffIrradance = texture(IrradanceMap, N).rgb;
     vec3 diffuse = diffIrradance * albedo;
 
     vec3 irradance = (kD * diffuse + envSpecular);// * uAO;
@@ -826,23 +1236,23 @@ void main()
 
     if (MeshData.customMaterial == 1)
     {
-        N = normalize(vNormal);
+        N = normalize(fragIn.normal);
         albedo = MeshData.customAlbedo;
         roughness = MeshData.customRoughness;
         metalness = MeshData.customMetalness;
     }
     else
     {
-         N = normalize(texture(uNormalMap, vUV).xyz * 2.0f - 1.0f);
+         N = normalize(texture(NormalMap, fragIn.uv).xyz * 2.0f - 1.0f);
          // NOTE: Flipping y because engine uses LH normal maps (UE4) but OpenGL does it's job in RH space
          N.y = -N.y;
-         N = normalize(vTBN * N);
-         albedo = texture(uAlbedoMap, vUV).xyz;
-         roughness = texture(uRoughnessMap, vUV).r;
-         metalness = texture(uMetalnessMap, vUV).r;
+         N = normalize(fragIn.tbn * N);
+         albedo = texture(AlbedoMap, fragIn.uv).xyz;
+         roughness = texture(RoughnessMap, fragIn.uv).r;
+         metalness = texture(MetalnessMap, fragIn.uv).r;
     }
 
-    vec3 V = normalize(FrameData.viewPos - vFragPos);
+    vec3 V = normalize(FrameData.viewPos - fragIn.fragPos);
     vec3 L0 = vec3(0.0f);
 
     vec3 L = normalize(-FrameData.dirLight.dir);
@@ -879,7 +1289,9 @@ void main()
 
     vec3 envIrradance = IBLIrradance(V, N, NdotV, roughness, F0, metalness, albedo);
 
-    resultColor = vec4((envIrradance + L0), 1.0f);
+    vec3 kShadow = CalcShadow(fragIn.viewPosition, FrameData.shadowCascadeSplits, fragIn.lightSpacePos, ShadowMap, FrameData.shadowFilterSampleScale, FrameData.showShadowCascadeBoundaries);
+
+    resultColor = vec4((envIrradance + L0 * kShadow), 1.0f);
 
     if (FrameData.debugF == 1) resultColor = vec4(F,  1.0f);
     else if (FrameData.debugG == 1) resultColor = vec4(G, G, G, 1.0f);
