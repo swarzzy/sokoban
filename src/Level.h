@@ -22,7 +22,8 @@ namespace soko
 //        EntityMesh_Gun,
         EntityMesh_Box,
         EntityMesh_Altar,
-        EntityMesh_Cat
+        EntityMesh_Cat,
+        EntityMesh_Plane
     };
 
     enum [reflect seq_enum] EntityMaterial

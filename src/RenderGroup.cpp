@@ -104,6 +104,17 @@ namespace soko
             uptr offset = (uptr)renderDataPtr - (uptr)group->renderBuffer;
             command.rbOffset = AB::SafeCastUptrU32(offset);
             _PushCommandQueueEntry(group, &command);
+        } break;
+
+        case RENDER_COMMAND_DRAW_WATER:
+        {
+            auto renderData = (RenderCommandDrawWater*)data;
+
+            renderDataPtr = _PushRenderData(group, sizeof(RenderCommandDrawWater), alignof(RenderCommandDrawWater), data);
+
+            uptr offset = (uptr)renderDataPtr - (uptr)group->renderBuffer;
+            command.rbOffset = AB::SafeCastUptrU32(offset);
+            _PushCommandQueueEntry(group, &command);
         }
         break;
 

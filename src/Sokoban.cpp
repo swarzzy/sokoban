@@ -248,53 +248,53 @@ inline void* ReallocForSTBI(void* p, uptr oldSize, uptr newSize)
 #define glDetachShader GL_FUNCTION(glDetachShader)
 #define glDeleteProgram GL_FUNCTION(glDeleteProgram)
 
-                namespace soko
-                {
+                    namespace soko
+                    {
 
 // TODO: Bounds checking of using enum classes
-                    inline bool
-                    JustPressed(AB::KeyCode code)
-                    {
-                        bool result = GlobalInput.keys[(u32)code].pressedNow && !GlobalInput.keys[(u32)code].wasPressed;
-                        return result;
-                    }
+                        inline bool
+                        JustPressed(AB::KeyCode code)
+                        {
+                            bool result = GlobalInput.keys[(u32)code].pressedNow && !GlobalInput.keys[(u32)code].wasPressed;
+                            return result;
+                        }
 
-                    inline bool
-                    JustReleased(AB::KeyCode code)
-                    {
-                        bool result = !GlobalInput.keys[(u32)code].pressedNow && GlobalInput.keys[(u32)code].wasPressed;
-                        return result;
-                    }
+                        inline bool
+                        JustReleased(AB::KeyCode code)
+                        {
+                            bool result = !GlobalInput.keys[(u32)code].pressedNow && GlobalInput.keys[(u32)code].wasPressed;
+                            return result;
+                        }
 
-                    inline bool
-                    IsDown(AB::KeyCode code)
-                    {
-                        bool result = GlobalInput.keys[(u32)code].pressedNow;
-                        return result;
-                    }
+                        inline bool
+                        IsDown(AB::KeyCode code)
+                        {
+                            bool result = GlobalInput.keys[(u32)code].pressedNow;
+                            return result;
+                        }
 
-                    inline bool
-                    JustPressed(AB::MouseButton button)
-                    {
-                        bool result = GlobalInput.mouseButtons[(u32)button].pressedNow && !GlobalInput.mouseButtons[(u32)button].wasPressed;
-                        return result;
-                    }
+                        inline bool
+                        JustPressed(AB::MouseButton button)
+                        {
+                            bool result = GlobalInput.mouseButtons[(u32)button].pressedNow && !GlobalInput.mouseButtons[(u32)button].wasPressed;
+                            return result;
+                        }
 
-                    inline bool
-                    JustReleased(AB::MouseButton button)
-                    {
-                        bool result = !GlobalInput.mouseButtons[(u32)button].pressedNow && GlobalInput.mouseButtons[(u32)button].wasPressed;
-                        return result;
-                    }
+                        inline bool
+                        JustReleased(AB::MouseButton button)
+                        {
+                            bool result = !GlobalInput.mouseButtons[(u32)button].pressedNow && GlobalInput.mouseButtons[(u32)button].wasPressed;
+                            return result;
+                        }
 
-                    inline bool
-                    IsDown(AB::MouseButton button)
-                    {
-                        bool result = GlobalInput.mouseButtons[(u32)button].pressedNow;
-                        return result;
-                    }
+                        inline bool
+                        IsDown(AB::MouseButton button)
+                        {
+                            bool result = GlobalInput.mouseButtons[(u32)button].pressedNow;
+                            return result;
+                        }
 
-                }
+                    }
 
 #include "imgui/imgui.h"
 //#include "imgui/imgui_internal.h"
@@ -442,6 +442,8 @@ namespace soko
         gameState->meshes[EntityMesh_Box] = LoadMesh(gameState->tempArena, L"../res/mesh/box.aab");
         gameState->meshes[EntityMesh_Altar] = LoadMesh(gameState->tempArena, L"../res/mesh/altar.aab");
         gameState->meshes[EntityMesh_Cat] = LoadMesh(gameState->tempArena, L"../res/mesh/cat.aab");
+        gameState->meshes[EntityMesh_Plane] = LoadMesh(gameState->tempArena, L"../res/mesh/plane.aab");
+
 
         EndTemporaryMemory(&tempMem);
 
@@ -624,6 +626,12 @@ namespace soko
         RenderGroupPushCommand(gameState->renderGroup, RENDER_COMMAND_SET_DIR_LIGHT,
                                (void*)&lightCommand);
 
+#if 0
+        RenderCommandDrawWater waterCommand = {};
+        waterCommand.transform = Scaling(V3(20.0f));
+        waterCommand.mesh = gameState->meshes + EntityMesh_Plane;
+        RenderGroupPushCommand(gameState->renderGroup, RENDER_COMMAND_DRAW_WATER, (void*)&waterCommand);
+#endif
         DrawRegion(simRegion, gameState, gameState->session.camera.worldPos);
 
         Begin(gameState->renderer, gameState->renderGroup);

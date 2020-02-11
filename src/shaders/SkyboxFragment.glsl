@@ -7,5 +7,6 @@ layout (binding = 0) uniform samplerCube CubeTexture;
 
 void main()
 {
-    Color = texture(CubeTexture, UV);
+    // NOTE: Temporary using low-res mip of enviroment map
+    Color = textureLod(CubeTexture, UV, 5.0f);
 }

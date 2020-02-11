@@ -28,6 +28,7 @@ InitMetaInfo(AB::MemoryArena* arena)
     AddEntry_EntityMesh(&info->EntityMesh, 6, EntityMesh_Box, "EntityMesh_Box");
     AddEntry_EntityMesh(&info->EntityMesh, 7, EntityMesh_Altar, "EntityMesh_Altar");
     AddEntry_EntityMesh(&info->EntityMesh, 8, EntityMesh_Cat, "EntityMesh_Cat");
+    AddEntry_EntityMesh(&info->EntityMesh, 9, EntityMesh_Plane, "EntityMesh_Plane");
     AddEntry_EntityMaterial(&info->EntityMaterial, 0, EntityMaterial_Tile, "EntityMaterial_Tile");
     AddEntry_EntityMaterial(&info->EntityMaterial, 1, EntityMaterial_Player, "EntityMaterial_Player");
     AddEntry_EntityMaterial(&info->EntityMaterial, 2, EntityMaterial_Block, "EntityMaterial_Block");

@@ -1424,6 +1424,40 @@ namespace soko
 
                 switch (command->type)
                 {
+                case RENDER_COMMAND_DRAW_WATER:
+                {
+                    auto* data = (RenderCommandDrawWater*)(group->renderBuffer + command->rbOffset);
+                    auto program = renderer->shaders.Water;
+
+                    m3x3 normalMatrix = MakeNormalMatrix(data->transform);
+
+                    glUseProgram(program);
+
+                    auto meshBuffer = Map(renderer->meshUniformBuffer);
+                    meshBuffer->modelMatrix = data->transform;
+                    meshBuffer->normalMatrix = normalMatrix;
+                    Unmap(renderer->meshUniformBuffer);
+
+                    auto* mesh = data->mesh;
+
+
+                    glBindBuffer(GL_ARRAY_BUFFER, mesh->gpuVertexBufferHandle);
+
+                    glEnableVertexAttribArray(WaterShader::Position);
+                    glEnableVertexAttribArray(WaterShader::Normal);
+                    glEnableVertexAttribArray(WaterShader::UV);
+
+                    u64 normalsOffset = mesh->vertexCount * sizeof(v3);
+                    u64 uvsOffset = normalsOffset + mesh->normalCount * sizeof(v3);
+
+                    glVertexAttribPointer(WaterShader::Position, 3, GL_FLOAT, GL_FALSE, 0, 0);
+                    glVertexAttribPointer(WaterShader::Normal, 3, GL_FLOAT, GL_FALSE, 0, (void*)normalsOffset);
+                    glVertexAttribPointer(WaterShader::UV, 2, GL_FLOAT, GL_FALSE, 0, (void*)uvsOffset);
+
+                    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, mesh->gpuIndexBufferHandle);
+
+                    glDrawElements(GL_TRIANGLES, mesh->indexCount, GL_UNSIGNED_INT, 0);
+                } break;
                 case RENDER_COMMAND_DRAW_LINE_BEGIN:
                 {
                     auto* data = (RenderCommandDrawLineBegin*)(group->renderBuffer + command->rbOffset);

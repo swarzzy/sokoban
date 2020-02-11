@@ -16,6 +16,7 @@ namespace soko
         GLuint BRDFIntegrator;
         GLuint EnvMapPrefilter;
         GLuint IrradanceConvolver;
+        GLuint Water;
     };
 
     const char* ShaderNames[] =
@@ -31,6 +32,7 @@ namespace soko
         "BRDFIntegrator",
         "EnvMapPrefilter",
         "IrradanceConvolver",
+        "Water",
     };
 
     const ShaderProgramSource ShaderSources[] =
@@ -1492,7 +1494,8 @@ layout (binding = 0) uniform samplerCube CubeTexture;
 
 void main()
 {
-    Color = texture(CubeTexture, UV);
+    // NOTE: Temporary using low-res mip of enviroment map
+    Color = textureLod(CubeTexture, UV, 5.0f);
 }
 )"
         },
@@ -2202,6 +2205,73 @@ void main()
     irradance = PI_32 * irradance * (1.0f / float(sampleCount));
 
     resultColor = vec4(irradance, 1.0f);
+}
+)"
+        },
+        {
+            R"(#version 450
+#line 100000
+struct DirLight
+{
+    vec3 pos;
+    vec3 dir;
+    vec3 ambient;
+    vec3 diffuse;
+    vec3 specular;
+};
+
+layout (std140, binding = 0) uniform ShaderFrameData
+{
+    mat4 viewProjMatrix;
+    mat4 viewMatrix;
+    mat4 projectionMatrix;
+    mat4 invViewMatrix;
+    mat4 invProjMatrix;
+    mat4 lightSpaceMatrices[3];
+    DirLight dirLight;
+    vec3 viewPos;
+    vec3 shadowCascadeSplits;
+    int showShadowCascadeBoundaries;
+    float shadowFilterSampleScale;
+    int debugF;
+    int debugG;
+    int debugD;
+    int debugNormals;
+    float constShadowBias;
+    float gamma;
+    float exposure;
+    vec2 screenSize;
+} FrameData;
+
+layout (std140, binding = 1) uniform ShaderMeshData
+{
+    mat4 modelMatrix;
+    mat3 normalMatrix;
+    vec3 lineColor;
+    int customMaterial;
+    vec3 customAlbedo;
+    float customRoughness;
+    float customMetalness;
+} MeshData;
+
+#line 2
+
+layout (location = 0) in vec3 Position;
+layout (location = 1) in vec3 Normal;
+layout (location = 2) in vec2 UV;
+
+void main()
+{
+    gl_Position = FrameData.viewProjMatrix * MeshData.modelMatrix * vec4(Position, 1.0f);
+}
+)", 
+R"(#version 450
+
+out vec4 Color;
+
+void main()
+{
+    Color = vec4(0.2f, 0.6f, 0.9f, 1.0f);
 }
 )"
         },

@@ -30,13 +30,14 @@ namespace soko
         return result;
     }
 
+    // TODO: This is wrong conversion
     inline v3
     RHToWorld(v3 v)
     {
         v3 result;
         result.x = v.x;
-        result.y = v.z;
-        result.z = -v.y;
+        result.y = -v.z;
+        result.z = v.y;
         return result;
     }
 

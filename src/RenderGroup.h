@@ -29,6 +29,7 @@ namespace soko
         RENDER_COMMAND_BEGIN_CHUNK_MESH_BATCH,
         RENDER_COMMAND_PUSH_CHUNK_MESH,
         RENDER_COMMAND_END_CHUNK_MESH_BATCH,
+        RENDER_COMMAND_DRAW_WATER,
     };
 
     enum DrawMeshFlags : u32
@@ -40,6 +41,12 @@ namespace soko
     struct Mesh;
     struct Material;
     struct Texture;
+
+    struct RenderCommandDrawWater
+    {
+        m4x4 transform;
+        Mesh* mesh;
+    };
 
     struct RenderCommandDrawMesh
     {

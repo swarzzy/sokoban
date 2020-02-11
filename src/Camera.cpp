@@ -241,6 +241,8 @@ namespace soko
         v3 mouseWorld = MulM4V4(camera->conf.invViewMatrix, mouseView).xyz;
         mouseWorld = Normalize(mouseWorld);
         camera->mouseRayRH = mouseWorld;
+        DEBUG_OVERLAY_TRACE(camera->conf.front);
+
     }
 
     internal void
@@ -388,8 +390,11 @@ namespace soko
 
         v4 mouseView = MulM4V4(camera->conf.invProjectionMatrix, mouseClip);
         mouseView = V4(mouseView.xy, -1.0f, 0.0f);
+        DEBUG_OVERLAY_TRACE(mouseView);
         v3 mouseWorld = MulM4V4(camera->conf.invViewMatrix, mouseView).xyz;
         mouseWorld = Normalize(mouseWorld);
-        camera->mouseRayRH = mouseWorld;
+        camera->mouseRayRH = V3(mouseWorld.x, mouseWorld.y, mouseWorld.z);
+        DEBUG_OVERLAY_TRACE(camera->mouseRayRH);
+        DEBUG_OVERLAY_TRACE(camera->conf.front);
     }
 }
