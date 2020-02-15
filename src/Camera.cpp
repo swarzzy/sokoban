@@ -294,7 +294,7 @@ namespace soko
 
         camera->frameAcceleration = RHToWorld(camera->frameAcceleration);
 
-        if (GlobalInput.mouseButtons[AB::MBUTTON_MIDDLE].pressedNow)
+        if (GlobalInput.mouseButtons[AB::MBUTTON_RIGHT].pressedNow)
         {
             v2 mousePos;
             f32 speed = camera->rotSpeed;

@@ -927,7 +927,7 @@ namespace soko
 
         DirectionalLight light = {};
         light.dir = Normalize(V3(1.0f, -5.0f, -2.5f));
-        light.from = V3(0.0f, 1.5f, 10.0f) + WorldToRH(GetRelPos(gameState->session.editorCamera->worldPos, WorldPos{}));
+        light.from = V3(0.0f, 0.5f, 10.0f) + WorldToRH(GetRelPos(gameState->session.editorCamera->worldPos, WorldPos{}));
         light.ambient = V3(0.6f);
         local_persist v3 diffuse = V3(1.0f);
         DEBUG_OVERLAY_SLIDER(diffuse, 0.0f, 100.0f);

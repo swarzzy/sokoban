@@ -23,7 +23,8 @@ namespace soko
         EntityMesh_Box,
         EntityMesh_Altar,
         EntityMesh_Cat,
-        EntityMesh_Plane
+            EntityMesh_Plane,
+            EntityMesh_PrevSphere
     };
 
     enum [reflect seq_enum] EntityMaterial

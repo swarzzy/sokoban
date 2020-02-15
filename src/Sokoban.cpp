@@ -443,6 +443,7 @@ namespace soko
         gameState->meshes[EntityMesh_Altar] = LoadMesh(gameState->tempArena, L"../res/mesh/altar.aab");
         gameState->meshes[EntityMesh_Cat] = LoadMesh(gameState->tempArena, L"../res/mesh/cat.aab");
         gameState->meshes[EntityMesh_Plane] = LoadMesh(gameState->tempArena, L"../res/mesh/plane.aab");
+        gameState->meshes[EntityMesh_PrevSphere] = LoadMesh(gameState->tempArena, L"../res/mesh/preview_sphere.aab");
 
 
         EndTemporaryMemory(&tempMem);
